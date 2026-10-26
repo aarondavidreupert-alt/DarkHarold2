@@ -266,6 +266,32 @@ export module Scripting {
         userdata: any
     }
 
+    // CE critter.cc critterAdjustHitPoints: capped at Max HP; at 0 or less the critter dies
+    function critterAdjustHitPoints(c: Critter, delta: number): void {
+        c.stats.modifyBase('HP', delta)
+        const max = c.getStat('Max HP')
+        const hp = c.getStat('HP')
+        if (hp > max) c.stats.modifyBase('HP', max - hp)
+        else if (hp <= 0 && !c.dead) critterKill(c)
+    }
+
+    // The dude's trait part of a SPECIAL base (DH2 keeps Gifted, Bruiser and Small Frame in
+    // the base; CE traitGetStatModifier)
+    function traitSpecialPart(c: Critter, stat: number): number {
+        if (!c.isPlayer) return 0
+        const t: string[] = (c as any).traits ?? []
+        let n = t.includes('Gifted') ? 1 : 0
+        if (stat === 0 && t.includes('Bruiser')) n += 2
+        if (stat === 5 && t.includes('Small Frame')) n += 1
+        return n
+    }
+
+    export function setGameUiDisabled(disabled: boolean): void {
+        globalState.gameUIDisabled = disabled
+        const $bar = document.getElementById('bar')
+        if ($bar) $bar.style.pointerEvents = disabled ? 'none' : ''
+    }
+
     var statMap: { [stat: number]: string } = {
         0: 'STR',
         1: 'PER',
@@ -1196,7 +1222,7 @@ export module Scripting {
             // STAT_POISON_RESISTANCE 32) can't be set; current HP / poison / radiation (35-37)
             // route through their adjust functions with the delta.
             if (stat > 6 && stat <= 32) return 0
-            if (stat === 35) { (obj as Critter).stats.modifyBase('HP', value); return 0 }
+            if (stat === 35) { critterAdjustHitPoints(obj as Critter, value); return 0 }
             if (stat === 36) { this.poison(obj, value); return 0 }
             if (stat === 37) { critterAdjustRadiation(obj as Critter, value); return 0 }
             const statName = statMap[stat]
@@ -2482,11 +2508,29 @@ export module Scripting {
         set_critter_extra_stat(obj: Critter, stat: number, value: number) { this.setCritterStatPart(obj, stat, value, true) }
         get_critter_base_stat(obj: Critter, stat: number) { return this.getCritterStatPart(obj, stat, false) }
         get_critter_extra_stat(obj: Critter, stat: number) { return this.getCritterStatPart(obj, stat, true) }
+        // CE stat.cc critterSetBonusStat / critterSetBaseStat (sfall set_*_extra_stat /
+        // set_*_base_stat): current HP / poison / radiation (35-37) go through their adjust
+        // functions — the bonus by the value, the base to the value; a derived stat's base
+        // can't be set; a SPECIAL base outside 1..10 (less the dude's trait part) is refused.
         private setCritterStatPart(obj: Critter, stat: number, value: number, bonus: boolean) {
+            if (!isGameObject(obj) || obj.type !== 'critter') return
+            if (stat >= 35 && stat <= 37) {
+                const current = stat === 35 ? obj.getStat('HP') : stat === 36 ? (obj.poisonLevel ?? 0) : (obj.radiationLevel ?? 0)
+                const delta = bonus ? value : value - current
+                if (stat === 35) critterAdjustHitPoints(obj, delta)
+                else if (stat === 36) this.poison(obj, delta)
+                else critterAdjustRadiation(obj, delta)
+                return
+            }
             const name = statMap[stat]
-            if (!isGameObject(obj) || obj.type !== 'critter' || !name) return
-            if (bonus) obj.stats.setBonus(name, value)
-            else obj.stats.setBase(name, value) // CE critterSetBaseStat
+            if (!name) return
+            if (bonus) { obj.stats.setBonus(name, value); return }
+            if (stat > 6 && stat <= 32) return // -1: a derived stat
+            if (stat <= 6) {
+                const own = value - traitSpecialPart(obj, stat)
+                if (own < 1 || own > 10) return // -2 / -3
+            }
+            obj.stats.setBase(name, value)
         }
         private getCritterStatPart(obj: Critter, stat: number, bonus: boolean): number {
             const name = statMap[stat]
@@ -3305,7 +3349,10 @@ export module Scripting {
             else if (cmd === 3) this.reg_anim_end()            // OP_REG_ANIM_FUNC_END
         }
 
+        // CE animation.cc reg_anim_begin: refused (−1) while a batch is still being built —
+        // the steps keep going into that one
         reg_anim_begin(_flags: number) {
+            if (animBatch !== null) return
             animBatch = []
         }
 
@@ -3351,6 +3398,13 @@ export module Scripting {
             }
             const batch = animBatch
             animBatch = null
+            // CE animation.cc _anim_preload (reg_anim_end → animationRunSequence): a step whose
+            // critter art is missing drops the whole sequence
+            if (batch.some((e) => e.kind === 'animate' && e.anim !== 0 && e.obj.type === 'critter'
+                && !(e.obj as Critter).hasAnimation('anim:' + e.anim))) {
+                warn('reg_anim_end: a step has no art — the sequence is dropped (CE _anim_preload)', 'animation')
+                return
+            }
 
             // CE animation.cc animationRunSequence / _anim_set_continue: step 0 starts at once;
             // then a step with delay 0 starts together with the previous one, N > 0 starts N
@@ -3382,9 +3436,21 @@ export module Scripting {
                     const c = entry.obj as Critter
                     const arrived = () => { c.clearAnim?.(); done() }
                     if (typeof c.walkTo !== 'function') { entry.obj.position = { ...dest }; return done() }
-                    // CE animationRegisterMoveToObject: to the tile next to the object
-                    const target = (entry.to as any).position ? hexNearestNeighbor(c.position, dest)?.hex ?? dest : dest
-                    if (!c.walkTo(target, entry.run, arrived)) arrived()
+                    // CE animationRegisterMoveToObject: a path onto the object's tile (it may be
+                    // occupied) less the last step — two for a multihex object.
+                    // animationRegisterMoveToTile (_anim_move, a5 = 0): onto the tile; an
+                    // occupied one stops a step short.
+                    const gMap = globalState.gMap
+                    const path = gMap.recalcPath(c.position, dest, false, c)
+                    if (path.length === 0) return arrived()
+                    const toObj = (entry.to as any).position !== undefined
+                    let drop = 0
+                    if (toObj) drop = ((((entry.to as any).flags ?? 0) & 0x800) !== 0) ? 2 : 1
+                    else if (gMap.blockingObjectAt(toTileNum(dest), (c as any).elevation ?? gMap.currentElevation, 0, c) !== null) drop = 1
+                    path.length = Math.max(1, path.length - drop)
+                    if (path.length < 2) return arrived()
+                    const last = path[path.length - 1]
+                    if (!c.walkTo({ x: last[0], y: last[1] }, entry.run, arrived, undefined, path)) arrived()
                     return
                 }
                 if (entry.kind === 'forever') {
@@ -3645,17 +3711,14 @@ export module Scripting {
             globalState.mapAreas[areaKey].worldPosition = { x, y }
             Worldmap.updateAreaMarkerPos(areaKey, x, y)
         }
+        // CE game.cc gameUiDisable / gameUiEnable — in-world input stops (input.ts) and
+        // interfaceBarDisable: the bar stays on screen with its buttons and the message
+        // log's scroll buttons disabled (new messages still arrive)
         game_ui_disable() {
-            // CE ref: interface.cc gameUiDisable() — blocks in-world player input
-            // AND hides the bottom HUD bar (interface windows are torn down).
-            globalState.gameUIDisabled = true
-            const $bar = document.getElementById('bar')
-            if ($bar) $bar.style.visibility = 'hidden'
+            setGameUiDisabled(true)
         }
         game_ui_enable() {
-            globalState.gameUIDisabled = false
-            const $bar = document.getElementById('bar')
-            if ($bar) $bar.style.visibility = 'visible'
+            setGameUiDisabled(false)
         }
 
         // sound

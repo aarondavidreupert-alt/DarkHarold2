@@ -24,6 +24,19 @@ import globalState from './globalState.js'
 import { hexDistance } from './geometry.js'
 import { combatIsShotBlocked } from './combat/lineOfFire.js'
 import type { Critter, Obj } from './object.js'
+import { uiLog } from './ui_hud.js'
+import { getMessage } from './util.js'
+
+// CE actions.cc _can_talk_to (a forced callback: it runs even when the walk failed) — still
+// 9 or more hexes away, or out of sight: misc.msg 2000 "You cannot get there." and no talk
+function canTalkTo(player: Critter, target: Obj): boolean {
+    if (hexDistance(player.position, target.position) >= 9
+        || combatIsShotBlocked(player, player.position, target.position, target).blocked) {
+        uiLog(getMessage('misc', 2000) ?? 'You cannot get there.')
+        return false
+    }
+    return true
+}
 
 export function approachToTalk(player: Critter, target: Obj, talk: () => void): void {
     if (Config.engine.talkMode === 'ce' && !globalState.inCombat) {
@@ -33,8 +46,9 @@ export function approachToTalk(player: Critter, target: Obj, talk: () => void): 
             return
         }
     }
-    player.walkInFrontOf(target.position, () => {
+    const walked = player.walkInFrontOf(target.position, () => {
         player.clearAnim()
-        talk()
+        if (canTalkTo(player, target)) talk()
     })
+    if (!walked && canTalkTo(player, target)) talk()
 }

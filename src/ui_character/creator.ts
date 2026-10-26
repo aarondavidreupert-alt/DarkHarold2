@@ -23,17 +23,18 @@ import { Config } from '../config.js'
 import globalState from '../globalState.js'
 import { Widget } from '../ui_widget.js'
 import { renderStatPanels } from './statPanels.js'
-import { font2, font3, makeFontLabel, renderBignum } from '../ui_font.js'
+import { font2, font3, makeFontLabel, renderBignum, setBignum } from '../ui_font.js'
 import { WindowFrame, SmallButton, Label } from '../ui_components.js'
 import { makePanelDraggable } from '../ui_drag.js'
 import { StatSet, SkillSet, SkillCalcOptions } from '../char.js'
 import {
-    SPECIAL_FULL_NAMES, SPECIAL_DESCRIPTIONS, SKILL_DESCRIPTIONS,
-    DERIVED_DESCRIPTIONS, CONDITION_DESCRIPTIONS, TRAIT_DESCRIPTIONS,
+    SPECIAL_NAMES, SPECIAL_TEXTS, SKILL_TEXTS, DERIVED_TEXTS, CONDITION_TEXTS, TRAIT_TEXTS,
+    skillTitle, skillSubtitle, derivedTitle, conditionTitle, traitTitle,
     SPECIAL_IMG, SKILL_IMG, DERIVED_IMG, CONDITION_IMG, TRAIT_IMG,
-    statComment, STATS, SKILLS, TRAITS,
+    statComment, STATS, SKILLS, TRAITS, EDITOR_CARDS,
 } from './descriptions.js'
-import { editorRefuse, setCharacterWindow } from './viewer.js'
+import { editorRefuse, renderCardTitle, setCharacterWindow } from './viewer.js'
+import { skillDependencies } from '../skills.js'
 import { showAlert, showConfirm } from '../ui_dialog.js'
 import { showCreatorOptions } from './creatorOptions.js'
 import { getMessage } from '../util.js'
@@ -137,7 +138,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
         .add(makeFontLabel(455 + 18, 454, 'DONE', font3).css({ pointerEvents: 'none' }))
         .add(cancelBtn)
         .add(makeFontLabel(552 + 18, 454, 'CANCEL', font3).css({ pointerEvents: 'none' }))
-        .add(makeFontLabel(380, 5, 'Skills', font3))
+        .add(makeFontLabel(380, 5, 'Skills', font3).css({ cursor: 'pointer' }).onClick(() => creatorCard('skills')))
         .add(panel2)
         .add(panel3)
         .add(skillPointBignumW)
@@ -209,16 +210,21 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
     })
     cardBodyEl.appendChild(cardDescEl)
 
-    const showInfoCard = (title: string, desc: string, imgPath?: string): void => {
+    const showInfoCard = (title: string, desc: string, imgPath?: string, subtitle?: string): void => {
         if (cardTitleEl.firstChild && cardTitleEl.firstChild !== cardDividerEl) cardTitleEl.removeChild(cardTitleEl.firstChild)
-        cardTitleEl.insertBefore(font2.renderText(title.toUpperCase(), '#000000'), cardDividerEl)
+        cardTitleEl.insertBefore(renderCardTitle(title, subtitle), cardDividerEl)
         cardDescEl.textContent = desc
         if (imgPath) {
             cardImgEl.src = assetUrl(imgPath)
+            cardImgEl.style.visibility = 'visible'
         } else {
             cardImgEl.src = ''
             cardImgEl.style.visibility = 'hidden'
         }
+    }
+    const creatorCard = (key: keyof typeof EDITOR_CARDS): void => {
+        const [t, d, img] = EDITOR_CARDS[key]()
+        showInfoCard(t, d, img)
     }
 
     // ── Stat value widgets (bignum displays) ──────────────────────────────────
@@ -229,7 +235,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
     for (const stat of STATS) {
         const valW = new Widget(null, { x: 59, y: 37 + n, w: 28, h: 28 })
         valW.css({ cursor: 'pointer' }).onClick(() => {
-            showInfoCard(SPECIAL_FULL_NAMES[stat], SPECIAL_DESCRIPTIONS[stat], SPECIAL_IMG[stat])
+            showInfoCard(SPECIAL_NAMES[stat], SPECIAL_TEXTS[stat], SPECIAL_IMG[stat])
         })
         statValueWidgets.push(valW.elem)
         characterWindow.add(valW)
@@ -248,8 +254,9 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
         position: 'absolute',
         left: '15px',
         top: '287px',
-        pointerEvents: 'none',
+        cursor: 'pointer',
     })
+    poolTextEl.onclick = () => creatorCard('characterPoints')
     font3.onLoad(() => {
         poolTextEl.appendChild(font3.renderText('Char Points', '#907824'))
     })
@@ -265,8 +272,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
     characterWindow.elem.appendChild(poolBignumContainer)
 
     const updatePoolLabel = () => {
-        while (poolBignumContainer.firstChild) poolBignumContainer.removeChild(poolBignumContainer.firstChild)
-        poolBignumContainer.appendChild(renderBignum(pool, 2))
+        setBignum(poolBignumContainer, pool)
     }
     updatePoolLabel()
 
@@ -436,8 +442,14 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
             contentEl.style.position = 'relative'
             contentEl.appendChild(nameBoxBg)
 
+            // CE characterEditorEditName: "None" starts empty; _get_input_str (flags 0) takes
+            // KEY_FIRST_INPUT_CHARACTER..KEY_LAST_INPUT_CHARACTER (space .. 'z'), 11 at most
             const inp = document.createElement('input')
-            Object.assign(inp, { type: 'text', maxLength: 11, value: playerName })
+            Object.assign(inp, { type: 'text', maxLength: 11, value: playerName === 'None' ? '' : playerName })
+            inp.addEventListener('input', () => {
+                const kept = inp.value.replace(/[^\x20-\x7a]/g, '')
+                if (kept !== inp.value) inp.value = kept
+            })
             Object.assign(inp.style, {
                 position: 'relative', zIndex: '2',
                 fontSize: '0.9em', color: '#907824',
@@ -463,8 +475,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
             const bignumEl = document.createElement('div')
 
             const refreshBignum = () => {
-                while (bignumEl.firstChild) bignumEl.removeChild(bignumEl.firstChild)
-                bignumEl.appendChild(renderBignum(popupAge, 2))
+                setBignum(bignumEl, popupAge)
             }
             refreshBignum()
 
@@ -713,12 +724,12 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
                 void editorRefuse(148, 149) // CE characterEditorToggleOptionalTrait
                 return
             }
-            showInfoCard(capturedTrait, TRAIT_DESCRIPTIONS[capturedTrait], TRAIT_IMG[capturedTrait])
+            showInfoCard(traitTitle(capturedTrait), TRAIT_TEXTS[capturedTrait], TRAIT_IMG[capturedTrait])
         }
 
         row.onclick = handleClick
         row.onmouseenter = () => {
-            showInfoCard(capturedTrait, TRAIT_DESCRIPTIONS[capturedTrait], TRAIT_IMG[capturedTrait])
+            showInfoCard(traitTitle(capturedTrait), TRAIT_TEXTS[capturedTrait], TRAIT_IMG[capturedTrait])
         }
 
         container.appendChild(row)
@@ -732,8 +743,9 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
         position: 'absolute',
         left: '48px',
         top: '327px',
-        pointerEvents: 'none',
+        cursor: 'pointer',
     })
+    optionalTraitsLabelEl.onclick = () => creatorCard('optionalTraits')
     font3.onLoad(() => {
         optionalTraitsLabelEl.appendChild(font3.renderText('Optional Traits', '#907824'))
     })
@@ -769,8 +781,8 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
             conditions: [false, false, false, false, false, false, false],
             stats: view,
             onInfo: (label, kind) => kind === 'condition'
-                ? showInfoCard(label, CONDITION_DESCRIPTIONS[label] ?? label, CONDITION_IMG[label])
-                : showInfoCard(label, DERIVED_DESCRIPTIONS[label] ?? label, DERIVED_IMG[label]),
+                ? showInfoCard(conditionTitle(label), CONDITION_TEXTS[label] ?? label, CONDITION_IMG[label])
+                : showInfoCard(derivedTitle(label), DERIVED_TEXTS[label] ?? label, DERIVED_IMG[label]),
         })
     }
 
@@ -783,8 +795,9 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
         position: 'absolute',
         left: '417px',
         top: '233px',
-        pointerEvents: 'none',
+        cursor: 'pointer',
     })
+    tagLabelEl.onclick = () => creatorCard('tagSkills')
     font3.onLoad(() => {
         tagLabelEl.appendChild(font3.renderText('Tag Skills', '#907824'))
     })
@@ -800,8 +813,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
     characterWindow.elem.appendChild(tagBignumContainer)
 
     const updateTagBignum = () => {
-        while (tagBignumContainer.firstChild) tagBignumContainer.removeChild(tagBignumContainer.firstChild)
-        tagBignumContainer.appendChild(renderBignum(3 - newSkillSet.tagged.length, 2))
+        setBignum(tagBignumContainer, 3 - newSkillSet.tagged.length)
     }
     updateTagBignum()
 
@@ -860,7 +872,8 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
             row.appendChild(pctSpan)
 
             row.onmouseenter = () => {
-                showInfoCard(capturedSkill, SKILL_DESCRIPTIONS[capturedSkill] ?? capturedSkill, SKILL_IMG[capturedSkill])
+                showInfoCard(skillTitle(capturedSkill), SKILL_TEXTS[capturedSkill] ?? capturedSkill, SKILL_IMG[capturedSkill],
+                    skillSubtitle(capturedSkill, skillDependencies[capturedSkill]?.startValue ?? 0))
             }
 
             skillRowsEl.appendChild(row)
@@ -868,11 +881,10 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
 
         for (let i = 0; i < STATS.length; i++) {
             const el = statValueWidgets[i]
-            while (el.firstChild) el.removeChild(el.firstChild)
             // CE shows the SPECIAL with its trait modifier (critterGetBaseStatWithTraitModifier)
             const st = STATS[i]
             const base = newStatSet.getBase(st) + traitSpecialMod(st)
-            el.appendChild(renderBignum(base, 2))
+            setBignum(el, base)
             statCommentLabels[i].setText(statComment(base))
         }
 
@@ -960,5 +972,5 @@ ${msg(161)}`))) return
 
     // ── Initial render ────────────────────────────────────────────────────────
     redrawStatsSkills()
-    showInfoCard(SPECIAL_FULL_NAMES['STR'], SPECIAL_DESCRIPTIONS['STR'], SPECIAL_IMG['STR'])
+    showInfoCard(SPECIAL_NAMES['STR'], SPECIAL_TEXTS['STR'], SPECIAL_IMG['STR'])
 }

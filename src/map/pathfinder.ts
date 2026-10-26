@@ -50,8 +50,9 @@ interface PathNode { tile: number; from: number; rotation: number; estimate: num
 // The blocking object per tile (CE _obj_blocking_at: OBJECT_MULTIHEX objects also
 // block the six hexes around them), and the goo tiles. `shoot`: CE
 // _obj_shoot_blocking_at instead — living critters, scenery and walls that aren't
-// both NO_BLOCK and SHOOT_THRU (multihex neighbours: not NO_BLOCK).
-function blockingMap(mover: Obj | null, elevation: number, shoot = false): { block: Map<number, Obj>; goo: Set<number> } {
+// both NO_BLOCK and SHOOT_THRU (multihex neighbours: not NO_BLOCK). 'sight': CE
+// _obj_sight_blocking_at — visible scenery and walls without OBJECT_LIGHT_THRU.
+function blockingMap(mover: Obj | null, elevation: number, shoot: boolean | 'sight' = false): { block: Map<number, Obj>; goo: Set<number> } {
     const block = new Map<number, Obj>()
     const goo = new Set<number>()
     const W = HEX_GRID_SIZE
@@ -61,6 +62,12 @@ function blockingMap(mover: Obj | null, elevation: number, shoot = false): { blo
         if (x < 0 || x >= W || y < 0 || y >= W) continue
         const pid = (o as any).pid as number | undefined
         if (pid !== undefined && pid >= FIRST_RADIOACTIVE_GOO_PID && pid <= LAST_RADIOACTIVE_GOO_PID) goo.add(y * W + x)
+        if (shoot === 'sight') {
+            const flags = ((o as any).flags ?? 0) >>> 0
+            if ((o.type === 'scenery' || o.type === 'wall') && (flags & 0x01) === 0 && (o as any).visible !== false
+                && (flags & 0x20000000) === 0 && !block.has(y * W + x)) block.set(y * W + x, o)
+            continue
+        }
         if (shoot) {
             const flags = ((o as any).flags ?? 0) >>> 0
             const kind = o.type === 'scenery' || o.type === 'wall' || (o.type === 'critter' && !(o as any).dead)
@@ -89,8 +96,8 @@ function blockingMap(mover: Obj | null, elevation: number, shoot = false): { blo
 
 // Returns the rotations from `from` to `to` (empty: no path). `goalMustBeFree` is CE's
 // a5: the goal tile itself must not be blocked; `shoot` checks with
-// _obj_shoot_blocking_at (CE's blocking-function argument).
-export function pathfinderFindPath(mover: Obj | null, from: Point, to: Point, goalMustBeFree: boolean, shoot = false): number[] {
+// _obj_shoot_blocking_at (CE's blocking-function argument), 'sight' _obj_sight_blocking_at.
+export function pathfinderFindPath(mover: Obj | null, from: Point, to: Point, goalMustBeFree: boolean, shoot: boolean | 'sight' = false): number[] {
     const W = HEX_GRID_SIZE
     const fromTile = from.y * W + from.x
     const toTile = to.y * W + to.x

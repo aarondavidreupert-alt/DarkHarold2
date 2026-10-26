@@ -15,7 +15,7 @@ import { Scripting } from '../scripting.js'
 import { getFileJSON, getFileText, getMessage } from '../util.js'
 import { Worldmap } from '../worldmap.js'
 import { font1 } from '../ui_font.js'
-import { TRAITS, TRAIT_DESCRIPTIONS } from './descriptions.js'
+import { TRAITS, TRAIT_TEXTS, traitTitle } from './descriptions.js'
 import { assetUrl } from '../modAssets.js'
 
 const GREEN = '#3cf800' // _colorTable[992]
@@ -68,7 +68,7 @@ function perksFolder(player: any): { lines: Line[]; fallback: Card } {
         lines.push({ kind: 'heading', text: editorMsg(156), card: { frmId: 54, title: editorMsg(146), description: editorMsg(147) } })
         for (const t of traits) {
             const idx = TRAITS.indexOf(t)
-            lines.push({ kind: 'string', text: t, card: { frmId: TRAIT_FRM_IDS[idx] ?? 54, title: t, description: TRAIT_DESCRIPTIONS[t] ?? '' } })
+            lines.push({ kind: 'string', text: t, card: { frmId: TRAIT_FRM_IDS[idx] ?? 54, title: traitTitle(t), description: TRAIT_TEXTS[t] ?? '' } })
         }
     }
     const ranks: [number, number][] = []

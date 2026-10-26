@@ -27,8 +27,8 @@ import { getActiveQuests, getUnknownActiveGvars } from '../../questLog.js'
 import { getHolodiskDefs, type HolodiskDef } from '../../questData.js'
 import { CONTENT_H, CONTENT_W, TEXT_STYLE, clearScreen, makeContentArea } from '../shell.js'
 
-const GREEN = '#00FF00'      // _colorTable[992]
-const HIGHLIGHT = '#FFFF5A'  // _colorTable[32747]
+const GREEN = '#3cf800'      // _colorTable[992]
+const HIGHLIGHT = '#fcfc7c'  // _colorTable[32747]
 const DONE = '#42982A'       // _colorTable[8804]
 const LINE_H = 12
 const PIPBOY_HOLODISK_LINES_MAX = 35

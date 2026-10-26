@@ -150,6 +150,20 @@ function uiInit() {
         }
     }
 
+    // CE interface.cc interfaceInit: the bar's buttons sound _gsound_med_butt_press /
+    // _release (ib2p1xx1 / ib2lu1x1), the item button the large pair (ib3…); the
+    // inventory button is wired in ui_inventory/panel.ts
+    const barSounds = (id: string, press: string, release: string) => {
+        const el = document.getElementById(id)
+        if (!el) return
+        el.addEventListener('mousedown', (e) => { if (e.button === 0) globalState.audioEngine?.playSfxByName?.(press) })
+        el.addEventListener('mouseup', (e) => { if (e.button === 0) globalState.audioEngine?.playSfxByName?.(release) })
+    }
+    for (const id of ['optionsButton', 'skilldexButton', 'mapButton', 'pipBoyButton', 'chrButton', 'handSwapButton']) {
+        barSounds(id, 'ib2p1xx1', 'ib2lu1x1')
+    }
+    barSounds('attackButtonContainer', 'ib3p1xx1', 'ib3lu1x1')
+
     document.getElementById('pipBoyButton')!.onclick = () => {
         if (isPipBoyOpen()) { closePipBoy(); return }
         closeAllPanels()

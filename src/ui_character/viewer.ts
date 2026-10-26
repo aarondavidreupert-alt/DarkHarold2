@@ -25,17 +25,31 @@ import globalState from '../globalState.js'
 import { UIMode } from '../ui_panels.js'
 import { dbg, dbgWarn } from '../logger.js'
 import { Widget } from '../ui_widget.js'
-import { font2, font3, makeFontLabel, renderBignum } from '../ui_font.js'
-import { updateIndicatorBar } from '../ui_hud.js'
+import { font1, font2, font3, makeFontLabel, renderBignum, setBignum } from '../ui_font.js'
+import { skillDependencies } from '../skills.js'
+
+// CE characterEditorDrawCardWithOptions: the title in font 102, and the attributes line (a
+// skill's "Base: 5% + (4 x AG)") in font 101 8 px after it, on the title's baseline
+export function renderCardTitle(title: string, subtitle?: string): HTMLElement {
+    const row = document.createElement('div')
+    Object.assign(row.style, { display: 'flex', alignItems: 'flex-end', gap: '8px', whiteSpace: 'nowrap' })
+    row.appendChild(font2.renderText(title.toUpperCase(), '#000000'))
+    if (subtitle) row.appendChild(font1.renderText(subtitle, '#000000'))
+    return row
+}
+import { setIndicatorBarHidden, updateIndicatorBar } from '../ui_hud.js'
 import { WindowFrame, SmallButton, Label } from '../ui_components.js'
 import { makePanelDraggable } from '../ui_drag.js'
 import { PERKS } from '../perks.js'
 import {
-    SPECIAL_FULL_NAMES, SPECIAL_DESCRIPTIONS, SKILL_DESCRIPTIONS,
-    DERIVED_DESCRIPTIONS, CONDITION_DESCRIPTIONS, TRAIT_DESCRIPTIONS,
+    SPECIAL_NAMES, SPECIAL_TEXTS, SKILL_TEXTS, DERIVED_TEXTS, CONDITION_TEXTS, TRAIT_TEXTS,
+    skillTitle, skillSubtitle, derivedTitle, conditionTitle, traitTitle,
     SPECIAL_IMG, SKILL_IMG, DERIVED_IMG, CONDITION_IMG, TRAIT_IMG,
-    statComment, FOLDER_TABS, STATS, SKILLS,
+    statComment, FOLDER_TABS, STATS, SKILLS, EDITOR_CARDS,
 } from './descriptions.js'
+
+// The editor-line cards (Level, Exp, …); set once the card area exists
+let editorCard: (key: keyof typeof EDITOR_CARDS) => void = () => {}
 import { showPerkModal } from './perkModal.js'
 import { ADDICTION_KARMA_GVARS } from '../drugs.js'
 import { Scripting } from '../scripting.js'
@@ -72,6 +86,7 @@ export function setCharacterWindow(w: WindowFrame): void {
 }
 
 export function closeCharacterScreen(): void {
+    setIndicatorBarHidden(false) // CE characterEditorWindowFree
     if (_statsChangedHandler) { Events.off('statsChanged', _statsChangedHandler); _statsChangedHandler = null }
     if (characterWindow && characterWindow.showing) {
         characterWindow.close()
@@ -86,9 +101,11 @@ export function showCharacterScreen() {
     // CE character_editor.cc characterEditorShow: DUDE_STATE_LEVEL_UP_AVAILABLE goes out
     player.levelUpAvailable = false
     updateIndicatorBar()
+    setIndicatorBarHidden(true) // CE characterEditorWindowInit
     // CE characterEditorSavePlayer / characterEditorRestorePlayer: CANCEL puts the perks,
     // the free perk, traits, SPECIAL / HP and skills back as they were when the screen opened
     const saved = {
+        editorLastLevel: player.editorLastLevel,
         perks: player.perks.slice(),
         traits: ((player as any).traits ?? []).slice(),
         pendingPerkPick: player.pendingPerkPick,
@@ -100,6 +117,7 @@ export function showCharacterScreen() {
         hasTagPerk: player.skills.hasTagPerk,
     }
     const cancel = () => {
+        player.editorLastLevel = saved.editorLastLevel
         player.perks = saved.perks
         ;(player as any).traits = saved.traits
         player.pendingPerkPick = saved.pendingPerkPick
@@ -113,10 +131,19 @@ export function showCharacterScreen() {
         Events.emit('statsChanged')
         closeCharacterScreen()
     }
+    // CE characterEditorShow: characterEditorSavePlayer, then characterEditorUpdateLevel (so
+    // CANCEL takes the level's points back; they come again on the next opening)
+    player.editorUpdateLevel()
 
     // FO2-CE ref: stat.cc pcGetExperienceForLevel() — XP needed for next level
     const currentLevel = player.getStat('Level')
     const nextLevelXP = Math.floor((currentLevel + 1) * currentLevel / 2) * 1000
+    // CE characterEditorDrawPcStats: _itostndn's thousands commas; pcGetExperienceForNextLevel
+    // is −1 at PC_LEVEL_MAX (99) — no number; above 999,999 the short label (editor.msg 175)
+    const itostndn = (n: number) => n.toLocaleString('en-US')
+    const atMax = currentLevel >= 99
+    const nextLabel = getMessage('editor', !atMax && nextLevelXP > 999999 ? 175 : 115) ?? 'Next Level:'
+    const nextText = atMax ? nextLabel + ' ' : `${nextLabel} ${itostndn(nextLevelXP)}`
 
     // Skill point bignum container
     const skillPointBignumW = new Widget(null, { x: 523, y: 228, w: 28, h: 28 })
@@ -207,22 +234,25 @@ export function showCharacterScreen() {
             new Label(32, 280, `${getMessage('editor', 113) ?? 'Level:'} ${currentLevel}`).css({
                 fontSize: '0.69em',
                 color: '#3cf800',
-            })
+                cursor: 'pointer',
+            }).onClick(() => editorCard('level'))
         )
         .add(
-            new Label(32, 291, `${getMessage('editor', 114) ?? 'Exp:'} ${player.getStat('Experience')}`).css({
+            new Label(32, 291, `${getMessage('editor', 114) ?? 'Exp:'} ${itostndn(player.getStat('Experience'))}`).css({
                 fontSize: '0.69em',
                 color: '#3cf800',
-            })
+                cursor: 'pointer',
+            }).onClick(() => editorCard('experience'))
         )
         .add(
-            new Label(32, 302, `${getMessage('editor', 115) ?? 'Next Level:'} ${nextLevelXP}`).css({
+            new Label(32, 302, nextText).css({
                 fontSize: '0.69em',
                 color: '#3cf800',
-            })
+                cursor: 'pointer',
+            }).onClick(() => editorCard('nextLevel'))
         )
-        .add(makeFontLabel(380, 5, 'Skills', font3))
-        .add(makeFontLabel(399, 233, 'Skill Points', font3))
+        .add(makeFontLabel(380, 5, 'Skills', font3).css({ cursor: 'pointer' }).onClick(() => editorCard('skills')))
+        .add(makeFontLabel(399, 233, 'Skill Points', font3).css({ cursor: 'pointer' }).onClick(() => editorCard('skillPoints')))
         .add(panel2)
         .add(panel3)
         .add(skillPointBignumW)
@@ -431,23 +461,25 @@ export function showCharacterScreen() {
     })
     cardBodyEl.appendChild(cardDescEl)
 
-    const drawCard = (title: string, desc: string, imgPath?: string): void => {
+    const drawCard = (title: string, desc: string, imgPath?: string, subtitle?: string): void => {
         if (cardTitleEl.firstChild && cardTitleEl.firstChild !== cardDividerEl) cardTitleEl.removeChild(cardTitleEl.firstChild)
-        cardTitleEl.insertBefore(font2.renderText(title.toUpperCase(), '#000000'), cardDividerEl)
+        cardTitleEl.insertBefore(renderCardTitle(title, subtitle), cardDividerEl)
         cardDescEl.textContent = desc
         if (imgPath) {
             cardImgEl.src = assetUrl(imgPath)
+            cardImgEl.style.visibility = 'visible'
         } else {
             cardImgEl.src = ''
             cardImgEl.style.visibility = 'hidden'
         }
     }
     // A card of the stats / skills / traits: the folder loses its selection.
-    const showInfoCard = (title: string, desc: string, imgPath?: string): void => {
+    const showInfoCard = (title: string, desc: string, imgPath?: string, subtitle?: string): void => {
         folderView?.blur()
-        drawCard(title, desc, imgPath)
+        drawCard(title, desc, imgPath, subtitle)
     }
     // ── end info card ──────────────────────────────────────────────────────────
+    editorCard = (key) => { const [t, d, img] = EDITOR_CARDS[key](); showInfoCard(t, d, img) }
 
     folderView = createFolderView(characterWindow.elem, player, drawCard)
 
@@ -461,7 +493,7 @@ export function showCharacterScreen() {
         const valW = new Widget(null, { x: 59, y: 37 + n, w: 28, h: 28 })
         valW.css({ cursor: 'pointer' }).onClick(() => {
             selectedStat = stat
-            showInfoCard(SPECIAL_FULL_NAMES[stat], SPECIAL_DESCRIPTIONS[stat], SPECIAL_IMG[stat])
+            showInfoCard(SPECIAL_NAMES[stat], SPECIAL_TEXTS[stat], SPECIAL_IMG[stat])
         })
         statValueWidgets.push(valW.elem)
         characterWindow.add(valW)
@@ -506,8 +538,7 @@ export function showCharacterScreen() {
     }
 
     const updateSkillPointBignum = () => {
-        while (skillPointBignumEl.firstChild) skillPointBignumEl.removeChild(skillPointBignumEl.firstChild)
-        skillPointBignumEl.appendChild(renderBignum(newSkillSet.skillPoints, 2))
+        setBignum(skillPointBignumEl, newSkillSet.skillPoints)
     }
 
     // FO2-CE ref: editor.cc EDITOR_* condition flags
@@ -528,8 +559,8 @@ export function showCharacterScreen() {
             conditions: CONDITIONS.map(([, active]) => active()),
             stats: newStatSet,
             onInfo: (label, kind) => kind === 'condition'
-                ? showInfoCard(label, CONDITION_DESCRIPTIONS[label] ?? label, CONDITION_IMG[label])
-                : showInfoCard(label, DERIVED_DESCRIPTIONS[label] ?? label, DERIVED_IMG[label]),
+                ? showInfoCard(conditionTitle(label), CONDITION_TEXTS[label] ?? label, CONDITION_IMG[label])
+                : showInfoCard(derivedTitle(label), DERIVED_TEXTS[label] ?? label, DERIVED_IMG[label]),
         })
     }
 
@@ -563,16 +594,16 @@ export function showCharacterScreen() {
             row.onclick = () => {
                 selectedSkill = capturedSkill
                 positionSlider()
-                showInfoCard(capturedSkill, SKILL_DESCRIPTIONS[capturedSkill] ?? capturedSkill, SKILL_IMG[capturedSkill])
+                showInfoCard(skillTitle(capturedSkill), SKILL_TEXTS[capturedSkill] ?? capturedSkill, SKILL_IMG[capturedSkill],
+                    skillSubtitle(capturedSkill, skillDependencies[capturedSkill]?.startValue ?? 0))
             }
             skillRowsEl.appendChild(row)
         }
 
         for (let i = 0; i < STATS.length; i++) {
             const el = statValueWidgets[i]
-            while (el.firstChild) el.removeChild(el.firstChild)
             const value = newStatSet.get(STATS[i])
-            el.appendChild(renderBignum(value, 2))
+            setBignum(el, value)
 
             const clamped = Math.max(1, Math.min(10, value))
             statCommentLabels[i].setText(statComment(clamped))
@@ -634,7 +665,7 @@ export function showCharacterScreen() {
     wireSkillButton(minusBtn, 'art/intrface/snegon.png', 'art/intrface/snegoff.png', false)
 
     redrawStatsSkills()
-    showInfoCard(SPECIAL_FULL_NAMES['STR'], SPECIAL_DESCRIPTIONS['STR'], SPECIAL_IMG['STR'])
+    showInfoCard(SPECIAL_NAMES['STR'], SPECIAL_TEXTS['STR'], SPECIAL_IMG['STR'])
 
     // Refresh stats live when drugs/effects change them while the screen is open
     _statsChangedHandler = redrawStatsSkills

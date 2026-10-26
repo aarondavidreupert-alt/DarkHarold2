@@ -828,6 +828,10 @@ export class Combat {
         // turn to face the target
         var hex = hexNearestNeighbor(obj.position, target.position)
         if (hex !== null) obj.orientation = hex.direction
+        // CE actions.cc _action_attack: reg_anim_clear on the defender, so a defender still
+        // busy with an animation (a dodge, a hit from the last burst) shows this attack's
+        // reaction. Not a dead or knocked-down one (their lying art would be reset).
+        if (target !== obj && !target.dead && !target.isKnockedDown && target.inAnim()) target.clearAnim()
 
         var weaponObj = obj.equippedWeapon
         // CE combat_ai.cc _ai_pick_hit_mode: an item that isn't ITEM_TYPE_WEAPON — the Shiv
@@ -1057,7 +1061,9 @@ export class Combat {
             if (c.dead) continue
             critterDamage(c, x.damage, attacker, true, true, dmgType, undefined, {
                 flags: x.flags, weapon: a.weapon, knockback: x.knockback,
-                knockbackRotation: hexDirectionTo(a.explosionTile ?? attacker.position, c.position),
+                // CE _show_damage_extras: tileGetRotationTo(attacker->tile, obj->tile) — a
+                // grenade's extras fly away from the thrower, not the blast
+                knockbackRotation: hexDirectionTo(attacker.position, c.position),
                 hitFromFront: isHitFromFront(c, attacker),
                 noDamageProc: a.defender === a.oops, // CE _apply_damage: a4 = defender == oops for extras
             })

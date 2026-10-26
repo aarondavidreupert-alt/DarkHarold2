@@ -71,6 +71,35 @@ export function getSkillID(skill: Skills): number {
 // CE actions.cc actionUseSkill: the skills that can't be used in combat (proto.msg 902).
 const NO_COMBAT_SKILLS = [Skills.FirstAid, Skills.Doctor, Skills.Lockpick, Skills.Steal, Skills.Traps, Skills.Science, Skills.Repair]
 
+// CE actions.cc actionUseSkill target gates: First Aid / Doctor only on critters; Lockpick
+// on items and scenery; Steal on items and critters, not oneself; Traps on anything but a
+// critter; Science on anything that isn't a critter, a robot or a brahmin; Repair the
+// same without the brahmin (sfall ScienceOnCritters at its default)
+const KILL_TYPE_BRAHMIN = 5
+const KILL_TYPE_ROBOT = 10
+function skillTargetAllowed(skill: Skills, obj: Obj): boolean {
+    const critter = obj.type === 'critter'
+    switch (skill) {
+        case Skills.FirstAid:
+        case Skills.Doctor:
+            return critter
+        case Skills.Lockpick:
+            return obj.type === 'item' || obj.type === 'scenery'
+        case Skills.Steal:
+            return (obj.type === 'item' || critter) && obj !== globalState.player
+        case Skills.Traps:
+            return !critter
+        case Skills.Science:
+        case Skills.Repair: {
+            if (!critter) return true
+            const kt = (obj as Critter).killType
+            return kt === KILL_TYPE_ROBOT || (kt === KILL_TYPE_BRAHMIN && skill === Skills.Science)
+        }
+        default:
+            return true
+    }
+}
+
 // CE actions.cc actionUseSkill — who performs the player's skill: the party member best
 // at it in the whole party (partyMemberGetBestInSkill, the player first so ties stay
 // with the player), if it is also that member's own best skill
@@ -199,11 +228,21 @@ export function playerUse(obj: Obj | null) {
             uiLog(getProtoMsg(902))
             return
         }
+        // CE actionUseSkill: the target-type gates, before any walk (returns −1, no message)
+        if (!skillTargetAllowed(skill, obj)) return
         const performer = skillPerformer(skill, obj)
 
+        // CE actionUseSkill: ANIM_MAGIC_HANDS_GROUND on a prone critter, else _MIDDLE, then
+        // _obj_use_skill_on
         const skillCallback = function () {
             performer.clearAnim()
-            playerUseSkill(skill, obj, performer)
+            const prone = obj.type === 'critter' && ((obj as Critter).isKnockedDown || (obj as Critter).dead)
+            const anim = prone ? 'pickUp' : 'use'
+            if (performer.hasAnimation(anim)) {
+                performer.staticAnimation(anim, () => { performer.clearAnim(); playerUseSkill(skill, obj, performer) })
+            } else {
+                playerUseSkill(skill, obj, performer)
+            }
         }
 
         if (Config.engine.doInfiniteUse === true || hexDistance(performer.position, obj.position) <= 1) {
@@ -232,8 +271,8 @@ export function playerUse(obj: Obj | null) {
             }
         }
         if (dest) {
-            // CE: run when the target is 5 or more hexes away (the player follows doAlwaysRun)
-            const run = performer.isPlayer ? Config.engine.doAlwaysRun : hexDistance(playerPos, obj.position) >= 5
+            // CE: run when the target is 5 or more hexes away (the dude too)
+            const run = hexDistance(playerPos, obj.position) >= 5
             performer.walkTo(dest, run, skillCallback)
         } else {
             uiLog(getMessage('misc', 2000) ?? 'You cannot get there.') // CE actions.cc _is_next_to

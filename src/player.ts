@@ -288,17 +288,8 @@ export class Player extends Critter {
             const lvlMsg = getMessage('stat', 600)
             if (lvlMsg) uiLog(lvlMsg)
 
-            // CE character_editor.cc characterEditorUpdateLevel: 5 + 2 × base INT (with
-            // traits, not drugs) + 2 per Educated rank + 5 with Skilled, − 5 with Gifted;
-            // the unspent total stays within 0..99.
-            const before = this.skills.skillPoints
-            let sp = before + 5 + 2 * this.stats.getBase('INT')
-            sp += 2 * this.perks.filter((p) => p === 'Educated').length
-            if (this.traits.includes('Skilled')) sp += 5
-            if (this.traits.includes('Gifted')) sp = Math.max(0, sp - 5)
-            sp = Math.min(99, sp)
-            this.skills.skillPoints = sp
-            const skillPointGain = sp - before
+            // (the skill points and the free perk come when the character screen opens:
+            // editorUpdateLevel)
 
             // CE stat.cc pcAddExperienceWithOptions — HP per level: base END (with traits,
             // not drugs) / 2 + 2, + 4 per Lifegiver rank
@@ -307,19 +298,37 @@ export class Player extends Critter {
             this.stats.modifyBase('Max HP', hpGain)
             this.stats.modifyBase('HP', hpGain)
 
-            // FO2-CE ref: editor.cc — perk every 3 levels (Skilled trait: every 4)
-            const perkRate = this.traits.includes('Skilled') ? 4 : 3
-            if (currentLevel % perkRate === 0) {
-                this.pendingPerkPick = true
-                // Do NOT open the selector here — editorRun() checks the flag
-                // when the character screen is opened (FO2-CE ref: editor.cc).
-            }
-
-            dbg('object', `Level up! Now level ${currentLevel}. Gained ${skillPointGain} skill points, ${hpGain} HP.`)
+            dbg('object', `Level up! Now level ${currentLevel}. Gained ${hpGain} HP.`)
 
             // CE ref: stat.cc:789 — party members may level with the player.
             globalState.gParty?.incLevels()
         }
+    }
+
+    // CE character_editor.cc gCharacterEditorLastLevel: the level the character screen last
+    // saw (saved with the game)
+    editorLastLevel = 1
+
+    // CE characterEditorUpdateLevel, when the character screen opens (not in creation): for
+    // each level since the last opening, 5 + 2 × base INT (with traits, not drugs) + 2 per
+    // Educated rank + 5 with Skilled, − 5 with Gifted, the unspent total within 0..99; and
+    // a free perk every 3rd level (4th with Skilled) while fewer than 37 perks are taken.
+    // True when the level changed.
+    editorUpdateLevel(): boolean {
+        const level = this.stats.getBase('Level')
+        if (level === this.editorLastLevel || level > 99) return false
+        for (let next = this.editorLastLevel + 1; next <= level; next++) {
+            let sp = this.skills.skillPoints + 5 + 2 * this.stats.getBase('INT')
+            sp += 2 * this.perks.filter((p) => p === 'Educated').length
+            if (this.traits.includes('Skilled')) sp += 5
+            if (this.traits.includes('Gifted')) sp = Math.max(0, sp - 5)
+            this.skills.skillPoints = Math.min(99, sp)
+            if (new Set(this.perks).size < 37 && next % (this.traits.includes('Skilled') ? 4 : 3) === 0) {
+                this.pendingPerkPick = true
+            }
+        }
+        this.editorLastLevel = level
+        return true
     }
 
     // Set to true when a perk pick is available (at character screen)

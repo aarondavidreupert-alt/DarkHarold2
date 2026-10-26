@@ -28,7 +28,7 @@ export {
 
 export { FoText } from './ui/foText.js'
 
-export { setNumberDial, renderBignum } from './ui/numberDials.js'
+export { setNumberDial, renderBignum, setBignum } from './ui/numberDials.js'
 
 import { FontRenderer } from './ui/fontCore.js'
 

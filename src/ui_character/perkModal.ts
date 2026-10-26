@@ -20,7 +20,7 @@ limitations under the License.
 import { makePanelDraggable } from '../ui_drag.js'
 import { font2, font3 } from '../ui_font.js'
 import { getValidPerks, getPerkRank, applyPerk } from '../perks.js'
-import { PERK_IMG, SKILL_DESCRIPTIONS, SKILL_IMG, SKILLS, TRAIT_DESCRIPTIONS, TRAIT_IMG, TRAITS } from './descriptions.js'
+import { PERK_IMG, SKILL_TEXTS, SKILL_IMG, SKILLS, TRAIT_TEXTS, TRAIT_IMG, TRAITS } from './descriptions.js'
 import { getMessage } from '../util.js'
 import { assetUrl } from '../modAssets.js'
 
@@ -42,9 +42,10 @@ interface PickItem { name: string; description: string; img?: string; label?: st
 export function showPerkModal(player: any, onChange: () => void = () => {}): void {
     if (document.getElementById('perk-modal-overlay')) return
     const validPerks = getValidPerks(player)
-    const items: PickItem[] = validPerks.map((def) => ({
-        name: def.name, description: def.description, img: PERK_IMG[def.name] ?? def.img,
-        label: `${getPerkRank(player, def.name) + 1}/${def.maxRanks}`,
+    // CE perkDialogDrawPerks: sorted by name; "(rank)" after a perk already taken
+    const items: PickItem[] = byName(validPerks.map((def) => {
+        const rank = getPerkRank(player, def.name)
+        return { name: def.name, description: def.description, img: PERK_IMG[def.name] ?? def.img, label: rank > 0 ? `(${rank})` : '' }
     }))
     // CE perkDialogShow: backing out of the Tag! / Mutate! follow-up dialog takes the
     // perk back (perkRemove), so a perk can be picked again.
@@ -70,8 +71,8 @@ export function showPerkModal(player: any, onChange: () => void = () => {}): voi
 // CE character_editor.cc perkDialogHandleTagPerk — PICK A NEW TAG SKILL (editor.msg 155)
 // from the untagged skills; it becomes the 4th tag (gCharacterEditorTempTaggedSkills[3]).
 function runTagPick(player: any, onChange: () => void, onCancel: () => void): void {
-    const options = SKILLS.filter((sk) => !player.skills.isTagged(sk))
-        .map((sk): PickItem => ({ name: sk, description: SKILL_DESCRIPTIONS[sk] ?? '', img: SKILL_IMG[sk] }))
+    const options = byName(SKILLS.filter((sk) => !player.skills.isTagged(sk))
+        .map((sk): PickItem => ({ name: sk, description: SKILL_TEXTS[sk] ?? '', img: SKILL_IMG[sk] })))
     showPickList(getMessage('editor', 155) ?? 'PICK A NEW TAG SKILL', options, (sk) => {
         player.skills.tagged = [...player.skills.tagged.slice(0, 3), sk]
         onChange()
@@ -82,9 +83,11 @@ function runTagPick(player: any, onChange: () => void, onCancel: () => void): vo
 // when the player has one), then PICK A NEW TRAIT (153) from the traits not kept.
 function runMutate(player: any, onChange: () => void, onCancel: () => void): void {
     const current: string[] = (player.traits ?? []).slice()
-    const item = (t: string): PickItem => ({ name: t, description: TRAIT_DESCRIPTIONS[t] ?? '', img: TRAIT_IMG[t] })
+    const item = (t: string): PickItem => ({ name: t, description: TRAIT_TEXTS[t] ?? '', img: TRAIT_IMG[t] })
+    // CE perkDialogDrawTraits: every trait but the two the dude had (both left out, even the
+    // one just dropped), sorted by name
     const pickNew = (kept: string[]) => {
-        const options = TRAITS.filter((t) => !kept.includes(t)).map(item)
+        const options = byName(TRAITS.filter((t) => !current.includes(t)).map(item))
         showPickList(getMessage('editor', 153) ?? 'PICK A NEW TRAIT', options,
             (t) => { player.setTraits([...kept, t]); onChange() }, onCancel)
     }
@@ -94,6 +97,14 @@ function runMutate(player: any, onChange: () => void, onCancel: () => void): voi
     } else {
         pickNew([])
     }
+}
+
+// CE perkDialogOptionCompare: compat_stricmp on the names
+function byName(items: PickItem[]): PickItem[] {
+    return items.slice().sort((a, b) => {
+        const x = a.name.toLowerCase(), y = b.name.toLowerCase()
+        return x < y ? -1 : x > y ? 1 : 0
+    })
 }
 
 // The perk window (perkwin.png) as a pick list: `title` over the list (CE draws it
@@ -227,9 +238,10 @@ function showPickList(title: string | null, items: PickItem[], onDone: (name: st
     })
     doneBtn.onmousedown = () => { doneBtn.style.backgroundImage = "url('" + assetUrl('art/intrface/lilreddn.png') + "')" }
     doneBtn.onmouseup = doneBtn.onmouseleave = () => { doneBtn.style.backgroundImage = "url('" + assetUrl('art/intrface/lilredup.png') + "')" }
+    const close = () => { overlay.remove(); window.removeEventListener('keydown', onKey, true) }
     doneBtn.onclick = () => {
         if (!selectedPerk) return
-        overlay.remove()
+        close()
         onDone(selectedPerk)
     }
     box.appendChild(doneBtn)
@@ -255,7 +267,7 @@ function showPickList(title: string | null, items: PickItem[], onDone: (name: st
     })
     cancelBtn.onmousedown = () => { cancelBtn.style.backgroundImage = "url('" + assetUrl('art/intrface/lilreddn.png') + "')" }
     cancelBtn.onmouseup = cancelBtn.onmouseleave = () => { cancelBtn.style.backgroundImage = "url('" + assetUrl('art/intrface/lilredup.png') + "')" }
-    cancelBtn.onclick = () => { overlay.remove(); onCancel() }
+    cancelBtn.onclick = () => { close(); onCancel() }
     box.appendChild(cancelBtn)
 
     const cancelLblEl = document.createElement('div')
@@ -306,18 +318,44 @@ function showPickList(title: string | null, items: PickItem[], onDone: (name: st
         row.onmouseleave = () => {
             row.style.backgroundColor = selectedPerk === def.name ? 'rgba(0,255,0,0.2)' : 'transparent'
         }
+        // CE perkDialogHandleInput: a click on the line already selected is DONE
         row.onclick = () => {
-            selectedPerk = def.name
-            listEl.querySelectorAll<HTMLElement>('[data-perk]').forEach(el => {
-                el.style.backgroundColor = el.dataset.perk === def.name
-                    ? 'rgba(0,255,0,0.2)' : 'transparent'
-            })
-            showCard(def)
-            updateDoneBtn()
+            if (selectedPerk === def.name) { doneBtn.onclick?.(new MouseEvent('click')); return }
+            select(validPerks.indexOf(def))
         }
         row.dataset.perk = def.name
         listEl.appendChild(row)
     }
+
+    function select(i: number): void {
+        if (validPerks.length === 0) return
+        const def = validPerks[Math.max(0, Math.min(validPerks.length - 1, i))]
+        selectedPerk = def.name
+        listEl.querySelectorAll<HTMLElement>('[data-perk]').forEach(el => {
+            el.style.backgroundColor = el.dataset.perk === def.name ? 'rgba(0,255,0,0.2)' : 'transparent'
+            if (el.dataset.perk === def.name) el.scrollIntoView({ block: 'nearest' })
+        })
+        showCard(def)
+        updateDoneBtn()
+    }
+
+    // CE perkDialogHandleInput: Up / Down a line, Page Up / Down 11 lines, Return = DONE,
+    // Esc = CANCEL
+    function onKey(e: KeyboardEvent): void {
+        const cur = validPerks.findIndex((d) => d.name === selectedPerk)
+        switch (e.key) {
+            case 'ArrowUp': select(cur - 1); break
+            case 'ArrowDown': select(cur + 1); break
+            case 'PageUp': select(cur - 11); break
+            case 'PageDown': select(cur + 11); break
+            case 'Enter': doneBtn.onclick?.(new MouseEvent('click')); break
+            case 'Escape': cancelBtn.onclick?.(new MouseEvent('click')); break
+            default: return
+        }
+        e.preventDefault()
+        e.stopPropagation()
+    }
+    window.addEventListener('keydown', onKey, true)
 
     // Show first perk's info by default
     if (validPerks.length > 0) showCard(validPerks[0])

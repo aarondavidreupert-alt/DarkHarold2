@@ -188,12 +188,13 @@ const BADGE_CW = 3            // connector overlap width
 const BADGE_COLOR_BAD  = '#f80000'
 const BADGE_COLOR_GOOD = '#00f800'
 
-const INDICATOR_DEFS: ReadonlyArray<{ label: string; isBad: boolean }> = [
-    { label: 'ADDICT',   isBad: true  },
-    { label: 'SNEAK',    isBad: false },
-    { label: 'LEVEL',    isBad: false },
-    { label: 'POISONED', isBad: true  },
-    { label: 'RADIATED', isBad: true  },
+// CE gIndicatorDescriptions: the text is intrface.msg 100-104 (the label is the key)
+const INDICATOR_DEFS: ReadonlyArray<{ label: string; isBad: boolean; msg: number }> = [
+    { label: 'ADDICT',   isBad: true,  msg: 102 },
+    { label: 'SNEAK',    isBad: false, msg: 100 },
+    { label: 'LEVEL',    isBad: false, msg: 101 },
+    { label: 'POISONED', isBad: true,  msg: 103 },
+    { label: 'RADIATED', isBad: true,  msg: 104 },
 ]
 
 // Pre-rendered source canvases (full 130×21, built once when assets load).
@@ -218,7 +219,7 @@ function buildBadgeSrcCanvases(cb: () => void): void {
                 const ctx = canvas.getContext('2d')!
                 ctx.drawImage(img, 0, 0)
                 const color     = def.isBad ? BADGE_COLOR_BAD : BADGE_COLOR_GOOD
-                const textCv    = font1.renderCanvas(def.label, color)
+                const textCv    = font1.renderCanvas(getMessage('intrface', def.msg) ?? def.label, color)
                 const textX     = Math.floor((BADGE_W - textCv.width)  / 2)
                 const textY     = Math.floor((BADGE_H - textCv.height + BADGE_CW) / 2)
                 ctx.drawImage(textCv, textX, textY)
@@ -231,6 +232,12 @@ function buildBadgeSrcCanvases(cb: () => void): void {
 }
 
 let indicatorBarEl: HTMLElement | null = null
+
+// CE indicatorBarHide / indicatorBarShow: the warning boxes go away while the dialogue,
+// the character editor or the Pip-Boy is open
+export function setIndicatorBarHidden(hidden: boolean): void {
+    if (indicatorBarEl) indicatorBarEl.style.display = hidden ? 'none' : ''
+}
 
 export function updateIndicatorBar(): void {
     const player = globalState.player
@@ -513,7 +520,8 @@ export function uiUpdateAmmoBar(weapon: WeaponObj | null): void {
 // Frame 0 = panel closed; frame 4 = panel fully open.
 const END_ANIM_FRAMES   = 5
 const END_ANIM_FRAME_W  = 57
-const END_ANIM_DELAY_MS = 66   // ~5 frames in 330ms
+// CE interfaceBarEndButtonsShow / Hide: a frame every 1000 / the FRM's fps
+const endAnimDelay = (): number => 1000 / (globalState.imageInfo['art/intrface/endanim']?.fps || 15)
 
 let _endAnimTimer: ReturnType<typeof setTimeout> | null = null
 let _endAnimFrame = 0
@@ -532,9 +540,9 @@ function stepEndAnim(dir: 1 | -1, onDone: () => void): void {
         _endAnimFrame += dir
         setEndAnimFrame(_endAnimFrame)
         if (_endAnimFrame === target) { onDone(); return }
-        _endAnimTimer = setTimeout(tick, END_ANIM_DELAY_MS)
+        _endAnimTimer = setTimeout(tick, endAnimDelay())
     }
-    _endAnimTimer = setTimeout(tick, END_ANIM_DELAY_MS)
+    _endAnimTimer = setTimeout(tick, endAnimDelay())
 }
 
 // CE ref: interface.cc interfaceBarEndButtonsRenderRedLights / RenderGreenLights —
@@ -571,6 +579,8 @@ export function uiStartCombat(): void {
     globalState.cursorMode = 'attack'
     // CE ref: interface.cc interfaceBarEndButtonsShow / RenderRedLights:
     // animate end-turn panel open (frames 0→4), then show buttons with red lights.
+    // The panel opening sounds iciboxx1.
+    if (_endAnimFrame !== END_ANIM_FRAMES - 1 && !(window as any).__test?.fastMode) globalState.audioEngine?.playSfxByName?.('iciboxx1')
     stepEndAnim(1, () => {
         showv($id('endTurnButton'))
         showv($id('endCombatButton'))

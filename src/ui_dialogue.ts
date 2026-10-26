@@ -31,7 +31,7 @@ import { $id } from './ui_dom.js'
 import { uiBarterMode } from './ui_barter.js'
 import { uiCompanionTrade } from './ui_companion_trade.js'
 import { uiCompanionControl } from './ui_companion.js'
-import { uiLog } from './ui_hud.js'
+import { setIndicatorBarHidden, uiLog } from './ui_hud.js'
 import { getProtoMsg } from './util.js'
 import { uiShowDialogueReview } from './ui_dialogue_review.js'
 import { assetUrl } from './modAssets.js'
@@ -143,6 +143,7 @@ export function uiStartDialogue(force: boolean, target?: Critter) {
     if (globalState.uiMode === UIMode.barter && force !== true) {
         return
     }
+    setIndicatorBarHidden(true) // CE _gdialogInitFromScript
 
     globalState.uiMode = UIMode.dialogue
     $id('dialogueContainer').style.visibility = 'visible'
@@ -199,6 +200,7 @@ let dialogueReturn: { center: Point; dudeTile: Point | null } | null = null
 export function uiEndDialogue() {
     // TODO: Transition the dialogue box down?
     globalState.uiMode = UIMode.none
+    setIndicatorBarHidden(false) // CE _gdialogExitFromScript
     // CE _gdialogExitFromScript: back to the centre tile the dialogue started from — the
     // dude's if he moved meanwhile
     if (dialogueReturn) {

@@ -27,7 +27,7 @@ import { makePanelDraggable } from '../ui_drag.js'
 import { getMessage } from '../util.js'
 import { showAlert } from '../ui_dialog.js'
 import { mapCanRestHere } from '../data.js'
-import { updateIndicatorBar } from '../ui_hud.js'
+import { setIndicatorBarHidden, updateIndicatorBar } from '../ui_hud.js'
 import { gameMovieIsSeen, MOVIE_VSUIT } from '../gameMovie.js'
 import type { Critter } from '../object.js'
 
@@ -245,6 +245,29 @@ function restInterrupted(): boolean {
 
 const sleep = (ms: number) => new Promise<void>((res) => setTimeout(res, ms))
 
+// CE pipboyRest: gameMouseSetCursor(MOUSE_CURSOR_WAIT_WATCH) — the animated watch (WAIT2,
+// six 12 × 15 frames) while the clock runs. Returns the function that puts the cursor back.
+function waitWatchCursor(el: HTMLElement): () => void {
+    const frames: string[] = []
+    const img = new Image()
+    img.onload = () => {
+        for (let i = 0; i < 6; i++) {
+            const c = document.createElement('canvas')
+            c.width = 12
+            c.height = 15
+            c.getContext('2d')!.drawImage(img, i * 12, 0, 12, 15, 0, 0, 12, 15)
+            frames.push(c.toDataURL())
+        }
+    }
+    img.src = assetUrl('art/intrface/wait2.png')
+    const before = el.style.cursor
+    let n = 0
+    const timer = setInterval(() => {
+        if (frames.length) el.style.cursor = `url(${frames[n++ % frames.length]}) 6 7, wait`
+    }, 100)
+    return () => { clearInterval(timer); el.style.cursor = before }
+}
+
 // CE pipboy.cc pipboyRest(hours, minutes, duration): the clock runs at ~20 frames per
 // second over minutes / 1440 × 3.5 + 0.25 seconds, firing the queued events on the
 // way; ESC stops it. Returns true when the rest was cut short.
@@ -297,9 +320,14 @@ async function pipboyRest(hours: number, minutes: number, duration: number): Pro
             rc = await pipboyRest(h, 0, 0)
             hoursToHeal -= h
         }
-        // second pass: what's left (and the party), 3 hours at a time
+        // second pass: what's left (and the party), 3 hours at a time. CE tests the wound
+        // measured before the last block, so it rests one more block after the last heal.
         const left = () => Math.max(wound(), duration === REST_UNTIL_PARTY_HEALED ? partyMaxWound() : 0)
-        while (!rc && left() !== 0) rc = await pipboyRest(3, 0, 0)
+        let toHeal = left()
+        while (!rc && toHeal !== 0) {
+            toHeal = left()
+            rc = await pipboyRest(3, 0, 0)
+        }
     }
     return rc
 }
@@ -356,12 +384,13 @@ function toggleWaitMenu(): void {
             isRestAnimating = true
             restCancelled = false
             restBail = false
-            for (const r of rows) r.style.color = '#00FF00'
-            row.style.color = '#FFFF00'
+            for (const r of rows) r.style.color = '#3cf800' // CE _colorTable[992]
+            row.style.color = '#fcfc7c' // 32747
             globalState.audioEngine?.playSfxByName?.('ib1p1xx1')
-            await restFor(option)
+            const stopCursor = pipBoyContainer ? waitWatchCursor(pipBoyContainer) : () => {}
+            try { await restFor(option) } finally { stopCursor() }
             globalState.audioEngine?.playSfxByName?.('ib2lu1x1')
-            row.style.color = '#00FF00'
+            row.style.color = '#3cf800'
             isRestAnimating = false
             renderRestClock()
             // CE _proc_bail_flag: an event during the rest closes the Pip-Boy
@@ -413,7 +442,7 @@ function formatGameTime(_ticks: number): string {
 // Base text style used throughout the PipBoy screen. All tabs use the same
 // transparent DOM approach (no dark canvas background), letting pip.png show
 // through.
-export const TEXT_STYLE = 'color: #00FF00; font-family: monospace;'
+export const TEXT_STYLE = 'color: #3cf800; font-family: monospace;' // CE _colorTable[992]
 
 export function makeHeader(title: string): HTMLDivElement {
     const h = document.createElement('div')
@@ -426,7 +455,7 @@ export function makeRow(label: string, value: string, highlighted = false): HTML
     const row = document.createElement('div')
     row.style.cssText = TEXT_STYLE + 'font-size: 13px; line-height: 1.6; padding: 0 6px;'
     const v = document.createElement('span')
-    v.style.color = highlighted ? '#FF4444' : '#FFFF00'
+    v.style.color = highlighted ? '#FF4444' : '#fcfc7c'
     v.textContent = value
     row.appendChild(document.createTextNode(label + ': '))
     row.appendChild(v)
@@ -479,6 +508,9 @@ import { renderStatusTab, leaveStatusTab } from './tabs/status.js'
 import { renderAutomapsTab, resetAutomapNavState } from './tabs/automaps.js'
 import { renderArchivesTab } from './tabs/archives.js'
 import { assetUrl } from '../modAssets.js'
+import { renderLogoScreen, watchPipboyIdle } from './logo.js'
+
+let stopIdleWatch: (() => void) | null = null
 
 export function renderTab(tab: PipBoyTab): void {
     if (!pipBoyContainer) return
@@ -582,7 +614,12 @@ export function openPipBoy(): void {
     resetAutomapNavState()
 
     renderDateTimeBar()
-    renderTab('STATUS')
+    // CE pipboyWindowInit: the logo (and a holiday's name) until a tab is picked
+    const screenEl = pipBoyContainer.querySelector('#pipboyScreen') as HTMLDivElement
+    if (screenEl) renderLogoScreen(screenEl)
+    stopIdleWatch?.()
+    stopIdleWatch = watchPipboyIdle(pipBoyContainer)
+    setIndicatorBarHidden(true) // CE pipboyWindowInit
 }
 
 export function closePipBoy(): void {
@@ -592,6 +629,9 @@ export function closePipBoy(): void {
 
     waitMenuDiv = null
     alarmOn = false
+    stopIdleWatch?.()
+    stopIdleWatch = null
+    setIndicatorBarHidden(false) // CE pipboyWindowFree
     pipBoyContainer.remove()
     pipBoyContainer = null
     if (globalState.uiMode === UIMode.pipBoy) globalState.uiMode = UIMode.none

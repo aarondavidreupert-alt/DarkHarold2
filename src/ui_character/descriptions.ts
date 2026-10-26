@@ -263,6 +263,76 @@ export const SKILLS = [
     'Science', 'Repair', 'Speech', 'Barter', 'Gambling', 'Outdoorsman',
 ]
 export const TRAITS = Object.keys(TRAIT_DESCRIPTIONS)
+
+// ── Card texts from the .msg files (CE characterEditorDrawCard) ───────────────
+// The tables above stay as fallbacks; the lookups below read what CE reads, so a
+// translated game shows translated cards.
+const SPECIAL_STAT: Record<string, number> = { STR: 0, PER: 1, END: 2, CHA: 3, INT: 4, AGI: 5, LUK: 6 }
+const DERIVED_STAT: Record<string, number> = {
+    'Action Points': 8, 'Armor Class': 9, 'Melee Damage': 11, 'Carry Weight': 12, 'Sequence': 13,
+    'Healing Rate': 14, 'Critical Chance': 15, 'Damage Resistance': 24, 'Radiation Resistance': 31,
+    'Poison Resistance': 32,
+}
+const CONDITION_INDEX: Record<string, number> = {
+    'Poisoned': 0, 'Radiated': 1, 'Eye Damage': 2, 'Crippled Right Arm': 3, 'Crippled Left Arm': 4,
+    'Crippled Right Leg': 5, 'Crippled Left Leg': 6,
+}
+function msgRecord(fallback: Record<string, string>, file: string, id: (key: string) => number | undefined): Record<string, string> {
+    return new Proxy(fallback, {
+        get(target, key) {
+            if (typeof key !== 'string') return (target as any)[key]
+            const n = id(key)
+            return (n !== undefined ? getMessage(file, n) : null) ?? target[key]
+        },
+    })
+}
+const skillIndex = (k: string): number | undefined => { const i = SKILLS.indexOf(k); return i < 0 ? undefined : i }
+const traitIndex = (k: string): number | undefined => { const i = TRAITS_BY_ID.indexOf(k); return i < 0 ? undefined : i }
+// statGetName / statGetDescription (stat.msg 100+ / 200+), skillGetName / Description
+// (skill.msg 100+ / 200+), traitGetName / Description (trait.msg 100+ / 200+), the
+// conditions (editor.msg 312-318 / 400-406)
+export const SPECIAL_NAMES = msgRecord(SPECIAL_FULL_NAMES, 'stat', (k) => SPECIAL_STAT[k] !== undefined ? 100 + SPECIAL_STAT[k] : undefined)
+export const SPECIAL_TEXTS = msgRecord(SPECIAL_DESCRIPTIONS, 'stat', (k) => SPECIAL_STAT[k] !== undefined ? 200 + SPECIAL_STAT[k] : undefined)
+export const SKILL_TEXTS = msgRecord(SKILL_DESCRIPTIONS, 'skill', (k) => { const i = skillIndex(k); return i === undefined ? undefined : 200 + i })
+export const DERIVED_TEXTS = msgRecord(DERIVED_DESCRIPTIONS, 'stat', (k) => DERIVED_STAT[k] !== undefined ? 200 + DERIVED_STAT[k] : undefined)
+export const CONDITION_TEXTS = msgRecord(CONDITION_DESCRIPTIONS, 'editor', (k) => CONDITION_INDEX[k] !== undefined ? 400 + CONDITION_INDEX[k] : undefined)
+export const TRAIT_TEXTS = msgRecord(TRAIT_DESCRIPTIONS, 'trait', (k) => { const i = traitIndex(k); return i === undefined ? undefined : 200 + i })
+export function skillTitle(skill: string): string {
+    const i = skillIndex(skill)
+    return (i !== undefined ? getMessage('skill', 100 + i) : null) ?? skill
+}
+export function derivedTitle(label: string): string {
+    const n = DERIVED_STAT[label]
+    return (n !== undefined ? getMessage('stat', 100 + n) : null) ?? label
+}
+export function conditionTitle(label: string): string {
+    const n = CONDITION_INDEX[label]
+    return (n !== undefined ? getMessage('editor', 312 + n) : null) ?? label
+}
+export function traitTitle(trait: string): string {
+    const i = traitIndex(trait)
+    return (i !== undefined ? getMessage('trait', 100 + i) : null) ?? trait
+}
+// CE characterEditorDrawCard's cards for the editor's own lines (editor.msg / stat.msg;
+// skilldex FRMs 7 LEVEL, 8 EXPER, 9 LEVELNXT, 27 SKILLS)
+export const EDITOR_CARDS = {
+    level: () => [getMessage('stat', 401) ?? 'Level', getMessage('stat', 501) ?? '', 'art/skilldex/level.png'],
+    experience: () => [getMessage('stat', 402) ?? 'Experience', getMessage('stat', 502) ?? '', 'art/skilldex/exper.png'],
+    nextLevel: () => [getMessage('editor', 122) ?? 'Next Level', getMessage('editor', 123) ?? '', 'art/skilldex/levelnxt.png'],
+    characterPoints: () => [getMessage('editor', 120) ?? 'Character Points', getMessage('editor', 121) ?? '', 'art/skilldex/level.png'],
+    skillPoints: () => [getMessage('editor', 130) ?? 'Skill Points', getMessage('editor', 131) ?? '', 'art/skilldex/skills.png'],
+    tagSkills: () => [getMessage('editor', 144) ?? 'Tag Skills', getMessage('editor', 145) ?? '', 'art/skilldex/skills.png'],
+    optionalTraits: () => [getMessage('editor', 146) ?? 'Optional Traits', getMessage('editor', 147) ?? '', 'art/skilldex/skills.png'],
+    skills: () => [getMessage('editor', 150) ?? 'Skills', getMessage('editor', 151) ?? '', 'art/skilldex/skills.png'],
+} as const
+
+// CE characterEditorDrawCard, a skill: "Base: <default>% <attributes>" (editor.msg 137,
+// skill.msg 300+); `defaultValue` is the skill's base before attributes
+export function skillSubtitle(skill: string, defaultValue: number): string {
+    const i = skillIndex(skill)
+    const attributes = (i !== undefined ? getMessage('skill', 300 + i) : null) ?? ''
+    return `${getMessage('editor', 137) ?? 'Base:'} ${defaultValue}% ${attributes}`.trimEnd()
+}
 // CE trait_defs.h Trait enum order (ids stored in .gcd files and used by scripts).
 export const TRAITS_BY_ID: readonly string[] = [
     'Fast Metabolism', 'Bruiser', 'Small Frame', 'One Hander', 'Finesse', 'Kamikaze',

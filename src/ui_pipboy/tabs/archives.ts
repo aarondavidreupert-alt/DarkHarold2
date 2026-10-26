@@ -49,7 +49,7 @@ export function renderArchivesTab(screen: HTMLDivElement): void {
         const row = document.createElement('div')
         row.textContent = getMessage('pipboy', 500 + movie) ?? `Movie ${movie}`
         row.style.cursor = 'pointer'
-        row.onmouseenter = () => { row.style.color = '#FFFF00' }
+        row.onmouseenter = () => { row.style.color = '#fcfc7c' } // CE 32747
         row.onmouseleave = () => { row.style.color = '' }
         row.onclick = () => {
             globalState.audioEngine?.playSfxByName?.('ib1p1xx1')

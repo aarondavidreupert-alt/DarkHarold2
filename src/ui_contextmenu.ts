@@ -37,6 +37,7 @@ import { $id, clearEl, makeEl } from './ui_dom.js'
 import { elevatorSpatialFor } from './elevatorUse.js'
 import { Config } from './config.js'
 import { approachToTalk } from './talkApproach.js'
+import { pathfinderFindPath } from './map/pathfinder.js'
 
 export function uiHideContextMenu() {
     globalState.uiMode = UIMode.none
@@ -219,7 +220,9 @@ function uiLootWalk(target: Obj): void {
 // is on the pusher's team.
 function actionCheckPush(pusher: Critter, target: Critter): boolean {
     if (pusher === target || !objActionCanTalkTo(target)) return false
-    if (hexDistance(pusher.position, target.position) > 12) return false // _action_can_talk_to
+    // _action_can_talk_to: a path that sight-blocking scenery / walls don't cut, then ≤ 12 hexes
+    if (pathfinderFindPath(pusher, pusher.position, target.position, false, 'sight').length === 0) return false
+    if (hexDistance(pusher.position, target.position) > 12) return false
     if (!target._script || target._script.push_p_proc === undefined) return false
     if (globalState.inCombat) {
         const whoHitPusher = (pusher as any).whoHitMe
@@ -242,6 +245,12 @@ function actionPush(pusher: Critter, target: Critter): void {
         const dest = hexInDirection(target.position, (rotation + turn) % 6)
         if (map.blockingObjectAt(toTileNum(dest), target.elevation ?? map.currentElevation, 0, target) !== null) continue
         target.orientation = hexDirectionTo(target.position, dest)
+        // CE: in combat the pushed critter moves on its own AP (none left: it stays)
+        if (globalState.inCombat && target.AP) {
+            if (target.AP.getAvailableMoveAP() <= 0) return
+            if (target.walkTo(dest, false, undefined, 1)) target.AP.subtractMoveAP(1)
+            return
+        }
         target.walkTo(dest, false)
         return
     }

@@ -77,10 +77,12 @@ export interface SaveGame {
         perks: string[]
         pendingPerkPick: boolean
         levelUpAvailable?: boolean
+        editorLastLevel?: number
         dudeScriptLvars?: { [lvar: number]: any } // obj_dude's LVARs (CE: the dude's script, saved with the objects)
         name: string
         gender: string
         activeHand: string
+        gameUIDisabled?: boolean // CE interfaceSave: gInterfaceBarEnabled
         isSneaking: boolean
         sneakWorking?: boolean
         leftHand: SerializedObj | null
@@ -211,10 +213,12 @@ function gatherSaveData(name: string): SaveGame {
             perks: p.perks.slice(),
             pendingPerkPick: p.pendingPerkPick,
             levelUpAvailable: p.levelUpAvailable,
+            editorLastLevel: p.editorLastLevel,
             dudeScriptLvars: p._script ? Object.assign({}, p._script.lvars) : undefined,
             name: p.name,
             gender: p.gender,
             activeHand: p.activeHand,
+            gameUIDisabled: globalState.gameUIDisabled,
             isSneaking: p.isSneaking,
             sneakWorking: (p as any).sneakWorking ?? false,
             leftHand: p.leftHand ? p.leftHand.serialize() : null,
@@ -377,10 +381,13 @@ export function load(id: number): void {
                     p.perks = ps.perks.slice()
                     p.pendingPerkPick = ps.pendingPerkPick
                     p.levelUpAvailable = ps.levelUpAvailable ?? false
+                    // (older saves granted the points at the level-up itself)
+                    p.editorLastLevel = ps.editorLastLevel ?? p.stats.getBase('Level')
                     Scripting.setPendingDudeLvars(ps.dudeScriptLvars ?? null) // obj_dude reattaches at map entry
                     p.name = ps.name
                     p.gender = ps.gender
                     p.activeHand = ps.activeHand as 'leftHand' | 'rightHand'
+                    Scripting.setGameUiDisabled(ps.gameUIDisabled ?? false) // CE interfaceLoad
                     p.isSneaking = ps.isSneaking
                     ;(p as any).sneakWorking = ps.sneakWorking ?? false
                     p.leftHand = ps.leftHand ? deserializeObj(ps.leftHand) as any : undefined
