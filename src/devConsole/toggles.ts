@@ -103,11 +103,10 @@ export function registerToggleCommands(): void {
 }
 
 export function registerCacheAndOutlineCommands(): void {
-    // proMap / imageMap are cached in IndexedDB (see cachedJSON() above) so
-    // repeat loads skip the network fetch — but that means editing
-    // proto/pro.json (or any other cached JSON) on disk has NO EFFECT until
-    // this cache is cleared, since IDBCache has no content-versioning of
-    // its own. Run this after any proto/pro.json regeneration, then reload.
+    // proMap / imageMap are cached in IndexedDB (main.ts cachedJSON()) so repeat
+    // loads skip the network fetch. Each entry carries the file's Last-Modified +
+    // size (fileStamp), so a pipeline re-run refreshes it on the next load; this
+    // drops the cache by hand (then reload), e.g. when a server sends no stamp.
     (window as any).clearAssetCache = () => {
         IDBCache.nuke()
         console.log('[Cache] IndexedDB asset cache cleared — reload the page to re-fetch proMap/imageMap from disk.')
