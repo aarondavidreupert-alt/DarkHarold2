@@ -109,6 +109,12 @@ export function applyCfg(cfg: CfgSections): void {
         const tbd = parseFloat(prefs['text_base_delay'])
         if (Number.isFinite(tbd) && tbd >= 1 && tbd <= 6) Config.ui.textBaseDelay = tbd
     }
+    // CE text_object.cc textObjectsInit: text_line_delay as it is (the options screen
+    // derives it from the base delay when that changes)
+    flt('text_line_delay', 0, 2, (v) => { Config.ui.textLineDelay = v })
+    // [system] interrupt_walk (CE animation.cc _check_move; default 1)
+    const iw = int(system['interrupt_walk'])
+    if (iw !== null) Config.engine.interruptWalk = iw !== 0
 
     // [system] color_cycling / cycle_speed_factor (CE cycle.cc colorCycleInit)
     const cc = int(system['color_cycling'])
@@ -200,6 +206,9 @@ export function applyCfg(cfg: CfgSections): void {
     //   mouse_wheel=zoom|ce           the wheel zooms (default) or scrolls the map as in CE
     const mw = dh2['mouse_wheel']?.trim().toLowerCase()
     if (mw === 'ce' || mw === 'zoom') Config.ui.mouseWheel = mw
+    //   combat_outline=dh2|ce         combat outlines: DH2's (blue neutrals) or CE's line-of-fire rule
+    const co = dh2['combat_outline']?.trim().toLowerCase()
+    if (co === 'ce' || co === 'dh2') Config.ui.combatOutline = co
     //   save_slots=dh2|ce             unlimited slots with DELETE (default) or CE's ten
     const ss = dh2['save_slots']?.trim().toLowerCase()
     if (ss === 'ce' || ss === 'dh2') Config.ui.saveSlots = ss

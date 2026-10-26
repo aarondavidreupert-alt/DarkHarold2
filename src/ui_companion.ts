@@ -39,7 +39,7 @@ import { Critter, Obj } from './object.js'
 import { UIMode, getUiContainer } from './ui_panels.js'
 import { font1, font3 } from './ui_font.js'
 import { FoText } from './ui/foText.js'
-import { AiPacket, Disposition, findCompanionPacketForDisposition } from './aiPackets.js'
+import { AiPacket, aiGetRunAwayMode, Disposition, findCompanionPacketForDisposition } from './aiPackets.js'
 import {
     CustomAiCategory,
     getCompanionEffectivePacket,
@@ -486,8 +486,12 @@ export function uiCompanionCustomize(companion: Critter): void {
 
         const packet = getCompanionEffectivePacket(companion)
 
-        panel.appendChild(makeLabel(220, 4, (companion.name ?? 'Companion') + " — Custom behavior", '#ffff80'))
-
+        // CE partyMemberCustomizationWindowUpdate: each setting's custom.msg text at x 232,
+        // y 20 / 48 / 78 / 108 / 137 / 166 (font 101, colour 992); an area attack mode the
+        // list doesn't have is "Not Applicable." (99)
+        const VALUE_Y: { [K in CustomAiCategory]: number } = {
+            areaAttackMode: 20, runAwayMode: 48, bestWeapon: 78, distance: 108, attackWho: 137, chemUse: 166,
+        }
         for (const btn of CUSTOM_BUTTONS) {
             panel.appendChild(makeGraphicButton(
                 btn.x, btn.y, DISPOSITION_BTN_W, DISPOSITION_BTN_H,
@@ -495,12 +499,16 @@ export function uiCompanionCustomize(companion: Critter): void {
                 false, false,
                 () => uiCustomCategoryPicker(companion, btn.category, btn.label, () => { redraw() })
             ))
-            // Current value, next to the category button.
-            const current = String((packet as any)[btn.category])
-            panel.appendChild(makeLabel(btn.x + DISPOSITION_BTN_W + 8, btn.y + 8, current))
+            const value = btn.category === 'runAwayMode'
+                ? aiGetRunAwayMode(packet, companion.getStat('Max HP'))
+                : (packet as any)[btn.category]
+            const opt = (CUSTOM_OPTIONS[btn.category] as { value: unknown; label: string }[]).find((o) => o.value === value)
+            const text = opt ? opt.label : (getMessage('custom', 99) ?? 'Not Applicable.')
+            panel.appendChild(makeLabel(232, VALUE_Y[btn.category], text, '#3cf800')) // CE _colorTable[992]
         }
 
-        panel.appendChild(makeActionButton(593, 161, close))
+        // CE partyMemberCustomizationWindowInit: DONE at (593, 101)
+        panel.appendChild(makeActionButton(593, 101, close))
     }
 
     redraw()

@@ -28,6 +28,9 @@ import globalState from './globalState.js'
 import { dbg, dbgWarn } from './logger.js'
 import { getFileText, parseIni } from './util.js'
 import { assetUrl } from './modAssets.js'
+import { Events } from './events.js'
+
+Events.on('loadMapPost', () => gameMovieFadeOut()) // CE map.cc mapLoad → gameMovieFadeOut
 
 // CE game_movie.h MovieId / game_movie.cc:21 gMovieFileNames
 export const MOVIE_IPLOGO = 0
@@ -154,6 +157,16 @@ function loadFps(name: string): number {
     }
 }
 
+// CE game_movie.cc gGameMovieFaded / gameMovieFadeOut: after a movie that faded in and not
+// out the screen stays black; a map load (map.cc mapLoad) or the main menu fades it back.
+let fadedLayer: HTMLDivElement | null = null
+export function gameMovieFadeOut(): void {
+    const layer = fadedLayer
+    if (!layer) return
+    fadedLayer = null
+    void fadeTo(layer, 0).then(() => layer.remove())
+}
+
 function makeFadeLayer(): HTMLDivElement {
     const el = document.createElement('div')
     Object.assign(el.style, {
@@ -250,7 +263,15 @@ export function gameMoviePlay(movie: number, flags: number): Promise<void> {
             globalState.uiMode = prevUiMode
             if ((flags & GAME_MOVIE_PAUSE_MUSIC) && musicWasPlaying) musicEl!.play().catch(() => {})
             if (flags & GAME_MOVIE_FADE_OUT) await fadeTo(fadeLayer, 0)
-            fadeLayer.remove()
+            if ((flags & GAME_MOVIE_FADE_IN) && !(flags & GAME_MOVIE_FADE_OUT)) {
+                // CE gGameMovieFaded: the palette stays black until gameMovieFadeOut (the
+                // next map load) — e.g. DERRICK's FADE_IN-only flags
+                fadeLayer.style.opacity = '1'
+                fadedLayer?.remove()
+                fadedLayer = fadeLayer
+            } else {
+                fadeLayer.remove()
+            }
             playing = null
             resolve()
         }
@@ -298,6 +319,8 @@ export function gameMoviePlay(movie: number, flags: number): Promise<void> {
             // An error during the fade-in may already have finished the movie; don't
             // put its window up afterwards (it would never be removed).
             if (finished) return
+            // a movie brings its own palette: the black left by an earlier FADE_IN-only movie goes
+            if (fadedLayer) { fadedLayer.remove(); fadedLayer = null }
             document.body.appendChild(screen)
             fadeLayer.style.opacity = '0'
             globalState.uiMode = UIMode.movie // modal: pauses tickGame (CE isoDisable)

@@ -155,6 +155,8 @@ function performDrugEffect(critter: Critter, stats: number[], mods: number[], is
             delta = mods[i]
         }
 
+        // CE: an HP change ends the critter's fleeing (CRITTER_MANUEVER_FLEEING)
+        if (stat === STAT_CURRENT_HIT_POINTS) (critter as any).fleeing = false
         if (stat === STAT_CURRENT_HIT_POINTS && !isDude(critter) && critter.getStat('HP') + delta <= 0) {
             const fmt = itemMsg(600) ?? '%s succumbs to the adverse effects of chems.'
             uiLog(fmt.replace('%s', critter.name ?? ''))
@@ -181,9 +183,7 @@ function performDrugEffect(critter: Critter, stats: number[], mods: number[], is
         }
     } else if (!critter.dead) {
         // CE kills via the HP adjustment; item.msg 4 (dude) is fetched but never shown.
-        // An NPC: _combatKillCritterOutsideCombat with item.msg 600 "%s succumbs to the
-        // adverse effects of chems."
-        if (!isDude(critter)) uiLog((itemMsg(600) ?? '%s succumbs to the adverse effects of chems.').replace('%s', critter.name ?? ''))
+        // (An NPC's item.msg 600 line was printed above, as _combatKillCritterOutsideCombat.)
         critterKill(critter, undefined, !isDude(critter)) // CE _combatKillCritterOutsideCombat runs destroy_p_proc for NPCs
     }
     if (isDude(critter)) Events.emit('statsChanged')

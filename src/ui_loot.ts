@@ -22,6 +22,7 @@ import { dbg } from './logger.js'
 import { itemIsHidden, Obj } from './object.js'
 import { UIMode } from './ui_panels.js'
 import { uiGetAmount, uiSwapItem } from './ui_barter.js'
+import { renderBarterPortrait } from './ui_barter/screen.js'
 import { uiLog } from './ui_hud.js'
 import { getMessage } from './util.js'
 import { showAlert } from './ui_dialog.js'
@@ -182,16 +183,33 @@ export function uiLoot(object: Obj) {
     function drawLoot() {
         drawInventory($id('lootBoxLeft'), 'l', leftList())
         drawInventory($id('lootBoxRight'), 'r', rightList())
-        drawLootBagViews(leftBags, rightBags, drawLoot)
+        drawLootBagViews(leftBags, rightBags, drawLoot, globalState.player ?? undefined, object)
     }
 
     drawLoot()
 }
 
-// the loot (and steal) window's body views: CE INVENTORY_LOOT_LEFT / RIGHT_BODY_VIEW
-export function drawLootBagViews(leftBags: Obj[], rightBags: Obj[], redraw: () => void): void {
-    drawBagView($id('lootBox'), 'lootBoxLeftBag', { left: 44, top: 35, width: 60, height: 100 }, leftBags, redraw)
-    drawBagView($id('lootBox'), 'lootBoxRightBag', { left: 422, top: 35, width: 60, height: 100 }, rightBags, redraw)
+// the loot (and steal) window's body views: CE INVENTORY_LOOT_LEFT / RIGHT_BODY_VIEW. CE
+// _display_body(target->fid, LOOT): the dude at (48, 39) facing south-west, frame 0; the
+// target at (426, 39) in its own rotation on the last frame of its art (a corpse lies);
+// an open bag takes the spot instead.
+export function drawLootBagViews(leftBags: Obj[], rightBags: Obj[], redraw: () => void, left?: Obj, right?: Obj): void {
+    const body = (id: string, x: number, who: Obj | undefined, lastFrame: boolean): HTMLElement | undefined => {
+        if (!who) return undefined
+        let $b = document.getElementById(id)
+        if (!$b) {
+            $b = makeEl('div', { attrs: { id }, style: { position: 'absolute', pointerEvents: 'none', zIndex: '1' } })
+            $id('lootBox').appendChild($b)
+        }
+        Object.assign($b.style, { left: x + 'px', top: '39px', width: '60px', height: '100px' })
+        clearEl($b)
+        renderBarterPortrait($b, who as any, lastFrame)
+        return $b
+    }
+    const leftBody = body('lootBoxLeftBody', 48, left, false)
+    const rightBody = body('lootBoxRightBody', 426, right, true)
+    drawBagView($id('lootBox'), 'lootBoxLeftBag', { left: 44, top: 35, width: 60, height: 100 }, leftBags, redraw, leftBody)
+    drawBagView($id('lootBox'), 'lootBoxRightBag', { left: 422, top: 35, width: 60, height: 100 }, rightBags, redraw, rightBody)
 }
 
 // CE inventoryOpenLooting's keys (the steal window too): Esc closes, A (Shift+A) takes all

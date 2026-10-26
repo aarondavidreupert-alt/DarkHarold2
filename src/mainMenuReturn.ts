@@ -26,6 +26,11 @@ export function returnToMainMenu(): void {
     location.reload()
 }
 
+/** True when this page load comes from returnToMainMenu (without taking the flag). */
+export function isMainMenuReturn(): boolean {
+    try { return sessionStorage.getItem(KEY) === '1' } catch (_) { return false }
+}
+
 /** True (once) when this page load comes from returnToMainMenu. */
 export function takeMainMenuReturn(): boolean {
     try {

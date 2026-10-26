@@ -44,6 +44,7 @@ import { Config } from '../config.js'
 import { isChargedMiscItem, useChargedMiscItem } from '../miscItem.js'
 import { drawHP } from '../ui_hud.js'
 import type { Critter } from './Critter.js'
+import { sfallIniGetString } from '../sfallIni.js'
 // Late-bound factory hooks — set by factories.ts at module-init time.
 // Direct static import would create a cycle: Obj.ts → factories.ts → items.ts
 // → (extends Obj at module init) → TDZ on Obj. See wiki/ts-split-refactor.md
@@ -85,6 +86,13 @@ function objectFindItemIndex(obj: Obj, item: Obj): number {
         }
     }
     return -1
+}
+
+// A new object made by splitting a stack gets its own uid (cloneItem keeps it: barter's
+// working copies are matched to their originals by it). Saved timers are keyed by uid.
+export function giveNewUid(obj: Obj): Obj {
+    obj.uid = _lastObjectUID++
+    return obj
 }
 
 export function cloneItem(item: Obj): Obj {
@@ -135,11 +143,20 @@ const EXPLOSIVES: { [pid: number]: { active: number; min: number; max: number } 
     85: { active: 209, min: 40, max: 80 },
 }
 
-/** CE item.cc explosiveGetDamage: the damage range of an explosive (its plain or armed
- *  pid), or null. sfall explosions_metarule 6 (EXPL_GET_EXPLOSION_DAMAGE). */
-export function explosiveGetDamage(pid: number): { min: number; max: number } | null {
+/** CE item.cc explosiveGetDamage: the damage range of an explosive, or null — with
+ *  sfall's ddraw.ini [Misc] Dynamite_DmgMin / _DmgMax and PlasticExplosive_DmgMin / _DmgMax
+ *  (explosionsReset: max clamped to 0..9999, min to 0..max). `plainOnly` (sfall
+ *  explosions_metarule 6) answers for the unarmed pids only, as CE; the timed explosion
+ *  asks with the armed pid (CE's call there matches nothing and reads uninitialised
+ *  values — DH2 uses the explosive's range). */
+export function explosiveGetDamage(pid: number, plainOnly = false): { min: number; max: number } | null {
+    const ini = (key: string) => { const v = parseInt(sfallIniGetString('ddraw.ini|Misc|' + key) ?? '', 10); return isNaN(v) ? null : v }
     for (const [p, d] of Object.entries(EXPLOSIVES)) {
-        if (Number(p) === pid || d.active === pid) return { min: d.min, max: d.max }
+        if (Number(p) !== pid && (plainOnly || d.active !== pid)) continue
+        const name = Number(p) === 51 ? 'Dynamite' : 'PlasticExplosive'
+        const max = Math.max(0, Math.min(9999, ini(name + '_DmgMax') ?? d.max))
+        const min = Math.max(0, Math.min(max, ini(name + '_DmgMin') ?? d.min))
+        return { min, max }
     }
     return null
 }
@@ -183,7 +200,7 @@ async function useExplosive(obj: Obj, source: Critter): Promise<void> {
         obj.position = { x: source.position.x, y: source.position.y }
         testDroppedExplosive(source)
     }
-    if (delay === 0) explosiveDetonate(obj, desc.min, desc.max, failure)
+    if (delay === 0) { const dmg = explosiveGetDamage(obj.pid) ?? desc; explosiveDetonate(obj, dmg.min, dmg.max, failure) }
     else scheduleExplosion(obj, delay, failure)
 }
 
@@ -338,10 +355,14 @@ export function updateHandFlareLight(c: Critter): void {
     const a = c as any
     let radius = c.isPlayer ? 4 : (c.pro as any)?.lightDistance ?? 0
     let intensity = c.isPlayer ? 65536 : (c.pro as any)?.lightIntensity ?? 0
+    // CE inventory.cc _inven_update_lighting: the dude's light is max(4, the hand item's
+    // lightDistance) at 0x10000 — any light-giving item, the lit flare among them
     for (const h of [a.leftHand, a.rightHand]) {
-        if (h?.pid !== PROTO_ID_LIT_FLARE) continue
-        radius = Math.max(radius, h.lightRadius ?? 8)
-        intensity = Math.max(intensity, h.lightIntensity ?? 65536)
+        if (!h || h.pid === undefined) continue
+        const r = h.pid === PROTO_ID_LIT_FLARE ? (h.lightRadius ?? 8) : (h.lightRadius ?? (h.pro as any)?.lightDistance ?? 0)
+        if (!(r > 0)) continue
+        radius = Math.max(radius, r)
+        if (!c.isPlayer) intensity = Math.max(intensity, h.lightIntensity ?? 65536)
     }
     c.lightRadius = radius
     c.lightIntensity = intensity
@@ -743,6 +764,26 @@ export class Obj {
         }
 
         initWeaponAmmo(obj)
+        // CE proto.cc _proto_update_gen: a new scenery object takes its proto's door flags,
+        // stairs / ladder destinations and elevator; a new exit grid goes nowhere yet
+        const ex = (pro as any)?.extra ?? {}
+        if (pidType === 2) {
+            const e: any = (obj.extra = obj.extra ?? {})
+            switch (ex.subType) {
+                case 0: { // SCENERY_TYPE_DOOR: openFlags (proto.py reads it as walkthroughFlag)
+                    const f = ex.walkthroughFlag ?? 0
+                    e.openFlags = f
+                    obj.locked = (f & 0x02000000) !== 0
+                    obj.jammed = (f & 0x04000000) !== 0
+                    break
+                }
+                case 1: e.destination = ex.destination; e.destinationMap = ex.destinationMap; break // stairs
+                case 2: e.elevatorType = ex.elevatorType; e.elevatorLevel = ex.elevatorLevel; break // elevator
+                case 3: case 4: e.destinationMap = ex.destination; break // ladders: field_0 is the map
+            }
+        } else if (pidType === 5 && pid >= 0x5000010 && pid <= 0x5000017) {
+            obj.extra = { ...(obj.extra ?? {}), exitMapID: -1, startingPosition: -1, startingElevation: 0, startingOrientation: 0 }
+        }
         obj.init()
         obj.loadScript(sid)
         return obj

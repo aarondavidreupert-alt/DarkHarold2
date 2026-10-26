@@ -321,6 +321,9 @@ export function playerUse(obj: Obj | null) {
         }
 
         // Walking out of combat
+        // CE _check_move: without interrupt_walk the walk isn't cleared, so the new one
+        // (ANIMATION_REQUEST_RESERVED on a busy dude) doesn't start
+        if (!Config.engine.interruptWalk && (globalState.player.anim === 'walk' || globalState.player.anim === 'run')) return
         const run = moveClickRuns(toTileNum(mouseHex))
         if (run) globalState.player.stopSneakToRun() // CE _dude_run
         if (!globalState.player.walkTo(mouseHex, run)) {

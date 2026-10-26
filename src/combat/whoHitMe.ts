@@ -57,7 +57,8 @@ export function combatAiRating(obj: Critter | null): number {
         const max = item?.subtype === 'weapon' ? item.pro?.extra?.maxDmg : undefined
         if (typeof max === 'number' && damage < max) damage = max
     }
-    return damage + obj.getStat('AC') + obj.getArmorAC()
+    // STAT_ARMOR_CLASS: with the unused-AP bonus while it isn't the critter's turn
+    return damage + obj.getStat('AC') + obj.getArmorAC() + ((globalState.combat as any)?.unusedApAC?.(obj) ?? 0)
 }
 
 // CE combat_ai.cc _combatai_check_retaliation — switch to the new attacker if it

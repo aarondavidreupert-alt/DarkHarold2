@@ -236,24 +236,36 @@ export function reactToOption(reaction: number): void {
     talkToCritterReacts(v1)
 }
 
-// CE lips.cc lipsLoad — version-2 .lip: big-endian header, phoneme bytes, markers.
+// CE lips.cc lipsLoad — a big-endian header, phoneme bytes, markers. Version 2: 8 int32s +
+// file_name[8] + field_58[4]; version 1 (lipsReadV1): 20 int32s + 8 + 4 + 4 + 4 + 260 bytes
+// of names. Without a .lip (or with another version) CE still plays the speech, with no
+// lip sync.
 function loadLips(audioName: string): Lips | null {
     const base = audioName.split('.')[0].toLowerCase()
+    const audio = new Audio(assetUrl(`audio/speech/${headName}/${base}.mp3${AUDIO_ASSET_QUERY}`))
+    const noLips = (): Lips => ({ phonemes: [0], markers: [], totalBytes: 0, audio })
     let dv: DataView
     try {
         dv = getFileBinarySync(`data/sound/speech/${headName}/${base}.lip`)
     } catch {
-        return null
+        return noLips()
     }
     const version = dv.getInt32(0, false)
-    if (version !== 2) {
-        dbg('dialogue', `[Lips] unsupported .lip version ${version} for ${base}`)
-        return null
+    let totalBytes: number, phonemeCount: number, markerCount: number, p: number
+    if (version === 2) {
+        totalBytes = dv.getInt32(16, false) // field_1C
+        phonemeCount = dv.getInt32(20, false) // field_24
+        markerCount = dv.getInt32(28, false) // field_2C
+        p = 44
+    } else if (version === 1) {
+        totalBytes = dv.getInt32(28, false) // field_1C
+        phonemeCount = dv.getInt32(36, false) // field_24
+        markerCount = dv.getInt32(44, false) // field_2C
+        p = 360
+    } else {
+        dbg('dialogue', `[Lips] wrong .lip version ${version} for ${base}`)
+        return noLips()
     }
-    const totalBytes = dv.getInt32(16, false) // field_1C
-    const phonemeCount = dv.getInt32(20, false) // field_24
-    const markerCount = dv.getInt32(28, false) // field_2C
-    let p = 44 // 8 int32 fields + file_name[8] + field_58[4]
     const phonemes: number[] = []
     for (let i = 0; i < phonemeCount; i++) phonemes.push(dv.getUint8(p++))
     const markers: { marker: number; position: number }[] = []
@@ -261,7 +273,6 @@ function loadLips(audioName: string): Lips | null {
         markers.push({ marker: dv.getInt32(p, false), position: dv.getInt32(p + 4, false) })
         p += 8
     }
-    const audio = new Audio(assetUrl(`audio/speech/${headName}/${base}.mp3${AUDIO_ASSET_QUERY}`))
     return { phonemes, markers, totalBytes, audio }
 }
 

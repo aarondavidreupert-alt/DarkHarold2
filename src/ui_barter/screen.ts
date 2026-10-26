@@ -22,6 +22,8 @@ import { relinkTradedHands, tradeHeldAside } from '../inventoryWield.js'
 import { dbg, dbgWarn } from '../logger.js'
 import { Critter, cloneItem, Obj } from '../object.js'
 import { Scripting } from '../scripting.js'
+import { aiAttemptWeaponReload } from '../combat/Combat.js'
+import { endLips } from '../talkingHead.js'
 import { UIMode } from '../ui_panels.js'
 import { uiAnimateBox, uiSetDialogueReply } from '../ui_dialogue.js'
 import { drawBagView, examineToLog, itemMenuActions, makeDropTarget, makeDraggable, MAX_OPEN_BAGS, showItemMenu, unloadWeapon, itemCountLabel } from '../ui_inventory.js'
@@ -137,6 +139,9 @@ let barterKeyHandler: ((e: KeyboardEvent) => void) | null = null
 
 function uiEndBarterMode() {
     activeBarter = null
+    // CE _gdialog_barter_destroy_win: the merchant reloads (aiAttemptWeaponReload)
+    if (barterMerchant) aiAttemptWeaponReload(barterMerchant)
+    barterMerchant = null
     stopBarterPortraitAnimation()
     const $barterBox = $id('barterBox')
 
@@ -157,8 +162,12 @@ function uiEndBarterMode() {
     globalState.uiMode = UIMode.dialogue
 }
 
+let barterMerchant: Critter | null = null
+
 export function uiBarterMode(merchant: Critter) {
     globalState.uiMode = UIMode.barter
+    barterMerchant = merchant
+    endLips() // CE gameDialogBarterButtonUpMouseUp: the speech stops
 
     // Keep the TV screen (dialogueContainer) visible — only hide the dialogue panel
     $id('dialogueContainer').style.visibility = 'visible'
@@ -184,8 +193,8 @@ export function uiBarterMode(merchant: Critter) {
         // barterer at (560,25), both 60x100. Player: ROTATION_SW, frame 0,
         // then spin via 167ms timer. NPC: stored orientation, last frame.
         if (globalState.player) {
+            // CE _display_body(fid, TRADE): the dude stands facing south-west (no turning)
             renderBarterPortrait($id('barterBoxPlayerPortrait'), globalState.player, false)
-            startBarterPortraitAnimation(globalState.player)
         }
         renderBarterPortrait($id('barterBoxMerchantPortrait'), merchant, true)
     })

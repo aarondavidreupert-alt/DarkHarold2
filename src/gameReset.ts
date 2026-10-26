@@ -29,9 +29,11 @@ import { Worldmap } from './worldmap.js'
 import { resetAutomap } from './automapData.js'
 import { resetSkillUsage } from './skillUse.js'
 import { removeAllGlobalScripts, sfallGlobalVarsReset } from './sfallGlobalScripts.js'
+import { uiLogReset } from './ui_hud.js'
 import { sfallHooksReset } from './sfallHooks.js'
 
 export function gameReset(): void {
+    uiLogReset() // isoReset → interfaceReset → displayMonitorReset
     // combatReset
     if (globalState.inCombat) globalState.combat?.forceEnd()
     globalState.inCombat = false

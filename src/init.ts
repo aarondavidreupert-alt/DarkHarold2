@@ -30,6 +30,14 @@ import { saveLoadInit } from './saveload.js'
 import { drawAC, drawHP, initUI, uiDrawWeapon, uiLog } from './ui.js'
 import { initMainMenu, showMainMenu } from './ui_mainmenu.js'
 import { takeMainMenuReturn } from './mainMenuReturn.js'
+import { hideSplash } from './splash.js'
+import { sfallIniGetString } from './sfallIni.js'
+
+// sfall ddraw.ini [Misc] SkipOpeningMovies (0 / 1 / 2), else Config.ui.skipOpeningMovies
+export function skipOpeningMoviesLevel(): number {
+    const v = parseInt(sfallIniGetString('ddraw.ini|Misc|SkipOpeningMovies') ?? '', 10)
+    return !isNaN(v) ? v : Config.ui.skipOpeningMovies ? 1 : 0
+}
 import { initCharacterCreator } from './ui_charactercreator.js'
 import { initCharacterSelector, showCharacterSelector } from './ui_charselect.js'
 import { Worldmap } from './worldmap.js'
@@ -111,6 +119,7 @@ export function initGame() {
 
     if (mapFromQuery !== null) {
         // Debug: map specified in URL query → skip main menu and load directly.
+        hideSplash()
         globalState.gMap.loadMap(mapFromQuery)
     } else {
         // Default startup: load the starting map in the background (the main menu
@@ -122,15 +131,19 @@ export function initGame() {
         // unless sfall's SkipOpeningMovies is set (Config.ui.skipOpeningMovies).
         // AutoCrawler (?crawl=): neither — the crawl plays on the background map, and the
         // movies' real-time uiMode switches would land in the middle of its steps.
+        // sfall ddraw.ini [Misc] SkipOpeningMovies: 1 skips the movies (2 the splash too)
         if (crawlParam) {
+            hideSplash()
             // nothing: autocrawler.ts starts the crawl once the map has loaded
-        } else if (Config.ui.skipOpeningMovies || takeMainMenuReturn()) {
+        } else if (skipOpeningMoviesLevel() >= 1 || takeMainMenuReturn()) {
+            hideSplash()
             showMainMenu()
         } else {
+            // the movie screen covers the splash; it goes with the main menu
             void gameMoviePlay(MOVIE_IPLOGO, GAME_MOVIE_FADE_IN)
                 .then(() => gameMoviePlay(MOVIE_INTRO, 0))
                 .then(() => gameMoviePlay(MOVIE_CREDITS, 0))
-                .then(() => showMainMenu())
+                .then(() => { hideSplash(); showMainMenu() })
         }
     }
 

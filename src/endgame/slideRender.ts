@@ -6,6 +6,7 @@ import { getFileText } from '../util.js'
 import { dbgWarn } from '../logger.js'
 import { assetUrl } from '../modAssets.js'
 import { Config } from '../config.js'
+import { font3, font4 } from '../ui_font.js'
 
 // Slide canvas dimensions (CE: ENDGAME_ENDING_WINDOW_WIDTH/HEIGHT)
 const SLIDE_W = 640
@@ -166,84 +167,69 @@ function loadImageToCanvas(ctx: CanvasRenderingContext2D, imagePath: string | nu
 
 // ---------- scrolling credits ----------
 
-// CE: credits.cc:creditsOpen (0x42E054) + creditsFileParseNextLine (0x42E53C)
-// Parses data/text/english/credits.txt and scrolls it over the overlay.
-// Line prefixes: ';' = skip (comment), '@' = title font/color, '#' = highlight color.
-// Scroll speed: CE runs the scroll loop at ~1px per 20ms (creditsOpen:191-210).
-export async function showCredits(overlay: HTMLDivElement): Promise<void> {
+// CE credits.cc creditsOpen(file, backgroundFid -1, reversed): every line ('@' a title, '#'
+// a highlighted name, ';' skipped) is centred and scrolled up one pixel every 38 ms
+// (CREDITS_WINDOW_SCROLLING_DELAY), a line as tall as the taller of the two fonts; the
+// last one scrolls off the screen. Titles in font 103, names in 104, coloured 13673 / 18917
+// — swapped for quotes.txt (reversed); '#' lines 17969. A line wider than the screen is
+// skipped; any key or click stops it.
+export async function showCredits(overlay: HTMLDivElement, file = 'credits.txt', reversed = false): Promise<void> {
     let raw: string
     try {
-        raw = getFileText('data/text/english/credits.txt')
+        raw = getFileText(`data/text/english/${file}`)
     } catch (_e) {
         return
     }
+    await new Promise<void>((r) => font3.onLoad(() => font4.onLoad(() => r())))
+
+    const TITLE_COLOR = reversed ? '#907824' : '#706050' // _colorTable[18917] / [13673]
+    const NAME_COLOR = reversed ? '#706050' : '#907824'
+    const HIGHLIGHT = '#8c8c84' // _colorTable[17969]
+    const titleFont = reversed ? font4 : font3
+    const nameFont = reversed ? font3 : font4
+    const lineHeight = Math.max(titleFont.lineHeight, nameFont.lineHeight)
 
     const container = document.createElement('div')
-    container.style.cssText = [
-        'position:absolute', 'top:0', 'left:0', 'width:100%', 'height:100%',
-        'overflow:hidden', 'background:#000',
-        'display:flex', 'align-items:flex-start', 'justify-content:center',
-    ].join(';')
-
+    container.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;overflow:hidden;background:#000;'
     const scroller = document.createElement('div')
-    scroller.style.cssText = [
-        'font-family:monospace', 'font-size:14px', 'text-align:center',
-        'padding:0 40px', 'width:100%', 'box-sizing:border-box',
-        'will-change:transform',
-    ].join(';')
-
+    scroller.style.cssText = 'position:absolute;left:0;top:0;width:100%;will-change:transform;'
+    const screenW = container.clientWidth || overlay.clientWidth || window.innerWidth
     for (const rawLine of raw.split('\n')) {
-        const line = rawLine.trimEnd()
+        const line = rawLine.replace(/\r$/, '')
         if (line.startsWith(';')) continue
-
-        if (line === '') {
-            const sp = document.createElement('div')
-            sp.style.height = '12px'
-            scroller.appendChild(sp)
-            continue
+        let font = nameFont, color = NAME_COLOR, text = line
+        if (line.startsWith('@')) { font = titleFont; color = TITLE_COLOR; text = line.slice(1) }
+        else if (line.startsWith('#')) { color = HIGHLIGHT; text = line.slice(1) }
+        const row = document.createElement('div')
+        row.style.cssText = `height:${lineHeight}px;display:flex;justify-content:center;align-items:flex-start;`
+        if (text) {
+            const cv = font.renderCanvas(text, color)
+            if (cv.width >= screenW) continue // fontGetStringWidth(str) >= windowWidth
+            row.appendChild(cv)
         }
-
-        const el = document.createElement('div')
-        if (line.startsWith('@')) {
-            // CE: title font — gold color, larger
-            el.textContent = line.slice(1)
-            el.style.cssText = 'color:#c8a040;font-size:18px;font-weight:bold;margin:8px 0 4px;line-height:1.6;'
-        } else if (line.startsWith('#')) {
-            // CE: highlighted name — green tint
-            el.textContent = line.slice(1)
-            el.style.cssText = 'color:#70b870;line-height:1.6;'
-        } else {
-            el.textContent = line
-            el.style.cssText = 'color:#ccc;line-height:1.6;'
-        }
-        scroller.appendChild(el)
+        scroller.appendChild(row)
     }
-
     container.appendChild(scroller)
     overlay.appendChild(container)
 
-    // CE: 1px per 20ms scroll tick — total distance = screenH + contentH
-    const screenH = window.innerHeight || SLIDE_H
-    scroller.getBoundingClientRect()  // flush layout to get correct scrollHeight
-    const contentH = scroller.scrollHeight
-    const totalPx = screenH + contentH
-    const durationMs = totalPx * 20
-
-    scroller.style.transform = `translateY(${screenH}px)`
-    scroller.getBoundingClientRect()  // flush before setting transition
-    scroller.style.transition = `transform ${durationMs}ms linear`
-
-    await new Promise<void>(resolve => {
-        let done = false
-        const finish = () => { if (!done) { done = true; resolve() } }
-
-        requestAnimationFrame(() => {
-            scroller.style.transform = `translateY(-${contentH}px)`
-        })
-
-        document.addEventListener('keydown', finish, { once: true })
-        overlay.addEventListener('click', finish, { once: true })
-        setTimeout(finish, durationMs)
+    const screenH = container.clientHeight || window.innerHeight || SLIDE_H
+    const totalPx = screenH + scroller.childElementCount * lineHeight
+    await new Promise<void>((resolve) => {
+        let y = screenH
+        scroller.style.transform = `translateY(${y}px)`
+        const finish = () => {
+            clearInterval(timer)
+            document.removeEventListener('keydown', finish, true)
+            overlay.removeEventListener('mousedown', finish)
+            resolve()
+        }
+        const timer = setInterval(() => {
+            y -= 1
+            scroller.style.transform = `translateY(${y}px)`
+            if (screenH - y >= totalPx) finish()
+        }, 38)
+        document.addEventListener('keydown', finish, true)
+        overlay.addEventListener('mousedown', finish)
     })
 
     container.remove()

@@ -41,6 +41,11 @@ export function addFloatMessage(fm: any): boolean {
     return true
 }
 
+// CE text_object.cc textObjectsReset: every floating text goes (a dialogue starts)
+export function resetFloatMessages(): void {
+    ;(globalState.floatMessages as any[]).length = 0
+}
+
 // CE float_msg colours (interpreter_extra.cc opFloatMessage, FLOATING_MESSAGE_TYPE_*),
 // color.pal entries of the _colorTable values.
 export const FLOAT_MSG_COLOR: { [type: number]: string } = {

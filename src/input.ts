@@ -333,6 +333,12 @@ export function installInputHandlers(): void {
                 // never a use of other objects, no walking
                 const target = getObjectUnderCursor((o: Obj) => o.type === 'critter' && o !== globalState.player)
                 if (target) {
+                    // CE combat.cc _combat_attack_this out of combat: _combat with the dude as the
+                    // attacker — the fight starts on his turn and the attack is its first action
+                    if (!globalState.inCombat && !(target as any).dead) {
+                        Combat.start(globalState.player)
+                        if (!globalState.inCombat) return
+                    }
                     playerUse(target)
                 } else {
                     const door = getObjectUnderCursor((o: Obj) => true)

@@ -16,7 +16,7 @@ import { returnToMainMenu } from './mainMenuReturn.js'
 import { Events } from './events.js'
 import { DAM_KNOCKED_OUT } from './combat/results.js'
 import { Worldmap } from './worldmap.js'
-import { gameMoviePlay, GAME_MOVIE_FADE_IN, GAME_MOVIE_FADE_OUT, GAME_MOVIE_PAUSE_MUSIC, GAME_MOVIE_STOP_MUSIC } from './gameMovie.js'
+import { gameMoviePlay, GAME_MOVIE_FADE_IN, GAME_MOVIE_FADE_OUT, GAME_MOVIE_PAUSE_MUSIC, GAME_MOVIE_STOP_MUSIC, MOVIE_TIMEOUT } from './gameMovie.js'
 import { getRandomInt } from './util.js'
 import { checkRads } from './radiation.js'
 import { heart } from './heart.js'
@@ -230,7 +230,7 @@ export function tickGame(): void {
     for (let i = 0; i < globalState.floatMessages.length; i++) {
         const fm = globalState.floatMessages[i]
         const baseDelay = Config.ui.textBaseDelay
-        const lineDelay = (baseDelay - 1.0) * 0.4
+        const lineDelay = Config.ui.textLineDelay ?? (baseDelay - 1.0) * 0.4
         const lineCount = fm.lines ?? (fm.msg.match(/\n/g)?.length ?? 0) + 1 // CE linesCount after word wrap
         const expiryMs = (baseDelay + lineDelay * lineCount) * 1000
         if (time >= fm.startTime + expiryMs) {
@@ -249,20 +249,23 @@ export function tickGame(): void {
     }
 
     const didTick = time - globalState.lastGameTick >= 1000 / 10 // 10 Hz game tick
+    // CE ref: scripts.cc:368 gameTimeAddTicks — after 13 years endgameSetupDeathEnding(
+    // TIMEOUT), which plays MOVIE_TIMEOUT (fade in / out, music paused), and
+    // _game_user_wants_to_quit = 2: back to the main menu (no death scene). Checked every
+    // frame, so a jump (rest, world-map travel) is caught at once too.
+    if (globalState.gameTickTime >= 13 * GameTime.TICKS_PER_YEAR && !gameEndingTriggered) {
+        gameEndingTriggered = true
+        Endgame.setupDeathEnding(Endgame.DEATH_REASON_TIMEOUT)
+        void gameMoviePlay(MOVIE_TIMEOUT, GAME_MOVIE_FADE_IN | GAME_MOVIE_FADE_OUT | GAME_MOVIE_PAUSE_MUSIC)
+            .then(() => returnToMainMenu())
+    }
+
     if (didTick) {
         globalState.lastGameTick = time
         // CE scripts.cc _script_chk_timed_events: the clock advances only out of combat;
         // combat time is the 5 s per round (combat.cc gameTimeAddSeconds)
         if (!globalState.inCombat) globalState.gameTickTime++
 
-        // CE ref: scripts.cc:368 gameTimeAddTicks — after 13 years endgameSetupDeathEnding(
-        // TIMEOUT) and _game_user_wants_to_quit = 2: straight back to the main menu (no
-        // death scene — main.cc only shows one when _main_show_death_scene is set).
-        if (globalState.gameTickTime >= 13 * GameTime.TICKS_PER_YEAR && !gameEndingTriggered) {
-            gameEndingTriggered = true
-            Endgame.setupDeathEnding(Endgame.DEATH_REASON_TIMEOUT)
-            returnToMainMenu()
-        }
         // CE main.cc mainLoop: the dude dead or knocked out outside combat ends the game.
         // (Death goes through critterKill's death animation → dudeDeathScene.)
         const dude = globalState.player

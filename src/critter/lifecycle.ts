@@ -21,13 +21,16 @@ limitations under the License.
 import { Config } from '../config.js'
 import globalState from '../globalState.js'
 import { dbg, dbgWarn } from '../logger.js'
-import { itemIsHidden, Obj } from '../object/Obj.js'
+import { giveNewUid, itemIsHidden, Obj } from '../object/Obj.js'
 import type { Critter } from '../object/Critter.js'
 import { Scripting } from '../scripting.js'
 import * as Endgame from '../endgame.js'
 import { hexInDirection, hexToScreen, HEX_GRID_SIZE, Point } from '../geometry.js'
 import { randomBetween } from '../random.js'
 import { toTileNum } from '../tile.js'
+import { armorPerkSwap } from '../perks/cePerks.js'
+import { applyArmorArt } from '../ui_inventory/dragdrop.js'
+import { ammoGetCapacity } from '../weaponAmmo.js'
 import {
     critterIsProne, removeKnockoutEvents, setNewResults,
     DAM_DEAD, DAM_KNOCKED_DOWN, DAM_KNOCKED_OUT, DAM_ON_FIRE,
@@ -330,25 +333,50 @@ function actionKnockdown(obj: Critter, anim: number, maxDistance: number, rotati
 }
 
 // CE critter.cc itemDropAll — everything carried lands on the critter's tile.
+// CE item.cc itemDropAll: everything goes to the critter's tile — money as one pile, every
+// other unit as its own object (an ammo stack's first box keeps the partial count, the rest
+// are full); worn armour off puts the critter back on its proto art (_adjust_ac), and with
+// the hands empty the art is the unarmed one.
 export function itemDropAll(obj: Critter): void {
     const gMap = globalState.gMap
     if (!gMap) return
     const self = obj as any
     const items: Obj[] = [...obj.inventory]
     obj.inventory.length = 0
+    let hadEquipped = false
     for (const slot of ['leftHand', 'rightHand', 'armor']) {
         const item = self[slot]
         if (item && item.pid !== undefined && !items.includes(item)) items.push(item)
-        if (slot === 'armor') { if (self.armor) self.armor = null }
-        else if (item && item.pid !== undefined) self[slot] = undefined
+        if (item && item.pid !== undefined) hadEquipped = true
+        if (slot === 'armor') {
+            if (self.armor) {
+                const worn = self.armor
+                self.armor = null
+                if (obj.isPlayer) { armorPerkSwap(obj, worn, null); applyArmorArt(null) }
+            }
+        } else if (item && item.pid !== undefined) self[slot] = undefined
+    }
+    const pieces: Obj[] = []
+    for (const item of items) {
+        const n = item.amount ?? 1
+        if (item.pid === 41 || n <= 1) { pieces.push(item); continue } // PROTO_ID_MONEY: one pile
+        item.amount = 1
+        pieces.push(item)
+        for (let k = 1; k < n; k++) {
+            const piece = giveNewUid(item.clone())
+            piece.amount = 1
+            if (item.subtype === 'ammo') piece.ammoQuantity = ammoGetCapacity(item as any)
+            pieces.push(piece)
+        }
     }
     const level = obj.elevation ?? gMap.currentElevation
-    for (const item of items) {
+    for (const item of pieces) {
         item.elevation = level
         gMap.addObject(item, level)
         if (level === gMap.currentElevation) item.move({ ...obj.position }, gMap.getObjects().length - 1, false)
         else item.position = { ...obj.position }
     }
+    if (hadEquipped) obj.setIdleArt?.()
 }
 
 // CE ref: actions.cc:1512 _is_hit_from_front(attacker, defender) — compares the two

@@ -106,7 +106,7 @@ export function uiSteal(thief: Critter, target: Critter): void {
     function drawSteal() {
         drawInventory($id('lootBoxLeft'), 'l', thiefList())
         drawInventory($id('lootBoxRight'), 'r', targetList())
-        drawLootBagViews(thiefBags, targetBags, drawSteal)
+        drawLootBagViews(thiefBags, targetBags, drawSteal, thief, target)
     }
 
     function endSteal() {

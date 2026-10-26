@@ -37,6 +37,7 @@ export interface AiPacket {
     areaAttackMode: AreaAttackMode
     distance: DistanceMode
     runAwayMode: RunAwayMode
+    runAwayModeUnset?: boolean  // no run_away_mode line (CE -1): aiGetRunAwayMode derives it
     hurtTooMuch: string[]       // e.g. ['crippled', 'blind']
     minHp: number               // flee when HP% drops to or below this
     minToHit: number            // skip attack if hit chance < this
@@ -72,6 +73,17 @@ const DISTANCE_MAP: DistanceMode[]        = ['stay_close', 'charge', 'snipe', 'o
 const RUN_AWAY_MODE_MAP: RunAwayMode[]    = ['none', 'coward', 'finger_hurts', 'bleeding', 'not_feeling_good', 'tourniquet', 'never']
 // CE combat_ai.cc gChemUseKeys: 0=clean 1=stims_when_hurt_little 2=stims_when_hurt_lots 3=sometimes 4=anytime 5=always
 export const CHEM_USE_MAP: ChemUse[]             = ['clean', 'stims_when_hurt_little', 'stims_when_hurt_lots', 'sometimes', 'anytime', 'always']
+
+// CE combat_ai.cc aiGetRunAwayMode: the packet's run_away_mode, or — when it has none — the
+// last of _hp_run_away_value {0, 25, 40, 60, 75, 100} that 100 × min_hp / Max HP reaches
+const HP_RUN_AWAY_VALUE = [0, 25, 40, 60, 75, 100]
+export function aiGetRunAwayMode(packet: AiPacket, maxHp: number): RunAwayMode {
+    if (!packet.runAwayModeUnset) return packet.runAwayMode
+    const ratio = Math.trunc(100 * packet.minHp / Math.max(1, maxHp))
+    let mode = -1
+    for (let i = 0; i < 6; i++) if (ratio >= HP_RUN_AWAY_VALUE[i]) mode = i
+    return RUN_AWAY_MODE_MAP[Math.max(0, mode)]
+}
 
 // ── Valid string sets ─────────────────────────────────────────────────────────
 
@@ -181,6 +193,7 @@ function buildPacket(sectionName: string, raw: Record<string, string>): AiPacket
         areaAttackMode:   parseEnum(raw['area_attack_mode'], AREA_ATTACK_MODES, AREA_ATTACK_MODE_MAP,  'no_pref'),
         distance:         parseEnum(raw['distance'],         DISTANCE_MODES,    DISTANCE_MAP,          'on_your_own'),
         runAwayMode:      parseEnum(raw['run_away_mode'],    RUN_AWAY_MODES,    RUN_AWAY_MODE_MAP,     'none'),
+        runAwayModeUnset: raw['run_away_mode'] === undefined,
         hurtTooMuch:      parseStringList(raw['hurt_too_much']),
         minHp:            parseIntField(raw['min_hp'],            0),
         minToHit:         parseIntField(raw['min_to_hit'],        0),

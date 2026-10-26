@@ -41,6 +41,9 @@ import { drawHP } from './ui_hud.js'
 import { objUseItemOn } from './useItemOn.js'
 import { initModAssets, mergeModJSON, overrideStylesheets } from './modAssets.js'
 import { loadFallout2Cfg, loadModsOrder, loadPreferences, parseModList } from './ui_options.js'
+import { showSplash } from './splash.js'
+import { isMainMenuReturn } from './mainMenuReturn.js'
+import { skipOpeningMoviesLevel } from './init.js'
 import { getFileJSON, getRandomInt } from './util.js'
 import { isCEOccludingWall, isCEOccludingWallLiteral, isBBoxOccludingWall, WebGLRenderer, setLightSourceOverlayActive, setLightOverlayMode, setLightOverlayRadiusScale, LightOverlayMode } from './webglrenderer.js'
 import { Config } from './config.js'
@@ -272,6 +275,9 @@ window.onload = async function () {
     // the active mods' asset folders (mods/<mod>/manifest.json), before any asset loads
     initModAssets(Config.scripting.mods)
     overrideStylesheets()
+    // CE gameInitWithOptions → showSplash while the game loads — not for a ?map / ?crawl
+    // start, a return to the main menu, or SkipOpeningMovies=2
+    if (!location.search && !isMainMenuReturn() && skipOpeningMoviesLevel() < 2) showSplash()
     // fallout2.cfg [dh2] script_backend=lua (the default) — start the Lua engine before
     // any script loads. An install whose pipeline did not decompile the scripts (no
     // data/scripts/obj_dude.lua, the player's script) runs the VM instead of asking

@@ -356,14 +356,31 @@ const LOG_LINE_HEIGHT = 13 // approx px per line for 8pt font
 // (data-seq) for readers that follow the log (uiLogCount, the story crawler).
 const LOG_CAPACITY = 100
 let logSeq = 0
+// CE display_monitor.cc displayMonitorAddMessage: each message starts with the '\x95' knob
+// (•); out of combat a new one sounds "monitor", at most every 500 ms
+// (DISPLAY_MONITOR_BEEP_DELAY); 100 lines are kept
+let lastMonitorBeep = -Infinity
 export function uiLog(msg: string): void {
     const $log = $id('displayLog')
+    if (!globalState.inCombat) {
+        const now = performance.now()
+        if (now - lastMonitorBeep >= 500) {
+            lastMonitorBeep = now
+            globalState.audioEngine?.playSfxByName?.('monitor')
+        }
+    }
     const li = document.createElement('li')
-    li.textContent = msg
+    li.textContent = '\u2022' + msg
     li.dataset.seq = String(logSeq++)
     $log.appendChild(li)
     while ($log.children.length > LOG_CAPACITY) $log.removeChild($log.firstChild!)
     $log.scrollTop = $log.scrollHeight
+}
+
+/** CE displayMonitorReset (interfaceReset, from gameReset): the log is emptied. */
+export function uiLogReset(): void {
+    const $log = document.getElementById('displayLog')
+    if ($log) $log.innerHTML = ''
 }
 
 /** How many lines the message window has received so far. */

@@ -360,7 +360,7 @@ function buildPrefsPanel(): HTMLElement {
     rangeSlider(
         125,
         () => Config.ui.textBaseDelay,
-        v => { Config.ui.textBaseDelay = v },
+        v => { Config.ui.textBaseDelay = v; Config.ui.textLineDelay = undefined },
         10, 60,
         (v: number) => Math.round((6.0 - v) * 43.8) + 384,
         (v: number) => Math.round((6.0 - v) * 10 + 10),
@@ -418,6 +418,7 @@ function buildPrefsPanel(): HTMLElement {
         Config.combat.combatSpeed = 0
         Config.engine.playerSpeedup = false
         Config.ui.textBaseDelay = 3.5
+        Config.ui.textLineDelay = undefined
         Config.ui.brightness = 1.0
         Config.ui.mouseSensitivity = 1.0
         // CE: the four volumes back to 22281 of 32767
@@ -694,8 +695,10 @@ export function initOptionsMenu(): void {
     )
 
     const handlers: (() => void)[] = [
-        () => { optionsWindow.close(); uiSaveLoad(true) },   // 500 SAVE GAME
-        () => { optionsWindow.close(); uiSaveLoad(false) },  // 501 LOAD GAME
+        // CE options.cc: the menu stays behind lsgSaveGame / lsgLoadGame and closes only when
+        // a game was saved / loaded (rc 1) — cancelling comes back to it
+        () => { optionsWindow.close(); uiSaveLoad(true, false, () => showOptionsMenu()) },   // 500 SAVE GAME
+        () => { optionsWindow.close(); uiSaveLoad(false, false, () => showOptionsMenu()) },  // 501 LOAD GAME
         () => { openPrefsPanel() },                           // 502 PREFERENCES
         () => { void quitConfirmation() },                    // 503 EXIT GAME
         () => { optionsWindow.close() },                      // 504 DONE

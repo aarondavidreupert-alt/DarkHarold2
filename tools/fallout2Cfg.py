@@ -133,6 +133,10 @@ barter_running_item=dh2
 scroll_mode=dh2
 ; mouse wheel: zoom = zooms the map (DH2), ce = scrolls the map as in CE
 mouse_wheel=zoom
+; combat outlines: dh2 = red hostile, green team, blue for neutrals (seen through walls);
+; ce = CE: red / green by team for critters in the line of fire, a dim outline for those
+; out of sight within Perception x 5 hexes, none farther
+combat_outline=dh2
 ; save / load slots: dh2 = any number, always a free one, DELETE removes a save;
 ; ce = CE's ten slots and no deleting (with more saves, only the first ten are listed)
 save_slots=dh2

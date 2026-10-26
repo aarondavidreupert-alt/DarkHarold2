@@ -28,6 +28,9 @@ limitations under the License.
 
 import { makePanelDraggable } from './ui_drag.js'
 import { Scripting } from './scripting.js'
+import globalState from './globalState.js'
+import { endLips } from './talkingHead.js'
+import { getDialogueSpeaker } from './ui_dialogue.js'
 import { getUiContainer } from './ui_panels.js'
 import { assetUrl } from './modAssets.js'
 
@@ -35,6 +38,7 @@ const SCROLL_STEP_PX = 32
 
 export function uiShowDialogueReview(): void {
     const log = Scripting.getDialogueReviewLog()
+    endLips() // the speech stops while the review is open
 
     // Mounted inside #uiStage and positioned to exactly overlay
     // #dialogueContainer (left:80,top:20,640x480 — ui.css) rather than
@@ -60,36 +64,47 @@ export function uiShowDialogueReview(): void {
 
     makePanelDraggable(panel, 'dialogueReview')
 
-    // CE ref: game_dialog.cc:1520-1524 — text rect (113,76)-(422,418).
+    // CE ref: game_dialog.cc gameDialogReviewWindowUpdate — text rect (113,76)-(422,418);
+    // each entry: "<speaker>:" at x 88 (colour 992), the reply from x 113 (768), then
+    // "<dude>:" (21140) and the option (15855). It opens on the oldest entry.
     const list = document.createElement('div')
     Object.assign(list.style, {
         position: 'absolute',
-        left: '113px',
+        left: '88px',
         top: '76px',
-        width: '309px',
+        width: '334px',
         height: '342px',
         overflowY: 'auto',
-        color: '#00ff00',
         fontSize: '.75em',
     })
-
-    if (log.length === 0) {
-        list.textContent = '(Nothing said yet.)'
+    const speakerName = (getDialogueSpeaker()?.name ?? '') + ':'
+    const dudeName = (globalState.player?.name ?? '') + ':'
+    const line = (text: string, color: string, indent: number): HTMLDivElement => {
+        const el = document.createElement('div')
+        Object.assign(el.style, { color, paddingLeft: indent + 'px' })
+        el.textContent = text
+        return el
     }
+    const entries: HTMLDivElement[] = []
     for (const entry of log) {
-        const replyEl = document.createElement('div')
-        replyEl.style.marginBottom = '4px'
-        replyEl.textContent = entry.reply
-        list.appendChild(replyEl)
-
+        const box = document.createElement('div')
+        box.style.marginBottom = '2px'
+        box.appendChild(line(speakerName, '#3cf800', 0))
+        box.appendChild(line(entry.reply, '#00a400', 25))
         if (entry.option) {
-            const optionEl = document.createElement('div')
-            Object.assign(optionEl.style, { marginBottom: '10px', paddingLeft: '12px', color: '#fcfc7c' })
-            optionEl.textContent = '> ' + entry.option
-            list.appendChild(optionEl)
+            box.appendChild(line(dudeName, '#a0a0a0', 0))
+            box.appendChild(line(entry.option, '#747474', 25))
         }
+        list.appendChild(box)
+        entries.push(box)
     }
     panel.appendChild(list)
+    // CE: ↑ / ↓ move the first entry shown by one
+    let origin = 0
+    const showFrom = (i: number) => {
+        origin = Math.max(0, Math.min(entries.length - 1, i))
+        if (entries[origin]) list.scrollTop = entries[origin].offsetTop
+    }
 
     // CE ref: inventory.cc/game_dialog.cc:296-303 gGameDialogReviewWindowButtonFrmIds —
     // verified against lut/lst/art_intrface.json (the source's own inline
@@ -157,12 +172,12 @@ export function uiShowDialogueReview(): void {
 
     const keyHandler = (e: KeyboardEvent): void => {
         if (e.key === 'Escape') { e.preventDefault(); close() }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); showFrom(origin - 1) }
+        else if (e.key === 'ArrowDown') { e.preventDefault(); showFrom(origin + 1) }
     }
     document.addEventListener('keydown', keyHandler, true)
 
     getUiContainer().appendChild(panel)
 
-    // Scroll to the bottom — the most recent line — matching how a
-    // conversation naturally reads top-to-bottom-most-recent.
-    list.scrollTop = list.scrollHeight
+    list.scrollTop = 0 // CE: gameDialogReviewWindowUpdate(win, 0), the oldest entry first
 }

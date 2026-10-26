@@ -25,7 +25,7 @@ import * as SfallFs from './sfallFs.js'
 import * as SfallHooks from './sfallHooks.js'
 import * as GlobalScripts from './sfallGlobalScripts.js'
 import { isPartyMemberPid } from './party.js'
-import { addFloatMessage, FLOAT_MSG_COLOR } from './floatText.js'
+import { addFloatMessage, FLOAT_MSG_COLOR, resetFloatMessages } from './floatText.js'
 import { sfxBuildOpenName, sfxBuildWeaponName } from './sfxNames.js'
 import { filterBadwords } from './badwords.js'
 import { FIDGET_BAD, FIDGET_GOOD, FIDGET_NEUTRAL, GAME_DIALOG_REACTION_NEUTRAL, reactToOption, startLips, startTalkingHead, talkToCritterReacts, isTalkingHeadActive } from './talkingHead.js'
@@ -51,7 +51,7 @@ import globalState from './globalState.js'
 import { parseIntFile } from './intfile.js'
 import { dbg, dbgWarn } from './logger.js'
 import { uiElevator } from './ui_elevator.js'
-import { Critter, createObjectWithPID, explosiveGetDamage, Obj, objectGetDamageType, setObjectOpen, zsort } from './object.js'
+import { Critter, createObjectWithPID, explosiveGetDamage, giveNewUid, Obj, objectGetDamageType, setObjectOpen, zsort } from './object.js'
 import { applyPerk, CE_PERKS, getPerkRank, perkApplyEffect, perkNameById, PERKS } from './perks.js'
 import { Player } from './player.js'
 import { loadPRO, lookupArt, makePID } from './pro.js'
@@ -229,6 +229,8 @@ export module Scripting {
     interface AnimForever { kind: 'forever'; obj: Obj; anim: number }
     type AnimEntry = AnimStep | AnimFunc | AnimMove | AnimForever
     let animBatch: AnimEntry[] | null = null
+    // CE game_dialog.cc DIALOG_OPTION_ENTRIES_CAPACITY
+    const DIALOG_OPTION_ENTRIES_CAPACITY = 30
 
     export interface StartPos {
         position: Point
@@ -1313,6 +1315,10 @@ export module Scripting {
                 switch (trait) {
                     case 5: // OBJECT_AI_PACKET — CE combat_ai.cc critterSetAiPacket
                         ;(<Critter>obj).aiNum = amount
+                        // … and the proto's packet when _isPotentialPartyMember — which ignores
+                        // its argument and holds whenever the dude is party member 0, i.e.
+                        // always: critters of this pid made later start with the new packet
+                        if ((<Critter>obj).pro?.extra) (<Critter>obj).pro.extra.AI = amount
                         // the cached packet (combat/AI.ts) is rebuilt from the new number
                         if ((<Critter>obj).ai) (<Critter>obj).ai = new AI(<Critter>obj)
                         return
@@ -1475,18 +1481,31 @@ export module Scripting {
             }
             dbg('inventory', 'rm_mult_objs_from_inven: %d counts of %o from %o', count, item, obj)
             if (obj.type === 'critter') unequipForRemoval(obj as Critter, item)
-            let i = obj.inventory.indexOf(item)
-            if (i === -1) i = obj.inventory.findIndex((it) => it.approxEq(item))
-            if (i === -1) {
+            // CE item.cc itemRemove: the owner's list, then — recursively — every bag in it
+            const findIn = (list: Obj[]): { list: Obj[]; i: number } | null => {
+                let i = list.indexOf(item)
+                if (i === -1) i = list.findIndex((it) => it.approxEq(item))
+                if (i !== -1) return { list, i }
+                for (const it of list) {
+                    if (it.subtype === 'container' && it.inventory?.length) {
+                        const found = findIn(it.inventory)
+                        if (found) return found
+                    }
+                }
+                return null
+            }
+            const found = findIn(obj.inventory)
+            if (!found) {
                 warn('rm_mult_objs_from_inven: item not found in inventory')
                 return 0
             }
-            const stack = obj.inventory[i]
+            const i = found.i
+            const stack = found.list[i]
             const quantity = Math.min(stack.amount, count)
             if (quantity <= 0) return 0
             stack.amount -= quantity
             if (stack.amount <= 0) {
-                obj.inventory.splice(i, 1)
+                found.list.splice(i, 1)
                 stack.amount = quantity // the removed object carries the quantity on (_obj_connect)
             } else {
                 ammoSplitOff(stack, stack.clone()) // the boxes left are full
@@ -2446,7 +2465,7 @@ export module Scripting {
         // the others change the next explosion and are not supported (a warning, 0).
         explosions_metarule(metarule: number, param1: number, _param2: number) {
             if (metarule === 6) {
-                const d = explosiveGetDamage(param1)
+                const d = explosiveGetDamage(param1, true)
                 const id = SfallArrays.createTempArray(2, 0)
                 SfallArrays.setArray(id, 0, d?.min ?? 0, false)
                 SfallArrays.setArray(id, 1, d?.max ?? 0, false)
@@ -2881,6 +2900,8 @@ export module Scripting {
             log('start_gdialog', arguments)
             info('DIALOGUE START', 'dialogue')
             if (!this.self_obj) throw 'no self_obj for start_gdialog'
+            // CE opStartGameDialog: nothing in combat
+            if (globalState.inCombat) return
             // CE ref: game_dialog.cc:1070-1075 _gdialogStart resets the review
             // log once per conversation. start_gdialog() fires on every
             // talk_p_proc run, including Scripting.reenterDialogue()'s
@@ -2890,6 +2911,7 @@ export module Scripting {
             if (globalState.uiMode !== UIMode.dialogue) {
                 dialogueReviewLog = []
                 dialogueReplyPending = false
+                resetFloatMessages() // CE _gdialogInitFromScript → textObjectsReset
             }
             currentDialogueObject = this.self_obj as Critter
             uiStartDialogue(false, this.self_obj as Critter)
@@ -2969,7 +2991,7 @@ export module Scripting {
             // stack's rest is full boxes)
             const i = who.inventory?.indexOf(obj) ?? -1
             if (i !== -1 && obj.amount > 1) {
-                const rest = obj.clone()
+                const rest = giveNewUid(obj.clone())
                 rest.amount = obj.amount - 1
                 obj.amount = 1
                 ammoSplitOff(rest, obj)
@@ -3184,6 +3206,7 @@ export module Scripting {
                 dbgWarn('script', 'gsay_option: msg is null')
                 return
             }
+            if (dialogueOptionProcs.length >= DIALOG_OPTION_ENTRIES_CAPACITY) return // CE: 30 at most
             dialogueOptionProcs.push(target.bind(this))
             dialogueOptionTexts.push(msg)
             dialogueOptionReactions.push(reaction)
@@ -3191,9 +3214,11 @@ export module Scripting {
         }
         gsay_start() {
             log('gsay_start', arguments)
+            // CE _gdialogStart: the review entries and the options start empty
+            dialogueReviewLog = []
             dialogueOptionProcs = []
             dialogueOptionTexts = []
-        dialogueOptionReactions = []
+            dialogueOptionReactions = []
             // ensure dialogue UI is open (may already be open from start_gdialog)
             if (globalState.uiMode !== UIMode.dialogue && this.self_obj) {
                 uiStartDialogue(false, this.self_obj as Critter)
@@ -3205,6 +3230,10 @@ export module Scripting {
             var msg = getScriptMessage(msgList, msgID)
             if (msg === null) throw Error('gsay_reply: msg is null')
             info('REPLY: ' + msg, 'dialogue')
+            // CE gameDialogSetMessageReply: options added before the reply are dropped
+            dialogueOptionProcs = []
+            dialogueOptionTexts = []
+            dialogueOptionReactions = []
             uiSetDialogueReply(msg)
             // CE scripts.cc:2726 _scr_get_msg_str_speech(…, 1) — speak it if there's a head.
             speakScriptMessage(msgList, msgID)
@@ -3296,6 +3325,7 @@ export module Scripting {
             // CE _op_giq_option: INT + Smooth Talker rank.
             const INT = globalState.player.getStat('INT') + globalState.player.perks.filter((p: string) => p === 'Smooth Talker').length
             if ((iqTest > 0 && INT < iqTest) || (iqTest < 0 && INT > -iqTest)) return // not enough intelligence for this option
+            if (dialogueOptionProcs.length >= DIALOG_OPTION_ENTRIES_CAPACITY) return // CE: 30 at most
 
             dialogueOptionProcs.push(target.bind(this))
             dialogueOptionTexts.push(msg)

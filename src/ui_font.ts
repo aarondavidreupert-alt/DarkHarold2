@@ -34,6 +34,7 @@ import { FontRenderer } from './ui/fontCore.js'
 
 // ---- Singletons (lazy: assets are only fetched on first use) ---------------
 
+export const font0 = new FontRenderer('art/fonts/font0_aaf', 'art/fonts/font0_aaf.json')
 export const font1 = new FontRenderer('art/fonts/font1_aaf', 'art/fonts/font1_aaf.json')
 export const font2 = new FontRenderer('art/fonts/font2_aaf', 'art/fonts/font2_aaf.json')
 export const font3 = new FontRenderer('art/fonts/font3_aaf', 'art/fonts/font3_aaf.json')

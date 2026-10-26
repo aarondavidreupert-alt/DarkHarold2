@@ -96,8 +96,14 @@ function showPause(): void {
     overlay.appendChild(win)
     const prev = globalState.uiMode
     globalState.uiMode = UIMode.dialog
+    // CE options.cc _ShadeScreen(false) (game.cc showPause(false)): the map in grey
+    // (grayscalePaletteApply) while paused
+    const cnv = document.getElementById('cnv')
+    const oldFilter = cnv?.style.filter ?? ''
+    if (cnv) cnv.style.filter = (oldFilter ? oldFilter + ' ' : '') + 'grayscale(1)'
     const close = () => {
         overlay.remove()
+        if (cnv) cnv.style.filter = oldFilter
         globalState.uiMode = prev
         window.removeEventListener('keydown', onKey, true)
     }

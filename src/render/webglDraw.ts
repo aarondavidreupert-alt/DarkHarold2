@@ -721,6 +721,8 @@ const OUTLINE_COLORS: { [name: string]: [number, number, number] } = {
     green: [0, 1, 0],
     yellow: [1, 1, 0],
     blue: [0.3, 0.6, 1],
+    // OUTLINE_TYPE_32 (palette 61): a critter out of sight but within PER × 5 ([dh2] combat_outline=ce)
+    unseen: [164 / 255, 136 / 255, 48 / 255],
 }
 
 function getOutlineFillAlpha(): number   { return Config.ui.outlineFillAlpha   ?? 0.2 }

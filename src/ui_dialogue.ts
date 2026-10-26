@@ -76,6 +76,10 @@ export function uiAnimateBox($el: HTMLElement, origin: number | null, target: nu
 // CE game_dialog.cc _gdialogUpdatePartyStatus: recruited or dismissed in the middle of a
 // dialogue, the speaker's window is rebuilt — di_talkp with Combat Control, or di_talk
 let dialogueSpeaker: Critter | undefined
+/** The critter the current dialogue is with (CE gGameDialogSpeaker). */
+export function getDialogueSpeaker(): Critter | undefined {
+    return dialogueSpeaker
+}
 Events.on('partyChanged', () => {
     if (dialogueSpeaker && $id('dialogueBox').style.visibility === 'visible') setupDialogueActionButtons(dialogueSpeaker)
 })
@@ -317,7 +321,7 @@ function installDialogueKeys(): void {
 export function uiAddDialogueOption(msg: string, optionID: number, reaction = 50) {
     installDialogueKeys()
     const item = document.createElement('div')
-    item.textContent = `- ${msg}`
+    item.textContent = `\u2022 ${msg}` // CE "%c %s" with '\x95' (cp1252 bullet)
     item.style.cursor = 'pointer'
     const empathy = !!globalState.player?.hasPerk?.('Empathy')
     const normal = empathy && reaction === 49 ? OPTION_COLOR.good : empathy && reaction === 51 ? OPTION_COLOR.bad : OPTION_COLOR.normal

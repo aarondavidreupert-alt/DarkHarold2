@@ -76,7 +76,7 @@ export function applyPreferences(prefs: SavedPreferences): void {
     if (prefs.doAlwaysRun !== undefined) Config.engine.doAlwaysRun = prefs.doAlwaysRun
     if (prefs.subtitles !== undefined) Config.ui.subtitles = prefs.subtitles
     if (prefs.languageFilter !== undefined) Config.ui.languageFilter = prefs.languageFilter
-    if (prefs.textBaseDelay !== undefined) Config.ui.textBaseDelay = prefs.textBaseDelay
+    if (prefs.textBaseDelay !== undefined) { Config.ui.textBaseDelay = prefs.textBaseDelay; Config.ui.textLineDelay = undefined }
     if (prefs.playerSpeedup !== undefined) Config.engine.playerSpeedup = prefs.playerSpeedup
     if (prefs.itemHighlight !== undefined) Config.ui.itemHighlight = prefs.itemHighlight
     if (prefs.combatTaunts !== undefined) Config.ui.combatTaunts = prefs.combatTaunts

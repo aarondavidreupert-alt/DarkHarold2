@@ -163,6 +163,9 @@ export function showInventory(useOn = false) {
         }
     }
 
+    // CE _setup_inventory(INVENTORY_WINDOW_TYPE_USE_ITEM_ON): its own window (use.frm, 292
+    // wide) — the list and the body view, CANCEL at (233, 328), no hand / armour slots
+    $id('inventoryBox').classList.toggle('useOn', !!useOnTarget)
     showv($id('inventoryBox'))
 
     function showItemInfo(obj: Obj) {
@@ -399,7 +402,7 @@ export function showInventory(useOn = false) {
                 }
                 currentOrientation = (currentOrientation + 1) % 6
                 renderOrientation(img, currentOrientation)
-            }, 250)
+            }, Math.trunc(1000 / 6)) // CE INVENTORY_NORMAL_WINDOW_PC_ROTATION_DELAY
         })
     }
 

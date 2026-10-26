@@ -52,6 +52,11 @@ export const Config = {
         // [dh2] mouse_wheel: 'zoom' (default, DH2) zooms the map; 'ce' scrolls it a step
         // (game.cc gameHandleKey → mapScroll; up / down, sideways with a tilt wheel)
         mouseWheel: 'zoom' as 'zoom' | 'ce',
+        // [dh2] combat_outline: 'dh2' (default) — red hostile, green team, blue for neutrals
+        // (CI11), seen through walls; 'ce' — combat.cc _combat_update_critter_outline_for_los:
+        // red / green by team in the line of fire, the palette-61 outline for a critter out of
+        // sight within PER × 5 hexes, none farther
+        combatOutline: 'dh2' as 'ce' | 'dh2',
         // [dh2] save_slots: 'dh2' (default) — any number of slots (at least 20, scrolling), a free one at the end,
         // DELETE / Del removes a save; 'ce' — loadsave.cc: ten slots, no deleting (the
         // ten oldest saves fill them; any more stay stored but aren't listed)
@@ -140,6 +145,8 @@ export const Config = {
         languageFilter: false,
         // FO2-CE ref: preferences.cc text_base_delay — on-screen text linger time, 1.0–6.0 s
         textBaseDelay: 3.5,
+        // fallout2.cfg [preferences] text_line_delay — undefined: derived from textBaseDelay
+        textLineDelay: undefined as number | undefined,
         // CE settings.preferences.combat_taunts — AI combat float messages (combat_ai.cc:3308 _combatai_msg)
         combatTaunts: true,
         // CE settings.preferences.combat_looks — examine whatever the attack cursor points at (game_mouse.cc:745)
@@ -161,6 +168,9 @@ export const Config = {
         // [dh2] talk_mode: 'dh2' (default) — the dude walks up to everyone he talks to; 'ce' —
         // actions.cc actionTalk: from where he stands when under 9 hexes and in sight (talkApproach.ts)
         talkMode: 'dh2' as 'ce' | 'dh2',
+        // fallout2.cfg [system] interrupt_walk (CE default 1): 0 — a move click while the dude
+        // is still walking is ignored (CE _check_move only clears the walk when it is on)
+        interruptWalk: true,
         // [dh2] barter_running_item: 'dh2' (default) — offering a running item (a burning
         // flare, an armed explosive, a switched-on Geiger counter / Stealth Boy) gets its own
         // refusal from the merchant; 'ce' — inventory.cc _barter_attempt_transaction's
