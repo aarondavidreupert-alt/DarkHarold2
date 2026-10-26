@@ -2920,6 +2920,22 @@ export module Scripting {
             if (!isGameObject(obj)) return
             const who = (this.target_obj ?? this.self_obj) as Critter
             if (!who) return
+            // CE _obj_drop → _obj_remove_from_inven → itemRemove(owner, item, 1): one item of
+            // a stack goes; the handle is the dropped one and a copy keeps the rest (an ammo
+            // stack's rest is full boxes)
+            const i = who.inventory?.indexOf(obj) ?? -1
+            if (i !== -1 && obj.amount > 1) {
+                const rest = obj.clone()
+                rest.amount = obj.amount - 1
+                obj.amount = 1
+                ammoSplitOff(rest, obj)
+                who.inventory[i] = rest
+                if (!obj.drop?.(who)) { // a script kept it
+                    who.inventory[i] = obj
+                    obj.amount = rest.amount + 1
+                }
+                return
+            }
             obj.drop?.(who)
         }
         // CE opGetGameDifficulty (0x812A) — settings.preferences.game_difficulty (0/1/2)

@@ -28,6 +28,15 @@ import { ammoGetCapacity, ammoGetQuantity, weaponGetAmmoTypePid } from './weapon
 import { loadPRO } from './pro.js'
 import { Worldmap } from './worldmap.js'
 
+// CE item.cc ammoGetCaliber: an ammo item's caliber; for a weapon, the caliber of the
+// ammo type loaded in it (0 when none is set)
+function ammoGetCaliber(obj: Obj): number {
+    if (obj.subtype === 'ammo') return obj.pro?.extra?.caliber ?? 0
+    const pid = weaponGetAmmoTypePid(obj)
+    if (pid === -1) return 0
+    return loadPRO(pid, pid & 0xffff)?.extra?.caliber ?? 0
+}
+
 const PROTO_ID_CAR = 0x020003f1
 const GVAR_PLAYER_GOT_CAR = 18
 const CAR_FUEL_MAX = 80000
@@ -84,8 +93,7 @@ export function objExamine(viewer: Critter, target: Obj): string[] {
             const item2: Obj | null = (target as any).rightHand ?? null
             const weapon = item2 && item2.subtype === 'weapon' ? item2 : null
             if (weapon) {
-                const caliber = weapon.pro?.extra?.caliber ?? 0
-                if (caliber !== 0) {
+                if (ammoGetCaliber(weapon) !== 0) {
                     text = format(hpMsg + protoMsg(547), hp, maxHp, weapon.getName(),
                         ammoGetQuantity(weapon), ammoGetCapacity(weapon), protoName(weaponGetAmmoTypePid(weapon)))
                 } else {
@@ -121,7 +129,7 @@ export function objExamine(viewer: Critter, target: Obj): string[] {
         }
     } else if (target.type === 'item') {
         if (target.subtype === 'weapon') {
-            if ((target.pro?.extra?.caliber ?? 0) !== 0) {
+            if (ammoGetCaliber(target) !== 0) {
                 out.push(format(protoMsg(526), ammoGetQuantity(target), ammoGetCapacity(target), protoName(weaponGetAmmoTypePid(target))))
             }
         } else if (target.subtype === 'ammo') {

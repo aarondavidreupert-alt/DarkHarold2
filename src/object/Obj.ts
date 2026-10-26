@@ -389,6 +389,13 @@ export function scheduleFlareBurnOut(obj: Obj, ticks: number): void {
     Scripting.timeEventList.push({ obj, ticks, userdata: 'flare', fn: burnOut, leaveMap: () => { burnOut(); return true } })
 }
 
+// CE actions.cc _action_in_explode: an animated explosion is on screen (a stale flag — a
+// map change cut the animation short — runs out after 5 s)
+let explosionStarted = -1
+function explosionRunning(): boolean {
+    return explosionStarted >= 0 && performance.now() - explosionStarted < 5000
+}
+
 // CE queue.cc explosionEventProcess / explosionFailureEventProcess → _queue_do_explosion_:
 // at the owner's tile when carried.
 function explosiveDetonate(obj: Obj, min: number, max: number, failure: boolean, animate = true): void {
@@ -405,7 +412,9 @@ function explosiveDetonate(obj: Obj, min: number, max: number, failure: boolean,
         obj.position = { ...owner.position }
         gMap.addObject(obj)
     }
-    obj.explode(player ?? null, min, max, 3, animate)
+    // _queue_do_explosion_: another explosion still running (−2) re-queues it 50 ticks on,
+    // as a plain explosion (no second "inept handling" line)
+    if (!obj.explode(player ?? null, min, max, 3, animate)) scheduleExplosion(obj, 50, false)
 }
 
 // Set the object (door/container) open/closed; returns true if possible, false if not (e.g. locked).
@@ -1504,6 +1513,11 @@ export class Obj {
             }
             transition()
             return true
+        } else if (this.type === 'item') {
+            // CE _protinst_use_item: an item with no use of its own — "That does nothing."
+            // (proto.msg 582)
+            if (source?.isPlayer ?? true) uiLog(getProtoMsg(582) ?? 'That does nothing.')
+            return false
         } else {
             this.singleAnimation()
             // CE _obj_use: a scenery use no script overrode — "You see: %s." (proto.msg 480)
@@ -1520,12 +1534,15 @@ export class Obj {
     // knockback; then damage_p_proc for the scripts in range (_scr_explode_scenery).
     // `_radius` is unused: CE's scripted explosions always use the rocket radius.
     // `animate` false (CE actionExplode's animate): the blast lands at once, no sprites.
-    explode(source: Obj | null, minDmg: number, maxDmg: number, _radius: number = 3, animate = true): void {
+    // False (CE −2, _action_in_explode) while another animated explosion is still running.
+    explode(source: Obj | null, minDmg: number, maxDmg: number, _radius: number = 3, animate = true): boolean {
+        if (animate && explosionRunning()) return false
         const killer = (source ?? this) as Critter // explosive itself as killer when source is null
         const center = { x: this.position.x, y: this.position.y }
         const elevation = this.elevation ?? globalState.gMap?.currentElevation ?? 0
         const blast = () => this.explosionBlast(killer, center, elevation, minDmg, maxDmg)
-        if (!animate) return blast()
+        if (!animate) { blast(); return true }
+        explosionStarted = performance.now()
         const explosion = createObjectWithPID(makePID(5 /* misc */, 14 /* Explosion */), -1)
         explosion.position = { ...center }
 
@@ -1536,7 +1553,7 @@ export class Obj {
         })
 
         lazyLoadImage(explosion.art, () => {
-            if (!globalState.gMap) return
+            if (!globalState.gMap) { explosionStarted = -1; return }
             globalState.gMap.addObject(explosion)
             for (const adj of adjExplosions) {
                 globalState.gMap!.addObject(adj)
@@ -1551,10 +1568,12 @@ export class Obj {
                 explosion.anim = null
                 if (fired) return
                 fired = true
+                explosionStarted = -1
                 globalState.gMap?.destroyObject(explosion)
                 blast()
             })
         })
+        return true
     }
 
     private explosionBlast(killer: Critter, center: Point, elevation: number, minDmg: number, maxDmg: number): void {

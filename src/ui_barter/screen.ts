@@ -280,7 +280,15 @@ export function uiBarterMode(merchant: Critter) {
         const playerOffered = totalAmount(playerBarterTable)
         const merchantNeed = barterMinPlayerOffer(merchantBarterTable)
 
-        if (playerBarterTable.length > 0 && playerOffered >= merchantNeed) {
+        // CE itemIsQueued(offerTable): an offered item with a pending event (a lit flare, an
+        // armed explosive, a running Stealth Boy / Geiger counter), or one inside an offered
+        // bag, makes the offer bad. (CE then tries miscItemTurnOff only when the *table* is a
+        // Geiger counter, which it never is.) The table holds working copies — match by uid.
+        const queued = new Set(Scripting.timeEventList.map((e) => (e.obj as Obj | null)?.uid).filter((u) => u !== undefined))
+        const isQueued = (o: Obj): boolean => queued.has(o.uid) || (o.inventory ?? []).some(isQueued)
+        const queuedOffer = playerBarterTable.some(isQueued)
+
+        if (playerBarterTable.length > 0 && !queuedOffer && playerOffered >= merchantNeed) {
             // OK, player offered equal to more more than the value
             dbg('script', '[Barter] offer accepted')
 

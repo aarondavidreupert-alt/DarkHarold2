@@ -181,6 +181,9 @@ function performDrugEffect(critter: Critter, stats: number[], mods: number[], is
         }
     } else if (!critter.dead) {
         // CE kills via the HP adjustment; item.msg 4 (dude) is fetched but never shown.
+        // An NPC: _combatKillCritterOutsideCombat with item.msg 600 "%s succumbs to the
+        // adverse effects of chems."
+        if (!isDude(critter)) uiLog((itemMsg(600) ?? '%s succumbs to the adverse effects of chems.').replace('%s', critter.name ?? ''))
         critterKill(critter, undefined, !isDude(critter)) // CE _combatKillCritterOutsideCombat runs destroy_p_proc for NPCs
     }
     if (isDude(critter)) Events.emit('statsChanged')

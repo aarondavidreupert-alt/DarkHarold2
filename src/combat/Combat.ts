@@ -538,6 +538,11 @@ export class Combat {
                 this.computeCriticalFailure(a)
                 break
             default:
+                // CE ROLL_FAILURE: _check_ranged_miss for a ranged / thrown attack (its
+                // rolls only — the result is ignored, and it never hits anyway)
+                if (attackType === 'ranged' || attackType === 'throw') {
+                    this.checkRangedMiss(attacker, a.defender, range, 'torso')
+                }
                 break
         }
 
@@ -850,7 +855,8 @@ export class Combat {
         // CE combat.cc _combat_attack: the dude remembers whom he attacks (_ai_danger_source,
         // the party's attack_who), and every attacker its last target
         if (obj.isPlayer) critterSetWhoHitMe(obj, a.defender)
-        ;(obj as any).aiLastTarget = a.defender
+        // (aiInfoSetLastTarget: a dead target is stored as none, oneself not at all)
+        if (a.defender !== obj) (obj as any).aiLastTarget = a.defender?.dead ? null : a.defender
         if (gcsd) {
             // CE _combat_attack: the attack_complex bonuses and clamps, on every attack of the
             // first combatant's turn (_gcsd is cleared when that turn ends, beginTurn)
@@ -1612,7 +1618,6 @@ export class Combat {
         const weapon = (weaponObj as any).weapon
         if (!gMap || !weapon) return null
         const range = weapon.getMaximumRange()
-        if (this.checkRangedMiss(attacker, defender, range, 'torso')) return null
 
         const isGrenade = weaponAttackType(weaponObj) === 'throw'
             && (dmgType === 'Explosive' || dmgType === 'Plasma' || dmgType === 'EMP')

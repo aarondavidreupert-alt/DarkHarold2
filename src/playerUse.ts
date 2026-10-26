@@ -15,6 +15,7 @@
 import { addFloatMessage } from './floatText.js'
 import { ammoGetCapacity, ammoGetQuantity, ammoSetQuantity, weaponGetBurstRounds } from './weaponAmmo.js'
 import { heart } from './heart.js'
+import { toTileNum } from './tile.js'
 import { hexDirectionTo, hexFromScreen, hexNeighbors, hexDistance, hexInDirection } from './geometry.js'
 import globalState from './globalState.js'
 import { dbg, dbgWarn } from './logger.js'
@@ -255,8 +256,12 @@ export function playerUse(obj: Obj | null) {
                 return
             }
 
-            const maxWalkingDist = globalState.player.AP.getAvailableMoveAP()
-            const run = moveClickRuns()
+            // CE animation.cc _check_move: Ctrl held keeps the AP for one attack in the
+            // current hit mode; nothing left over, no move
+            let maxWalkingDist = globalState.player.AP.getAvailableMoveAP()
+            if (ctrlHeld) maxWalkingDist -= currentAttackAPCost()
+            if (maxWalkingDist <= 0) return
+            const run = moveClickRuns(toTileNum(mouseHex))
             if (run) globalState.player.stopSneakToRun() // CE _dude_run
             if (!globalState.player.walkTo(mouseHex, run, undefined, maxWalkingDist)) {
                 dbg('map', '[Main] cannot walk there')
@@ -273,10 +278,11 @@ export function playerUse(obj: Obj | null) {
                 }
                 drawAP(globalState.player.AP.getAvailableCombatAP(), globalState.player.AP.getTotalMaxAP(), globalState.player.AP.move)
             }
+            return // (it fell through to the unlimited walk below before 2026-10-26)
         }
 
         // Walking out of combat
-        const run = moveClickRuns()
+        const run = moveClickRuns(toTileNum(mouseHex))
         if (run) globalState.player.stopSneakToRun() // CE _dude_run
         if (!globalState.player.walkTo(mouseHex, run)) {
             dbg('map', '[Main] cannot walk there')
@@ -302,15 +308,8 @@ export function playerUse(obj: Obj | null) {
             const weapon = globalState.player.equippedWeapon
 
             // Determine AP cost for this attack up-front so we can guard before acting
-            let attackAPCost: number
             const unarmed = weapon === null ? currentUnarmed(globalState.player) : null
-            if (unarmed) {
-                attackAPCost = unarmedAPCost(globalState.player, unarmed.mode, unarmed.aiming)
-            } else {
-                // CE weaponGetActionPointCost for the current action (primary / secondary,
-                // +1 aimed)
-                attackAPCost = weapon.weapon!.getAttackAPCost(globalState.player, undefined, weapon.weapon!.isCalled())
-            }
+            const attackAPCost = currentAttackAPCost()
 
             // CE combat.cc _combat_attack_this → _combat_check_bad_shot: refuse with
             // combat.msg 100-106 (out of ammo, out of range, AP, aim blocked, crippled arms).
@@ -448,8 +447,29 @@ let shiftHeld = false
 window.addEventListener('keydown', (e) => { if (e.key === 'Shift') shiftHeld = true })
 window.addEventListener('keyup', (e) => { if (e.key === 'Shift') shiftHeld = false })
 window.addEventListener('blur', () => { shiftHeld = false })
-function moveClickRuns(): boolean {
-    return Config.engine.doAlwaysRun !== shiftHeld
+let ctrlHeld = false
+window.addEventListener('keydown', (e) => { if (e.key === 'Control') ctrlHeld = true })
+window.addEventListener('keyup', (e) => { if (e.key === 'Control') ctrlHeld = false })
+window.addEventListener('blur', () => { ctrlHeld = false })
+
+// CE animation.cc _dude_move: a second walk click on the same tile runs (lastDestination;
+// a run click leaves it alone)
+let lastMoveDest = -2
+function moveClickRuns(tile: number): boolean {
+    if (Config.engine.doAlwaysRun !== shiftHeld) return true
+    if (lastMoveDest === tile) return true
+    lastMoveDest = tile
+    return false
+}
+
+// CE interfaceGetCurrentHitMode → itemGetActionPointCost: the AP of one attack with the
+// dude's current hand and mode (primary / secondary, +1 aimed; unarmed: the punch / kick)
+function currentAttackAPCost(): number {
+    const player = globalState.player
+    const weapon = player.equippedWeapon
+    const unarmed = weapon === null ? currentUnarmed(player) : null
+    if (unarmed) return unarmedAPCost(player, unarmed.mode, unarmed.aiming)
+    return weapon!.weapon!.getAttackAPCost(player, undefined, weapon!.weapon!.isCalled())
 }
 
 export function changeCursor(_image: string) {
