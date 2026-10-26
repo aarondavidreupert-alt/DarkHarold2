@@ -89,6 +89,13 @@ export function uiElevatorDone() {
     hidev($id('elevatorLabel'))
 }
 
+// CE elevator.cc gElevatorSoundEffects[floors - 2][floors travelled] ("ERROR" slots: none)
+const ELEVATOR_SOUNDS: (string | null)[][] = [
+    ['elv1_1', 'elv1_1', null, null],
+    ['elv1_2', 'elv1_2', 'elv1_1', null],
+    ['elv1_3', 'elv1_3', 'elv2_3', 'elv1_1'],
+]
+
 export function uiElevator(elevator: Elevator) {
     globalState.uiMode = UIMode.elevator
     activeElevator = elevator
@@ -134,16 +141,10 @@ export function uiElevator(elevator: Elevator) {
                 if (mapID !== globalState.gMap.mapID) {
                     // different map
                     dbg('map', `[Elevator] → map ${mapID}, level ${level} @ (${position.x}, ${position.y})`)
-                    globalState.audioEngine.playSfxByName('selevdx1')
                     globalState.gMap.loadMapByID(mapID, position, level)
                 } else if (level !== globalState.currentElevation) {
                     // same map, different elevation
-                    // FO2-CE ref: elevator.cc — distance-based travel sound
-                    // 1 floor = elv1_1, 2 floors = elv1_2, 3+ floors = elv1_3
-                    const dist = Math.abs(level - globalState.currentElevation)
-                    const elvSfx = dist === 1 ? 'elv1_1' : dist === 2 ? 'elv1_2' : 'elv1_3'
                     dbg('map', `[Elevator] → level ${level} @ (${position.x}, ${position.y})`)
-                    globalState.audioEngine.playSfxByName(elvSfx)
                     globalState.player.move(position)
                     globalState.gMap.changeElevationFaded(level, true)
                 }
@@ -166,6 +167,10 @@ export function uiElevator(elevator: Elevator) {
             }
 
             if (targetFloorIdx !== currentFloorIdx) {
+                // CE elevator.cc elevatorSelectLevel: the travel sound by the car's floor count
+                // and the floors travelled (gElevatorSoundEffects), before the gauge moves
+                const sfx = ELEVATOR_SOUNDS[elevator.buttonCount - 2]?.[Math.abs(targetFloorIdx - currentFloorIdx)]
+                if (sfx) globalState.audioEngine.playSfxByName(sfx)
                 // CE ref: elevator.cc — animate gauge needle before map load
                 animateGauge(currentFloorIdx, targetFloorIdx, elevator.buttonCount, proceed)
             } else {

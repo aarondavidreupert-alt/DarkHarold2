@@ -73,6 +73,7 @@ import { ScriptVM } from './vm.js'
 import { attachLuaScript, isLuaReady, LuaScriptHandle } from './lua/luaRuntime.js'
 import { Worldmap } from './worldmap.js'
 import { ScriptVMBridge } from './vm_bridge.js'
+import { setChildProgramLoader, vmClearPrograms, vmDoEvents } from './vm.js'
 import { processMidnightForDay } from './gameTick.js'
 import { Config } from './config.js'
 import { ammoGetQuantity, ammoSetQuantity, ammoSplitOff, weaponGetAmmoTypePid, weaponSetAmmoTypePid } from './weaponAmmo.js'
@@ -424,6 +425,7 @@ export module Scripting {
     // CE ref: game.cc gameReset → gameLoadGlobalVars (vault13.gam defaults), _scr_reset /
     // scriptsReset (queue, MVARs of every map) — a new game or a load starts clean.
     export function resetGameState(): void {
+        vmClearPrograms() // a new game / load: no program's exports or call_at / call_when survive
         globalVars = {}
         globalVarsLoaded = false
         loadGlobalVars()
@@ -3880,7 +3882,11 @@ export module Scripting {
             const luaScript = loadLuaScript(name)
             if (luaScript) return luaScript
         }
+        return loadIntScript(name)
+    }
 
+    // The .int on the script VM (vm.ts) — also a child program's (callstart / spawn / fork / exec)
+    function loadIntScript(name: string): Script {
         var path = 'data/scripts/' + name.toLowerCase() + '.int'
         var data: DataView = getFileBinarySync(path)
         var reader = new BinaryReader(data)
@@ -4125,6 +4131,18 @@ export module Scripting {
         scriptRequests.delete(kind)
         try { run() } catch (e) { warn(`script request ${kind}: ${e}`) }
     }
+    // CE _updatePrograms → _doEvents: call_at / call_when procedures of the .int programs
+    export function doProgramEvents(): void {
+        vmDoEvents()
+    }
+    setChildProgramLoader((name) => {
+        try {
+            return (loadIntScript(name) as any)._vm ?? null
+        } catch (e) {
+            return null
+        }
+    })
+
     export function processScriptRequests(): void {
         if (scriptRequests.size === 0 || globalState.uiMode !== UIMode.none) return
         if (scriptRequests.has('combat') && !globalState.inCombat) runScriptRequest('combat')
@@ -4433,6 +4451,10 @@ export module Scripting {
     }
 
     export function reset(mapName: string, mapID?: number) {
+        // CE: the old map's programs are freed, and with them their exported procedures and
+        // pending call_at / call_when; the dude's and the global scripts stay
+        const dudeScript = (globalState.player as any)?._script
+        vmClearPrograms((vm: any) => vm.scriptObj === dudeScript || GlobalScripts.globalScriptIsLoaded(vm.scriptObj))
         // The event queue is not emptied here: leaving the old map already cleared what CE
         // clears (queueLeavingMap, _queue_leaving_map); poison, radiation and the party's
         // drug events carry over. A new game / load empties it (resetGameState).

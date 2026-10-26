@@ -326,7 +326,10 @@ export function gameMoviePlay(movie: number, flags: number): Promise<void> {
             globalState.uiMode = UIMode.movie // modal: pauses tickGame (CE isoDisable)
             document.addEventListener('keydown', onInput, true)
             screen.addEventListener('mouseup', onInput, true)
-            video.volume = Math.max(0, Math.min(1, audio?.musicVolume ?? 1))
+            // CE gameMoviesInit / backgroundSoundSetVolume → movieSetVolume: the music volume
+            // × 0.94 (under the master mix), nothing when the music is off
+            const musicOn = Config.engine.soundsEnabled && Config.engine.musicEnabled
+            video.volume = musicOn ? Math.max(0, Math.min(1, (audio?.musicVolume ?? 1) * 0.94 * (audio?.masterVolume ?? 1))) : 0
             try {
                 await video.play()
             } catch {

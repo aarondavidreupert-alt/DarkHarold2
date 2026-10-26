@@ -154,7 +154,7 @@ Top findings:
 | `_anim_animate` (:2705) | `staticAnimation` critterAnimation.ts:581 | ✅ | — | Missing art → no play ✓. |
 | `_object_animate` (:2740) | `updateAnim` / `updateStaticAnim` critterAnimation.ts:283,365 | ✅ | — | Forward / reverse, action frame (FA3). |
 | `_object_anim_compact` (:2908) | — | 🚫 | — | |
-| `_check_move` (:2942) | — | 🟡 PARTLY FIXED (2026-10-26) | LOW | Ctrl+move in combat (keep AP for one attack) and `interrupt_walk`. — **2026-10-26:** Ctrl+move in combat keeps the AP of one attack in the current mode; `interrupt_walk` is not ported. |
+| `_check_move` (:2942) | — | ✅ FIXED (2026-10-26) | LOW | Ctrl+move in combat (keep AP for one attack) and `interrupt_walk`. — **2026-10-26:** Ctrl+move in combat keeps the AP of one attack in the current mode; `interrupt_walk` is not ported. — **2026-10-26, follow-up:** [system] interrupt_walk is ported (playerUse.ts). |
 | `_dude_move` / `_dude_run` (:2976,3000) | playerUse.ts:233–268, input.ts:481 `runTo` | ✅ FIXED (2026-10-26) | LOW | Walk ✓, run key ✓, run cancels Sneak without Silent Running ✓. Clicking the same destination twice does not run. — **2026-10-26:** a second walk click on the same tile runs (lastDestination); the combat walk no longer falls through to an unlimited walk. |
 | `_dude_fidget` (:3019) | `updateLoopingAnim` critterAnimation.ts:332 | ✅ FIXED (2026-10-25) | LOW | ANIM-04. |
 | `_dude_stand` (:3113) | `clearAnim` + `ceStandOffset` critterAnimation.ts:698,765 | ✅ | — | Take-out sum + stand rotation offset ✓. CE keeps a fire-dance fid (rare). |

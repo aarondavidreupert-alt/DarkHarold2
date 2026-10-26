@@ -277,7 +277,7 @@ export class GameMap {
         computeObjectContentBounds(this.getObjects())
 
         // set up renderer data
-        globalState.renderer.initData(this.roofMap, this.floorMap, this.getObjects())
+        globalState.renderer.initData(this.roofMap, this.floorMap, this.getObjects(), this.mapObj.levels[level].tiles.roofFlags ?? null)
 
         if (updateScripts) {
             // TODO: we need some kind of active/inactive flag on scripts to toggle here,

@@ -48,6 +48,17 @@ function asText(x: any): any {
     if (typeof x === 'boolean') return x ? 1 : 0
     return x instanceof Number ? x.valueOf().toFixed(5) : x
 }
+// CE VALUE_TYPE_* of a stack value: a comparison result (a JS boolean) is an int
+function vmType(x: any): 'int' | 'float' | 'string' | 'ptr' {
+    if (x instanceof Number) return 'float'
+    if (typeof x === 'number' || typeof x === 'boolean') return 'int'
+    if (typeof x === 'string') return 'string'
+    return 'ptr'
+}
+// the integer field of a value (a string's or pointer's is meaningless in CE: 0 here)
+function intOf(x: any): number {
+    return typeof x === 'number' ? x : typeof x === 'boolean' ? +x : 0
+}
 // CE opLogicalOperatorAnd/Or truthiness: an int or float is true when not 0, a
 // string always, a pointer when not null
 function sslTrue(x: any): boolean {
@@ -83,8 +94,240 @@ function arith(f: (x: number, y: number) => number, intResult: (r: number) => nu
     }
 }
 
+// CE interpreter.h PROCEDURE_FLAG_*
+const PROC_TIMED = 0x01
+const PROC_CONDITIONAL = 0x02
+const PROC_IMPORTED = 0x04
+
+function nowMs(): number {
+    return typeof performance !== 'undefined' ? performance.now() : Date.now()
+}
+
+// CE Procedure.flags / time / conditionOffset for call_at / call_when (opDelayedCall,
+// opConditionalCall); the VMs with one pending, for vmDoEvents
+interface ProcEvent { flags: number; time: number; conditionOffset: number }
+const eventVMs = new Set<ScriptVM>()
+
+/** CE interpreter.cc _doEvents (from _updatePrograms, every game loop): a conditional
+ *  procedure runs once its condition code gives true, a timed one once its time has
+ *  passed; either is cleared before it runs. */
+export function vmDoEvents(): void {
+    const now = nowMs()
+    for (const vm of [...eventVMs]) {
+        if (vm.dead) { eventVMs.delete(vm); continue }
+        for (const [index, ev] of [...vm.procEvents]) {
+            if ((ev.flags & PROC_CONDITIONAL) !== 0) {
+                const cond = vm.evalAt(ev.conditionOffset)
+                if (cond === undefined || !sslTrue(cond)) continue
+            } else if ((ev.flags & PROC_TIMED) === 0 || ev.time >= now) {
+                continue
+            }
+            vm.procEvents.delete(index)
+            const proc = vm.intfile.proceduresTable[index]
+            if (proc) vm.call(proc.name)
+        }
+        if (vm.procEvents.size === 0) eventVMs.delete(vm)
+    }
+}
+
+// CE export.cc external procedures (opExportProcedure): name → the exporting program
+const externalProcedures = new Map<string, { vm: ScriptVM; name: string; argc: number }>()
+/** A map change / new game: every program goes, and with it its exports and pending
+ *  call_at / call_when procedures (CE programFree → _removeProgramReferences). */
+export function vmClearPrograms(keep: (vm: ScriptVM) => boolean = () => false): void {
+    for (const [name, ext] of [...externalProcedures]) if (!keep(ext.vm)) externalProcedures.delete(name)
+    for (const vm of [...eventVMs]) {
+        if (keep(vm)) continue
+        vm.procEvents.clear()
+        eventVMs.delete(vm)
+    }
+}
+
+// CE runScript (callstart / spawn / fork / exec): loads a program and runs its startup
+// code. Set by the scripting layer, which knows where scripts come from.
+let childLoader: ((name: string) => ScriptVM | null) | null = null
+export function setChildProgramLoader(loader: ((name: string) => ScriptVM | null) | null): void {
+    childLoader = loader
+}
+function spawnChild(vm: ScriptVM): ScriptVM {
+    const name = String(vm.pop())
+    const child = childLoader ? childLoader(name.replace(/\.int$/i, '')) : null
+    if (!child) throw new VMFatalError(`Error spawning child ${name}`)
+    return child
+}
+
+// CE opPopFlags: the flags, checkWaitFunc and windowId the call put under the frame
+function popFlags(vm: ScriptVM): void {
+    vm.popRaw()
+    vm.popRaw()
+    vm.popRaw()
+}
+// back to the caller's address; -1 is the engine call's own sentinel (the procedure is over)
+function returnTo(vm: ScriptVM, addr: number, exit: boolean): void {
+    if (addr === -1 || exit) vm.halted = true
+    if (addr !== -1) vm.pc = addr
+}
+
 export const opMap: { [opcode: number]: (this: ScriptVM) => void } = {
+    0x8000: function () {}, // CE opNoop
+    0x8001: function () {
+        // CE opPush: the untyped push; the value's type is the opcode word's (an int)
+        this.push(this.script.read32() | 0)
+    },
     0x8002: function () {}, // start critical (nop)
+    // CE OPCODE_START_CRITICAL / END_CRITICAL: the second slot of enter / leave critical
+    // section; DH2 runs a procedure to its end anyway
+    0x804a: function () {},
+    0x804b: function () {},
+    0x802e: function () {
+        // CE opDump: pop a count, then that many values
+        const n = this.pop()
+        for (let i = 0; i < n; i++) this.popRaw()
+    },
+    0x8018: function () {
+        // CE opSwapStack
+        const a = this.popRaw()
+        const b = this.popRaw()
+        this.push(a)
+        this.push(b)
+    },
+    0x801e: function () {
+        this.popAddr()
+    }, // CE opPopAddress
+    0x802d: function () {
+        // CE opFetchProcedureAddress: a procedure's body offset
+        const proc = this.intfile.proceduresTable[this.pop()]
+        if (!proc) throw new VMFatalError('fetch_proc_address: no such procedure')
+        this.push(proc.offset)
+    },
+    0x8011: function () {
+        // CE opStopProgram: PROGRAM_FLAG_STOPPED — the procedure ends here; the next call
+        // starts with fresh flags (_setupCallWithReturnVal)
+        this.stopped = true
+        this.halted = true
+    },
+    0x801d: function () {
+        returnTo(this, this.popAddr(), true)
+    }, // CE opPopExit
+    0x801f: function () {
+        popFlags(this)
+    }, // CE opPopFlags
+    0x8020: function () {
+        popFlags(this)
+        returnTo(this, this.popAddr(), false)
+    }, // CE opPopFlagsReturn
+    0x8021: function () {
+        popFlags(this)
+        returnTo(this, this.popAddr(), true)
+    }, // CE opPopFlagsExit
+    0x8025: function () {
+        const value = this.popRaw()
+        popFlags(this)
+        returnTo(this, this.popAddr(), true)
+        this.push(value)
+    }, // CE opPopFlagsReturnValExit
+    // the *Extern forms end a call another program made (_setupExternalCall): the
+    // caller's flags, checkWaitFunc and Program are on the return stack under the
+    // return address. DH2 makes that call through ScriptVM.call, which takes the value.
+    0x8022: function () {
+        popFlags(this)
+        this.popAddr(); this.popAddr(); this.popAddr()
+        returnTo(this, this.popAddr(), false)
+    }, // CE opPopFlagsReturnExtern
+    0x8023: function () {
+        popFlags(this)
+        this.popAddr(); this.popAddr(); this.popAddr()
+        returnTo(this, this.popAddr(), true)
+    }, // CE opPopFlagsExitExtern
+    0x8024: function () {
+        const value = this.popRaw()
+        popFlags(this)
+        this.popAddr(); this.popAddr(); this.popAddr()
+        returnTo(this, this.popAddr(), false)
+        this.push(value)
+    }, // CE opPopFlagsReturnValExtern
+    0x8026: function () {
+        const value = this.popRaw()
+        popFlags(this)
+        this.popAddr(); this.popAddr(); this.popAddr()
+        returnTo(this, this.popAddr(), true)
+        this.push(value)
+    }, // CE opPopFlagsReturnValExitExtern
+    0x8006: function () {
+        // CE opDelayedCall (call_at): procedure index, then the delay in seconds
+        const index = this.pop()
+        const seconds = this.pop()
+        const ev = this.procEvents.get(index) ?? { flags: 0, time: 0, conditionOffset: 0 }
+        ev.flags |= PROC_TIMED
+        ev.time = nowMs() + 1000 * seconds
+        this.procEvents.set(index, ev)
+        eventVMs.add(this)
+    },
+    0x8007: function () {
+        // CE opConditionalCall (call_when): procedure index, then its condition code's offset
+        const index = this.pop()
+        const offset = this.pop()
+        const ev = this.procEvents.get(index) ?? { flags: 0, time: 0, conditionOffset: 0 }
+        ev.flags |= PROC_CONDITIONAL
+        ev.conditionOffset = offset
+        this.procEvents.set(index, ev)
+        eventVMs.add(this)
+    },
+    0x8047: function () {
+        // CE opWait: the program waits that many ms; a game script runs inside
+        // _executeProcedure's loop, so the game stands still meanwhile (capped at 10 s)
+        const ms = Math.min(10000, Math.max(0, this.pop()))
+        const end = nowMs() + ms
+        while (nowMs() < end) { /* CE _checkWait */ }
+    },
+    0x8048: function () {
+        // CE opCancel
+        const index = this.pop()
+        if (index >= this.intfile.proceduresTable.length) throw new VMFatalError('Invalid procedure offset given to cancel')
+        this.procEvents.delete(index)
+    },
+    0x8049: function () {
+        this.procEvents.clear()
+    }, // CE opCancelAll
+    0x8017: function () {
+        // CE opExportProcedure: procedure index, then its argument count
+        const proc = this.intfile.proceduresTable[this.pop()]
+        const argc = this.pop()
+        if (!proc) throw new VMFatalError('Error exporting procedure')
+        const key = proc.name.toLowerCase()
+        const prev = externalProcedures.get(key)
+        if (prev && prev.vm !== this && !prev.vm.dead) throw new VMFatalError(`Error exporting procedure ${proc.name}`)
+        externalProcedures.set(key, { vm: this, name: proc.name, argc })
+    },
+    0x800e: function () {
+        // CE opExit: the program is over for good (program->exited)
+        this.dead = true
+        this.stopped = true
+        this.halted = true
+    },
+    0x800f: function () {}, // CE opDetach: DH2's child programs never keep a parent waiting
+    0x8008: function () {
+        // CE opCallStart: the parent waits (PROGRAM_FLAG_0x20) for the child, whose startup
+        // code runScript runs; DH2 runs it to its end at once
+        if (this.child) throw new VMFatalError('Error, already have a child process')
+        spawnChild(this).parent = this // its startup run is over: nothing left to wait for
+    },
+    0x800a: function () {
+        // CE opSpawn (PROGRAM_FLAG_0x0100), as callstart
+        if (this.child) throw new VMFatalError('Error, already have a child process')
+        const child = spawnChild(this)
+        child.parent = this
+    },
+    0x800b: function () {
+        spawnChild(this)
+    }, // CE opFork
+    0x8009: function () {
+        // CE opExec: a forked child takes this program's place, which exits
+        spawnChild(this).parent = this.parent
+        this.dead = true
+        this.stopped = true
+        this.halted = true
+    },
     0xc001: function () {
         // CE opPush: a signed 32-bit int (sslc folds `-1` into 0xFFFFFFFF)
         this.push(this.script.read32() | 0)
@@ -213,7 +456,9 @@ export const opMap: { [opcode: number]: (this: ScriptVM) => void } = {
     0x8005: function () {
         // op_call (TODO: verify)
         // the script should have already pushed the return value (and possibly argc)
-        this.pc = this.intfile.proceduresTable[this.pop()].offset
+        const proc = this.intfile.proceduresTable[this.pop()]
+        // CE opCall: an imported procedure is not followed ("TODO: Incomplete")
+        if ((proc.flags & PROC_IMPORTED) === 0) this.pc = proc.offset
     },
     0x9001: function () {
         // push a string from either the strings or identifiers table.
@@ -295,12 +540,48 @@ export const opMap: { [opcode: number]: (this: ScriptVM) => void } = {
     0x8043: function () {
         this.push(~this.pop())
     },
-    0x8039: arith((x, y) => x + y),
-    0x803a: arith((x, y) => x - y),
-    0x803b: arith((x, y) => x * y),
+    0x8039: function () {
+        // CE opAdd: a string on either side concatenates (a float as "%.5f"); int + int that
+        // overflows gives a float; a pointer adds only to a string, else nothing is pushed
+        const rhs = this.popRaw()
+        const lhs = this.popRaw()
+        const l = vmType(lhs), r = vmType(rhs)
+        if (l === 'string' || (r === 'string' && l !== 'ptr')) this.push(String(asText(lhs)) + String(asText(rhs)))
+        else if (l === 'ptr') { if (r === 'string') this.push(String(lhs) + rhs) }
+        else if (r === 'ptr') return
+        else if (l === 'float' || r === 'float') this.push(vmFloat(unbox(lhs) + unbox(rhs)))
+        else {
+            const sum = intOf(lhs) + intOf(rhs)
+            this.push(sum > 0x7fffffff || sum < -0x80000000 ? vmFloat(sum) : sum)
+        }
+    },
+    0x803a: function () {
+        // CE opSubtract: int - int wraps; a float on either side gives a float; a string or
+        // pointer on the left pushes nothing
+        const rhs = this.popRaw()
+        const lhs = this.popRaw()
+        const l = vmType(lhs)
+        if (l === 'float') this.push(vmFloat(unbox(lhs) - (isVMFloat(rhs) ? unbox(rhs) : intOf(rhs))))
+        else if (l === 'int') this.push(isVMFloat(rhs) ? vmFloat(intOf(lhs) - unbox(rhs)) : (intOf(lhs) - intOf(rhs)) | 0)
+    },
+    0x803b: function () {
+        // CE opMultiply, as opSubtract (int * int wraps)
+        const rhs = this.popRaw()
+        const lhs = this.popRaw()
+        const l = vmType(lhs)
+        if (l === 'float') this.push(vmFloat(unbox(lhs) * (isVMFloat(rhs) ? unbox(rhs) : intOf(rhs))))
+        else if (l === 'int') this.push(isVMFloat(rhs) ? vmFloat(intOf(lhs) * unbox(rhs)) : Math.imul(intOf(lhs), intOf(rhs)))
+    },
     0x803d: function () {
-        checkDivisor(this, 'MOD')
-        modulo.call(this)
+        // CE opModulo: a float on either side is fatal, a non-int left side pushes nothing
+        const rhs = this.popRaw()
+        const lhs = this.popRaw()
+        if (isVMFloat(lhs)) throw new VMFatalError('Trying to MOD a float')
+        if (vmType(lhs) !== 'int') return
+        if (isVMFloat(rhs)) throw new VMFatalError('Trying to MOD with a float')
+        const d = intOf(rhs)
+        if (d === 0) throw new VMFatalError('Division (MOD) by zero')
+        this.push((intOf(lhs) % d) | 0)
     },
     // sfall math (CE sfall_opcodes.cc), here for the typed values: floats stay boxed
     // op_sqrt (0x81EC): a float
@@ -344,7 +625,6 @@ export const opMap: { [opcode: number]: (this: ScriptVM) => void } = {
         divide.call(this)
     },
 }
-const modulo = binop((x, y) => x % y)
 const divide = arith((x, y) => x / y, (r) => r | 0)
 
 // a procedure halted in gsay_end / gsay_message (ScriptVM.suspended)
@@ -366,6 +646,10 @@ export class ScriptVM {
     dvarBase: number = 0
     halted: boolean = false
     aborted: boolean = false // the last run() stopped on a fatal error
+    stopped: boolean = false // stop_program / exit / exec ended the last run(): its frame goes
+    procEvents = new Map<number, ProcEvent>() // pending call_at / call_when by procedure index
+    parent: ScriptVM | null = null // CE Program.parent / child (callstart, spawn, exec)
+    child: ScriptVM | null = null
     // procedures halted inside gsay_end / gsay_message, innermost last; resume()
     // continues them. Each keeps its own stack frame (taken off the shared stacks
     // when it halted) and the depths it was called at: frame pointers are
@@ -416,6 +700,14 @@ export class ScriptVM {
         var proc = this.intfile.procedures[procName]
         // console.log("CALL " + procName + " @ " + proc.offset + " from " + this.scriptObj.scriptName)
         if (!proc) throw 'ScriptVM: unknown procedure ' + procName
+        if ((proc.flags & PROC_IMPORTED) !== 0) {
+            // CE _executeProcedure: an imported procedure runs in the program that exported
+            // it (externalProcedureGetProgram), and only without arguments
+            const ext = externalProcedures.get(procName.toLowerCase())
+            if (!ext || ext.vm.dead) { dbgWarn('script', `External procedure ${procName} not found`); return 0 }
+            if (ext.argc !== 0) { dbgWarn('script', 'External procedure cannot take arguments in interrupt context'); return 0 }
+            return ext.vm.call(ext.name)
+        }
         const dataDepth = this.dataStack.length
         const retDepth = this.retStack.length
         // a call can come while this VM is running: an intrinsic of the running
@@ -423,7 +715,7 @@ export class ScriptVM {
         // back into it. CE _executeProcedure saves and restores the interpreter's
         // position around the nested run; so does this, or the outer procedure
         // would stop at the nested one's end (halted) or go on at its pc.
-        const outer = { pc: this.pc, offset: this.script.offset, halted: this.halted, aborted: this.aborted, dvarBase: this.dvarBase }
+        const outer = { pc: this.pc, offset: this.script.offset, halted: this.halted, aborted: this.aborted, stopped: this.stopped, dvarBase: this.dvarBase }
         try {
             // CE interpreter.cc _executeProcedure → _setupCallWithReturnVal: the
             // program's flags, checkWaitFunc and windowId (0, null, 0 for a game
@@ -446,8 +738,9 @@ export class ScriptVM {
             this.pc = proc.offset
             this.run()
 
-            if (this.aborted) {
-                // CE: the longjmp drops the procedure's frame; the caller sees 0
+            if (this.aborted || this.stopped) {
+                // CE: the longjmp drops the procedure's frame; the caller sees 0 (and a
+                // stopped / exited program is left where it stopped)
                 this.dataStack.length = dataDepth
                 this.retStack.length = retDepth
                 return 0
@@ -478,6 +771,7 @@ export class ScriptVM {
             this.script.seek(outer.offset)
             this.halted = outer.halted
             this.aborted = outer.aborted
+            this.stopped = outer.stopped
             this.dvarBase = outer.dvarBase
         }
     }
@@ -489,7 +783,7 @@ export class ScriptVM {
     // onlyOne: continue just the innermost suspended procedure (a gsay_message [Done]
     // returns into it, CE _gdialogSayMessage); the others keep waiting.
     resume(onlyOne = false): void {
-        const outer = { pc: this.pc, offset: this.script.offset, halted: this.halted, aborted: this.aborted, dvarBase: this.dvarBase }
+        const outer = { pc: this.pc, offset: this.script.offset, halted: this.halted, aborted: this.aborted, stopped: this.stopped, dvarBase: this.dvarBase }
         try {
             while (this.suspended.length > 0) {
                 const s = this.suspended.pop()!
@@ -528,6 +822,7 @@ export class ScriptVM {
             this.script.seek(outer.offset)
             this.halted = outer.halted
             this.aborted = outer.aborted
+            this.stopped = outer.stopped
             this.dvarBase = outer.dvarBase
         }
     }
@@ -562,9 +857,40 @@ export class ScriptVM {
         return true
     }
 
+    /** Run the code at `offset` to its exit and give the value it leaves (CE _doEvents
+     *  on a call_when condition), the VM's state kept; undefined on a fatal error. */
+    evalAt(offset: number): any {
+        const outer = { pc: this.pc, offset: this.script.offset, halted: this.halted, aborted: this.aborted, stopped: this.stopped, dvarBase: this.dvarBase }
+        const dataDepth = this.dataStack.length
+        const retDepth = this.retStack.length
+        try {
+            this.retStack.push(-1)
+            this.pc = offset
+            this.halted = false
+            let steps = 0
+            while (this.step()) {
+                if (++steps > 1000000) throw new VMFatalError('call_when condition did not finish')
+            }
+            return this.dataStack.length > dataDepth ? this.pop() : 0
+        } catch (e) {
+            dbgWarn('script', 'call_when condition in %s: %o', this.intfile.name, e)
+            return undefined
+        } finally {
+            this.dataStack.length = dataDepth
+            this.retStack.length = retDepth
+            this.pc = outer.pc
+            this.script.seek(outer.offset)
+            this.halted = outer.halted
+            this.aborted = outer.aborted
+            this.stopped = outer.stopped
+            this.dvarBase = outer.dvarBase
+        }
+    }
+
     run(): void {
         this.halted = false
         this.aborted = false
+        this.stopped = false
         try {
             while (this.step()) {}
         } catch (e) {

@@ -179,6 +179,8 @@ opcode, bad opcode (high byte missing `0x80`), internal consistency errors.
 deadline in `program->waitEnd`. Each subsequent `_interpret` call skips
 execution and calls `checkWaitFunc(program)` until it returns false (deadline
 passed), then clears the flag and resumes. (`interpreter.cc:2657–2669`)
+A game script runs inside `_executeProcedure`'s loop, so the wait blocks the game; DH2's `vm.ts`
+does the same, capped at 10 s.
 
 ---
 
@@ -553,6 +555,11 @@ Opcode numbers are CE's `interpreter.h` `OPCODE_*` values.
 | `0x803E`–`0x8041` | and / or / bitwise and / or | |
 | `0x8044` | floor | CE `opFloor`: truncation |
 | `0x8045` / `0x8046` | not / negate | |
+
+Since 2026-10-26 `vm.ts` also runs every other core opcode CE registers (0x8000 / 0x8001 / 0x8006-0x800B /
+0x800E / 0x800F / 0x8011 / 0x8017 / 0x8018 / 0x801D-0x8026 / 0x802D / 0x802E / 0x8047-0x804B; `vmDoEvents`
+runs call_at / call_when from the game loop). int2lua does not translate them, so a script that uses one
+runs on the VM.
 
 A scan of all 1448 `.int` files (2026-10-18) shows no other raw opcode in a script listed in scripts.lst: `call_at` / `call_when` / `callstart` / `exec` / `spawn` / `fork` / `wait` / `cancel` / `xor` / `bwnot` never occur. Only the unused `barstow` / `dumar` / `surf` / `genint` scripts (not in scripts.lst) contain `detach` (0x800F) and the `say*` ops (0x804D / 0x804E).
 

@@ -212,7 +212,7 @@ Top findings:
 
 | CE function (file) | DH2 counterpart (file:line) | Status | Sev | Notes |
 |---|---|---|---|---|
-| elevatorSelectLevel | `ui_elevator.ts:76 uiElevator` | 🟡 PARTLY FIXED (2026-10-26) | LOW | Gauge start/animation timing ✓ (EV1/EV2), door reset ✓. Diffs: no Esc cancel and no floor keys (CE `gElevatorLevelLabels`, e.g. G/1, 3/4/6) — the panel only closes by picking a floor; sound = `selevdx1` on map change / `elv1_<dist>` on same map, played after the gauge (CE `gElevatorSoundEffects[levels-2][dist]`, e.g. ELV2_3 for 2 floors of a 4-level car, played before the gauge). — **2026-10-26:** Esc and the floor keys. |
+| elevatorSelectLevel | `ui_elevator.ts:76 uiElevator` | ✅ FIXED (2026-10-26) | LOW | Gauge start/animation timing ✓ (EV1/EV2), door reset ✓. Diffs: no Esc cancel and no floor keys (CE `gElevatorLevelLabels`, e.g. G/1, 3/4/6) — the panel only closes by picking a floor; sound = `selevdx1` on map change / `elv1_<dist>` on same map, played after the gauge (CE `gElevatorSoundEffects[levels-2][dist]`, e.g. ELV2_3 for 2 floors of a 4-level car, played before the gauge). — **2026-10-26:** Esc and the floor keys. — **2026-10-26, follow-up:** the travel sound is CE's gElevatorSoundEffects[floors − 2][floors travelled] (ELV2_3 included), before the gauge moves; the DH2-only selevdx1 is gone. |
 | elevatorWindowInit / elevatorWindowFree | `uiElevator` / `uiElevatorDone` | ✅ MATCH | — | |
 | elevatorGetLevelFromKeyCode | — | ✅ FIXED (2026-10-26) | LOW | See above. — **2026-10-26:** the labels as typed. |
 | elevatorsInit | `lut/elevators.json` | 🚫 N/A | — | sfall elevators.ini not ported. |

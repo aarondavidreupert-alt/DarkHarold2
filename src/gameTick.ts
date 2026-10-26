@@ -135,6 +135,7 @@ export function tickGame(): void {
     // dialogue_system_enter) opening the dialogue
     if (Scripting.processMapTransition()) return
     Scripting.processScriptRequests()
+    Scripting.doProgramEvents()
     Scripting.processDialogueRequest()
     Scripting.processEndgameRequest()
 

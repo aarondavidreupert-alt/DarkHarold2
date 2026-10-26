@@ -65,7 +65,9 @@ export {
 // roof tiles that form the same building section. The fill stops at 'grid000'
 // (gap / no roof), isolating each structure exactly as CE does.
 // Returns a Set of "x,y" keys for tiles that should NOT be rendered.
-function roofFloodFill(roof: TileMap, startX: number, startY: number): Set<string> {
+// A square whose roof flag has 0x02 (or 0x01, already hidden) stops the fill: CE hides only
+// squares with (flag & 0x03) == 0 and spreads only from those.
+function roofFloodFill(roof: TileMap, startX: number, startY: number, flags?: Record<string, number> | null): Set<string> {
     const hidden = new Set<string>()
     const H = roof.length
     const W = roof[0]?.length ?? 0
@@ -81,6 +83,7 @@ function roofFloodFill(roof: TileMap, startX: number, startY: number): Set<strin
         visited.add(key)
         if (x < 0 || x >= W || y < 0 || y >= H) continue
         if (roof[y][x] === 'grid000') continue
+        if (flags && ((flags[key] ?? 0) & 0x02) !== 0) continue
         hidden.add(key)
         stack.push([x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1])
     }
@@ -131,15 +134,28 @@ export class Renderer {
     private windows: WindowFrame[] = []
     private objects: Obj[]
     roofTiles: TileMap
+    // CE roof square flags from the map file ("x,y" → bits 12-15 of the square), when any
+    roofFlags: Record<string, number> | null = null
+    // squares the map file marks hidden (0x01): out of sight until the roof fill around the
+    // dude has reached them once (CE tile_fill_roof(…, on) then clears the bit)
+    roofPresetHidden = new Set<string>()
     // the roof squares the last frame left out (the flood fill around the dude); picking reads it
     lastRoofHideSet: Set<string> | null = null
     floorTiles: TileMap
     fonts: Font[]
 
-    initData(roof: TileMap, floor: TileMap, objects: Obj[]): void {
+    initData(roof: TileMap, floor: TileMap, objects: Obj[], roofFlags: Record<string, number> | null = null): void {
         this.roofTiles = roof
+        this.roofFlags = roofFlags
+        this.roofPresetHidden = new Set(Object.keys(roofFlags ?? {}).filter((k) => (roofFlags![k] & 0x01) !== 0))
         this.floorTiles = floor
         this.objects = objects
+    }
+
+    // A preset-hidden square is reached when a neighbour is in the dude's hide set.
+    private roofFlagFillReaches(key: string, hideSet: Set<string>): boolean {
+        const [x, y] = key.split(',').map(Number)
+        return hideSet.has(`${x - 1},${y}`) || hideSet.has(`${x + 1},${y}`) || hideSet.has(`${x},${y - 1}`) || hideSet.has(`${x},${y + 1}`)
     }
 
     clearTileCache(): void {}
@@ -213,7 +229,7 @@ export class Renderer {
             if (globalState.player) {
                 const scr = hexToScreen(globalState.player.position.x, globalState.player.position.y)
                 const own = hexToTile(globalState.player.position) // CE objectSetLocation roofX / roofY
-                hideSet = roofFloodFill(this.roofTiles, own.x, own.y)
+                hideSet = roofFloodFill(this.roofTiles, own.x, own.y, this.roofFlags)
                 // Roofs draw 96px up, so the roof sprite that visually COVERS the
                 // player when they stand behind (north of) a building belongs to a
                 // tile ~2-3 squares south — the player's own tile is roofless there,
@@ -223,7 +239,15 @@ export class Renderer {
                 // reveal the character. DH2 extension (setRoofPeek() to disable).
                 if (Config.ui.roofPeek !== false) {
                     const cover = tileFromScreen(scr.x, scr.y + 96)
-                    for (const k of roofFloodFill(this.roofTiles, cover.x, cover.y)) hideSet.add(k)
+                    for (const k of roofFloodFill(this.roofTiles, cover.x, cover.y, this.roofFlags)) hideSet.add(k)
+                }
+            }
+            if (this.roofPresetHidden.size > 0) {
+                hideSet ??= new Set<string>()
+                for (const k of [...this.roofPresetHidden]) {
+                    // the fill around the dude touches it: from now on it follows the fill
+                    if (this.roofFlagFillReaches(k, hideSet)) this.roofPresetHidden.delete(k)
+                    else hideSet.add(k)
                 }
             }
             this.lastRoofHideSet = hideSet

@@ -281,8 +281,21 @@ load window; the MALIEU / MAMTN2 → MAMTNT sound fallback (SND-04); the hmwarr 
 critters.lst run column for the AI (ART-01 / 02); CE's word wrap for float text (WRAP-01); the world-map
 time remainder reset, `wm_area_set_pos` bounds and `wmCarIsOutOfGas`. The N/A rows are opcodes and sfall
 extras no shipped script uses, CE leniency the scripts never reach (checked with luadiff), cosmetic timing,
-and browser limits. One N/A row needs an asset-pipeline change that was not authorised: the roof flag bits
-(`square_init`, `tools/fomap.py`).
+and browser limits.
+
+**Follow-up (2026-10-26, 28 rows re-marked ✅):** every core interpreter opcode CE registers now runs in
+`vm.ts` — noop, the untyped push, dump, swap, pop_address, fetch_proc_address, stop_program, pop_exit and
+the pop_flags family, the alternate critical slots; `call_at` / `call_when` (run from the game loop by
+`vmDoEvents`, CE `_doEvents`), `wait` (blocks like CE, capped at 10 s), `cancel` / `cancel_all`;
+exported / imported procedures; child programs (`callstart` / `spawn` / `fork` / `exec`: the child is loaded
+and its startup code run at once, `exit` ends a program for good). No shipped script uses them; a script
+that does has no `.lua` (int2lua refuses the opcode) and runs on the VM. The arithmetic follows CE too: int +
+int overflow gives a float, `-` / `*` wrap to 32 bits, a string or pointer on the left pushes nothing, MOD
+with a float is fatal (luadiff unchanged: 0 differing). `tools/fomap.py` keeps the roof flag bits
+(`tiles.roofFlags`; none of the 155 shipped maps sets one) and masks tile ids to 12 bits, and the roof fill
+honours them. Also: CE's elevator travel sounds, the movie volume (music × 0.94), and stale rows confirmed
+(interrupt_walk, the mid-dialogue party refresh, the companion-trade weight, egg click-through). The 72
+rows still N/A or partly fixed are "same result" notes, cosmetic timing, sfall extras and browser limits.
 
 **Report tables tidied (2026-10-26):** 189 HIGH / MED rows in `ce_audit/*.md` still showed their original
 status though their finding (cited by ID, or named in the row) was fixed; they now read ✅ FIXED / 🟡 PARTLY

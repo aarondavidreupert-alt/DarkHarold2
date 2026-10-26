@@ -24,6 +24,7 @@ interface Procedure {
     offset: number;
     index: number;
     argc: number;
+    flags: number; // CE PROCEDURE_FLAG_* (0x04 imported, 0x08 exported, 0x10 critical)
 }
 
 export interface IntFile {
@@ -64,6 +65,7 @@ export function parseIntFile(reader: BinaryReader, name: string=""): IntFile {
                    ,offset: offset
                    ,index: i
                    ,argc: argc
+                   ,flags: flags
                    })
     }
 
