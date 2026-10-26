@@ -51,7 +51,7 @@ import { closeInventory } from './ui_inventory.js'
 import { automapKey, closeAutomap } from './ui_automap.js'
 import { lootKey } from './ui_loot.js'
 import { elevatorKey } from './ui_elevator.js'
-import { playerUse, cancelSkillTargeting } from './playerUse.js'
+import { playerUse, playerAttackDoor, cancelSkillTargeting } from './playerUse.js'
 import { primaryActionIcon, uiPrimaryAction } from './ui_contextmenu.js'
 
 // Tile inspector — build a structured, copy-pasteable dump of everything the
@@ -327,11 +327,14 @@ export function installInputHandlers(): void {
                     uiContextMenu(obj, { clientX: x, clientY: y })
                 }
             } else if (globalState.cursorMode === 'attack') {
-                // CE _gmouse_handle_event (CROSSHAIR): the critter under the cursor (else a door,
-                // which DH2 can't attack yet) — never a use of other objects, no walking
+                // CE _gmouse_handle_event (CROSSHAIR): the critter under the cursor, else a door —
+                // never a use of other objects, no walking
                 const target = getObjectUnderCursor((o: Obj) => o.type === 'critter' && o !== globalState.player)
                 if (target) {
                     playerUse(target)
+                } else {
+                    const door = getObjectUnderCursor((o: Obj) => true)
+                    if (door?.isDoor) playerAttackDoor(door)
                 }
             } else if (globalState.uiMode === UIMode.useSkill) {
                 playerUse(getObjectUnderCursor((_: Obj) => true))

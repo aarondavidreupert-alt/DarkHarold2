@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import { addFloatMessage } from './floatText.js'
-import { ammoGetCapacity, ammoGetQuantity } from './weaponAmmo.js'
+import { ammoGetCapacity, ammoGetQuantity, ammoSetQuantity, weaponGetBurstRounds } from './weaponAmmo.js'
 import { heart } from './heart.js'
-import { hexFromScreen, hexNeighbors, hexDistance, hexInDirection } from './geometry.js'
+import { hexDirectionTo, hexFromScreen, hexNeighbors, hexDistance, hexInDirection } from './geometry.js'
 import globalState from './globalState.js'
 import { dbg, dbgWarn } from './logger.js'
 import { Critter, Obj } from './object.js'
@@ -38,6 +38,8 @@ import { randomBetween } from './random.js'
 import { uiSteal } from './ui_steal.js'
 import { DAM_KNOCKED_OUT } from './combat/results.js'
 import { currentUnarmed, unarmedAPCost } from './unarmed.js'
+import { Combat } from './combat.js'
+import { sfxBuildWeaponName } from './sfxNames.js'
 
 // Return the skill ID used by the Fallout 2 engine
 export function getSkillID(skill: Skills): number {
@@ -452,4 +454,49 @@ function moveClickRuns(): boolean {
 
 export function changeCursor(_image: string) {
     // No-op: cursor is now rendered via WebGL based on cursorMode
+}
+
+// CE game_mouse.cc (CROSSHAIR) → combat.cc _combat_attack_this on a door: an attack like any
+// other — the AP, range and ammo checks (combat.msg 100-102), the attack animation and sound,
+// the rounds spent — but _apply_damage gives a non-critter no damage: the door's
+// damage_p_proc runs (fixed_param = the attacker's own damage, 0 here; source the attacker,
+// target the weapon) and its script decides. Out of combat the attack starts the fight first.
+export function playerAttackDoor(door: Obj): void {
+    const player = globalState.player
+    if (!player || player.inAnim()) return
+    if (!globalState.inCombat) {
+        Combat.start(player)
+        if (!globalState.inCombat) return
+    }
+    if (!globalState.combat!.inPlayerTurn) return
+    const weapon = player.equippedWeapon
+    const unarmed = weapon === null ? currentUnarmed(player) : null
+    const apCost = unarmed
+        ? unarmedAPCost(player, unarmed.mode, false)
+        : weapon!.weapon!.getAttackAPCost(player, undefined, false)
+    const ap = player.AP!
+    if (ap.getAvailableCombatAP() < apCost) { uiLog((getMessage('combat', 100) ?? '').replace('%d', String(apCost))); return }
+    const range = unarmed ? 1 : (weapon!.weapon!.getMaximumRange(weapon!.weapon!.usesSecondary() ? 2 : 1) ?? 1)
+    if (hexDistance(player.position, door.position) > range) { uiLog(getMessage('combat', 102) ?? ''); return }
+    if (weapon && ammoGetCapacity(weapon as any) > 0 && ammoGetQuantity(weapon as any) === 0) {
+        uiLog(getMessage('combat', 101) ?? '')
+        return
+    }
+    ap.subtractCombatAP(apCost)
+    drawAP(ap.getAvailableCombatAP(), ap.getTotalMaxAP(), ap.move)
+    const dir = hexDirectionTo(player.position, door.position)
+    if (dir !== null && dir !== undefined) player.orientation = dir
+    const soundId = (weapon as any)?.pro?.extra?.soundID
+    if (weapon && typeof soundId === 'number') {
+        globalState.audioEngine.playSfxByName(sfxBuildWeaponName(1, weapon, !!weapon.weapon?.usesSecondary(), null).toLowerCase(), player)
+    }
+    if (weapon && ammoGetCapacity(weapon as any) > 0) {
+        const rounds = weapon.weapon?.isBurst?.() ? Math.min(ammoGetQuantity(weapon as any), weaponGetBurstRounds(weapon as any)) : 1
+        ammoSetQuantity(weapon as any, ammoGetQuantity(weapon as any) - rounds)
+    }
+    const hit = () => {
+        if (door._script) Scripting.damage(door, weapon ?? player, player, 0)
+    }
+    if (player.hasAnimation('attack')) player.staticAnimation('attack', () => { player.clearAnim(); hit() })
+    else hit()
 }
