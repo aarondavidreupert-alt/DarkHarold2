@@ -24,7 +24,7 @@ import { Worldmap } from '../worldmap.js'
 // Moved out of main.ts (window.onload).
 
 export function registerToggleCommands(): void {
-    ;(window as any).toggleFloorLighting = () => {
+    (window as any).toggleFloorLighting = () => {
         Config.engine.doFloorLighting = !Config.engine.doFloorLighting
         dbg('map', '[Lighting] floor lighting:', Config.engine.doFloorLighting)
     }
@@ -108,7 +108,7 @@ export function registerCacheAndOutlineCommands(): void {
     // proto/pro.json (or any other cached JSON) on disk has NO EFFECT until
     // this cache is cleared, since IDBCache has no content-versioning of
     // its own. Run this after any proto/pro.json regeneration, then reload.
-    ;(window as any).clearAssetCache = () => {
+    (window as any).clearAssetCache = () => {
         IDBCache.nuke()
         console.log('[Cache] IndexedDB asset cache cleared — reload the page to re-fetch proMap/imageMap from disk.')
     }

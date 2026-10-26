@@ -23,7 +23,7 @@ import { WebGLRenderer, setLightSourceOverlayActive, setLightOverlayMode, setLig
 // Moved out of main.ts (window.onload). See wiki/lighting.md and wiki/alignment.md.
 
 export function registerLightingCommands(): void {
-    ;(window as any).setLightingMode = (mode: 'gpu' | 'cpu') => {
+    (window as any).setLightingMode = (mode: 'gpu' | 'cpu') => {
         Config.engine.floorLightingMode = mode
         ;(globalState.renderer as WebGLRenderer).setLightingMode(mode)
         dbg('map', '[Lighting] switched to:', mode)
