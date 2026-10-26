@@ -325,6 +325,7 @@ Top findings, most severe first:
 - **Impact:** This depends on what sslc puts at index 1, usually the first declared procedure, often `start`; unverified against the data. Usually harmless (empty `start`), but CE runs that code on, for example, `talk_p_proc` or `map_update_p_proc` for scripts that lack them.
 - **Fix:** Confirm with an opcode / procedure-table scan of the shipped scripts before changing anything.
 - **Ref:** NEW.
+- **2026-10-26:** still not ported, but the console says when it matters: `Scripting.noteMissingProc` warns once per script and procedure the engine asked for and the script lacks, naming the procedure #1 CE would run instead — not when that is the `checkPartyMembersNearDoor` helper (1212 scripts) or the procedure itself. The Lua backend reads the `.int` procedure table in the background for it.
 
 ### SCR-12 — sfall opcode coverage; unknown opcodes are misread as a dialogue suspension (MED for mods) — **FIXED 2026-10-25**
 - **CE:** `sfall_opcodes.cc` registers 83 opcodes; an unregistered opcode is `programFatalError("Undefined opcode")`.

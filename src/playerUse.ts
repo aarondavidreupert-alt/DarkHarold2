@@ -424,6 +424,7 @@ export function playerUse(obj: Obj | null) {
                 // loot a dead body — dead critters have no use_p_proc gate
                 uiLoot(obj)
             } else {
+                if (!globalState.inCombat && obj._script) Scripting.noteMissingProc(obj._script, 'talk_p_proc')
                 dbg('map', '[Main] cannot talk to/loot that critter')
             }
         } else {

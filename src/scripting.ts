@@ -17,7 +17,7 @@ Scripting system/engine for DarkFO
 */
 
 import { Events } from './events.js'
-import { activeAssetMods, assetLayer } from './modAssets.js'
+import { activeAssetMods, assetLayer, assetUrl } from './modAssets.js'
 import { sfallIniGetInt, sfallIniGetString, sfallIniSet } from './sfallIni.js'
 import * as SfallArrays from './sfallArrays.js'
 import * as SfallFs from './sfallFs.js'
@@ -3864,9 +3864,41 @@ export module Scripting {
         if (script.start !== undefined) script.start()
     }
 
+    // CE scripts.cc scriptExecProc: a procedure the script doesn't have (procs[proc] == 0) runs
+    // its procedure #1 instead (SCR-11). DH2 runs nothing; the console says so, once per script
+    // and procedure, when CE's #1 would do something — not the sslc door helper
+    // checkPartyMembersNearDoor that is #1 in most scripts.
+    const missingProcWarned = new Set<string>()
+    const procedureOneNames: { [script: string]: Promise<string | null> } = {}
+    // (the Lua backend reads the .int's procedure table in the background, once per script)
+    function procedureOneName(script: Script): Promise<string | null> {
+        const key = (script.scriptName ?? '').toLowerCase()
+        if (!(key in procedureOneNames)) {
+            procedureOneNames[key] = script._vm
+                ? Promise.resolve((script._vm as any).intfile.proceduresTable?.[1]?.name ?? null)
+                : fetch(assetUrl('data/scripts/' + key + '.int'))
+                    .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject()))
+                    .then((buf) => parseIntFile(new BinaryReader(new DataView(buf)), key).proceduresTable?.[1]?.name ?? null)
+                    .catch(() => null) // a stub, or no .int
+        }
+        return procedureOneNames[key]
+    }
+    export function noteMissingProc(script: Script | undefined, proc: string): void {
+        if (!script?.scriptName) return
+        const key = script.scriptName + ':' + proc
+        if (missingProcWarned.has(key)) return
+        missingProcWarned.add(key)
+        void procedureOneName(script).then((one) => {
+            if (!one || one.toLowerCase() === 'checkpartymembersneardoor' || one.toLowerCase() === proc) return
+            console.warn(`[script] ${script.scriptName} has no ${proc}: CE (scripts.cc scriptExecProc) would run `
+                + `its procedure #1, ${one}, here instead; DH2 runs nothing (SCR-11, wiki/ce_audit/script_engine.md)`)
+        })
+    }
+
     export function timedEvent(script: Script, userdata: any): boolean {
         info('timedEvent: ' + script.scriptName + ': ' + userdata, 'timer')
         if (script.timed_event_p_proc === undefined) {
+            noteMissingProc(script, 'timed_event_p_proc')
             warn(
                 `timedEvent called on script without a timed_event_p_proc! script: ${script.scriptName} userdata: ${userdata}`
             )
@@ -3884,7 +3916,7 @@ export module Scripting {
     // engine's text (script_overrides).
     function runViewProc(obj: Obj, source: Obj, proc: 'look_at_p_proc' | 'description_p_proc'): boolean {
         const script: any = obj._script
-        if (!script || script[proc] === undefined) return false
+        if (!script || script[proc] === undefined) { noteMissingProc(script, proc); return false }
         script.source_obj = source
         script.self_obj = obj as ScriptableObj
         script.cur_map_index = currentMapID
@@ -3896,7 +3928,7 @@ export module Scripting {
     export function description(obj: Obj, source: Obj): boolean { return runViewProc(obj, source, 'description_p_proc') }
 
     export function use(obj: Obj, source: Obj): boolean | null {
-        if (!obj._script || obj._script.use_p_proc === undefined) return null
+        if (!obj._script || obj._script.use_p_proc === undefined) { noteMissingProc(obj._script, 'use_p_proc'); return null }
 
         obj._script.source_obj = source
         obj._script.self_obj = obj as ScriptableObj
@@ -3991,7 +4023,7 @@ export module Scripting {
 
     export function updateCritter(script: Script, obj: Critter): boolean {
         // critter heartbeat (critter_p_proc)
-        if (!script.critter_p_proc) return false // TODO: Should we override or not if it doesn't exist? Probably not.
+        if (!script.critter_p_proc) { noteMissingProc(script, 'critter_p_proc'); return false }
 
         script.cur_map_index = currentMapID
         script._didOverride = false
@@ -4025,7 +4057,7 @@ export module Scripting {
     }
 
     export function damage(obj: Obj, target: Obj, source: Obj, damage: number) {
-        if (!obj._script || obj._script.damage_p_proc === undefined) return null
+        if (!obj._script || obj._script.damage_p_proc === undefined) { noteMissingProc(obj._script, 'damage_p_proc'); return null }
 
         obj._script.self_obj = obj as ScriptableObj
         obj._script.target_obj = target
@@ -4065,7 +4097,7 @@ export module Scripting {
     // CE proto_instance.cc _obj_drop: the owner's is_dropping_p_proc, source_obj = the
     // item about to be dropped. True when the script overrides (keeps the item).
     export function isDropping(owner: Obj, item: Obj): boolean {
-        if (!owner._script || owner._script.is_dropping_p_proc === undefined) return false
+        if (!owner._script || owner._script.is_dropping_p_proc === undefined) { noteMissingProc(owner._script, 'is_dropping_p_proc'); return false }
         owner._script.self_obj = owner as ScriptableObj
         owner._script.source_obj = item
         owner._script.cur_map_index = currentMapID
@@ -4075,7 +4107,7 @@ export module Scripting {
     }
 
     export function drop(obj: Obj, source: Obj): boolean {
-        if (!obj._script || obj._script.drop_p_proc === undefined) return false
+        if (!obj._script || obj._script.drop_p_proc === undefined) { noteMissingProc(obj._script, 'drop_p_proc'); return false }
         obj._script.self_obj = obj as ScriptableObj
         obj._script.source_obj = source
         obj._script.cur_map_index = currentMapID
@@ -4087,7 +4119,7 @@ export module Scripting {
     // CE ref: proto_instance.cc:1293 — the item's own use_obj_on_p_proc, with
     // scriptSetObjects(item->sid, critter, targetObj). True when the script overrides.
     export function useObjOnItem(item: Obj, source: Obj, target: Obj): boolean {
-        if (!item._script || item._script.use_obj_on_p_proc === undefined) return false
+        if (!item._script || item._script.use_obj_on_p_proc === undefined) { noteMissingProc(item._script, 'use_obj_on_p_proc'); return false }
         item._script.self_obj = item as ScriptableObj
         item._script.source_obj = source
         item._script.target_obj = target
@@ -4098,7 +4130,7 @@ export module Scripting {
     }
 
     export function useObjOnMe(obj: Obj, item: Obj, source: Obj): boolean {
-        if (!obj._script || obj._script.use_obj_on_p_proc === undefined) return false
+        if (!obj._script || obj._script.use_obj_on_p_proc === undefined) { noteMissingProc(obj._script, 'use_obj_on_p_proc'); return false }
         // CE ref: proto_instance.cc:1286 scriptSetObjects(targetObj->sid, critter, item)
         obj._script.self_obj = obj as ScriptableObj
         obj._script.source_obj = source
@@ -4170,6 +4202,7 @@ export module Scripting {
         var updated = 0
         for (var i = 0; i < gameObjects.length; i++) {
             var script = gameObjects[i]._script
+            if (script !== undefined && script.map_update_p_proc === undefined) noteMissingProc(script, 'map_update_p_proc')
             if (script !== undefined && script.map_update_p_proc !== undefined) {
                 script.self_obj = gameObjects[i] as ScriptableObj
                 // Fallout 2 style HHMM: "8:24 AM" => 824, "3:00 PM" => 1500
@@ -4235,7 +4268,7 @@ export module Scripting {
     // objectEnterMap sets up (used for map_exit_p_proc).
     export function objectRunProc(obj: Obj, proc: 'map_exit_p_proc'): void {
         const script: any = obj._script
-        if (script === undefined || script[proc] === undefined) return
+        if (script === undefined || script[proc] === undefined) { noteMissingProc(script, proc); return }
         script.self_obj = obj as ScriptableObj
         script.game_time_hour = GameTime.getHourMilitary()
         script.cur_map_index = currentMapID
@@ -4251,7 +4284,7 @@ export module Scripting {
             script.game_time_hour = GameTime.getHourMilitary()
             script.cur_map_index = currentMapID
             script.map_enter_p_proc()
-        }
+        } else noteMissingProc(script, 'map_enter_p_proc')
     }
 
     export function reset(mapName: string, mapID?: number) {

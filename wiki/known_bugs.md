@@ -778,7 +778,7 @@ and every `ce_audit/` section header is marked FIXED / PARTLY FIXED. 120 MED fin
 |----|-------------|--------|
 | PM1 | Open MED findings | **FIXED 2026-10-25** — COMBAT-13: Glovz ported literally, YAAM as intended (CE's is broken), picked with `[dh2] damage_formula=` |
 | PM2 | Partly fixed | **FIXED 2026-10-25** — the last ones (AUTO-01, SCR-05, SCR-10, ANIM-02, INV-12 / INV-13) are done |
-| PM3 | SCR-11 — CE runs procedure index 1 for a missing proc | **CHECKED, NOT PORTED** — index 1 is the pure `checkPartyMembersNearDoor` in 1212 of the 1443 shipped scripts, `start` in ~210; DH2 keeps "no proc, nothing runs" |
+| PM3 | SCR-11 — CE runs procedure index 1 for a missing proc | **CHECKED, NOT PORTED** — index 1 is the pure `checkPartyMembersNearDoor` in 1212 of the 1443 shipped scripts, `start` in ~210; DH2 keeps "no proc, nothing runs" Since 2026-10-26 the console warns (once per script and procedure) when CE would run a #1 other than that helper (`Scripting.noteMissingProc`). |
 | PM5 | LOW findings with a report section of their own (16) | **FIXED 2026-10-25** except two in part: SCR-13 (32-bit wraparound / ADD overflow, MOD of a float and string arithmetic — needs `tools/int2lua.py` changes) and "Smaller ones" in script_engine.md (the queue's stop flag, missing external variables). The per-item notes are in the `ce_audit/` sections |
 | PM4 | MOUSE-01 / MOUSE-02 — move-mode clicks act on objects; the action menu on a command click | **OPTION 2026-10-25** — `[dh2] mouse_mode=ce` gives CE's clicks (move click walks, arrow click = primary action, 250 ms hold = action menu, the arrow stays); the default `dh2` keeps DH2's |
 

@@ -231,7 +231,8 @@ PARTLY FIXED): 119 fixed, 1 checked and not ported:
 - **Checked, not ported:** SCR-11 — a scan of the 1443 shipped `.int` files shows procedure index 1 is the pure
   `checkPartyMembersNearDoor` helper in 1212 of them (CE's fallback has no effect there) and `start` in about 210;
   CE would re-run `start` when an unguarded proc (`critter_p_proc`, `look_at_p_proc`, …) is missing. Left as DH2's
-  "no proc, nothing runs".
+  "no proc, nothing runs"; since 2026-10-26 the console warns, once per script and procedure, when CE would
+  have run a procedure #1 other than that helper (`[script] … has no …: CE … would run its procedure #1 …`).
 
 ### LOW table rows — sweep of 2026-10-26
 
