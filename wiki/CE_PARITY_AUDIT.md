@@ -259,6 +259,19 @@ script timers dropped; `wield_obj_critter`'s take-out animation.
 animations (an NPC's weapon switch, `inven_unwield`); the party status refresh in the middle of a dialogue;
 an NPC holding the Shiv punches; the death screen shows the whole subtitle text as CE does.
 
+**Second batch (2026-10-26, 16 rows marked):** `drop_obj` drops one item of a stack; "That does nothing."
+(582) for an item with no use; item.msg 600 when an NPC dies of chems; the examine line uses the loaded ammo
+type's caliber; barter refuses an offer holding a queued item (`itemIsQueued`); Ctrl+move in combat keeps the
+AP for one attack; a second walk click on the same tile runs; `_check_ranged_miss` only on ROLL_FAILURE; a
+dead last target is stored as none; an animated explosion refuses a second one, and the timed explosive
+re-queues. Found on the way: a combat walk click fell through to an unlimited walk after the AP-limited
+one (the player could cross the map on 8 AP) — fixed.
+
+**Report tables tidied (2026-10-26):** 189 HIGH / MED rows in `ce_audit/*.md` still showed their original
+status though their finding (cited by ID, or named in the row) was fixed; they now read ✅ FIXED / 🟡 PARTLY
+FIXED with the finding IDs. One MED row is open: `critterSetBonusStat` (HP / poison / radiation routing for
+stats 35–37 in `set_*_extra_stat`).
+
 **Presentation only (left as DH2's):** fonts and text widths, scroll and tab speeds, number and gauge
 animations, cursor hotspots, palette fades, splash and credits styling, colour-cycling pauses.
 

@@ -74,7 +74,7 @@ Top findings:
 | main_reset_system | `initMainMenu(() => { gameReset(); … })` (`init.ts:107`) | ✅ MATCH | — | |
 | main_exit_system | — | 🚫 N/A | — | |
 | _main_load_new | `init.ts:89 startNewGame` | ✅ MATCH | — | ELDER (STOP_MUSIC), `randomSeedPrerandom(-1)`, map `artemple`; sfall StartingMap not ported. |
-| main_loadgame_new | `ui_mainmenu.ts:192` | 🟡 PARTIAL | MED | See MENU-02 (cancel). |
+| main_loadgame_new | `ui_mainmenu.ts:192` | ✅ FIXED (MENU-02) | MED | See MENU-02 (cancel). |
 | main_unload_new | — | 🚫 N/A | — | |
 | mainLoop | `src/gameTick.ts` | ✅ MATCH | — | Death check incl. knocked-out-outside-combat (`gameTick.ts:232`), scripts' requests, map transitions. |
 | showDeath | `src/endgame.ts:129` dudeDeathScene / playDeathEnding | 🟡 PARTLY FIXED (2026-10-26) | LOW | DEATH.FRM + narrator, any input/end of speech/3 s ✓. Diffs: subtitles shown whether or not the preference is on (CE only with `subtitles`), shown timed like slides rather than one word-wrapped block at the bottom; no death.pal; afterwards page reload (CE: main menu). — **2026-10-26:** subtitles only with the preference; their timing stays DH2's. |
@@ -91,9 +91,9 @@ Top findings:
 | _QuickSnapShot | `saveload.ts:144 takeSaveSnapshot` | ✅ MATCH | — | 640×380 centre → 224×133. |
 | lsgLoadGame | `ui_saveload.ts:102 uiQuickLoad`, `uiSaveLoad(false)` | ✅ MATCH | — | Quick load + misc.msg 4 ✓. |
 | lsgWindowInit / lsgWindowFree | `ui_saveload.ts:111-337` | ✅ MATCH | — | Layout per U18/U19. |
-| lsgPerformSaveGame | `saveload.ts:288 save` + `:176 gatherSaveData` | 🟡 PARTIAL | MED | No "Game saved." (lsgame 140) message; preferences and combat state not saved (SAVE-01, SAVE-02). |
+| lsgPerformSaveGame | `saveload.ts:288 save` + `:176 gatherSaveData` | ✅ FIXED (SAVE-01, SAVE-02) | MED | No "Game saved." (lsgame 140) message; preferences and combat state not saved (SAVE-01, SAVE-02). |
 | _isLoadingGame | `Scripting.setLoadingGame` (C61) | ✅ MATCH | — | |
-| lsgLoadGameInSlot | `saveload.ts:318 load` | 🟡 PARTIAL | MED | gameReset, map, procs with `_loadingGame`, `_proto_dude_update_gender` ✓. Missing "Game loaded." (lsgame 141) message; combat not restored (SAVE-02); timers by PID (SAVE-03). |
+| lsgLoadGameInSlot | `saveload.ts:318 load` | ✅ FIXED (SAVE-02, SAVE-03) | MED | gameReset, map, procs with `_loadingGame`, `_proto_dude_update_gender` ✓. Missing "Game loaded." (lsgame 141) message; combat not restored (SAVE-02); timers by PID (SAVE-03). |
 | lsgSaveHeaderInSlot / lsgLoadHeaderInSlot | `SaveGame` fields (`name`, `timestamp`, `gameTickTime`, `currentMap`, `currentElevation`, `playerState.name`) | ✅ MATCH | — | |
 | _GetSlotList | `saveLoad` / `saveList` (`saveload.ts:267`) | ⚠️ DIFFERS | LOW | DH2-only: unlimited slots (IndexedDB), scroll bar. |
 | _ShowSlotList / _DrawInfoBox / _LoadTumbSlot | `ui_saveload.ts:177/194` | ✅ MATCH | — | |
@@ -127,7 +127,7 @@ Top findings:
 
 | CE function (file) | DH2 counterpart (file:line) | Status | Sev | Notes |
 |---|---|---|---|---|
-| showOptions | `ui_options.ts:680 initOptionsMenu`, `:759 showOptionsMenu` | ⚠️ DIFFERS | MED | Layout/keys per options.cc ✓, but not modal: OPT-01. |
+| showOptions | `ui_options.ts:680 initOptionsMenu`, `:759 showOptionsMenu` | ✅ FIXED (OPT-01) | MED | Layout/keys per options.cc ✓, but not modal: OPT-01. |
 | optionsWindowInit / optionsWindowFree | `ui_options.ts:680` | ✅ MATCH | — | |
 | showPause | `hotkeys.ts:78` | 🟡 PARTIAL | LOW | charwin + PAUSED/DONE, +/- brightness, any key closes, game paused ✓; no `_ShadeScreen` darkening. |
 | _ShadeScreen | — | ❌ MISSING | LOW | |
@@ -143,7 +143,7 @@ Top findings:
 | _JustUpdate_ | applied ad hoc on change | ✅ FIXED (2026-10-25) | LOW | `aiMessageListReloadIfNeeded` (badword reload) missing — see PREF-02. |
 | _UpdateThing / preferencesWindowInit / preferencesWindowFree / _DoThing | `ui_options.ts:58 buildPrefsPanel` | ✅ MATCH | — | Knobs, sliders, checkbox (rendering not pixel-verified). |
 | _SavePrefs | `preferences.ts:102 savePreferences` | ✅ MATCH | — | |
-| preferencesSave / preferencesLoad | — | ❌ MISSING | MED | SAVE-01. |
+| preferencesSave / preferencesLoad | — | ✅ FIXED (SAVE-01) | MED | SAVE-01. |
 | brightnessIncrease / brightnessDecrease | `ui_options.ts:663 changeBrightness` | ✅ MATCH | — | Step 0.01124…, max 1.17999…, persisted; gamma via SVG filter (`applyBrightness`). |
 | doPreferences | `openPrefsPanel` (`ui_options.ts:630`) | ✅ MATCH | — | From the options window. From the main menu: MENU-01. |
 
@@ -154,7 +154,7 @@ Top findings:
 | mainMenuWindowInit | `ui_mainmenu.ts:61 initMainMenu` | ⚠️ DIFFERS | LOW | Buttons at (30, 19+41i) ✓. Labels hard-coded English, left-aligned at x 65 (CE misc.msg 9–14, font 104, centred on x 126, y+1); footer hard-coded "© 1998 Interplay Productions" in font4 (CE misc.msg 20 at (15,460) font 100 + version string right-aligned at 615). |
 | mainMenuWindowFree / Hide / Unhide | `hideMainMenu` / `showMainMenu` | ✅ MATCH | — | No fade. |
 | _main_menu_is_enabled | — | 🚫 N/A | — | |
-| mainMenuWindowHandleEvents | `ui_mainmenu.ts:163 handleKey`, `:177 handleButton` | ⚠️ DIFFERS | MED | i/n/l/o/c/e/Esc ✓. Missing: nmselec0/1 sounds, Shift+C quotes, D screensaver, idle timeout → INTRO, +/- brightness, Ctrl+R selfrun (N/A). OPTIONS/LOAD: MENU-01/02. EXIT = `window.close()` (no-op for normal tabs). |
+| mainMenuWindowHandleEvents | `ui_mainmenu.ts:163 handleKey`, `:177 handleButton` | ✅ FIXED (MENU-01) | MED | i/n/l/o/c/e/Esc ✓. Missing: nmselec0/1 sounds, Shift+C quotes, D screensaver, idle timeout → INTRO, +/- brightness, Ctrl+R selfrun (N/A). OPTIONS/LOAD: MENU-01/02. EXIT = `window.close()` (no-op for normal tabs). |
 | main_menu_fatal_error | — | 🚫 N/A | — | |
 | main_menu_play_sound | — | ❌ MISSING | LOW | nmselec0 (press) / nmselec1 (select). |
 
@@ -172,7 +172,7 @@ Top findings:
 
 | CE function (file) | DH2 counterpart (file:line) | Status | Sev | Notes |
 |---|---|---|---|---|
-| endgamePlaySlideshow | `endgame.ts:62 playSlideshow` | ⚠️ DIFFERS | MED | END-01. |
+| endgamePlaySlideshow | `endgame.ts:62 playSlideshow` | ✅ FIXED (END-01) | MED | END-01. |
 | endgamePlayMovie | `endgame.ts:99 playMovie` | ✅ MATCH | — | akiss, 3 s, credits, continue (EG4). |
 | endgameEndingHandleContinuePlaying | `endgame.ts:52 showContinueDialog` | ✅ FIXED (2026-10-26) | LOW | misc.msg 30 ✓; "No" reloads the page (CE back to the main menu). — **2026-10-26:** "No" goes to the main menu. |
 | endgameEndingRenderPanningScene | `slideRender.ts showPanningSlide` | ✅ MATCH | — | EG3 timing. |

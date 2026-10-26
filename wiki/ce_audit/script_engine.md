@@ -46,21 +46,21 @@ Top findings, most severe first:
 | gameTimeScheduleUpdateEvent | gameTick.ts `lastMidnightDay`, `nextMapUpdateTick` | ✅ FIXED (2026-10-26) | LOW | Midnight is a day-number compare. `nextMapUpdateTick` is never reset on map load; CE schedules +600 ticks from the load — **2026-10-26:** the next map update 600 ticks after a load. |
 | gameTimeEventProcess | gameTick.ts `processMidnightForDay` | ✅ FIXED (2026-10-25) | LOW | Midnight unjam, story check and rads are done. CE skips the story check while a dialogue is active and skips everything while a movie plays; DH2 can run it from `game_time_advance` inside a dialogue — **Fixed 2026-10-25:** no story check during a dialogue ("Smaller ones"). |
 | _scriptsCheckGameEvents | gameTick.ts `scriptsCheckGameEvents` | ✅ | LOW | Day thresholds are hard-coded to the sfall defaults 90/180/270/360; CE reads them from ddraw.ini |
-| mapUpdateEventProcess | gameTick.ts:273-281 | ⚠️ | MED | SCR-04: blocked in combat |
+| mapUpdateEventProcess | gameTick.ts:273-281 | ✅ FIXED (SCR-04) | MED | SCR-04: blocked in combat |
 | scriptsNewObjectId | Obj uid | 🟡 | | Not compared in detail |
-| scriptGetSid / scriptGetSelf / scriptSetObjects / scriptSetFixedParam / scriptSetActionBeingUsed | scripting.ts dispatchers 3366-3731 | 🟡 | MED | Context is set per dispatcher; `game_time` is stale (SCR-02) |
+| scriptGetSid / scriptGetSelf / scriptSetObjects / scriptSetFixedParam / scriptSetActionBeingUsed | scripting.ts dispatchers 3366-3731 | ✅ FIXED (SCR-02) | MED | Context is set per dispatcher; `game_time` is stale (SCR-02) |
 | scriptsCreateProgramByName | scripting.ts:3287 `loadScript` | ✅ | | Also loads Lua, mods and stubs (DH2-only) |
 | _doBkProcesses | gameTick.ts `tickGame` | 🟡 | | DH2 has no `_updatePrograms` burst (documented, scripting_vm.md §11) |
 | _script_chk_critters | gameTick.ts:296-314 | ✅ | LOW | One `critter_p_proc` per 60 Hz pass, round-robin. DH2 rotates only over live critters of the current elevation; CE over the whole critter script list (dead and off-elevation ones included, unverified) |
-| _script_chk_timed_events | gameTick.ts:216-282 | ⚠️ | MED | SCR-03, SCR-04. Ignores `stopProcess`; only the rest loop uses `queueBail` |
+| _script_chk_timed_events | gameTick.ts:216-282 | ✅ FIXED (SCR-03, SCR-04) | MED | SCR-03, SCR-04. Ignores `stopProcess`; only the rest loop uses `queueBail` |
 | _scrSetQueueTestVals / _scrQueueRemoveFixed | scripting.ts:936 (metarule3 100) | ✅ FIXED (2026-10-25) | LOW | CE clears **every** EVENT_TYPE_SCRIPT event of that object with that fixed param; DH2 removes only the first match, of any type — **Fixed 2026-10-25:** every match is removed. |
 | scriptAddTimerEvent | scripting.ts:3080 `add_timer_event` | ✅ | | Relative ticks, bound to `obj._script` |
-| scriptEventWrite / scriptEventRead | saveload.ts:223, 420-482 | 🟡 | MED | SCR-10 |
-| scriptEventProcess | scripting.ts:3372 `timedEvent` | 🟡 | MED | `fixed_param` is set. `self_obj`, `game_time` and `cur_map_index` are not refreshed (SCR-02) |
+| scriptEventWrite / scriptEventRead | saveload.ts:223, 420-482 | ✅ FIXED (SCR-10) | MED | SCR-10 |
+| scriptEventProcess | scripting.ts:3372 `timedEvent` | ✅ FIXED (SCR-02) | MED | `fixed_param` is set. `self_obj`, `game_time` and `cur_map_index` are not refreshed (SCR-02) |
 | scriptsClearPendingRequests / _scripts_clear_combat_requests | — | ✅ FIXED (2026-10-25) | LOW | No request flags (SCR-07) |
-| scriptsHandleRequests | gameTick.ts:126-127 (`processMapTransition`, `processDialogueRequest`), 136 (`deleteAllTempArrays`) | 🟡 | MED | Dialogue and map transition are deferred as in CE; combat, explosion, world map, elevator and endgame run at once (SCR-07) |
+| scriptsHandleRequests | gameTick.ts:126-127 (`processMapTransition`, `processDialogueRequest`), 136 (`deleteAllTempArrays`) | ✅ FIXED (SCR-07) | MED | Dialogue and map transition are deferred as in CE; combat, explosion, world map, elevator and endgame run at once (SCR-07) |
 | _scripts_check_state_in_combat | — | ❌ | LOW | Elevator / looting requests made in combat |
-| scriptsRequestCombat / _scripts_request_combat_locked | scripting.ts:1734, 2645 `Combat.start` | ⚠️ | MED | Runs at once (SCR-07) |
+| scriptsRequestCombat / _scripts_request_combat_locked | scripting.ts:1734, 2645 `Combat.start` | ✅ FIXED (SCR-07) | MED | Runs at once (SCR-07) |
 | scripts_request_townmap / scriptsRequestWorldMap | scripting.ts:2686 `world_map` → `uiWorldMap()` | ⚠️ | LOW | Runs at once. CE also sets `_game_user_wants_to_quit = 1` in combat |
 | scriptsRequestElevator | metarule 15 → `useElevator` | 🟡 | | Not compared in detail (elevator audit) |
 | scriptsRequestExplosion | scripting.ts:3030 `explosion` | ✅ FIXED (2026-10-25) | LOW | Explodes inside the script (SCR-07) |
@@ -68,10 +68,10 @@ Top findings, most severe first:
 | scriptsRequestEndgame | scripting.ts:3145 | ⚠️ | LOW | Starts the async slideshow at once; CE plays the slideshow and then the movie from the request |
 | scriptsRequestLooting / scriptsRequestStealing | (other audit) | 🟡 | | |
 | _script_make_path | — | 🚫 | | Paths are built in `loadScript` |
-| scriptExecProc | dispatchers in scripting.ts; vm.ts:367 `call` | ⚠️ | MED | SCR-08 (dead after a fatal error), SCR-11 (missing proc → procedure index 1). `scriptOverrides = 0` → `_didOverride = false` ✅; `source` is not cleared afterwards |
+| scriptExecProc | dispatchers in scripting.ts; vm.ts:367 `call` | 🟡 PARTLY FIXED (SCR-08, SCR-11) | MED | SCR-08 (dead after a fatal error), SCR-11 (missing proc → procedure index 1). `scriptOverrides = 0` → `_didOverride = false` ✅; `source` is not cleared afterwards |
 | scriptLocateProcs / scriptHasProc | intfile.ts `procedures` map | ✅ FIXED (2026-10-25) | LOW | Case-sensitive name lookup; CE `programFindProcedure` uses `stricmp` — **Fixed 2026-10-25:** case-insensitive names ("Smaller ones"). |
 | scriptsLoadScriptsList / scriptsFreeScriptsList / _scr_find_str_run_info / scriptsGetFileName | `lookupScriptName` | 🟡 | LOW | The scripts.lst `local_vars=` count is not used (no LVAR bounds) |
-| scriptsSetDudeScript / scriptsClearDudeScript | — | ❌ | MED | SCR-09 |
+| scriptsSetDudeScript / scriptsClearDudeScript | — | ✅ FIXED (SCR-09) | MED | SCR-09 |
 | scriptsInit / _scr_reset / _scr_game_init / scriptsReset / scriptsExit / _scr_message_free / _scr_game_exit | scripting.ts:3733 `reset`, 3749 `init`, 358 `resetGameState` | ✅ | | |
 | scriptsEnable / scriptsDisable / _scr_enable_critters / _scr_disable_critters | `Config.engine.doLoadScripts` / `doUpdateCritters` | 🟡 | LOW | Static config flags, not CE's runtime toggles (elevator, map load) |
 | scriptsSaveGameGlobalVars / LoadGameGlobalVars / SkipGameGlobalVars | saveload.ts gvars | ✅ | | |
@@ -80,9 +80,9 @@ Top findings, most severe first:
 | scriptGetFirstSpatialScript / scriptGetNextSpatialScript | GameMap.ts:104 `getSpatials` | ✅ | | |
 | _scr_spatials_enable / _scr_spatials_disable | Critter.ts `spatialsBusy` | 🟡 | LOW | CE also turns spatials off during map_enter / map_update / explode_scenery |
 | scriptsExecSpatialProc | Critter.ts:285-298, Obj.ts:474 `hitSpatialTrigger` | ✅ FIXED (2026-10-25) | LOW | Hidden / flat / tile < 10 / re-entry checks ✅. DH2 uses the current elevation's spatials, CE the object's elevation. In CE only `_object_move` (animated, non-straight) triggers — **Fixed 2026-10-25:** the object's elevation's spatials ("Smaller ones"). |
-| scriptsExecStartProc | GameMap.ts:400, Obj.ts:731/767 `initScript` | ⚠️ | MED | SCR-05 |
-| scriptsExecMapEnterProc | GameMap.ts:445-468 `doEnterNewMap` | ⚠️ | MED | SCR-05 |
-| scriptsExecMapUpdateProc | GameMap.ts:207 `updateMap`, 273 | ⚠️ | MED | SCR-04 (runs twice at load) |
+| scriptsExecStartProc | GameMap.ts:400, Obj.ts:731/767 `initScript` | ✅ FIXED (SCR-05) | MED | SCR-05 |
+| scriptsExecMapEnterProc | GameMap.ts:445-468 `doEnterNewMap` | ✅ FIXED (SCR-05) | MED | SCR-05 |
+| scriptsExecMapUpdateProc | GameMap.ts:207 `updateMap`, 273 | ✅ FIXED (SCR-04) | MED | SCR-04 (runs twice at load) |
 | scriptsExecMapUpdateScripts | scripting.ts:3643 `updateMap`, 3673 `enterMap`, 3721 `objectEnterMap` | 🟡 | LOW | Map script first ✅. Then objects in array order, then spatials; CE goes by script list type. Inventory items' scripts are not iterated (unverified whether DH2 gives them scripts) |
 | scriptsExecMapExitProc | mapLoader.ts:139-155 | ✅ | | `_queue_leaving_map` first, party excluded |
 | scriptsGetMessageList / _scr_get_msg_str / _scr_get_msg_str_speech | scripting.ts:458 `getScriptMessage`, 483 `speakScriptMessage` | ✅ FIXED (2026-10-25) | LOW | Missing message → "Error" ✅; lips ✅. The special pairs (0,0) / (−1,−1) → "" and (−2,−2) → proto.msg 650 are not handled — **Fixed 2026-10-25:** the special pairs ("Smaller ones"). |
@@ -108,7 +108,7 @@ Top findings, most severe first:
 | opDelayedCall / opConditionalCall / opWait / opCancel / opCancelAll (0x8006, 0x8007, 0x8047-0x8049) | — | ❌ | LOW | Unused by shipped scripts |
 | opIf / opWhile | vm.ts:146, 183 | ✅ | LOW | `""` is false in DH2; a CE string is false only at offset 0 |
 | opStore / opFetch | vm.ts:151-157 | ✅ | | The float box is kept |
-| opConditionalOperatorEqual / NotEqual / LessThanEquals / GreaterThanEquals / LessThan / GreaterThan | vm.ts:252-269 `binop` | ⚠️ | MED | SCR-06: JS loose comparison. `null == 0` is false (CE ptr == int 0 is true); string vs number goes through JS ToNumber, CE through `sprintf` + `strcmp` (`"05" == 5` is true in DH2, false in CE); pushes a boolean, not an int |
+| opConditionalOperatorEqual / NotEqual / LessThanEquals / GreaterThanEquals / LessThan / GreaterThan | vm.ts:252-269 `binop` | ✅ FIXED (SCR-06) | MED | SCR-06: JS loose comparison. `null == 0` is false (CE ptr == int 0 is true); string vs number goes through JS ToNumber, CE through `sprintf` + `strcmp` (`"05" == 5` is true in DH2, false in CE); pushes a boolean, not an int |
 | opAdd | vm.ts:72 `arith`, 291 | ⚠️ | LOW | String concat and `%.5f` ✅. int + int overflow: CE pushes a float, DH2 a JS number above 2³¹. A pointer + string concatenates `[object Object]` (CE `%p`) |
 | opSubtract / opMultiply | vm.ts:292-293 | ⚠️ | LOW | No 32-bit wraparound. A string operand gives NaN; CE pushes nothing (leaves the stack short) |
 | opDivide | vm.ts:299 | ✅ | | int/int truncates (`|0`), float division, fatal on /0 |
@@ -135,11 +135,11 @@ Top findings, most severe first:
 | opStoreExternalVariable / opFetchExternalVariable / opExportVariable | vm_bridge.ts:100-102 | 🟡 | LOW | Stored as properties on the map script object. A missing variable gives `undefined` (CE: fatal "does not exist"); a re-export resets to 0 (CE: fatal "already exists"); a name can shadow a `Script` member |
 | opExportProcedure (0x8017) | — | ❌ | LOW | No cross-program procedures; unused |
 | opExit (0x800E) / opDetach (0x800F) / opCallStart / opSpawn / forkProgram / opFork / opExec (0x8008-0x800B) | — | ❌ | LOW | Child programs; `detach` only appears in unlisted scripts (scripting_vm.md §9.2) |
-| opCheckProcedureArgumentCount | vm.ts:197 | ⚠️ | MED | Throws a plain string (not `VMFatalError`) → SCR-01 |
+| opCheckProcedureArgumentCount | vm.ts:197 | ✅ FIXED (SCR-01) | MED | Throws a plain string (not `VMFatalError`) → SCR-01 |
 | opLookupStringProc | vm.ts:192 | ✅ FIXED (2026-10-25) | LOW | Case-sensitive; can match index 0 (CE starts at 1); an unknown name throws a TypeError → SCR-01 |
 | interpreterRegisterOpcodeHandlers / interpreterRegisterOpcode | vm.ts `opMap` + vm_bridge.ts:361 | ✅ | | |
 | _interpretClose | — | 🚫 | | |
-| _interpret | vm.ts:485 `step`, 519 `run` | ⚠️ | MED | No burst limit (documented). An unknown opcode makes `step()` return false: a silent halt with a warning (CE fatal). `call()` then finds the −1 sentinel still on the return stack and stores the frame as a **suspended dialogue frame** (vm.ts:407-421) — see SCR-12 |
+| _interpret | vm.ts:485 `step`, 519 `run` | ✅ FIXED (SCR-12) | MED | No burst limit (documented). An unknown opcode makes `step()` return false: a silent halt with a warning (CE fatal). `call()` then finds the −1 sentinel still on the return stack and stores the frame as a **suspended dialogue frame** (vm.ts:407-421) — see SCR-12 |
 | _setupCallWithReturnVal / _setupCall | vm.ts:387-395 | ✅ | | Pushes flags, checkWaitFunc and windowId as 0 |
 | _setupExternalCallWithReturnVal / _setupExternalCall | — | ❌ | LOW | No imported procedures |
 | _executeProc | — | ❌ | LOW | Only for timed / conditional procs (unused) |
@@ -148,7 +148,7 @@ Top findings, most severe first:
 | _doEvents | — | ❌ | LOW | Unused (documented) |
 | programListNodeFree / programListNodeCreate / runProgram / runScript / _updatePrograms / programListFree / interpreterPrintStats | — | 🚫 | | Event-driven model (documented) |
 | programStackPushValue (overflow > 0x1000) | vm.ts:337 | ✅ | | `VMFatalError` |
-| programStackPopValue (underflow) | vm.ts:345 | ⚠️ | HIGH | Throws a string, not `VMFatalError` → SCR-01 |
+| programStackPopValue (underflow) | vm.ts:345 | ✅ FIXED (SCR-01) | HIGH | Throws a string, not `VMFatalError` → SCR-01 |
 | programStackPopInteger / Float / String / Pointer (type checks) | vm.ts `pop` | ⚠️ | LOW | No type check; CE: fatal "integer expected" and so on |
 | programStackPushInteger / Float / String / Pointer | vm.ts `push`, `vmFloat` | ✅ | | Floats are boxed |
 | programReturnStackPush* / Pop* | vm.ts `retStack`, 511 (overflow) | ✅ | | Underflow throws a string → SCR-01 |
@@ -159,7 +159,7 @@ Top findings, most severe first:
 | CE function | DH2 counterpart | Status | Sev | Notes |
 |---|---|---|---|---|
 | queueInit / queueExit | — | 🚫 | | |
-| queueLoad / queueSave | saveload.ts:223, 416-482 | 🟡 | MED | SCR-10. CE matches objects by id; DH2 by PID (the first object with that PID wins) |
+| queueLoad / queueSave | saveload.ts:223, 416-482 | ✅ FIXED (SCR-10) | MED | SCR-10. CE matches objects by id; DH2 by PID (the first object with that PID wins) |
 | queueAddEvent | `timeEventList.push` (scripting.ts, drugs.ts, radiation.ts, combat/results.ts, Obj.ts, miscItem.ts, skillUse.ts) | ✅ FIXED (2026-10-25) | LOW | Relative countdown instead of absolute time. Ties keep insertion order (= CE FIFO). Counts down only outside combat (SCR-03) |
 | queueRemoveEvents | scripting.ts:3094 `rm_timer_event`; `destroy_object`; gameTick.ts:246 (dead critter) | ✅ | | CE combat.cc:4799 removes on death; DH2 drops events whose owner is dead |
 | queueRemoveEventsByType | various (knockout, sneak, party) | ✅ | | |

@@ -60,7 +60,7 @@ Top findings, by severity:
 | `wmParseEncounterItemType` / `wmParseItemType` | `encounterData.ts:161`, `:135` | ✅ | — | `{wielded}`/`(wielded)`/`{worn}`/`(worn)`. |
 | `wmParseConditional` | `encounterData.ts:118 parseConditional` → `conditionLang.ts:139 parseConds` | ⚠️ | LOW | CE stores at most 3 sub-conditions joined by `and`/`or`; its `strstr` searches the rest of the line. DH2 uses a general expression parser. It has no `or` token, and it accepts `<=`/`>=`, which CE does not. Vanilla worldmap.txt uses only `And` and at most 3 terms, so the outcome is the same there. |
 | `wmParseSubConditional` / `wmParseConditionalEval` | `conditionLang.ts:46 tokenizeCond`, `:79 parseCond` | ✅ | — | rand / global / player(level) / days_played / time_of_day / enctr(num_critters); ops `==` `!=` `<` `>`. |
-| `wmAreaSlotInit` / `wmAreaInit` | `data.ts:88 parseAreas` | ⚠️ | MED | Entrance elevation is clamped `Math.max(0, …)` (`data.ts:141`), which breaks WM-04 and WM-09. CE stops at the first missing `entrance_N`; DH2 reads every `entrance_*` key. lock_state, size and art indexes match. |
+| `wmAreaSlotInit` / `wmAreaInit` | `data.ts:88 parseAreas` | ✅ FIXED (WM-04, WM-09) | MED | Entrance elevation is clamped `Math.max(0, …)` (`data.ts:141`), which breaks WM-04 and WM-09. CE stops at the first missing `entrance_N`; DH2 reads every `entrance_*` key. lock_state, size and art indexes match. |
 | `wmParseFindMapIdxMatch` | `data.ts:341 mapIndexFromLookup` | ✅ | — | |
 | `wmEntranceSlotInit` / `wmMapSlotInit` / `wmMapInit` / `wmRStartSlotInit` | `data.ts:283 parseMapInfo` | ✅ | — | Lookup name, music, ambient sfx, random start points, saved, dead_bodies_age, can_rest_here (not deep-audited here; owned by the maps audit). |
 | `wmMapMaxCount`, `wmMapIdxToName`, `wmMapMatchNameToIdx` | `data.ts lookupMapName`, `mapIndexOf` | ✅ | — | |
@@ -69,10 +69,10 @@ Top findings, by severity:
 | `wmMapCanRestHere` | `data.ts:408` | ✅ | — | |
 | `wmMapPipboyActive` | `ui_pipboy/shell.ts:515-517` | ✅ | — | DH2 option `pipboyAvailableAtStart` (DH2-only). |
 | `wmMapMarkVisited` | `Worldmap.ts:568 markMapVisited` (on `loadMapPost`, mark_area_known type 1) | ✅ | — | Saved maps only, then `wmAreaMarkVisited`. The `wmAreaMarkVisitedState` side effects are missing (WM-08). |
-| `wmMatchEntranceFromMap` / `wmMatchEntranceElevFromMap` / `wmMatchAreaFromMap` | inline in `scripting.ts:959-975`, `:794-805` | ⚠️ | MED | No −1 elevation wildcard; every match changed instead of the first (WM-04). |
-| `wmMapMarkMapEntranceState` | `scripting.ts:959 metarule3 104` only | ⚠️ | HIGH | Not called from map load, elevation change or exit grids (WM-02); matching differs (WM-04). |
+| `wmMatchEntranceFromMap` / `wmMatchEntranceElevFromMap` / `wmMatchAreaFromMap` | inline in `scripting.ts:959-975`, `:794-805` | ✅ FIXED (WM-04) | MED | No −1 elevation wildcard; every match changed instead of the first (WM-04). |
+| `wmMapMarkMapEntranceState` | `scripting.ts:959 metarule3 104` only | ✅ FIXED (WM-02, WM-04) | HIGH | Not called from map load, elevation change or exit grids (WM-02); matching differs (WM-04). |
 | `wmWorldMap` | `ui_worldmap.ts:60 uiWorldMap` | ✅ | — | |
-| `wmWorldMapFunc` | `Worldmap.ts:1136 updateWorldmapPlayer` (+ `init` click handlers) | 🟡 | MED | The walking frame matches (steps, car steps, fuel, out of gas, healing, fog, end of walk, 18000 ticks, encounter). Gaps: hotspot click ignores the town-map rule (WM-03); keys T / Home / Ctrl+F1–F7 / Ctrl+↑↓ are missing; arrow keys pan 2 px a frame only while stopped (CE: 20 px a press, also while walking); the mouse wheel over the map does not scroll it (CE 20 px). Out of gas: CE matches the area at the mouse (`worldX/worldY`, a CE bug); DH2 uses the party position. |
+| `wmWorldMapFunc` | `Worldmap.ts:1136 updateWorldmapPlayer` (+ `init` click handlers) | ✅ FIXED (WM-03) | MED | The walking frame matches (steps, car steps, fuel, out of gas, healing, fog, end of walk, 18000 ticks, encounter). Gaps: hotspot click ignores the town-map rule (WM-03); keys T / Home / Ctrl+F1–F7 / Ctrl+↑↓ are missing; arrow keys pan 2 px a frame only while stopped (CE: 20 px a press, also while walking); the mouse wheel over the map does not scroll it (CE 20 px). Out of gas: CE matches the area at the mouse (`worldX/worldY`, a CE bug); DH2 uses the party position. |
 | `wmCheckGameAreaEvents` | — | ✅ FIXED (2026-10-26) | LOW | CE `mapLoad` hides CITY_FAKE_VAULT_13_A (45) and shows / visits B (46) while the party is at A. NEW. — **2026-10-26:** the Fake Vault 13 swap. |
 | `wmInterfaceCenterOnParty` | `applyPan(x − 222, y − 219)` at `Worldmap.ts:850, 1164` | ⚠️ | LOW | CE offsets are −203/−200 and it is bound to Home. DH2 centers on the 445×438 view and recenters every walking frame; CE scrolls 1 px a step, so the party keeps its place on screen. |
 | `wmCheckGameEvents` | `Worldmap.ts:1138 scriptsCheckGameEvents` | ✅ | — | |
@@ -92,14 +92,14 @@ Top findings, by severity:
 | `wmPartyInitWalking` | `Worldmap.ts:990 partyInitWalking` | ✅ | — | Bresenham set-up the same as CE. CE centers the view if the cursor is not visible; DH2 always centers. DH2 debug `instantTravel` added (DH2-only). |
 | `wmPartyWalkingStep` | `Worldmap.ts:1052 partyWalkingStep` | ✅ | — | Terrain counter 1..4, difficulty ≥ 1, walk-mask stop. When blocked, CE matches the area with `(worldPosX, worldPosX)` (a CE typo); DH2 uses the correct (x, y). |
 | `wmInterfaceScrollTabsStart` / `Stop` / `Update` | `ui_worldmap.ts:35 setLabelScroll` | 🟡 | LOW | 27 px a step; CE animates 7×delta over several frames and disables the tab buttons while scrolling. DH2 jumps. |
-| `wmInterfaceInit` | `ui_worldmap.ts:60 uiWorldMap`, `Worldmap.ts:873 start` | 🟡 | MED | Resets the encounter timer. Missing: worldmap music `20car`/`23world` (WM-07), `_map_save_in_game(true)` before the worldmap opens (not verified whether the DH2 map cache covers it), `scriptsDisable` (DH2 pauses the game loop through uiMode). |
+| `wmInterfaceInit` | `ui_worldmap.ts:60 uiWorldMap`, `Worldmap.ts:873 start` | ✅ FIXED (WM-07) | MED | Resets the encounter timer. Missing: worldmap music `20car`/`23world` (WM-07), `_map_save_in_game(true)` before the worldmap opens (not verified whether the DH2 map cache covers it), `scriptsDisable` (DH2 pauses the game loop through uiMode). |
 | `wmInterfaceExit` | `ui_worldmap.ts:50 uiCloseWorldMap`, `Worldmap.ts:879 stop` | ✅ | — | Encounter fields cleared after setup. |
 | `wmInterfaceScroll` / `wmInterfaceScrollPixel` | `Worldmap.ts:204 applyPan`, `:1183-1191` | ⚠️ | LOW | Step 20 px (CE) vs 2 px a frame; panning is disabled while walking. |
 | `wmMouseBkProc` | `Worldmap.ts:858 _onWMMouseMove` | ⚠️ | LOW | CE: the screen-edge pixel, 20 px every 50 ms, scroll cursors (and "can't scroll" cursors). DH2: a 20 px band inside the view, 2 px a frame, no cursor change. |
 | `wmMarkSubTileOffsetVisited` / `wmMarkSubTileOffsetKnown` / `wmMarkSubTileOffsetVisitedFunc` | `Worldmap.ts:373 markSquare` | ✅ | — | "Known only while unknown" rule kept. The numbers are swapped against CE (WM-01). |
 | `wmMarkSubTileRadiusVisited` | `Worldmap.ts:391 markSubTileRadiusVisited` | ✅ | — | Radius 1 / Scout 2; `fill_s`, `fill_w` (including the CE `subtileX-- >= 0` step into the left tile). |
 | `wmSubTileMarkRadiusVisited` (script) | `scripting.ts:945 metarule3 101` | ✅ FIXED (2026-10-25) | LOW | Returns 0 and does nothing; the implementation exists but has a fixed radius (Scout) and is not exported. Used by `bhrnddst`. NEW. — **Fixed 2026-10-25:** metarule3 101 marks the subtiles. |
-| `wmSubTileGetVisitedState` | `scripting.ts:977 metarule3 105` | ❌ | HIGH | Always returns 1 (WM-01). |
+| `wmSubTileGetVisitedState` | `scripting.ts:977 metarule3 105` | ✅ FIXED (WM-01) | HIGH | Always returns 1 (WM-01). |
 | `wmTileGrabArt` | CSS background tiles | 🚫 | — | |
 | `wmInterfaceRefresh` | DOM: `refreshAreaMarkers:472`, square classes, `placePartyMarker:963` | ✅ | — | Areas whose state is not UNKNOWN are drawn; unknown subtiles are hidden and known ones dimmed (CSS). |
 | `wmInterfaceRefreshDate` | `Worldmap.ts:243 updateDate` | ✅ | — | |
@@ -111,18 +111,18 @@ Top findings, by severity:
 | `wmGetAreaName` / `wmGetAreaIdxName` | `getMessage('map', 1500 + id)` | ✅ | — | |
 | `wmAreaIsKnown` | `Worldmap.ts:562 areaIsKnown` | ✅ | — | |
 | `wmAreaVisitedState` | `Worldmap.ts:535 areaVisitedState` | ✅ | — | |
-| `wmMapIsKnown` | `scripting.ts:794 metarule 19` | ⚠️ | MED | Always 0 (WM-05). |
+| `wmMapIsKnown` | `scripting.ts:794 metarule 19` | ✅ FIXED (WM-05) | MED | Always 0 (WM-05). |
 | `wmAreaMarkVisited` | `setAreaVisitedState(id, 2)` | ✅ | — | |
-| `wmAreaMarkVisitedState` | `Worldmap.ts:521 setAreaVisitedState` | 🟡 | MED | The 2→1 first-visit rule is kept; the fog reveal and the subtile-known side effects are missing (WM-08). |
+| `wmAreaMarkVisitedState` | `Worldmap.ts:521 setAreaVisitedState` | ✅ FIXED (WM-08) | MED | The 2→1 first-visit rule is kept; the fog reveal and the subtile-known side effects are missing (WM-08). |
 | `wmAreaSetVisibleState` | `Worldmap.ts:512 setAreaVisible` | ✅ | — | Callers implement `force`/`lockState` (special encounter checks `lockState`; mark_area_known forces). |
 | `wmAreaSetWorldPos` | `scripting.ts:3179 wm_area_set_pos`, internal assignments | ⚠️ | LOW | CE refuses x/y outside 0…1400 / 0…1500 (returns −1, with a script error in `opWmAreaSetPos`); DH2 accepts any value. |
 | `wmGetPartyWorldPos` | `Worldmap.ts:345 getPlayerWorldPos` | ✅ | — | DH2 rounds; positions are integers anyway. Returns 0,0 (metarule 44/45) before the worldmap is initialised. |
 | `wmGetPartyCurArea` | `Worldmap.ts:531 getCurrentAreaId` | ✅ | — | |
 | `wmMarkAllSubTiles` | `resetWorldmap` re-parse | ✅ | — | |
 | `wmTownMap` | `ui_worldmap.ts:60 uiWorldMap(true)` (scripts `town_map` / map.cc transition) | ✅ | — | |
-| `wmTownMapFunc` | `ui_worldmap.ts:123 uiWorldMapShowArea`, `:147 hotspot onclick` | ⚠️ | HIGH | Shown whatever the visited state or `mapFid` (WM-03). Number keys 1..n, Esc, T/W, Ctrl+F1–F7 are missing. Car parking on entry matches. mapSetEnteringLocation differs for elevation −1 (WM-09). |
-| `wmTownMapInit` | `uiWorldMapShowArea:132-192` | ⚠️ | MED | CE skips entrances with x or y = −1; DH2 auto-places them (WM-06). |
-| `wmTownMapRefresh` | `uiWorldMapShowArea:168` | ⚠️ | MED | Entrance label: worldmap.msg `200+10·area+index` (CE) vs the maps.txt lookup name (WM-06). |
+| `wmTownMapFunc` | `ui_worldmap.ts:123 uiWorldMapShowArea`, `:147 hotspot onclick` | ✅ FIXED (WM-03, WM-09) | HIGH | Shown whatever the visited state or `mapFid` (WM-03). Number keys 1..n, Esc, T/W, Ctrl+F1–F7 are missing. Car parking on entry matches. mapSetEnteringLocation differs for elevation −1 (WM-09). |
+| `wmTownMapInit` | `uiWorldMapShowArea:132-192` | ✅ FIXED (WM-06) | MED | CE skips entrances with x or y = −1; DH2 auto-places them (WM-06). |
+| `wmTownMapRefresh` | `uiWorldMapShowArea:168` | ✅ FIXED (WM-06) | MED | Entrance label: worldmap.msg `200+10·area+index` (CE) vs the maps.txt lookup name (WM-06). |
 | `wmTownMapExit` | `uiWorldMapWorldView` | 🚫 | — | |
 | `wmCarUseGas` | `Worldmap.ts:196 carUseGas` | ✅ | — | Super car −90 %, NR upgrade −10 %, regulator /2, clamp 0. |
 | `wmCarFillGas` | `Worldmap.ts:289 addCarFuel`, `scripting.ts:907 metarule 32` | ✅ FIXED (2026-10-26) | LOW | CE returns the amount that does not fit; DH2 metarule returns 1. DH2 ignores negative amounts; CE subtracts them. — **2026-10-26:** CE's amount and result. |
@@ -139,7 +139,7 @@ Top findings, by severity:
 | `wmTabsCompareNames` | `localeCompare` | ✅ | — | CE `stricmp` on city.txt `area_name`; the order of the vanilla names is the same. |
 | `wmFreeTabsLabelList` | — | 🚫 | — | |
 | `wmRefreshInterfaceDial` / `wmInterfaceDialSyncTime` | `Worldmap.ts:217 updateDial` | ✅ | — | |
-| `wmAreaFindFirstValidMap` | — | ❌ | HIGH | Part of WM-03. |
+| `wmAreaFindFirstValidMap` | — | ✅ FIXED (WM-03) | HIGH | Part of WM-03. |
 | `wmMapMusicStart` | `map/GameMap.ts` map-load music | ✅ | — | Owned by the sound/maps audit. |
 | `wmSetMapMusic` | `data.ts:389 setMapMusicOverride` | ✅ FIXED (2026-10-26) | LOW | CE restarts the music at once when the index is the current map; DH2 only stores it for the next load. — **2026-10-26:** the current map's music restarts. |
 | `wmMatchAreaContainingMapIdx` | `Worldmap.ts:911 areaIdContainingMap` | ✅ | — | 0 when nothing matches, as in CE. |

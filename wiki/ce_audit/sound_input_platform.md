@@ -36,7 +36,7 @@ Top findings:
 | backgroundSoundDisable / Enable / IsEnabled | — | 🟡 PARTLY FIXED (2026-10-26) | LOW | No music on/off (`[sound] music=0`). Movie volume coupling (`movieSetVolume(music×0.94)`) not ported (gameMovie volume is independent — unverified beyond grep). — **2026-10-26:** [sound] music=0; the movie volume coupling is not. |
 | backgroundSoundSetVolume / Get / _gsound_background_volume_get_set | `audio.ts:261` (music branch) | ⚠️ DIFFERS | LOW | CE plays music at `musicVolume × 0.94` and disables music at volume 0 (restart on raise). DH2 uses `music × master` with no 0.94 factor and never disables. |
 | backgroundSoundSetEndCallback / GetDuration | — | 🚫 N/A | — | no CE callers set an end callback for map music in vanilla flow (endgame uses it; DH2 endgame drives its own timing). |
-| backgroundSoundLoad (+ `_gsound_background_play_level_music`) | `audio.ts:168` `playMusic`, `GameMap.ts:475` `playMapMusic` | 🟡 PARTIAL | HIGH | Map music matches (`wmMapMusicStart`, loop). But the other CE callers are absent — see SND-01 (worldmap `23world`/`20car`, main-menu `07desert`, map-load `wind2`). No `_gsound_background_fade` (CE leaves it 0 in vanilla, so no fade — match). CE restarts the same track on every map load (backgroundSoundDelete + load); DH2 also restarts (`stopAll` + `playMusic`) — match. |
+| backgroundSoundLoad (+ `_gsound_background_play_level_music`) | `audio.ts:168` `playMusic`, `GameMap.ts:475` `playMapMusic` | ✅ FIXED (SND-01) | HIGH | Map music matches (`wmMapMusicStart`, loop). But the other CE callers are absent — see SND-01 (worldmap `23world`/`20car`, main-menu `07desert`, map-load `wind2`). No `_gsound_background_fade` (CE leaves it 0 in vanilla, so no fade — match). CE restarts the same track on every map load (backgroundSoundDelete + load); DH2 also restarts (`stopAll` + `playMusic`) — match. |
 | backgroundSoundDelete | `audio.ts:284` `stopMusic` | ✅ MATCH | — | L13 (drops the stream). |
 | backgroundSoundRestart | `talkingHead.ts:410` (dialog end) | 🟡 PARTIAL | LOW | only the dialogue restart (`game_dialog.cc:999`) is ported; master/music re-enable restart is not (see above). |
 | backgroundSoundPause / Resume | — | ❌ MISSING | LOW | CE pauses music during save/load screens (`loadsave.cc:1537`) and non-stopping movies (`game_movie.cc:189/298`). DH2 keeps playing under the save/load screen; `gameMovie.ts:294` only implements the STOP flag. |
@@ -46,13 +46,13 @@ Top findings:
 | speechLoad / _gsound_speech_play_preloaded / speechPlay / speechDelete / Pause / Resume | `talkingHead.ts:262`, `endgame/slideRender.ts:52` | ✅ MATCH | — | dialogue speech, endgame narrator. Death narration (`main.cc:440`) is the endgame/main auditor's scope. `preferences.cc:1502` "narrator\options" not checked here. |
 | _gsound_play_sfx_file_volume | — | ✅ FIXED (2026-10-25) | LOW | used by combat_ai.cc (2741–2934) for AI combat sounds with relative volume; see SND-02. |
 | soundEffectLoad (incl. human `H?XXXX` fallback, `MALIEU`/`MAMTN2`→`MAMTNT`) | `sfxNames.ts:83` `playCharSfx`, `audio.ts:108` `loadSfx` | ⚠️ DIFFERS | LOW | Human fallback matches (AU5). Missing: the `MALIEU*`/`MAMTN2*` → `MAMTNT*` fallback (Lieutenant / mutant critters with no own sound file use the generic mutant sounds in CE; silent in DH2) — SND-04. Missing: `SOUND_EFFECTS_MAX_COUNT` (4) concurrent-effect cap — SND-03. |
-| soundEffectLoadWithVolume | — | ❌ MISSING | MED | see SND-02 (distance attenuation). |
+| soundEffectLoadWithVolume | — | ✅ FIXED (SND-02) | MED | see SND-02 (distance attenuation). |
 | soundEffectDelete / _gsnd_anim_sound / soundEffectPlay / soundEffectCallback | `audio.ts:142` `playBuffer` | 🚫 N/A | — | fire-and-forget BufferSource. |
-| _gsound_compute_relative_volume | — | ❌ MISSING | MED | SND-02. |
+| _gsound_compute_relative_volume | — | ✅ FIXED (SND-02) | MED | SND-02. |
 | sfxBuildCharName | `sfxNames.ts:53` | ✅ MATCH | — | AU6. Base = first 6 chars of art name, art code via `artGetCode`, Y/Z overrides identical. |
 | gameSoundBuildAmbientSoundEffectName | `scripting.ts:2598` `sfx_build_ambient_name` | ✅ MATCH | — | `A%6s1` (padStart = right-aligned `%6s`). |
 | gameSoundBuildInterfaceName | `scripting.ts:2603` | ✅ MATCH | — | `N%6s1`; item name builder also uses it (CE). |
-| sfxBuildWeaponName | opcode: `scripting.ts:2610`; engine: `soundMap.ts:110` `getWeaponSounds` + `audio.ts:222` `playWeaponSfx` | ⚠️ DIFFERS | MED | Opcode port matches. The engine path does not use it: hit sound variant always `1` (CE `2` for non-primary hit modes, e.g. burst), material always flesh (`F`), never `X` for plasma/EMP/explosive damage, and the DH2-only fallbacks (burst→single, material→`xxx`). SND-05. |
+| sfxBuildWeaponName | opcode: `scripting.ts:2610`; engine: `soundMap.ts:110` `getWeaponSounds` + `audio.ts:222` `playWeaponSfx` | ✅ FIXED (SND-05) | MED | Opcode port matches. The engine path does not use it: hit sound variant always `1` (CE `2` for non-primary hit modes, e.g. burst), material always flesh (`F`), never `X` for plasma/EMP/explosive damage, and the DH2-only fallbacks (burst→single, material→`xxx`). SND-05. |
 | sfxBuildSceneryName | `scripting.ts:2624` | ✅ MATCH | — | `S%c%c%4s1`. |
 | sfxBuildOpenName | `sfxNames.ts:32` | ✅ MATCH | — | AU5; `A` only when no proto, byte 0 → no file. |
 | _gsound_red/med/lrg_butt_press/release, _gsound_toggle_butt_press_ | per-UI calls, e.g. `ui_inventory/panel.ts:70`, `hotkeys.ts:41` | 🟡 PARTIAL | LOW | Names identical (`ib1p1xx1`/`ib1lu1x1`/`ib2…`/`ib3…`/`toggle`); wired per screen by hand. Coverage per screen belongs to the UI auditors. Release sounds are wired only where DH2 added mouseup handlers (inventory, pipboy). |
@@ -84,12 +84,12 @@ Top findings:
 | _gmouse_enable / _gmouse_disable | `globalState.gameUIDisabled` checks in `input.ts` | ✅ MATCH | — | |
 | _gmouse_enable_scrolling / _gmouse_disable_scrolling / gmouse_scrolling_is_enabled / _gmouse_is_scrolling / _gmouse_get_click_to_scroll | `gameTick.ts:155` (`gameHasFocus`) | 🟡 PARTIAL | LOW | No explicit scroll enable flag (CE disables it on worldmap / map load); DH2 gates on focus and UI mode. `click_to_scroll` not ported. |
 | gameMouseHandleScrolling (+ map.cc mapScroll) | `gameTick.ts:162`, `input.ts:344` (scroll cursor), `renderer.ts:357` | ⚠️ DIFFERS | LOW | CE: only on the exact screen-edge pixel, steps 32 px (x) / 24 px (y) every ≥33 ms, and shows the `*_INVALID` (red, "blocked") scroll cursor when `mapScroll` fails. DH2: `[dh2] scroll_edge` zone (default 10 px, documented), 15 px/tick both axes (~900 px/s vs CE ~970/727), no blocked-scroll cursor. MOUSE-07. |
-| gameMouseRefresh (hover logic) | `input.ts:294` `mousemoved`, `gameTick.ts:180`, `renderer.ts:318` | ⚠️ DIFFERS | MED | see MOUSE-03 (primary-action icon), MOUSE-04 (repeated look message), MOUSE-05 (AP readout on hex cursor), item outline timing. |
+| gameMouseRefresh (hover logic) | `input.ts:294` `mousemoved`, `gameTick.ts:180`, `renderer.ts:318` | ✅ FIXED (MOUSE-03, MOUSE-04, MOUSE-05) | MED | see MOUSE-03 (primary-action icon), MOUSE-04 (repeated look message), MOUSE-05 (AP readout on hex cursor), item outline timing. |
 | gameMouseClickOnInterfaceBar | DOM `#bar` swallows clicks | 🚫 N/A | — | |
 | _gmouse_handle_event — right button | `input.ts:283` → `cycleMouseMode` | ✅ MATCH | — | |
-| _gmouse_handle_event — left up, MOVE mode | `input.ts:269` → `playerUse(getObjectUnderCursor(isSelectable))` | ⚠️ DIFFERS | MED | MOUSE-01: CE always walks/runs to the hex in move mode (Shift inverts `running`); DH2 uses/attacks/talks to the clicked object and has no Shift toggle. |
-| _gmouse_handle_event — left up, ARROW mode (primary action) | `input.ts:258` (opens action menu) | ⚠️ DIFFERS | MED | MOUSE-02: CE click = primary action (pick up / talk / use / look / loot / rotate dude), hold = action menu. DH2: every click opens the menu; menu closing resets to move mode (`ui_contextmenu.ts:41`), CE stays in arrow mode. Partially documented (README "Known approximations": says "right-click", the code uses left-click in command mode). |
-| _gmouse_handle_event — left up, CROSSHAIR | `input.ts:264` | 🟡 PARTLY FIXED (2026-10-26) | LOW | DH2 attacks any object under the cursor except the dude; CE picks a critter first, else only a door (`objectIsDoor`), and re-arms the hover readout. Attacking scenery other than doors is possible in DH2 (playerUse decides). — **2026-10-26:** a critter is the target; doors can't be attacked yet. |
+| _gmouse_handle_event — left up, MOVE mode | `input.ts:269` → `playerUse(getObjectUnderCursor(isSelectable))` | ✅ FIXED (MOUSE-01) | MED | MOUSE-01: CE always walks/runs to the hex in move mode (Shift inverts `running`); DH2 uses/attacks/talks to the clicked object and has no Shift toggle. |
+| _gmouse_handle_event — left up, ARROW mode (primary action) | `input.ts:258` (opens action menu) | ✅ FIXED (MOUSE-02) | MED | MOUSE-02: CE click = primary action (pick up / talk / use / look / loot / rotate dude), hold = action menu. DH2: every click opens the menu; menu closing resets to move mode (`ui_contextmenu.ts:41`), CE stays in arrow mode. Partially documented (README "Known approximations": says "right-click", the code uses left-click in command mode). |
+| _gmouse_handle_event — left up, CROSSHAIR | `input.ts:264` | ✅ FIXED (2026-10-26) | LOW | DH2 attacks any object under the cursor except the dude; CE picks a critter first, else only a door (`objectIsDoor`), and re-arms the hover readout. Attacking scenery other than doors is possible in DH2 (playerUse decides). — **2026-10-26:** a critter is the target; doors can't be attacked yet. — **2026-10-26:** a door is attacked too (playerAttackDoor → _combat_attack_this). |
 | _gmouse_handle_event — USE_CROSSHAIR (item on object) | `input.ts:253` `usePendingItemOn` | ✅ MATCH | — | AP cost in combat handled in `useItemOn.ts` (not re-verified here). |
 | _gmouse_handle_event — skill crosshairs | `input.ts:267` → `playerUse` (useSkill) | ✅ MATCH | — | CE: clicking empty ground keeps the mode only when actionUseSkill fails; DH2 First Aid/Doctor on empty ground → self (CE: `object == nullptr` → leaves mode, no self-use). ⚠️ LOW, see MOUSE-08. |
 | _gmouse_handle_event — action menu (left-hold) | `ui_contextmenu.ts:45` `uiContextMenu` | ✅ MATCH (content) | — | C42: menu items per type match CE; opening gesture differs (documented). |
@@ -100,11 +100,11 @@ Top findings:
 | _gmouse_3d_refresh / gameMouseRefreshImmediately | — | 🚫 N/A | — | redraw every frame. |
 | gameMouseSetBouncingCursorFid / ResetBouncingCursorFid | — | 🚫 N/A | — | the "bouncing" cursor is the flat hex overlay. |
 | gameMouseObjectsShow / Hide / IsVisible | `Config.ui.showCursor`, cursorMode checks | ✅ MATCH | — | |
-| gameMouseGetObjectUnderCursor | `renderer.ts:611` `getObjectUnderCursor` | ⚠️ DIFFERS | MED | MOUSE-06: no roof test (CE returns nothing for objects under a visible roof unless the egg covers the mouse); does not skip dead / knocked-out critters in favour of what lies under them; loop `i > 0` never tests `objects[0]`. |
-| gameMouseRenderPrimaryAction / _gmouse_3d_pick_frame_hot | `renderer.ts:327` (always `lookn`) | ⚠️ DIFFERS | MED | MOUSE-03. |
+| gameMouseGetObjectUnderCursor | `renderer.ts:611` `getObjectUnderCursor` | ✅ FIXED (MOUSE-06) | MED | MOUSE-06: no roof test (CE returns nothing for objects under a visible roof unless the egg covers the mouse); does not skip dead / knocked-out critters in favour of what lies under them; loop `i > 0` never tests `objects[0]`. |
+| gameMouseRenderPrimaryAction / _gmouse_3d_pick_frame_hot | `renderer.ts:327` (always `lookn`) | ✅ FIXED (MOUSE-03) | MED | MOUSE-03. |
 | gameMouseRenderActionMenuItems / HighlightActionMenuItemAtIndex | `ui_contextmenu.ts` (DOM buttons) | 🚫 N/A (deliberate) | — | DOM menu, click instead of drag-select (C42). |
 | gameMouseRenderAccuracy | `ui_hud.ts:594` `uiShowCombatHover` (via `gameTick.ts:189`) | ✅ MATCH | — | CI18: "NN%" / " X ", `_colorTable` team colours. DOM overlay, refreshed every 750 ms vs CE 250 ms hover (documented: README "Hover readout"). Only for critters (CE also doors). |
-| gameMouseRenderActionPoints | — | ❌ MISSING | MED | MOUSE-05. |
+| gameMouseRenderActionPoints | — | ✅ FIXED (MOUSE-05) | MED | MOUSE-05. |
 | gameMouseLoadItemHighlight | `Config.ui.itemHighlight` (CI7) | ✅ MATCH | — | |
 | gameMouseObjectsInit / Reset / Free, gameMouseActionMenuInit / Free, customMouseModeFrmsInit | `mapLoader.ts:383` art preload | 🚫 N/A | — | |
 | gmouse_3d_set_flat_fid / gameMouseUpdateHexCursorFid / _gmouse_3d_move_to | `renderer.ts:221` (hex outline at `hexCellTopLeft`) | ✅ MATCH | — | hex cursor drawn post-roof (`object.cc _obj_render_post_roof`). |
@@ -157,14 +157,14 @@ Top findings:
 
 | CE function (file) | DH2 counterpart (file:line) | Status | Sev | Notes |
 |---|---|---|---|---|
-| badwordsInit / badwordsExit | — | ❌ MISSING | MED | MSG-01. |
+| badwordsInit / badwordsExit | — | ✅ FIXED (MSG-01) | MED | MSG-01. |
 | messageListInit / Free | `globalState.messageFiles`, `scriptMessages` | 🚫 N/A | — | |
 | messageListLoad / _message_load_field | `data.ts:189` `parseMsgFile` | ✅ MATCH | — | brace fields, newlines dropped, stops at the first malformed entry, later duplicates replace earlier ones. Small differences (LOW): no 1024-char field limit, path hard-coded to `text/english/` (CE `settings.system.language` with the sfall English fallback), `�` → `'` (encoding hack). |
 | messageListGetItem / _message_find / _message_add | `util.ts:204` `getMessage` | ✅ MATCH | — | |
 | getmsg (`"Error"` on a missing id) | `getMessage` returns `null` | ⚠️ DIFFERS | LOW | CE prints the string `Error`; DH2 callers substitute `''`, a fallback, or skip. Script `message_str` behaviour belongs to the interpreter audit. |
 | _message_make_path | — | 🟡 PARTIAL | LOW | english only. |
 | _message_parse_number | `Number(num.trim())` | ⚠️ DIFFERS | LOW | DH2 trims the number field; CE rejects leading/trailing blanks and ends the load there. DH2 is more lenient. |
-| messageListFilterBadwords | — | ❌ MISSING | MED | MSG-01. |
+| messageListFilterBadwords | — | ✅ FIXED (MSG-01) | MED | MSG-01. |
 | messageListFilterGenderWords (sfall `GameDialogGenderWords`, `<male^female>`) | — | ❌ MISSING | LOW | sfall option, off by default; vanilla .msg files don't use it. |
 | messageListRepositoryInit / Reset / Exit / SetStandardMessageList / SetProtoMessageList / AddExtra / GetMsg / Load | `getMessage(name, id)` by file name | 🚫 N/A | — | sfall `add_extra_msg_file` / `message_str_game` — sfall auditor's scope. |
 

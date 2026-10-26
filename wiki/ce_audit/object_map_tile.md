@@ -44,22 +44,22 @@ Top findings:
 |---|---|---|---|---|
 | objectsInit | `player.ts:67` (dude LIGHT_THRU); map arrays in GameMap | 🚫 N/A | — | Allocation and egg/dude creation. The dude's `OBJECT_LIGHT_THRU` is ported (C46). The egg is a shader mask (`webglDraw.ts`). |
 | objectsReset / objectsExit | `mapLoader.ts:221` (objects = null) | 🚫 N/A | — | Memory. |
-| objectRead | `Obj.fromMapObject_` `Obj.ts:627` (data from `tools/fomap.py`) | 🟡 PARTIAL | HIGH | The exit-grid fid fixup isn't needed. **The door `openFlags` are discarded by the pipeline** (OBJ-02). The light fields are read from the map ✓. |
+| objectRead | `Obj.fromMapObject_` `Obj.ts:627` (data from `tools/fomap.py`) | ✅ FIXED (OBJ-02) | HIGH | The exit-grid fid fixup isn't needed. **The door `openFlags` are discarded by the pipeline** (OBJ-02). The light fields are read from the map ✓. |
 | objectLoadAll / objectLoadAllInternal | `mapLoader.ts:221` loadNewMap | 🚫 N/A | — | JSON. |
 | _object_fix_weapon_ammo | `initWeaponAmmo` (`weaponAmmo.ts`, via `Obj.ts`) | ✅ MATCH | — | LE12 (not re-verified in depth). |
-| objectWrite / objectSaveAll / _obj_save_obj / _obj_load_obj / _obj_save_dude / _obj_load_dude | `Obj.serialize` `Obj.ts:1404`, `GameMap.serialize` `GameMap.ts:683` | 🟡 PARTIAL | HIGH | JSON replaces the binary format. `open` / `locked` / `jammed` are **not** saved (OBJ-02). The party is excluded from map snapshots as in CE (M10). |
+| objectWrite / objectSaveAll / _obj_save_obj / _obj_load_obj / _obj_save_dude / _obj_load_dude | `Obj.serialize` `Obj.ts:1404`, `GameMap.serialize` `GameMap.ts:683` | ✅ FIXED (OBJ-02) | HIGH | JSON replaces the binary format. `open` / `locked` / `jammed` are **not** saved (OBJ-02). The party is excluded from map snapshots as in CE (M10). |
 | _obj_render_pre_roof / _obj_render_post_roof | `renderer.ts` renderObjects / `renderOutlinePass` | 🚫 N/A | — | Blit order replaced by WebGL. The post-roof outline pass exists. |
-| objectCreateWithFidPid | `Obj.fromPID_` `Obj.ts:587` | ⚠️ DIFFERS | MED | The proto light is not applied (OBJ-03). `flags = pro.flags` is copied raw, whereas CE maps selected bits (0x08/0x10/0x800/trans/0x20000000/0x80000000/0x10000000/0x1000). The bit positions coincide, so this is LOW. |
-| objectCreateWithPid | `createObjectWithPID` (`object/factories.ts`) | ⚠️ DIFFERS | MED | As above. |
+| objectCreateWithFidPid | `Obj.fromPID_` `Obj.ts:587` | ✅ FIXED (OBJ-03) | MED | The proto light is not applied (OBJ-03). `flags = pro.flags` is copied raw, whereas CE maps selected bits (0x08/0x10/0x800/trans/0x20000000/0x80000000/0x10000000/0x1000). The bit positions coincide, so this is LOW. |
+| objectCreateWithPid | `createObjectWithPID` (`object/factories.ts`) | ✅ FIXED (OBJ-03) | MED | As above. |
 | _obj_copy | — (inventory cloning in item code) | 🚫 N/A | — | Not audited here. |
 | _obj_connect / _obj_disconnect / _obj_connect_to_tile / _obj_insert / _obj_remove / objectGetListNode | `GameMap.addObject` `:112`, `removeObject`/`drainRemovalQueue` `:126`; z-order `Obj.ts zsortMap` | 🚫 N/A | — | Linked per-tile lists replaced by per-elevation arrays. The deferred removal is a DH2 design (documented in code). |
 | _obj_offset | `Obj.shift` / `artOffset` / `ceOff` | 🚫 N/A | — | Animation auditor. |
 | _obj_move | `Obj.move` `Obj.ts:793` | 🟡 PARTIAL | LOW | Static light rebake on a non-critter move ✓. Critters are dynamic per frame. |
-| objectSetLocation | `Obj.move` `Obj.ts:793` + `Player.move` `player.ts:368` | 🟡 PARTIAL | MED | The exit-grid check exists (MAP-02 differences). The roof flood uses the wrong square row (TILE-02). Combat ends on an elevation change ✓ (`changeElevation`). There is no `_combat_delete_critter` when an NPC changes elevation (unverified elsewhere). |
+| objectSetLocation | `Obj.move` `Obj.ts:793` + `Player.move` `player.ts:368` | ✅ FIXED (MAP-02, TILE-02) | MED | The exit-grid check exists (MAP-02 differences). The roof flood uses the wrong square row (TILE-02). Combat ends on an elevation change ✓ (`changeElevation`). There is no `_combat_delete_critter` when an NPC changes elevation (unverified elsewhere). |
 | _obj_reset_roof | `renderer.ts` per-frame `roofFloodFill` | ✅ MATCH | — | Recomputed each frame. |
 | objectSetFid / objectSetFrame / objectSetNextFrame / objectSetPrevFrame | `Obj.art` / `Obj.frame` assignments | 🚫 N/A | — | Dirty rects. Animation auditor. |
 | objectSetRotation / objectRotateClockwise / objectRotateCounterClockwise | `obj.orientation = …` | ✅ MATCH | — | Trivial. |
-| _obj_rebuild_all_light | `Lightmap.rebuildLight` → `bakeStaticLight` `lightmap.ts:414` + `rebuildDynamicLight` `:454` | 🟡 PARTIAL | MED | Static/dynamic split (DH2). Not called on door open/close (CE `_check_door_state` does). Not called on `destroyObject`, except for flares. |
+| _obj_rebuild_all_light | `Lightmap.rebuildLight` → `bakeStaticLight` `lightmap.ts:414` + `rebuildDynamicLight` `:454` | 🟡 PARTLY FIXED (door open / close rebuilds it, setDoorPassable; destroyObject still only for flares) | MED | Static/dynamic split (DH2). Not called on door open/close (CE `_check_door_state` does). Not called on `destroyObject`, except for flares. |
 | objectSetLight | `scripting.ts:2073` obj_set_light_level; `Obj.ts:258` | ✅ MATCH | — | Distance clamped to 8 (C46). |
 | objectGetLightIntensity | `getObjectLightIntensity` (`combat/hitChance.ts`) | ✅ MATCH | — | C46. |
 | _obj_turn_on_light / _obj_turn_off_light | via `rebuildLight` | ✅ MATCH | — | Full rebuild instead of add/subtract. Same result. |
@@ -76,17 +76,17 @@ Top findings:
 | objectFindFirst/Next, …AtElevation, …AtLocation | `getObjects(level)`, `objectsAtPosition` `GameMap.ts:492` | ✅ MATCH | — | Array scans. The tile order within a tile differs (array order, not the CE sorted list), which matters for "first opaque object" in light. LOW. |
 | objectGetRect | `objectBoundingBox` `renderer.ts:574` | ✅ MATCH | — | Anchor offsets per RD13 notes. |
 | _obj_occupied | — | ❌ MISSING | LOW | No direct callers needed. `objectsAtPosition().length` is equivalent. |
-| _obj_blocking_at | `GameMap.blockingObjectAt` type 0 `GameMap.ts:515` | ⚠️ DIFFERS | HIGH | Logic matches CE (type set, HIDDEN/NO_BLOCK, multihex neighbours). Open doors still block because the flags are never updated (OBJ-01). |
-| _obj_shoot_blocking_at | type 1 | ⚠️ DIFFERS | HIGH | `(NO_BLOCK==0 || SHOOT_THRU==0)` centre rule and corpse fix ✓. Open doors block (OBJ-01). |
+| _obj_blocking_at | `GameMap.blockingObjectAt` type 0 `GameMap.ts:515` | ✅ FIXED (OBJ-01) | HIGH | Logic matches CE (type set, HIDDEN/NO_BLOCK, multihex neighbours). Open doors still block because the flags are never updated (OBJ-01). |
+| _obj_shoot_blocking_at | type 1 | ✅ FIXED (OBJ-01) | HIGH | `(NO_BLOCK==0 || SHOOT_THRU==0)` centre rule and corpse fix ✓. Open doors block (OBJ-01). |
 | _obj_ai_blocking_at | type 2 | ✅ MATCH | — | `moveBlockObj` state ✓ (the open-door caveat applies). |
 | _obj_scroll_blocking_at | `clampCameraPosition` `camera.ts:430` | 🟡 PARTIAL | LOW | DH2 tests the hex under the pixel centre, CE the candidate centre tile. CE also excludes tile 0. Documented in `scroll_clamping.md`. |
 | _obj_sight_blocking_at | type 3 | ✅ MATCH | — | LIGHT_THRU / scenery+wall only. Not used by `obj_can_see_obj` (OBJ-05). |
 | objectGetDistanceBetween / …Tiles | `objectDistance` `combat/hitChance.ts:68` | ✅ MATCH | — | The multihex −1 each ✓. A null object returns 0 in CE, which is not modelled (LOW). `tile_distance_objs` uses the raw `tileDistanceBetween` in both ✓. |
 | objectListCreate / objectListFree | `objectsAtPosition` / filters | ✅ MATCH | — | |
 | _translucent_trans_buf_to_buf, _dark_trans_buf_to_buf, _dark_translucent_trans_buf_to_buf, _intensity_mask_buf_to_buf | WebGL shaders (`webglLighting.ts`, `webglDraw.ts`) | 🚫 N/A | — | Blit helpers. |
-| _obj_intersects_with | `getObjectUnderCursor` / `objectTransparentAt` `renderer.ts:611` | 🟡 PARTIAL | MED | Pixel test ✓. There is no egg flag (0x04), so you can't click through an egg-transparent wall (game_mouse uses it). The translucency flag (0x02) is ignored. Hidden objects aren't excluded unless the predicate does it. **The loop is `i > 0`, so objects[0] is never pickable.** |
+| _obj_intersects_with | `getObjectUnderCursor` / `objectTransparentAt` `renderer.ts:611` | 🟡 PARTLY FIXED (objects[0] is pickable, the loop runs to 0; no egg click-through) | MED | Pixel test ✓. There is no egg flag (0x04), so you can't click through an egg-transparent wall (game_mouse uses it). The translucency flag (0x02) is ignored. Hidden objects aren't excluded unless the predicate does it. **The loop is `i > 0`, so objects[0] is never pickable.** |
 | _obj_create_intersect_list / _obj_delete_intersect_list | `getObjectUnderCursor` | 🟡 PARTIAL | LOW | Returns the first hit only, not the list with flags. |
-| obj_set_seen / _obj_clear_seen / _obj_process_seen | `automap/tracking.ts markSeenAt` (radius 5) | ⚠️ DIFFERS | MED | OBJ-04. |
+| obj_set_seen / _obj_clear_seen / _obj_process_seen | `automap/tracking.ts markSeenAt` (radius 5) | ✅ FIXED (OBJ-04) | MED | OBJ-04. |
 | objectGetName / objectGetDescription | `Obj.name`, examine (`examine.ts`) | ✅ MATCH | — | |
 | _obj_preload_art_cache / _obj_preload_sort | `maps/*.images.json` preload in `loadNewMap` | 🚫 N/A | — | Asset cache. |
 | _obj_offset_table_init/exit, _obj_order_table_init/exit, _obj_order_comp_func_even/odd, _obj_render_table_init/exit | `zsortMap` (`Obj.ts`) | 🚫 N/A | — | Draw-order tables replaced by a sort (RD09, `[dh2] object_sort`). |
@@ -114,12 +114,12 @@ Top findings:
 | mapSetEnteringLocation | `loadMap(…, startingPosition, startingElevation)` | ✅ FIXED (2026-10-25) | LOW | No rotation parameter (MAP-02). |
 | mapNewMap | — | 🚫 N/A | — | Mapper / error path. |
 | mapLoadByName / mapLoadById | `loadMap` `mapLoader.ts:126` / `loadMapByID` | ✅ MATCH | — | |
-| mapLoad | `loadNewMap` `mapLoader.ts:221` + `doEnterNewMap` | ⚠️ DIFFERS | MED | Ambient reset ✓. Map script map_enter → object map_enter → map_update ✓. **map_update runs twice** (MAP-01). Object `start` procs run at object creation, before the map script's map_enter (CE: map_enter of the map script first, then `scriptsExecStartProc`); scripting auditor. `_map_fix_critter_combat_data` not present (LOW). |
-| mapLoadSaved | dirty-cache branch of `loadMap` + `mapLoadSavedAging` `mapLoader.ts:64` | ⚠️ DIFFERS | MED | Unjam after 24 h ✓ and aging ✓. map_update runs twice (MAP-01). Door state lost (OBJ-02). The random-encounter map erase is handled by the worldmap code (not verified). |
+| mapLoad | `loadNewMap` `mapLoader.ts:221` + `doEnterNewMap` | ✅ FIXED (MAP-01) | MED | Ambient reset ✓. Map script map_enter → object map_enter → map_update ✓. **map_update runs twice** (MAP-01). Object `start` procs run at object creation, before the map script's map_enter (CE: map_enter of the map script first, then `scriptsExecStartProc`); scripting auditor. `_map_fix_critter_combat_data` not present (LOW). |
+| mapLoadSaved | dirty-cache branch of `loadMap` + `mapLoadSavedAging` `mapLoader.ts:64` | ✅ FIXED (MAP-01, OBJ-02) | MED | Unjam after 24 h ✓ and aging ✓. map_update runs twice (MAP-01). Door state lost (OBJ-02). The random-encounter map erase is handled by the worldmap code (not verified). |
 | _map_age_dead_critters | `mapAgeDeadCritters` `mapLoader.ts:78` | ✅ MATCH | — | Flee clear, 14 HP per 3 h, > 6 days → drop + blood frame (rat/mantis/flat rules) ✓. The unreachable > 14-day branch is noted. |
 | _map_target_load_area | worldmap `currentAreaId` | ✅ MATCH | — | C55. |
-| mapSetTransition | `Player.move` exit-grid branch `player.ts:368` | ⚠️ DIFFERS | MED | MAP-02. Fleeing mid-combat ends combat ✓ (`loadMap` forceEnd). |
-| mapHandleTransition | `Player.move` → `loadMapByID` / `uiWorldMap` | ⚠️ DIFFERS | MED | MAP-02. `wmTeleportToArea` ✓ (`mapTransition` event). |
+| mapSetTransition | `Player.move` exit-grid branch `player.ts:368` | ✅ FIXED (MAP-02) | MED | MAP-02. Fleeing mid-combat ends combat ✓ (`loadMap` forceEnd). |
+| mapHandleTransition | `Player.move` → `loadMapByID` / `uiWorldMap` | ✅ FIXED (MAP-02) | MED | MAP-02. `wmTeleportToArea` ✓ (`mapTransition` event). |
 | _map_fix_critter_combat_data | — | ❌ MISSING | LOW | Clears stale `whoHitMe` ids on fresh maps. Usually a no-op in JSON. |
 | _map_save / _map_save_file / _map_save_in_game | `loadMap` top: queueLeavingMap, map_exit procs, `drainRemovalQueue`, `serialize` | ✅ MATCH | — | M9/M10. `lastVisitTime` recorded ✓. |
 | isoWindowRefreshRect / …Game / …Mapper | — | 🚫 N/A | — | |
@@ -136,7 +136,7 @@ Top findings:
 | tileSetBorder | `CE_CENTER_BOUNDS` / `getActiveScrollLimits` `camera.ts` | ⚠️ DIFFERS | LOW | Documented deviation (`scroll_clamping.md`). |
 | _tile_reset_ / tileReset / tileExit / tileDisable / tileEnable | — | 🚫 N/A | — | |
 | tileWindowRefreshRect / tileWindowRefresh / tileRefreshMapper / tileRefreshGame | WebGL frame loop | 🚫 N/A | — | |
-| tileSetCenter | `centerCamera` / `clampCameraPosition` `camera.ts:430,470`; `setCenterTile` `tile.ts:73` | ⚠️ DIFFERS | MED | Scroll limiting (480/400 from the dude) is missing (TILE-03). The border and blocker rules are documented deviations. |
+| tileSetCenter | `centerCamera` / `clampCameraPosition` `camera.ts:430,470`; `setCenterTile` `tile.ts:73` | ✅ FIXED (TILE-03) | MED | Scroll limiting (480/400 from the dude) is missing (TILE-03). The border and blocker rules are documented deviations. |
 | tile_toggle_roof / tileRoofIsVisible | `Config.ui.showRoof` | ✅ MATCH | — | |
 | tileToScreenXY | `hexToScreen` `hexScreen.ts:44` | ✅ MATCH | — | Deltas identical (numeric). |
 | tileFromScreenXY | `hexFromScreen` → `tileFromScreenXY` `hexScreen.ts:191,227` | ✅ MATCH | — | Exact round trip, `_tile_mask` port. |
@@ -148,11 +148,11 @@ Top findings:
 | _tile_num_beyond | `hexLineBeyond` `hexGrid.ts:169` | ✅ MATCH | — | Line-for-line port. |
 | tileIsEdge | `hexIsEdge` `hexGrid.ts:68` | ✅ MATCH | — | |
 | tileScrollBlockingEnable/Disable/IsEnabled | — (always on) | ❌ MISSING | LOW | No toggle. CE disables it during `move_to(dude)`. DH2 `centerCamera` still clamps. |
-| tileScrollLimitingEnable/Disable/IsEnabled | — | ❌ MISSING | MED | TILE-03. |
+| tileScrollLimitingEnable/Disable/IsEnabled | — | ✅ FIXED (TILE-03) | MED | TILE-03. |
 | squareTileToScreenXY / squareTileToRoofScreenXY | `tileToScreen` `tile.ts:30` (+96 roof offset in renderer) | ✅ MATCH | — | |
-| squareTileFromScreenXY / squareTileScreenToCoord / …Roof | `tileFromScreen` `tile.ts:38` | ⚠️ DIFFERS | MED | As a hex→square mapping it is off by a row for odd hex rows (TILE-02). Picking squares from screen pixels is not used for gameplay. |
+| squareTileFromScreenXY / squareTileScreenToCoord / …Roof | `tileFromScreen` `tile.ts:38` | ✅ FIXED (TILE-02) | MED | As a hex→square mapping it is off by a row for odd hex rows (TILE-02). Picking squares from screen pixels is not used for gameplay. |
 | tileRenderRoofsInRect / tileRenderRoof | `renderRoof` (`renderer.ts`/`webglDraw.ts`) | 🟡 PARTIAL | LOW | Roofs are lit by ambient ✓ (unverified in shader). The per-square "hidden" flag bit is replaced by `hideSet`. |
-| roof_fill_push_task_if_in_bounds / roof_fill_off_process_task / tile_fill_roof | `roofFloodFill` `renderer.ts:67` | 🟡 PARTIAL | MED | The 4-neighbour flood stopping at empty ✓. No `flag & 0x02` stop (data dropped). Start square wrong for odd rows (TILE-02). The `roofPeek` second flood is a DH2 extension (`Config.ui.roofPeek`). |
+| roof_fill_push_task_if_in_bounds / roof_fill_off_process_task / tile_fill_roof | `roofFloodFill` `renderer.ts:67` | ✅ FIXED (TILE-02) | MED | The 4-neighbour flood stopping at empty ✓. No `flag & 0x02` stop (data dropped). Start square wrong for odd rows (TILE-02). The `roofPeek` second flood is a DH2 extension (`Config.ui.roofPeek`). |
 | tileRenderFloorsInRect / tileRenderFloor (+ triangle lighting tables) | `lighting.ts` (CPU), `webglLighting.ts` (GPU) | 🚫 N/A | — | Rendering. The vertex/triangle tables are ported in `lighting.ts`. The GPU path is a shader. |
 | _square_roof_intersect | — | ❌ MISSING | LOW | Used by game_mouse for roof hit tests. DH2 picking ignores roofs. |
 | _grid_render / _draw_grid | debug overlay (`webglDebugOverlay.ts`) | 🚫 N/A | — | |

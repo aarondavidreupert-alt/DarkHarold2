@@ -57,25 +57,25 @@ Top findings, most severe first:
 | `_ai_move_away` (:1221) | `Combat.ts:2585 aiMoveAway` | ⚠️ | LOW | CE moves only if `distance(a1,a2) <= a3`; DH2 has no such gate, so it moves away from a friendlyDead >10 hexes off in tail steps 1–2. The 'stay' check matches. |
 | `_ai_find_friend` (:1267) | `Combat.ts:2731` (aiEndOfTurn step 1) | ✅ FIXED (2026-10-25) | LOW | CE: true if the nearest team-mate is within PER×2, and it moves `distance − 5` steps only when `5 > distance`. That number is negative, so CE never moves. DH2 moves `d−5` when d>5. AI-08. |
 | `_compare_nearer` / `_ai_sort_list_distance` (:1290/:1318) | inline `sort` by `hexDistance` | ✅ | | |
-| `_compare_strength` / `_ai_sort_list_strength` (:1327/:1355) | `Combat.ts:1954` | ⚠️ | MED | CE sorts ascending by rating (lowest first). DH2 sorts descending. AI-04. |
-| `_compare_weakness` / `_ai_sort_list_weakness` (:1363/:1391) | `Combat.ts:1955` | ⚠️ | MED | CE sorts descending (highest first). DH2 sorts ascending. AI-04. |
+| `_compare_strength` / `_ai_sort_list_strength` (:1327/:1355) | `Combat.ts:1954` | ✅ FIXED (AI-04) | MED | CE sorts ascending by rating (lowest first). DH2 sorts descending. AI-04. |
+| `_compare_weakness` / `_ai_sort_list_weakness` (:1363/:1391) | `Combat.ts:1955` | ✅ FIXED (AI-04) | MED | CE sorts descending (highest first). DH2 sorts ascending. AI-04. |
 | `_ai_find_nearest_team` (:1397) | `Combat.ts:2107 nearestOfTeam` / `:2788 nearestOfTeamExcept` | ✅ | | |
 | `_ai_find_nearest_team_in_combat` (:1426) | `Combat.ts:2771` uses `nearestOfTeamExcept` | ✅ FIXED (2026-10-25) | LOW | The `whoHitMe != null` filter is missing. AI-08. |
-| `aiFindAttackers` (:1457) | `Combat.ts:1945–1952` | ⚠️ | MED | DH2 `if (c.dead) continue` also drops dead team-mates from the whoHitFriend slot. CE checks dead only for slots 1 and 3. AI-03. |
-| `_ai_danger_source` (:1529) | `Combat.ts:1909 aiDangerSource` | 🟡 | MED | Party rules (ignoreFleeing, last target, attack_who clearing whoHitMe) match. In the whomever_attacking_me candidate test, CE requires a path AND bad-shot ∈ {OK, NO_AMMO, OUT_OF_RANGE}; DH2 accepts bad-shot OK OR a path. The sort is inverted (AI-04). When nothing is found DH2 falls back to `findTarget` (documented, C29). |
+| `aiFindAttackers` (:1457) | `Combat.ts:1945–1952` | ✅ FIXED (AI-03) | MED | DH2 `if (c.dead) continue` also drops dead team-mates from the whoHitFriend slot. CE checks dead only for slots 1 and 3. AI-03. |
+| `_ai_danger_source` (:1529) | `Combat.ts:1909 aiDangerSource` | ✅ FIXED (AI-04) | MED | Party rules (ignoreFleeing, last target, attack_who clearing whoHitMe) match. In the whomever_attacking_me candidate test, CE requires a path AND bad-shot ∈ {OK, NO_AMMO, OUT_OF_RANGE}; DH2 accepts bad-shot OK OR a path. The sort is inverted (AI-04). When nothing is found DH2 falls back to `findTarget` (documented, C29). |
 | `_caiSetupTeamCombat` (:1708) | `Combat.ts:2830–2845` (`Combat.start` teamCombat) | ✅ | | ENGAGING for every non-dude critter; DH2 enrols every critter (C31). |
 | `_caiTeamCombatInit` (:1725) | same block | ✅ | | |
 | `_caiTeamCombatExit` (:1758) | — | 🚫 | | Clears statics. |
 | `aiHaveAmmo` (:1765) | `Combat.ts:326 aiHaveAmmo` + `findReloadAmmo` | 🟡 | LOW | Solar Scorcher daylight > 95 % matches. DH2's helper means "loaded"; the inventory-ammo half is `findReloadAmmo`. CE's in-loop `_inven_unwield` quirk (unwields the right hand for each non-matching ammo box) is not reproduced. |
 | `_caiHasWeapPrefType` (:1803) | `WEAP_PREF_ORDERINGS[...].includes` (`Combat.ts:1219`) | ✅ | | Table rows match (no_pref and unset are the same row). |
-| `_ai_best_weapon` (:1817) | `Combat.ts:1293 aiBestWeapon` | ⚠️ | MED | Avg damage, blast multiplier, perk ×2, safety, hidden, flare and cost tie-break match. The override `best_weapon == -1 \|\| >= UNARMED_OVER_THROW` is applied for 'no_pref' too, because DH2 conflates -1 with 0 (AI-06). Unarmed reach is fixed at 1; CE uses `weaponGetRange(PUNCH)`, which is 2 with long limbs (LOW). |
+| `_ai_best_weapon` (:1817) | `Combat.ts:1293 aiBestWeapon` | ✅ FIXED (AI-06) | MED | Avg damage, blast multiplier, perk ×2, safety, hidden, flare and cost tie-break match. The override `best_weapon == -1 \|\| >= UNARMED_OVER_THROW` is applied for 'no_pref' too, because DH2 conflates -1 with 0 (AI-06). Unarmed reach is fixed at 1; CE uses `weaponGetRange(PUNCH)`, which is 2 with long limbs (LOW). |
 | `_ai_can_use_weapon` (:1972) | `Combat.ts:2506 aiCanUseWeapon` / inline in `aiSearchInvenWeap:1249` | ✅ | | Arms, FRM, skill ≥ min_to_hit, pref type. |
 | `_ai_search_inven_weap` (:2002) | `Combat.ts:1235 aiSearchInvenWeap` | ✅ | | Body type, AP, ammo, best_weapon fold. |
 | `_ai_search_inven_armor` (:2051) | `Combat.ts:1265 aiSearchInvenArmor` | ✅ | | AC + Σ DR + DT over 7 types. |
 | `aiCanUseItem` (:2105) | `Combat.ts:293 aiCanUseItem` | ✅ | | Includes CE's "needs healing" ratio. |
 | `_ai_search_environ` (:2178) | `Combat.ts:2482 aiSearchEnviron` | ✅ | | Within PER+5, nearest first. DH2 skips `visible === false` items; unverified whether CE's `objectListCreate` includes hidden items. |
 | `_ai_retrieve_object` (:2237) | `Combat.ts:2520 aiRetrieveObject` | ✅ | | Includes aiInfoSetLastItem for an item not reached. |
-| `_ai_pick_hit_mode` (:2262) | `Combat.ts:1364 aiPickHitMode` | ⚠️ | MED | AI-05. Area-mode thresholds 85/50/95, the INT<6 / dist<10 default and the sfall range/AP checks match. |
+| `_ai_pick_hit_mode` (:2262) | `Combat.ts:1364 aiPickHitMode` | ✅ FIXED (AI-05) | MED | AI-05. Area-mode thresholds 85/50/95, the INT<6 / dist<10 default and the sfall range/AP checks match. |
 | `_ai_move_steps_closer` (:2354) | `Combat.ts:2551 aiMoveStepsCloser` | 🟡 | LOW | stay / stay_close / ≤1 / run-at-half-AP and the friendly-fire retarget match. Missing: CE's retarget to the blocking critter (`_moveBlockObj`) when the path is blocked; DH2 tries the target's neighbour hexes instead. The 'move' taunt fires only after a successful walk (CE taunts first). |
 | `_ai_move_closer` (:2450) | callers pass `AP.getAvailableMoveAP()` | ✅ | | |
 | `_cai_retargetTileFromFriendlyFire` (:2456) | `Combat.ts:2625 retargetTileFromFriendlyFire` | ✅ | | Rating ≥ own, same last target, ±1 rotation of the friend's facing, nearest free tile. |
@@ -91,10 +91,10 @@ Top findings, most severe first:
 | `_combat_ai_over` (:2960) | — | 🚫 | | |
 | `_cai_perform_distance_prefs` (:2970) | `Combat.ts:2664 aiDistancePrefs` | ✅ | | stay_close / charge / snipe (sfall fix) plus the retarget tail. CE's `a2->ap & DAM_DEAD` typo (it tests AP bits) is not reproduced (harmless). |
 | `_cai_get_min_hp` (:3036) | — | 🚫 | | Only feeds a debugPrint in `_combat_ai`. |
-| `_combat_ai` (:3053) | `Combat.ts:1827 doAITurn` + `:2715 aiEndOfTurn` | 🟡 | MED | Flee test (FLEEING, hurt_too_much, HP < min_hp) matches. The flee source differs (AI-07). The tail matches except the teammate selection / find_friend (AI-08). Party distances 5/7/7/7/50000 match. |
+| `_combat_ai` (:3053) | `Combat.ts:1827 doAITurn` + `:2715 aiEndOfTurn` | ✅ FIXED (AI-07, AI-08) | MED | Flee test (FLEEING, hurt_too_much, HP < min_hp) matches. The flee source differs (AI-07). The tail matches except the teammate selection / find_friend (AI-08). Party distances 5/7/7/7/50000 match. |
 | `_combatai_want_to_join` (:3165) | `Combat.ts:1968 wantToJoin` | ✅ | | Includes combat_p_proc fixed param 5. |
 | `_combatai_want_to_stop` (:3211) | `Combat.ts:1981 wantToStop` | ✅ | | |
-| `critterSetTeam` (:3232) | `scripting.ts:1210` (`critter_add_trait` OBJECT_TEAM_NUM); `party.ts:99` | ⚠️ | MED | AI-02. |
+| `critterSetTeam` (:3232) | `scripting.ts:1210` (`critter_add_trait` OBJECT_TEAM_NUM); `party.ts:99` | ✅ FIXED (AI-02) | MED | AI-02. |
 | `critterSetAiPacket` (:3280) | `scripting.ts:1207` (`aiNum = amount`) | 🟡 | LOW | Sets `aiNum` only. A cached `critter.ai.packet` mid-combat is not refreshed (unverified whether AI is rebuilt per turn). The proto update for potential party members is not done. |
 | `_combatai_msg` (:3302) | `Combat.ts:1739 maybeTaunt` | ✅ FIXED (2026-10-25) | LOW | Checks (taunts pref, not dude, not dead / KO, d100 ≤ chance, end<start) match. Missing: the `delay` parameter (hit / miss lines are not delayed), groin end+1 (AI-09), packet font / colours (hard-coded `#e4d80c` / `#1c0c18`, commented as identical for every vanilla packet). |
 | `_ai_print_msg` (:3381) | `Combat.ts:1756` (floatMessages check) | ✅ | | Skips when any text object is showing. DH2 checks at roll time rather than at callback time. |

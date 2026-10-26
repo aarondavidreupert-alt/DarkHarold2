@@ -95,7 +95,7 @@ Top findings (by severity):
 | traitsGetSelected | `player.traits` | ✅ | | |
 | traitGetName / traitGetDescription / traitGetFrmId | ui_character (trait.msg 100+/200+, intrface ids) | 🚫 | | UI text/art — chareditor audit. |
 | traitIsSelected | `traits.includes(name)` | ✅ | | |
-| traitGetStatModifier | src/player.ts:119-169 `Player.getStat` + base for SPECIAL | ⚠️ | MED | Bruiser AP, Heavy Handed, Kamikaze (AC→0 of non-armor part; armor added separately — equivalent), Sequence, Fast Metabolism HR, Finesse match. **Differs:** Small Frame carry (TRAIT-02), Fast Metabolism rad/poison (TRAIT-01). |
+| traitGetStatModifier | src/player.ts:119-169 `Player.getStat` + base for SPECIAL | ✅ FIXED (TRAIT-01, TRAIT-02) | MED | Bruiser AP, Heavy Handed, Kamikaze (AC→0 of non-armor part; armor added separately — equivalent), Sequence, Fast Metabolism HR, Finesse match. **Differs:** Small Frame carry (TRAIT-02), Fast Metabolism rad/poison (TRAIT-01). |
 | traitGetSkillModifier | src/skills.ts:265 | ✅ | | Gifted −10 all; Good Natured −10 combat / +15 FA, Doc, Speech, Barter. |
 
 ### perk.cc
@@ -114,7 +114,7 @@ Top findings (by severity):
 | perkGetAvailablePerks | src/perks/perks.ts:19 `getValidPerks` | ✅ | | Falls back to `perks.data.ts` minimums when perk.msg is missing. |
 | perkGetRank / perkHasRank | src/perks/perks.ts:105 `getPerkRank`, `Critter.hasPerk` | ✅ | | |
 | perkGetName / perkGetDescription / perkGetFrmId | cePerks.ts:262, perks.ts:33 `perkDefById` | ✅ | | frmId from CE_PERK_REQS[6]. PERKS overrides (PERK-01). |
-| perkAddEffect | src/perks/cePerks.ts:294 `perkApplyEffect(+1)`; HERE_AND_NOW in perks.ts:146 | ⚠️ | MED | Stat modifier / maxRank −1 SPECIAL deltas land on the **base** (STAT-01, STAT-02). Gain-SPECIAL perks put +1 on the base (CE: live +1 in critterGetStat, not in base-with-trait). HERE_AND_NOW: CE `pcAddExperienceWithOptions(bonus, false)` — no party level-ups; DH2 `addExperience` levels party members too (LOW). |
+| perkAddEffect | src/perks/cePerks.ts:294 `perkApplyEffect(+1)`; HERE_AND_NOW in perks.ts:146 | ✅ FIXED (STAT-01, STAT-02) | MED | Stat modifier / maxRank −1 SPECIAL deltas land on the **base** (STAT-01, STAT-02). Gain-SPECIAL perks put +1 on the base (CE: live +1 in critterGetStat, not in base-with-trait). HERE_AND_NOW: CE `pcAddExperienceWithOptions(bonus, false)` — no party level-ups; DH2 `addExperience` levels party members too (LOW). |
 | perkRemoveEffect | perkApplyEffect(−1) | 🟡 | LOW | As above; HERE_AND_NOW XP not removed. |
 | perkGetSkillModifier | src/skills.ts:182-249 | ✅ | | All 14 perks + Ghost light > 45875 on gDude; perkHasRank (once per perk). |
 
@@ -125,22 +125,22 @@ Top findings (by severity):
 | statsInit / statsExit | stat.msg via getMessage | 🚫 | | |
 | statsReset / pcStatsReset | src/player.ts:44 `newPlayerStats()` | ✅ | | Level 1, XP 0, SP 0 at creation (applyCreationStats). |
 | statsLoad / statsSave | StatSet.serialize | ✅ | | |
-| critterGetStat | src/object/Critter.ts:321 `getStat` + src/player.ts:119 + src/char.ts:291 `StatSet.get` + Combat.ts:3001 (AC) | ⚠️ | MED | Blind −5 PE, overload AP `−(excess/40+1)`, age + years, unused-AP/HtH-Evade AC, Adrenaline Rush, Mirrored Shades, Alcohol/Autodoc HP, Dermal/Phoenix (else-if), VC Inoculations all present. **Differs:** (a) clamp order — DH2 clamps base+bonus to [min,max] *before* blind/overload/perk deltas (CE clamps once at the end; only matters when base+bonus is out of range); (b) overload uses `stats.get('Carry')` without the Small Frame trait (TRAIT-02); (c) Gain-SPECIAL in base (STAT-01). |
-| critterGetBaseStatWithTraitModifier | `stats.getBase()` (traits baked) | ⚠️ | HIGH | DH2 base also contains drugs, radiation, armor perks, Gain-SPECIAL perks → STAT-01. |
-| critterGetBaseStat | `stats.getBase()` | ⚠️ | MED | Same contamination (used by Kamikaze / Small Frame / Fast Metabolism). |
-| critterGetBonusStat | src/char.ts:318 `getBonus` | 🟡 | MED | Only sfall `set_*_extra_stat` writes it; drugs/perks/radiation/armor don't (STAT-01). |
+| critterGetStat | src/object/Critter.ts:321 `getStat` + src/player.ts:119 + src/char.ts:291 `StatSet.get` + Combat.ts:3001 (AC) | ✅ FIXED (STAT-01, TRAIT-02) | MED | Blind −5 PE, overload AP `−(excess/40+1)`, age + years, unused-AP/HtH-Evade AC, Adrenaline Rush, Mirrored Shades, Alcohol/Autodoc HP, Dermal/Phoenix (else-if), VC Inoculations all present. **Differs:** (a) clamp order — DH2 clamps base+bonus to [min,max] *before* blind/overload/perk deltas (CE clamps once at the end; only matters when base+bonus is out of range); (b) overload uses `stats.get('Carry')` without the Small Frame trait (TRAIT-02); (c) Gain-SPECIAL in base (STAT-01). |
+| critterGetBaseStatWithTraitModifier | `stats.getBase()` (traits baked) | ✅ FIXED (STAT-01) | HIGH | DH2 base also contains drugs, radiation, armor perks, Gain-SPECIAL perks → STAT-01. |
+| critterGetBaseStat | `stats.getBase()` | ✅ FIXED (STAT-01) | MED | Same contamination (used by Kamikaze / Small Frame / Fast Metabolism). |
+| critterGetBonusStat | src/char.ts:318 `getBonus` | ✅ FIXED (STAT-01) | MED | Only sfall `set_*_extra_stat` writes it; drugs/perks/radiation/armor don't (STAT-01). |
 | critterSetBaseStat | src/scripting.ts:2307 `setCritterStatPart`, 1103 `set_critter_stat` | ⚠️ | LOW | `set_critter_stat` refuses derived 7–32 ✓, routes 36/37 ✓; but SPECIAL is stored without CE's −2/−3 range refusal (value−trait outside 1..10 is rejected in CE), and HP (35) uses `modifyBase` — no cap at Max HP and no `critterKill` at ≤0 (CE `critterAdjustHitPoints`). `set_pc_base_stat` has no derived-stat refusal. |
 | critterIncBaseStat / critterDecBaseStat | character creator SPECIAL buttons | ✅ | | chareditor audit. |
 | critterSetBonusStat | src/char.ts:322 `setBonus` | 🟡 | MED | No `critterUpdateDerivedStats` needed (DH2 derives live), but HP/poison/rad routing for 35–37 missing in `set_*_extra_stat` (statMap name only). |
 | protoCritterDataResetStats | `StatSet` defaults (`statDependencies.defaultValue`) | ✅ | | SPECIAL 5, Age 25. |
-| critterUpdateDerivedStats | src/skills.ts:117-128 live dependencies | ⚠️ | HIGH | Formulas match (`15+ST+2EN`, `AG/2+5`, `AG`, `max(ST−5,1)`, `25ST+25`, `2PE`, `max(EN/3,1)`, `LK`, 0, `2EN`, `5EN`) but Max HP reads live ST/EN (STAT-01) and min/max clamp after deltas (STAT-02). |
+| critterUpdateDerivedStats | src/skills.ts:117-128 live dependencies | ✅ FIXED (STAT-01, STAT-02) | HIGH | Formulas match (`15+ST+2EN`, `AG/2+5`, `AG`, `max(ST−5,1)`, `25ST+25`, `2PE`, `max(EN/3,1)`, `LK`, 0, `2EN`, `5EN`) but Max HP reads live ST/EN (STAT-01) and min/max clamp after deltas (STAT-02). |
 | statGetName / statGetDescription / statGetValueDescription / statGetFrmId | ui_character/statPanels.ts | 🚫 | | UI. |
 | pcGetStat | `stats.get('Level'/'Experience'/…)`, `skills.skillPoints` | ✅ | | |
 | pcSetStat | src/scripting.ts:1566 `set_pc_stat` (sfall) | 🟡 PARTLY FIXED (2026-10-26) | LOW | CE: XP ≥ current → set then `pcAddExperienceWithOptions(0)` (level-ups), lower → `pcSetExperience` (level down, HP loss); out-of-range rejected (−2/−3). DH2 sets XP/level directly and clamps. Vanilla scripts don't call it. — **2026-10-26:** XP: level-ups or pcSetExperience; −2 below 0 (the other stats keep DH2's clamps). |
 | pcGetExperienceForNextLevel / pcGetExperienceForLevel | src/player.ts:236 `xpForLevel` | ✅ | LOW | Same values. CE returns −1 for level ≥ 99 (so level 98→99 is free in CE); unreachable in practice. |
 | pcStatGetName / pcStatGetDescription | stat.msg 400+/500+ | 🚫 | | |
 | statRoll | src/combat/Combat.ts:134, whoHitMe.ts:29, radiation.ts:138 (inline d10) | ✅ | | d10 ≤ stat + modifier. |
-| pcAddExperience / pcAddExperienceWithOptions | src/player.ts:240 `addExperience` | ⚠️ | MED | Swift Learner `rank*5*xp/100` (trunc) ✓, level loop ✓, msg 600 ✓, levelup sound ✓, HP/level `EN/2+2 + 4·Lifegiver` ✓ formula, party `incLevels` ✓. **Differs:** HP per level reads contaminated base EN (STAT-01); SP + perk flag granted at level-up instead of when the editor opens (`characterEditorUpdateLevel`, chareditor scope); no `DUDE_STATE_LEVEL_UP_AVAILABLE` (HUD LEVEL shows while SP > 0, src/ui_hud.ts:262); `a2=false` (Here and Now) not honoured; negative XP lets the base go below 0 (get() clamps). |
+| pcAddExperience / pcAddExperienceWithOptions | src/player.ts:240 `addExperience` | ✅ FIXED (STAT-01) | MED | Swift Learner `rank*5*xp/100` (trunc) ✓, level loop ✓, msg 600 ✓, levelup sound ✓, HP/level `EN/2+2 + 4·Lifegiver` ✓ formula, party `incLevels` ✓. **Differs:** HP per level reads contaminated base EN (STAT-01); SP + perk flag granted at level-up instead of when the editor opens (`characterEditorUpdateLevel`, chareditor scope); no `DUDE_STATE_LEVEL_UP_AVAILABLE` (HUD LEVEL shows while SP > 0, src/ui_hud.ts:262); `a2=false` (Here and Now) not honoured; negative XP lets the base go below 0 (get() clamps). |
 | pcSetExperience | — | ✅ FIXED (2026-10-26) | LOW | Level-down path absent (only reached by pcSetStat with lower XP / Here-and-Now removal). — **2026-10-26:** ported (setExperienceLower). |
 
 ### skill.cc
@@ -153,9 +153,9 @@ Top findings (by severity):
 | protoCritterDataResetSkills | new SkillSet() | ✅ | | |
 | skillsSetTagged / skillsGetTagged | SkillSet.tag / `tagged` | ✅ | | |
 | skillIsTagged | src/char.ts:198 | ✅ | | |
-| skillGetValue | src/char.ts:75 `SkillSet.get`, Critter.ts:308 `getSkill` | ⚠️ | HIGH | Player path matches (tag doubles invested, +20 unless Tag!'s 4th slot, trait/perk/difficulty, cap 300). **NPC path wrong by `defaultValue`** (SKILL-01). Stat terms use `stats.get` (base+bonus, no Player.getStat perks like Adrenaline/Mirrored Shades/blind) — CE uses critterGetStat (LOW). |
+| skillGetValue | src/char.ts:75 `SkillSet.get`, Critter.ts:308 `getSkill` | ✅ FIXED (SKILL-01) | HIGH | Player path matches (tag doubles invested, +20 unless Tag!'s 4th slot, trait/perk/difficulty, cap 300). **NPC path wrong by `defaultValue`** (SKILL-01). Stat terms use `stats.get` (base+bonus, no Player.getStat perks like Adrenaline/Mirrored Shades/blind) — CE uses critterGetStat (LOW). |
 | skillGetDefaultValue | `skillDependencies[s].startValue` | ✅ | | Table matches CE (incl. Gambling 0). |
-| skillGetBaseValue | src/char.ts:66 `getBase` | ⚠️ | HIGH | Returns startValue+invested for the player but raw invested for proto critters (SKILL-01). |
+| skillGetBaseValue | src/char.ts:66 `getBase` | ✅ FIXED (SKILL-01) | HIGH | Returns startValue+invested for the player but raw invested for proto critters (SKILL-01). |
 | skillAdd | src/char.ts:131 `incBase` | ✅ | | SP>0, value<300, cost by effective value. |
 | skillAddForce | `incBase(…, useSkillPoints=false)`, Obj.ts:225 (book reading) | ✅ | | |
 | skillsGetCost | src/skills.ts:198 `skillImprovementCost` | ✅ | | 1/2/3/4/5/6 at 101/126/151/176/201. |
@@ -181,10 +181,10 @@ Top findings (by severity):
 | critterReset | src/gameReset.ts:43 (`killCounts.clear()`), Player.resetForNewGame | ✅ | | Dude name reset handled by the creator. |
 | critterLoad / critterSave | saveload (sneakWorking not serialized; dude proto data = Player.serialize) | 🟡 | LOW | `_sneak_working` is not saved; reloading while sneaking restarts the roll (unverified). |
 | critterProtoDataCopy | — | 🚫 | | memcpy helper. |
-| critterGetName | src/object/Critter.ts:210 (`pro_crit` name only) | ❌ | MED | CRIT-03: no `scrname.msg` lookup (101 + scriptIndex) before the proto name. |
+| critterGetName | src/object/Critter.ts:210 (`pro_crit` name only) | ✅ FIXED (CRIT-03) | MED | CRIT-03: no `scrname.msg` lookup (101 + scriptIndex) before the proto name. |
 | dudeSetName / dudeResetName | `player.name` (creator) | ✅ | | 32-char limit enforced by the creator UI (unverified). |
 | critterGetHitPoints | `getStat('HP')` | ✅ | | |
-| critterAdjustHitPoints | scattered: skillUse.ts:165, drugs.ts:113, scripting.ts:1676, mapLoader, poisonDecayEvent | 🟡 | MED | Most call sites cap at Max HP and kill at ≤0, but radiation (RAD-01) and `set_critter_stat(35)` use raw `modifyBase('HP')`; drugs.ts clamps to ≥0 then kills separately. No single helper. |
+| critterAdjustHitPoints | scattered: skillUse.ts:165, drugs.ts:113, scripting.ts:1676, mapLoader, poisonDecayEvent | ✅ FIXED (RAD-01) | MED | Most call sites cap at Max HP and kill at ≤0, but radiation (RAD-01) and `set_critter_stat(35)` use raw `modifyBase('HP')`; drugs.ts clamps to ≥0 then kills separately. No single helper. |
 | critterGetPoison | `poisonLevel` | ✅ | | |
 | critterAdjustPoison | src/scripting.ts:292 `adjustPoison` | ✅ | | Dude only, resistance trunc, early-out, re-schedule `10·(505−5p)`, msgs 3000/3002/3003, indicator refresh. |
 | poisonEventProcess | src/scripting.ts:322 `poisonDecayEvent` | ✅ | | −2 poison, −1 HP (kills at 0), msg 3001, bail at HP ≤ 5. |
@@ -193,7 +193,7 @@ Top findings (by severity):
 | _critter_check_rads | src/radiation.ts:126 `checkRads` | ✅ | | Level thresholds, END roll with ±modifiers, old-level from queue, 4–18 h event, flag cleared. |
 | _get_rad_damage_level (static) | inline in checkRads | ✅ | | |
 | _clear_rad_damage | inline in radiationEventProcess | ✅ | | |
-| _process_rads | src/radiation.ts:151 `processRads` | ⚠️ | MED | Table, level−1 indexing, msgs 1000+n / 3003, death check match. Effects go on the base (STAT-01) and HP via `modifyBase` — recovery can push HP above Max HP and the HP loss can drop HP ≤ 0 without CE's kill-in-adjust (DH2 has an explicit HP ≤ 0 kill instead, equivalent). RAD-01. |
+| _process_rads | src/radiation.ts:151 `processRads` | ✅ FIXED (RAD-01, STAT-01) | MED | Table, level−1 indexing, msgs 1000+n / 3003, death check match. Effects go on the base (STAT-01) and HP via `modifyBase` — recovery can push HP above Max HP and the HP loss can drop HP ≤ 0 without CE's kill-in-adjust (DH2 has an explicit HP ≤ 0 kill instead, equivalent). RAD-01. |
 | radiationEventProcess | src/radiation.ts:187 | ✅ | | 7-day recovery, clears others (undoing pending recoveries), returns bail. |
 | radiationEventRead / radiationEventWrite | src/radiation.ts:113 `restoreRadiationEvent` (userdata string) | ✅ | | |
 | critterGetDamageType | — (unverified) | 🟡 | LOW | Proto `damageType` (unarmed damage type) — not found by grep in Critter; combat audit. |
@@ -205,7 +205,7 @@ Top findings (by severity):
 | killTypeGetName / killTypeGetDescription | ui_character kills list (proto.msg 1450/1469) | 🚫 | | UI. |
 | _critter_heal_hours | src/map/mapLoader.ts:93 | ✅ | | `14·(hours/3)` capped, fleeing cleared. |
 | _critterClearObjDrugs (static) | gameTick.ts:251 (events of dead objects dropped) | ✅ | | |
-| critterKill | src/critter/lifecycle.ts:71 | 🟡 | MED | HP 0, DAM_DEAD, single-frame corpse, prone fall, player death ending ✓. **Differs:** runs `destroy_p_proc` (CRIT-01); no `partyMemberRemove` (CRIT-02); script not removed (corpse keeps look/description procs — unverified impact); `itemDestroyAllHidden`, light-off and `OBJECT_NO_BLOCK`/flat handled elsewhere (`blocks()` uses `dead`; light/hidden items unverified). |
+| critterKill | src/critter/lifecycle.ts:71 | ✅ FIXED (CRIT-01, CRIT-02) | MED | HP 0, DAM_DEAD, single-frame corpse, prone fall, player death ending ✓. **Differs:** runs `destroy_p_proc` (CRIT-01); no `partyMemberRemove` (CRIT-02); script not removed (corpse keeps look/description procs — unverified impact); `itemDestroyAllHidden`, light-off and `OBJECT_NO_BLOCK`/flat handled elsewhere (`blocks()` uses `dead`; light/hidden items unverified). |
 | critterGetExp | Combat.ts:1710 (`pro.extra.XPValue`) | ✅ | | |
 | critterIsActive | inline checks (KO/dead/lose-turn) | ✅ | | (unverified everywhere). |
 | critterIsDead | `dead` flag / HP ≤ 0 checks | ✅ | | Map-start 0-HP critters marked dead (Critter.ts:189). |

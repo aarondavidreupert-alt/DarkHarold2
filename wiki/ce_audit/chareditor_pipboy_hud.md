@@ -35,10 +35,10 @@ Top findings:
 
 | CE function | DH2 counterpart (file:line) | Status | Sev | Notes |
 |---|---|---|---|---|
-| characterEditorShow (main loop) | `ui_character/viewer.ts:71` showCharacterScreen, `creator.ts:59` showCharacterCreator | 🟡 | MED | No keyboard (CHAR-03); not modal (CHAR-03); CANCEL doesn't restore (CHAR-04). |
+| characterEditorShow (main loop) | `ui_character/viewer.ts:71` showCharacterScreen, `creator.ts:59` showCharacterCreator | ✅ FIXED (CHAR-03, CHAR-04) | MED | No keyboard (CHAR-03); not modal (CHAR-03); CANCEL doesn't restore (CHAR-04). |
 | characterEditorShow — creation DONE checks (118/119, 142/143, 157/158, 160/161) | `creator.ts:865` | ✅ | — | Messages, error sound, Yes/No on "None". |
-| characterEditorShow — CANCEL / ESC → rc 1 → restore | `creator.ts:891`, `viewer.ts:159` | ⚠️ | MED | Creator: cancel goes back to the menu ✅. Viewer: perk changes are not restored (CHAR-04). |
-| characterEditorShow — end: `dudeDisableState(LEVEL_UP_AVAILABLE)` | — | ❌ | MED | No level-up state; the indicator uses skill points instead (HUD-01). |
+| characterEditorShow — CANCEL / ESC → rc 1 → restore | `creator.ts:891`, `viewer.ts:159` | ✅ FIXED (CHAR-04) | MED | Creator: cancel goes back to the menu ✅. Viewer: perk changes are not restored (CHAR-04). |
+| characterEditorShow — end: `dudeDisableState(LEVEL_UP_AVAILABLE)` | — | ✅ FIXED (HUD-01) | MED | No level-up state; the indicator uses skill points instead (HUD-01). |
 | characterEditorShow — `_proto_dude_update_gender` on creation done | `player.ts:353` updateNativeLook | ✅ | — | |
 | characterEditorWindowInit / WindowFree | viewer/creator WindowFrame build | 🚫 | — | Layout coordinates follow CE. |
 | characterEditorInit / Reset (5 char points, last level 1) | `creator.ts:67` pool = 5 | ✅ | — | |
@@ -51,18 +51,18 @@ Top findings:
 | characterEditorDrawPcStats | `viewer.ts:165-182` | ⚠️ | LOW | XP has no thousands separators (`_itostndn`); at max level CE leaves "Next Level" blank (msg 175 above 999,999); the lines can't be selected for their cards. |
 | characterEditorDrawPrimaryStat | `viewer.ts:530`, `creator.ts:842` | ✅ | — | Value and stat.msg 301-310 comment (clamped). |
 | characterEditorDrawGender / Age / Name | `creator.ts:530-612`, `viewer.ts:204-265` | ✅ | — | |
-| characterEditorDrawDerivedStats | `statPanels.ts:84` renderStatPanels | 🟡 | MED | Labels, order and formats match CE. The creator feeds it a bare StatSet without trait effects (CHAR-05). |
-| characterEditorDrawSkills | `viewer.ts:498`, `creator.ts:783` | ⚠️ | HIGH | Colours ✅. Values leave out trait modifiers in game (CHAR-02). Hard-coded English skill names. |
+| characterEditorDrawDerivedStats | `statPanels.ts:84` renderStatPanels | ✅ FIXED (CHAR-05) | MED | Labels, order and formats match CE. The creator feeds it a bare StatSet without trait effects (CHAR-05). |
+| characterEditorDrawSkills | `viewer.ts:498`, `creator.ts:783` | ✅ FIXED (CHAR-02) | HIGH | Colours ✅. Values leave out trait modifiers in game (CHAR-02). Hard-coded English skill names. |
 | characterEditorDrawCard | `viewer.ts:393` drawCard | 🟡 | LOW | Skill cards lack CE's attributes/default subtitle (`skillGetAttributes`). No cards for Level/Exp/Next Level/Tag Skills/Skill Points (120-123). The texts are hard-coded English in `descriptions.ts`, not stat.msg/skill.msg/trait.msg/editor.msg 400-406. |
 | characterEditorEditName | `creator.ts:416` | ✅ | — | Max 11, an empty entry keeps the old name. |
 | _PrintName | — | 🚫 | — | |
 | characterEditorEditAge | `creator.ts:450` | ✅ | — | 16..35. No auto-repeat while held (cosmetic). |
 | characterEditorEditGender | `creator.ts:497` | ✅ | — | |
-| characterEditorAdjustPrimaryStat | `creator.ts:301-317` | ⚠️ | MED | "+" limit uses the base value only (CHAR-05). No auto-repeat. "−" min 1 ✅. |
+| characterEditorAdjustPrimaryStat | `creator.ts:301-317` | ✅ FIXED (CHAR-05) | MED | "+" limit uses the base value only (CHAR-05). No auto-repeat. "−" min 1 ✅. |
 | characterEditorShowOptions (save/load/print/erase .GCD) | — | ✅ FIXED (2026-10-25) | LOW | CHAR-06. |
 | characterFileExists / characterPrintToFile / _AddSpaces / _AddDots | — | ✅ FIXED (2026-10-25) | LOW | PRINT button inert, `viewer.ts:154` (CHAR-06). |
 | characterEditorResetScreen / RegisterInfoAreas | per-element onclick | 🚫 | — | |
-| characterEditorSavePlayer / RestorePlayer | `viewer.ts:436-437` (skills + stats clone only) | 🟡 | MED | Only skills are snapshotted; perks, the free-perk flag, traits and HP are not (CHAR-01, CHAR-04). |
+| characterEditorSavePlayer / RestorePlayer | `viewer.ts:436-437` (skills + stats clone only) | ✅ FIXED (CHAR-01, CHAR-04) | MED | Only skills are snapshotted; perks, the free-perk flag, traits and HP are not (CHAR-01, CHAR-04). |
 | _itostndn | — | ❌ | LOW | No comma formatting. |
 | characterEditorDrawCardWithOptions | `viewer.ts:393` | 🚫 | — | |
 | characterEditorHandleFolderButtonPressed | `viewer.ts:296` activateFolder | ✅ | — | ib3p1xx1, folder card. |
@@ -74,14 +74,14 @@ Top findings:
 | characterEditorDrawKarmaFolder | `folders.ts:93` | ✅ | — | karmavar/genrep, town tiers (−30/−15/0/15/30), addictions 4001. |
 | characterEditorSave / Load (last level, free perk) | `saveload.ts:203` pendingPerkPick | ✅ | — | |
 | characterEditorUpdateLevel | `player.ts:262-287` (at XP gain) | 🟡 | LOW | Same SP formula and every-3/4-levels rule. Differences: SP is computed when the XP arrives, not when the editor opens (INT is read at a different time); no 37-perk cap. |
-| perkDialogRefreshPerks / perkDialogShow | `perkModal.ts:39` showPerkModal | ⚠️ | HIGH | No Tag! skill step (CHAR-01). Lifegiver/Educated effects in `applyPerk` ✅, but Educated is undone by the viewer's DONE (CHAR-01). |
+| perkDialogRefreshPerks / perkDialogShow | `perkModal.ts:39` showPerkModal | ✅ FIXED (CHAR-01) | HIGH | No Tag! skill step (CHAR-01). Lifegiver/Educated effects in `applyPerk` ✅, but Educated is undone by the viewer's DONE (CHAR-01). |
 | perkDialogHandleInput | `perkModal.ts:80` showPickList | ⚠️ | LOW | Mouse only (CE: arrows, Return, ESC, Page keys, double-click). 11 visible lines vs a scrolled div. |
 | perkDialogDrawPerks / perkDialogOptionCompare | `perkModal.ts:42`, `perks.ts:19` getValidPerks | ⚠️ | LOW | Listed by perk id, not sorted by name. Rank shown as "n/max" (CE: "(rank)" only when rank > 0). |
 | perkDialogRefreshTraits / DrawTraits | `perkModal.ts:62` runMutate | ⚠️ | LOW | PICK A NEW TRAIT offers the trait just dropped (CE leaves out both original traits) and isn't sorted by name. |
 | perkDialogHandleMutatePerk | `perkModal.ts:50-76` | ✅ | — | LOSE (154) → PICK (153); backing out takes the perk away. |
-| perkDialogRefreshSkills / HandleTagPerk / DrawSkills | — | ❌ | HIGH | CHAR-01. |
+| perkDialogRefreshSkills / HandleTagPerk / DrawSkills | — | ✅ FIXED (CHAR-01) | HIGH | CHAR-01. |
 | perkDialogDrawCard | `perkModal.ts:180` | ✅ | — | |
-| _pop_perks | — | ❌ | MED | CHAR-04. |
+| _pop_perks | — | ✅ FIXED (CHAR-04) | MED | CHAR-04. |
 | _is_supper_bonus | `creator.ts:874-877` | ✅ | — | DH2 also refuses values < 1 (unreachable). |
 | characterEditorFolderViewInit / Scroll / Clear / DrawHeading / DrawString / DrawKillsEntry | `folders.ts:167-273` | ✅ | — | C57. |
 | karmaInit / karmaFree / karmaEntryCompare | `folders.ts:94` | ✅ | — | |
@@ -110,7 +110,7 @@ Top findings:
 | pipboyRenderHolodiskText | `status.ts:156` renderHolodisk | ✅ | — | 35 lines a page, END-DISK/END-PAR, 212/200/214/201. |
 | pipboyWindowRenderHolodiskList | `status.ts:62` knownHolodisks | ✅ | — | |
 | _qscmp | `automaps.ts:250` .sort() | 🟡 | — | See PIP-01. |
-| pipboyWindowHandleAutomaps / _PrintAMelevList / _PrintAMList | `ui_pipboy/tabs/automaps.ts:120` | ⚠️ | MED | PIP-01. |
+| pipboyWindowHandleAutomaps / _PrintAMelevList / _PrintAMList | `ui_pipboy/tabs/automaps.ts:120` | ✅ FIXED (PIP-01) | MED | PIP-01. |
 | pipboyHandleVideoArchive / pipboyRenderVideoArchive | `tabs/archives.ts:36` | ✅ | — | Movies 2..15 seen, pipboy.msg 500+n, FADE_IN/OUT/PAUSE_MUSIC. |
 | pipboyHandleAlarmClock | `shell.ts:318` toggleWaitMenu, `:379` restFor | ✅ | — | 215 refusal with iisxxxx1; ib1p1xx1 / ib2lu1x1. |
 | pipboyWindowRenderRestOptions | `shell.ts:343-372` | ✅ | — | 300, HP line 301, options 302-315. |
@@ -142,7 +142,7 @@ Top findings:
 | interfaceBarSwapHands | `ui.ts:181` swapHands | ✅ FIXED (2026-10-26) | LOW | Animation ✅. CE also drops the crosshair / use-crosshair mouse mode back to move; DH2 keeps `cursorMode`. — **2026-10-26:** the crosshairs go back to the move cursor. |
 | interfaceGetItemActions / GetCurrentHand / GetActiveItem | `player.activeHand` | ✅ | — | |
 | interfaceCycleItemAction | `ui.ts:193`, `Weapon.ts:244` cycleMode | ✅ | — | primary → aimed → secondary → secondary aimed → reload (if not full); Fast Shot blocks aiming. |
-| _intface_use_item | `ui.ts:249` attack button onclick | ⚠️ | MED | HUD-02 (reload AP). Misc-item use in combat: CE checks and charges AP (`itemGetActionPointCost`); DH2 calls `activeItem.use(player)`, AP charge unverified. Crosshair + combat start ✅. |
+| _intface_use_item | `ui.ts:249` attack button onclick | ✅ FIXED (HUD-02) | MED | HUD-02 (reload AP). Misc-item use in combat: CE checks and charges AP (`itemGetActionPointCost`); DH2 calls `activeItem.use(player)`, AP charge unverified. Crosshair + combat start ✅. |
 | _intface_update_ammo_lights | `ui_hud.ts:461` uiUpdateAmmoBar | ✅ | — | |
 | interfaceBarEndButtonsShow | `ui_hud.ts:538` uiStartCombat | ⚠️ | LOW | Animation frames ✅. The "iciboxx1" open sound is missing (only icibcxx1 on close). Fixed 66 ms per frame vs the FRM's fps. |
 | interfaceBarEndButtonsHide | `ui_hud.ts:559`, `Combat.ts:2882` | ✅ | — | |
@@ -152,12 +152,12 @@ Top findings:
 | _intface_redraw_items_callback / _intface_change_fid_callback / interfaceBarSwapHandsAnimatePutAwayTakeOutSequence | `Player.playWeaponSwapAnim` | ✅ | — | |
 | endTurnButtonInit/Free, endCombatButtonInit/Free | `ui.ts:310-326` | ✅ | — | combatAttemptEnd. |
 | interfaceUpdateAmmoBar | `ui_hud.ts:474` | ✅ | — | Rounded down to even. |
-| _intface_item_reload | `ui.ts:240` reloadWeapon | ⚠️ | MED | HUD-02: no weapon ready sfx (`sfxBuildWeaponName(READY)`); DH2 forces 'single' where CE calls `interfaceCycleItemAction` (also ends on primary). |
+| _intface_item_reload | `ui.ts:240` reloadWeapon | ✅ FIXED (HUD-02) | MED | HUD-02: no weapon ready sfx (`sfxBuildWeaponName(READY)`); DH2 forces 'single' where CE calls `interfaceCycleItemAction` (also ends on primary). |
 | interfaceRenderCounter | `ui_hud.ts:41` drawDigits | ✅ | — | |
 | intface_fatal_error | — | 🚫 | — | |
 | indicatorBarInit | `ui_hud.ts:205` buildBadgeSrcCanvases | ⚠️ | LOW | Labels hard-coded English; CE uses intrface.msg 100-104. |
 | interfaceBarFree / indicatorBarReset | — | 🚫 | — | |
-| indicatorBarRefresh | `ui_hud.ts:234` updateIndicatorBar | ⚠️ | MED | HUD-01 (LEVEL source). SNEAK/ADDICT/POISONED (> 0)/RADIATED (> 65) ✅. |
+| indicatorBarRefresh | `ui_hud.ts:234` updateIndicatorBar | ✅ FIXED (HUD-01) | MED | HUD-01 (LEVEL source). SNEAK/ADDICT/POISONED (> 0)/RADIATED (> 65) ✅. |
 | indicatorBoxCompareByPosition / indicatorBarRender / indicatorBarAdd | `ui_hud.ts:279` | ✅ | — | Enum order, connector geometry. |
 | indicatorBarShow / Hide | — | 🟡 | LOW | No explicit hide; the Pip-Boy/inventory windows cover it (unverified for every window). |
 | customInterfaceBarInit/Exit/GetBackgroundImageData, sidePanelsInit/Exit/Hide/Show/Draw | — | 🚫 | — | sfall hi-res features. |
