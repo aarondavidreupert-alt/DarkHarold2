@@ -22,6 +22,9 @@ audio/
 .DS_Store
 node_modules
 js/
+# personal Claude Code permissions (.claude/launch.json stays tracked)
+.claude/settings.local.json
+
 # third-party programs the pipeline uses when present (not ours to redistribute)
 acm2wav.exe
 ffmpeg.exe
