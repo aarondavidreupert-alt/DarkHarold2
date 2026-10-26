@@ -29,8 +29,6 @@ import { Scripting } from '../scripting.js'
 import { fromTileNum, hexToTile, toTileNum } from '../tile.js'
 import { arrayRemove } from '../util.js'
 
-declare let PF: any
-
 // Representation of game map and its serialized forms
 
 // TODO: Spatial type

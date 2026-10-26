@@ -52,7 +52,6 @@ const globalState = {
 
     isLoading: true, // are we currently loading a map?
     backgroundMapLoad: false, // the startup map behind the intro / main menu (no music)
-    isWaitingOnRemote: false, // are we waiting on the remote server to send critical info?
     isInitializing: true, // are we initializing the engine?
     loadingAssetsLoaded: 0, // how many images we've loaded
     loadingAssetsTotal: 0, // out of this total
@@ -143,7 +142,6 @@ const globalState = {
 
     isLoading: boolean
     backgroundMapLoad: boolean
-    isWaitingOnRemote: boolean
     isInitializing: boolean
     loadingAssetsLoaded: number
     loadingAssetsTotal: number

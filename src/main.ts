@@ -14,10 +14,7 @@
 
 import { HTMLAudioEngine, NullAudioEngine } from './audio.js'
 import { useDrug } from './drugs.js'
-import { getElevator } from './data.js'
-import { Events } from './events.js'
 import { heart } from './heart.js'
-import { hexesInRadius } from './geometry.js'
 import globalState from './globalState.js'
 import { IDBCache } from './idbcache.js'
 import { initGame } from './init.js'
@@ -30,12 +27,7 @@ import {
     ZOOM_MAX,
     ZOOM_MIN,
 } from './renderer.js'
-import {
-    initLogScrollZones,
-    uiElevator,
-    UIMode,
-    uiWorldMap,
-} from './ui.js'
+import { initLogScrollZones, UIMode } from './ui.js'
 import { objUseItemOn } from './useItemOn.js'
 import { initModAssets, mergeModJSON, overrideStylesheets } from './modAssets.js'
 import { loadFallout2Cfg, loadModsOrder, loadPreferences, parseModList } from './ui_options.js'
@@ -71,12 +63,6 @@ registerEventLogCommands()
 
 window.onload = async function () {
     globalState.isInitializing = true
-
-    // CE ref: worldmap.cc wmCarGiveToParty → mapSetTransition(map=-2) → wmWorldMap().
-    // mapLoader.ts injects the car Scenery on map load and emits 'openWorldmap' when
-    // the player interacts with it. Register the handler here, outside the map module,
-    // to avoid a circular import (mapLoader → worldmap → ui → ... → map).
-    Events.on('openWorldmap', () => uiWorldMap())
 
     globalState.$fpsOverlay = document.getElementById('fpsOverlay')
     initLogScrollZones()
@@ -376,48 +362,7 @@ heart.update = tickGame
 heart.draw = () => {
     const time = window.performance.now()
 
-    if (globalState.isWaitingOnRemote) {
-        return
-    }
     globalState.renderer.render()
 
     globalState.lastDrawTime = Math.floor(window.performance.now() - time)
-}
-
-export function useElevator(): void {
-    // Player walked into an elevator
-    //
-    // We search for the Elevator Stub (Scenery PID 1293)
-    // in the range of 11. The original engine uses a square
-    // of size 11x11, but we don't do that.
-
-    dbg('map', '[Elevator] entered')
-
-    const center = globalState.player.position
-    const hexes = hexesInRadius(center, 11)
-    let elevatorStub = null
-    for (let i = 0; i < hexes.length; i++) {
-        const objs = globalState.gMap.objectsAtPosition(hexes[i])
-        for (let j = 0; j < objs.length; j++) {
-            const obj = objs[j]
-            if (obj.type === 'scenery' && obj.pidID === 1293) {
-                dbg('map', `[Elevator] stub @ (${hexes[i].x}, ${hexes[i].y})`)
-                elevatorStub = obj
-                break
-            }
-        }
-    }
-
-    if (elevatorStub === null) {
-        throw "couldn't find elevator stub near " + center.x + ', ' + center.y
-    }
-
-    dbg('map', `[Elevator] type=${elevatorStub.extra.type}, level=${elevatorStub.extra.level}`)
-
-    const elevator = getElevator(elevatorStub.extra.type)
-    if (!elevator) {
-        throw 'no elevator: ' + elevatorStub.extra.type
-    }
-
-    uiElevator(elevator)
 }

@@ -39,8 +39,6 @@ import { showAlert } from '../ui_dialog.js'
 import { GameMap } from './GameMap.js'
 import { globalScriptsMapProc } from '../sfallGlobalScripts.js'
 
-declare let PF: any
-
 const TICKS_PER_HOUR = 36000
 const KILL_TYPE_RAT = 7
 const KILL_TYPE_MANTIS = 12

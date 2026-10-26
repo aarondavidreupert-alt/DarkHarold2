@@ -298,7 +298,7 @@ export function installInputHandlers(): void {
     let arrowHold: { timer: number; menu: boolean } | null = null
 
     heart.mousepressed = (x: number, y: number, btn: string) => {
-        if (globalState.isInitializing || globalState.isLoading || globalState.isWaitingOnRemote) {
+        if (globalState.isInitializing || globalState.isLoading) {
             return
         } else if (globalState.gameUIDisabled || MAP_MODAL.has(globalState.uiMode)) {
             return

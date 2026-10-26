@@ -119,7 +119,7 @@ export function finishLoadingIfReady(): boolean {
 }
 
 export function tickGame(): void {
-    if (globalState.isInitializing || globalState.isWaitingOnRemote) {
+    if (globalState.isInitializing) {
         return
     } else if (globalState.isLoading && !finishLoadingIfReady()) {
         return
