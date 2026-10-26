@@ -145,6 +145,12 @@ export const Config = {
     },
 
     engine: {
+        // CE settings.sound.sounds / music / speech (fallout2.cfg [sound] sounds=, music=,
+        // speech=; default 1): sounds=0 silences everything (gameSoundInit is skipped), music=0
+        // the background music, speech=0 the talking heads' speech.
+        soundsEnabled: true,
+        musicEnabled: true,
+        speechEnabled: true,
         debug: true, // set true to enable debug/cheat utilities in src/debug.ts
         // DH2 developer hotkeys (teleport h, elevation q/e, layer toggles r/f/o/w, tile
         // inspector i, kill k, ...; none of them exist in CE). Off so they can't fire

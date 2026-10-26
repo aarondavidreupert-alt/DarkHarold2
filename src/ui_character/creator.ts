@@ -33,7 +33,7 @@ import {
     SPECIAL_IMG, SKILL_IMG, DERIVED_IMG, CONDITION_IMG, TRAIT_IMG,
     statComment, STATS, SKILLS, TRAITS,
 } from './descriptions.js'
-import { setCharacterWindow } from './viewer.js'
+import { editorRefuse, setCharacterWindow } from './viewer.js'
 import { showAlert, showConfirm } from '../ui_dialog.js'
 import { showCreatorOptions } from './creatorOptions.js'
 import { getMessage } from '../util.js'
@@ -710,7 +710,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
                 refreshTraitPanel()
                 redrawStatsSkills()
             } else {
-                showInfoCard('Traits', 'You may only pick 2 traits.')
+                void editorRefuse(148, 149) // CE characterEditorToggleOptionalTrait
                 return
             }
             showInfoCard(capturedTrait, TRAIT_DESCRIPTIONS[capturedTrait], TRAIT_IMG[capturedTrait])
@@ -837,7 +837,8 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
                 if (newSkillSet.isTagged(capturedSkill)) {
                     newSkillSet.untag(capturedSkill)
                 } else {
-                    if (newSkillSet.tagged.length >= newSkillSet.getMaxTaggedSkills()) return
+                    // CE characterEditorToggleTaggedSkill: editor.msg 140 / 141
+                    if (newSkillSet.tagged.length >= newSkillSet.getMaxTaggedSkills()) { void editorRefuse(140, 141); return }
                     newSkillSet.tag(capturedSkill)
                 }
                 redrawStatsSkills()

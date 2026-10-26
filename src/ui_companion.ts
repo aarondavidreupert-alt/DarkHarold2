@@ -48,7 +48,7 @@ import {
     setCompanionDisposition,
 } from './party.js'
 import { uiCompanionTrade } from './ui_companion_trade.js'
-import { getVisibleDialoguePanel, uiSwapDialoguePanel } from './ui_dialogue.js'
+import { getVisibleDialoguePanel, uiSetDialogueReply, uiSwapDialoguePanel } from './ui_dialogue.js'
 import { $id } from './ui_dom.js'
 import { Scripting } from './scripting.js'
 import { assetUrl } from './modAssets.js'
@@ -337,6 +337,14 @@ function makeStandingPreview(critter: Critter): HTMLCanvasElement {
  * Open the party member control screen for `companion`.
  * CE ref: game_dialog.cc:3354 partyMemberControlWindowInit.
  */
+// CE game_dialog.cc _gdCanBarter: a critter without CRITTER_BARTER (proto flag 0x02) can't
+// trade — proto.msg 913 "This critter can't carry anything." for a party member (903 otherwise)
+function canBarter(critter: Critter): boolean {
+    if ((((critter.pro as any)?.extra?.flags ?? 0) & 0x02) !== 0) return true
+    uiSetDialogueReply(getProtoMsg(globalState.gParty?.isPartyMember(critter) ? 913 : 903) ?? '')
+    return false
+}
+
 export function uiCompanionControl(companion: Critter): void {
     globalState.uiMode = UIMode.companionControl
 
@@ -396,6 +404,7 @@ export function uiCompanionControl(companion: Critter): void {
             // dialogue (the barter window itself always exits back to Talk —
             // _barter_end_to_talk_to, game_dialog.cc:3178-3186 — not back to
             // Control, even though it was entered from here).
+            if (!canBarter(companion)) return
             activeEscapeClose = null
             uiCompanionTrade(companion)
         }))
@@ -440,7 +449,7 @@ export function uiCompanionControl(companion: Critter): void {
     activeScreenKeys = {
         w: () => { if (useBestWeapon(companion)) redraw() },
         a: () => { useBestArmor(companion); redraw() },
-        d: () => { activeEscapeClose = null; activeScreenKeys = null; uiCompanionTrade(companion) },
+        d: () => { if (!canBarter(companion)) return; activeEscapeClose = null; activeScreenKeys = null; uiCompanionTrade(companion) },
     }
 }
 

@@ -22,6 +22,7 @@ import { getWeaponSounds, ImpactMaterial } from './soundMap.js'
 import { assetUrl } from './modAssets.js'
 import type { Obj } from './object.js'
 import { soundSourceVolume } from './soundVolume.js'
+import { Config } from './config.js'
 
 // Has the page had a user gesture yet? (browser autoplay policy; true where the
 // UserActivation API is missing)
@@ -171,6 +172,7 @@ export class HTMLAudioEngine implements AudioEngine {
     }
 
     playSfx(sfx: string, source: Obj | null = null): void {
+        if (!Config.engine.soundsEnabled) return // [sound] sounds=0
         // Fire-and-forget; errors are logged inside loadSfx / playBuffer.
         this.loadSfx(sfx).then(buf => {
             if (buf) return this.playBuffer(sfx, buf, source)
@@ -180,6 +182,7 @@ export class HTMLAudioEngine implements AudioEngine {
 
     playMusic(music: string): void {
         this.stopMusic()
+        if (!Config.engine.soundsEnabled || !Config.engine.musicEnabled) return // [sound] sounds=0 / music=0
         this.musicAudio = this.playSound('music/' + music)
         if (this.musicAudio) {
             this.musicAudio.loop = true

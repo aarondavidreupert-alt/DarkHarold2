@@ -40,6 +40,7 @@ import { showPerkModal } from './perkModal.js'
 import { ADDICTION_KARMA_GVARS } from '../drugs.js'
 import { Scripting } from '../scripting.js'
 import { getMessage } from '../util.js'
+import { showAlert } from '../ui_dialog.js'
 import { renderStatPanels } from './statPanels.js'
 import { printCharacterSheet } from './printSheet.js'
 import { createFolderView, FolderView } from './folders.js'
@@ -52,6 +53,15 @@ import { assetUrl } from '../modAssets.js'
 
 let characterWindow: WindowFrame
 let _statsChangedHandler: (() => void) | null = null
+
+/** CE character_editor.cc: a refused change — the error sound and editor.msg `a` / `b` in a
+ *  dialog box (characterEditorHandleAdjustSkillButton, ToggleTaggedSkill, ToggleOptionalTrait). */
+export function editorRefuse(a: number, b?: number): Promise<void> {
+    globalState.audioEngine?.playSfxByName?.('iisxxxx1')
+    const line = (id: number) => getMessage('editor', id) ?? ''
+    return showAlert(b === undefined ? line(a) : `${line(a)}
+${line(b)}`)
+}
 
 export function getCharacterWindow(): WindowFrame | null {
     return characterWindow ?? null
@@ -578,14 +588,17 @@ export function showCharacterScreen() {
     const modifySkill = (inc: boolean) => {
         if (!selectedSkill) return
 
+        // CE characterEditorHandleAdjustSkillButton: editor.msg 132 / 133 at 300 %, 136 without the
+        // points, 134 / 135 back at the value the editor opened with
         if (inc) {
             const changed = newSkillSet.incBase(selectedSkill, newStatSet, playerSkillOpts)
             if (!changed) {
-                dbgWarn('skills', 'Not enough skill points or at skill cap!')
+                if (newSkillSet.get(selectedSkill, newStatSet, playerSkillOpts) >= 300) void editorRefuse(132, 133)
+                else void editorRefuse(136)
             }
         } else {
             const currentBase = newSkillSet.getBase(selectedSkill)
-            if (currentBase <= openingBaseSkills[selectedSkill]) return
+            if (currentBase <= openingBaseSkills[selectedSkill]) { void editorRefuse(134, 135); return }
             newSkillSet.decBase(selectedSkill, newStatSet, playerSkillOpts)
         }
 

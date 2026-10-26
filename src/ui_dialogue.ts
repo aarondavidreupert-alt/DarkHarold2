@@ -102,7 +102,7 @@ function setupDialogueActionButtons(target: Critter | undefined): void {
             // message 903 ("This person will not barter with you") for
             // regular NPCs, 913 ("This critter can't carry anything") for
             // party members, both from proto.msg (gProtoMessageList).
-            uiLog(getProtoMsg(isPartyMember ? 913 : 903) ?? '')
+            uiSetDialogueReply(getProtoMsg(isPartyMember ? 913 : 903) ?? '') // CE gameDialogRenderSupplementaryMessage
         }
     }
 

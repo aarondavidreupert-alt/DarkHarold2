@@ -194,6 +194,12 @@ export function applyCfg(cfg: CfgSections): void {
     const formula = ({ vanilla: 0, '0': 0, glovz: 1, '1': 1, glovz_tweak: 2, '2': 2, yaam: 5, '5': 5 } as { [k: string]: 0 | 1 | 2 | 5 })[df ?? '']
     if (formula !== undefined) Config.combat.damageCalculationType = formula
 
+    // CE settings.cc settingsFromConfig: [sound] sounds / music / speech (on unless 0)
+    const onOff = (key: string, set: (on: boolean) => void) => { const v = int(sound[key]); if (v !== null) set(v !== 0) }
+    onOff('sounds', (on) => { Config.engine.soundsEnabled = on })
+    onOff('music', (on) => { Config.engine.musicEnabled = on })
+    onOff('speech', (on) => { Config.engine.speechEnabled = on })
+
     const eng = globalState.audioEngine
     if (eng) {
         const vol = (key: string, channel: 'master' | 'music' | 'sfx' | 'speech') => {

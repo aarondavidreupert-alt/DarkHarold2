@@ -31,6 +31,7 @@ import { lazyLoadImage } from './images.js'
 import { dbg } from './logger.js'
 import { getFileBinarySync, getRandomInt } from './util.js'
 import { assetUrl } from './modAssets.js'
+import { Config } from './config.js'
 
 // CE art.h HeadAnimation
 export const HEAD_ANIMATION_VERY_GOOD_REACTION = 0
@@ -272,6 +273,7 @@ export function startLips(audioName: string | null): void {
         return
     }
     endLips()
+    if (!Config.engine.soundsEnabled || !Config.engine.speechEnabled) return // [sound] sounds=0 / speech=0
     const l = loadLips(audioName)
     if (!l) return
     lips = l

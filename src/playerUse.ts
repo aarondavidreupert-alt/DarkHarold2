@@ -233,7 +233,7 @@ export function playerUse(obj: Obj | null) {
             const run = performer.isPlayer ? Config.engine.doAlwaysRun : hexDistance(playerPos, obj.position) >= 5
             performer.walkTo(dest, run, skillCallback)
         } else {
-            uiLog("Can't reach that.")
+            uiLog(getMessage('misc', 2000) ?? 'You cannot get there.') // CE actions.cc _is_next_to
         }
 
         return

@@ -28,6 +28,7 @@ import type { Critter } from './object.js'
 import { Scripting } from './scripting.js'
 import { critterKill } from './critter/lifecycle.js'
 import { uiLog, updateIndicatorBar } from './ui_hud.js'
+import { showAlert } from './ui_dialog.js'
 import { getMessage, getRandomInt } from './util.js'
 
 const TICKS_PER_HOUR = 36000 // CE GAME_TIME_TICKS_PER_HOUR (10 ticks/s)
@@ -185,8 +186,10 @@ function processRads(obj: Critter, level: number, isHealing: boolean): void {
     }
 
     if (obj.dead && isPlayer(obj)) {
-        const msg = miscMsg(1006) // "You have died from radiation sickness."
-        if (msg) uiLog(msg)
+        // CE critter.cc:620 → game.cc gameShowDeathDialog: misc.msg 1006 "You have died from
+        // radiation sickness." in a dialog box, before the death screen
+        const msg = miscMsg(1006)
+        if (msg) void showAlert(msg)
     }
 }
 

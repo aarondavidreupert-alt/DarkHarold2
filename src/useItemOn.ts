@@ -28,7 +28,7 @@ import { Scripting } from './scripting.js'
 import { skillUse } from './skillUse.js'
 import { drawAP, drawHP, uiDrawWeapon } from './ui_hud.js'
 import { uiLog } from './ui.js'
-import { getProtoMsg, getRandomInt } from './util.js'
+import { getMessage, getProtoMsg, getRandomInt } from './util.js'
 import { Config } from './config.js'
 import { ammoGetCapacity, ammoGetQuantity } from './weaponAmmo.js'
 import { Worldmap } from './worldmap.js'
@@ -104,13 +104,13 @@ export function usePendingItemOn(target: Obj | null): void {
         }
     }
     if (!dest) {
-        uiLog("Can't reach that.")
+        uiLog(getMessage('misc', 2000) ?? 'You cannot get there.') // CE actions.cc _is_next_to
         return
     }
     if (globalState.inCombat) {
         const moveAP = player.AP?.getAvailableMoveAP() ?? 0
         if (!player.walkTo(dest, Config.engine.doAlwaysRun, () => { player.clearAnim(); act() }, moveAP)) {
-            uiLog("Can't reach that.")
+            uiLog(getMessage('misc', 2000) ?? 'You cannot get there.') // CE actions.cc _is_next_to
             return
         }
         player.AP?.subtractMoveAP(player.path.path.length - 1)
