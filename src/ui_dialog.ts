@@ -228,7 +228,7 @@ export async function showAlert(message: string): Promise<void> {
  * Returns the entered string, or null if the user cancelled (Escape / CANCEL).
  * Used to replace window.prompt() for save-slot naming.
  */
-export function showInput(message: string, defaultValue = ''): Promise<string | null> {
+export function showInput(message: string, defaultValue = '', maxLength?: number): Promise<string | null> {
     return new Promise(resolve => {
         const prevMode = globalState.uiMode
         globalState.uiMode = UIMode.dialog
@@ -268,7 +268,8 @@ export function showInput(message: string, defaultValue = ''): Promise<string | 
             outline: 'none',
             boxSizing: 'border-box',
         })
-        input.value = defaultValue
+        if (maxLength !== undefined) input.maxLength = maxLength
+        input.value = maxLength !== undefined ? defaultValue.slice(0, maxLength) : defaultValue
         input.setAttribute('spellcheck', 'false')
         box.appendChild(input)
 

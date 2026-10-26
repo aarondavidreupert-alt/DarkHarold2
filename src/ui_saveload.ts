@@ -289,7 +289,8 @@ export function uiSaveLoad(isSave: boolean, quick = false, onCancel: (() => void
         if (isSave) {
             // CE ref: lsgame.msg 131 "Save game already exists, overwrite?"
             if (s && !(await showConfirm(lsg(131, 'Save game already exists, overwrite?')))) return
-            const name = await showInput(lsg(130, 'DESCRIPTION'))
+            // CE loadsave.cc _GetComment: the slot's old description to edit, at most 29 characters
+            const name = await showInput(lsg(130, 'DESCRIPTION'), s?.name ?? '', 29)
             if (name === null) return
             dbg('saveload', `[UI] Saving slot ${cursor + 1} (save #${s?.id ?? 'new'}).`)
             save(name, s?.id ?? undefined, (id) => {

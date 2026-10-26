@@ -72,12 +72,13 @@ export class HTMLAudioEngine implements AudioEngine {
     lastAmbientTime = -Infinity // CE _lastTime_1 (real time)
     musicAudio: HTMLAudioElement | null = null
 
-    // Volume levels (0.0–1.0 internally; Preferences UI uses 0–100)
-    masterVolume: number = 1
-    musicVolume: number = 1
-    sfxVolume: number = 1
+    // Volume levels (0.0–1.0 internally; Preferences UI uses 0–100). CE game_config.cc
+    // gameConfigInit: every volume starts at 22281 of 32767 (fallout2.cfg sets them otherwise).
+    masterVolume: number = 22281 / 32767
+    musicVolume: number = 22281 / 32767
+    sfxVolume: number = 22281 / 32767
     // FO2-CE ref: settings.cc:93 speech_volume (0–32767 in CE, normalised to 0.0–1.0 here)
-    speechVolume: number = 1
+    speechVolume: number = 22281 / 32767
 
     // Web Audio pipeline for SFX (decodeAudioData + one-shot buffers).
     // Music stays on HTMLAudioElement — loop + streaming are simpler there.

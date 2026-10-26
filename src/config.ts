@@ -188,7 +188,7 @@ export const Config = {
         doLoadItemInfo: true, // load item information (such as inventory images)?
         doAlwaysRun: false, // always run instead of walk? CE default = false (settings.h:38)
         // FO2-CE ref: preferences.cc player_speedup — apply combat-speed boost to player walk animation.
-        playerSpeedup: true,
+        playerSpeedup: false, // CE game_config.cc gameConfigInit: player_speedup 0
         // DH2 option, not in CE: smooth hour-of-day ambient light curve (gametime.ts).
         // false = CE lighting: only map scripts' set_light_level changes the light.
         // Set in fallout2.cfg: [dh2] day_night_cycle=0/1.

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { returnToMainMenu } from './mainMenuReturn.js'
 import { Events } from './events.js'
 import { DAM_KNOCKED_OUT } from './combat/results.js'
 import { Worldmap } from './worldmap.js'
@@ -249,7 +250,7 @@ export function tickGame(): void {
         if (globalState.gameTickTime >= 13 * GameTime.TICKS_PER_YEAR && !gameEndingTriggered) {
             gameEndingTriggered = true
             Endgame.setupDeathEnding(Endgame.DEATH_REASON_TIMEOUT)
-            location.reload()
+            returnToMainMenu()
         }
         // CE main.cc mainLoop: the dude dead or knocked out outside combat ends the game.
         // (Death goes through critterKill's death animation → dudeDeathScene.)
@@ -378,7 +379,7 @@ export function scriptsCheckGameEvents(day: number): void {
         const seen = globalState.seenMovies.has(MOVIE_AFAILED)
         dbg('map', 'ARTIMER: AFAILED — Arroyo destroyed, game over')
         ;(seen ? Promise.resolve() : gameMoviePlay(MOVIE_AFAILED, GAME_MOVIE_FADE_IN | GAME_MOVIE_STOP_MUSIC))
-            .then(() => location.reload())
+            .then(() => returnToMainMenu())
         return
     }
 

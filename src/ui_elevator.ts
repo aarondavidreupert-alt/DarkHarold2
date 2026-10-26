@@ -62,7 +62,22 @@ function animateGauge(fromFloor: number, toFloor: number, levels: number, onDone
     setTimeout(tick, delay)
 }
 
+// CE elevator.cc elevatorSelectLevel: Esc leaves without moving; a key from the elevator's
+// gElevatorLevelLabels row (e.g. G / 1, 3 / 4 / 6) picks that floor. CE's toupper result is
+// unused, so the labels match as typed (Shift+G for G).
+let activeElevator: Elevator | null = null
+export function elevatorKey(e: KeyboardEvent): boolean {
+    if (!activeElevator) return false
+    if (e.key === 'Escape') { uiElevatorDone(); return true }
+    if (e.key.length !== 1) return false
+    const idx = activeElevator.levelLabels.slice(0, activeElevator.buttonCount).indexOf(e.key)
+    if (idx === -1) return false
+    $id('elevatorButton' + (idx + 1)).click()
+    return true
+}
+
 export function uiElevatorDone() {
+    activeElevator = null
     globalState.uiMode = UIMode.none
     hidev($id('elevatorBox'))
 
@@ -76,6 +91,7 @@ export function uiElevatorDone() {
 
 export function uiElevator(elevator: Elevator) {
     globalState.uiMode = UIMode.elevator
+    activeElevator = elevator
     const art = lookupInterfaceArt(elevator.type)
     dbg('map', `[Elevator] art: ${art}`)
     dbg('map', `[Elevator] buttons: ${elevator.buttonCount}`)

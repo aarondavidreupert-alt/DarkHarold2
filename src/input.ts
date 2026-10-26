@@ -50,6 +50,7 @@ import { gameHandleKey } from './hotkeys.js'
 import { closeInventory } from './ui_inventory.js'
 import { automapKey, closeAutomap } from './ui_automap.js'
 import { lootKey } from './ui_loot.js'
+import { elevatorKey } from './ui_elevator.js'
 import { playerUse, cancelSkillTargeting } from './playerUse.js'
 import { primaryActionIcon, uiPrimaryAction } from './ui_contextmenu.js'
 
@@ -158,6 +159,8 @@ function closeWindowKey(e: KeyboardEvent): boolean {
         case UIMode.pipBoy: // pipboy.cc pipboyOpen: Esc, Return, P, Z
             if (k === 'Escape' || k === 'Enter' || k === 'p' || k === 'z') { closePipBoy(); return true }
             return false
+        case UIMode.elevator: // elevator.cc elevatorSelectLevel: Esc, the floor labels
+            return elevatorKey(e)
         case UIMode.loot: // inventory.cc inventoryOpenLooting / Stealing: Esc, A
             return lootKey(e)
         case UIMode.inventory: // inventory.cc inventoryOpen: Esc, I

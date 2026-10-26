@@ -16,6 +16,7 @@ limitations under the License.
 Scripting system/engine for DarkFO
 */
 
+import { returnToMainMenu } from './mainMenuReturn.js'
 import { Events } from './events.js'
 import { activeAssetMods, assetLayer, assetUrl } from './modAssets.js'
 import { sfallIniGetInt, sfallIniGetString, sfallIniSet } from './sfallIni.js'
@@ -863,7 +864,7 @@ export module Scripting {
                     dbg('script', 'metarule(13): signal end game')
                     // CE: _game_user_wants_to_quit = 2 — the game loop ends and returns to the main
                     // menu once the script has finished (as after the end slides, endgame.ts)
-                    setTimeout(() => location.reload(), 0)
+                    setTimeout(() => returnToMainMenu(), 0)
                     return 0
                 }
                 case 14:

@@ -5,6 +5,7 @@ import globalState from '../globalState.js'
 import { getFileText } from '../util.js'
 import { dbgWarn } from '../logger.js'
 import { assetUrl } from '../modAssets.js'
+import { Config } from '../config.js'
 
 // Slide canvas dimensions (CE: ENDGAME_ENDING_WINDOW_WIDTH/HEIGHT)
 const SLIDE_W = 640
@@ -15,7 +16,10 @@ const SLIDE_H = 480
 // CE: endgame.cc:endgameEndingSubtitlesLoad (0x4403FC)
 // File: data/text/english/cuts/<baseName>.txt
 // Format: each line "N:subtitle text" — text is everything after the first ':'.
+// Only with the subtitles preference (CE endgame.cc:595 gEndgameEndingSubtitlesEnabled =
+// settings.preferences.subtitles; the death screen too, main.cc showDeath).
 function loadSubtitleLines(baseName: string): string[] {
+    if (!Config.ui.subtitles) return []
     try {
         const raw = getFileText(`data/text/english/cuts/${baseName}.txt`)
         const lines: string[] = []

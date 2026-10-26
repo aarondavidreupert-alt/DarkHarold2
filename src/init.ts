@@ -29,6 +29,7 @@ import { SCREEN_HEIGHT, SCREEN_WIDTH } from './renderer.js'
 import { saveLoadInit } from './saveload.js'
 import { drawAC, drawHP, initUI, uiDrawWeapon, uiLog } from './ui.js'
 import { initMainMenu, showMainMenu } from './ui_mainmenu.js'
+import { takeMainMenuReturn } from './mainMenuReturn.js'
 import { initCharacterCreator } from './ui_charactercreator.js'
 import { initCharacterSelector, showCharacterSelector } from './ui_charselect.js'
 import { Worldmap } from './worldmap.js'
@@ -123,7 +124,7 @@ export function initGame() {
         // movies' real-time uiMode switches would land in the middle of its steps.
         if (crawlParam) {
             // nothing: autocrawler.ts starts the crawl once the map has loaded
-        } else if (Config.ui.skipOpeningMovies) {
+        } else if (Config.ui.skipOpeningMovies || takeMainMenuReturn()) {
             showMainMenu()
         } else {
             void gameMoviePlay(MOVIE_IPLOGO, GAME_MOVIE_FADE_IN)

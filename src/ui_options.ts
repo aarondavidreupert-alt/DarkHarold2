@@ -22,6 +22,7 @@ limitations under the License.
 // savePreferences, getVolumeValue) lives in ui_options/preferences.ts per
 // wiki/ts-split-refactor.md §24; re-exported here.
 
+import { returnToMainMenu } from './mainMenuReturn.js'
 import { Config } from './config.js'
 import { Widget } from './ui_widget.js'
 import { CE_COLOR, font1, font3, font4, FontWidget, FontRenderer, FoText } from './ui_font.js'
@@ -672,12 +673,12 @@ export function changeBrightness(dir: 1 | -1): void {
 }
 
 // game.cc showQuitConfirmationDialog — misc.msg 0 "Are you sure you want to quit?";
-// yes leaves to the main menu (DH2: reload the page).
+// yes leaves to the main menu (returnToMainMenu).
 export async function quitConfirmation(): Promise<void> {
     const text = getMessage('misc', 0) ?? 'Are you sure you want to quit?'
     if (await showConfirm(text)) {
         optionsWindow?.close()
-        window.location.reload()
+        returnToMainMenu()
     }
 }
 

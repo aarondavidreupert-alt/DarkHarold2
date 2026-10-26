@@ -21,6 +21,7 @@
 //   endgame/deathEndings.ts — selection + filename helpers
 //   endgame/slideRender.ts  — slide rendering primitives + overlay
 
+import { returnToMainMenu } from './mainMenuReturn.js'
 import { showConfirm } from './ui_dialog.js'
 import { Scripting } from './scripting.js'
 import globalState from './globalState.js'
@@ -109,8 +110,8 @@ export async function playMovie(): Promise<void> {
 
     const wantsContinue = await showContinueDialog()
     if (!wantsContinue) {
-        dbg('endgame', 'player chose to quit — reloading page')
-        location.reload()
+        dbg('endgame', 'player chose to quit — back to the main menu')
+        returnToMainMenu()
     }
 }
 
@@ -128,7 +129,7 @@ export function dudeDeathScene(): void {
     setupDeathEnding(DEATH_REASON_DEATH)
     playDeathEnding()
         .catch((e: unknown) => dbgWarn('endgame', 'death scene error: ' + String(e)))
-        .then(() => location.reload())
+        .then(() => returnToMainMenu())
 }
 
 export async function playDeathEnding(): Promise<void> {
