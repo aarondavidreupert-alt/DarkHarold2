@@ -22,9 +22,7 @@ DarkHarold2/
 │   └── pro/         Proto lookup indexes (proto_items.json, etc.)
 ├── maps/            Extracted map JSON + per-map image lists (*.json, *.images.json) — git-ignored
 ├── img/             DH2's own images (hex_outline.png: the hex cursor outline, loaded by mapLoader.ts)
-├── lib/             Third-party JS, vendored without version info: wasmoon/ (Lua 5.4 in WebAssembly, MIT,
-│                    added 2026-10-19), pathfinding-browser.js (PathFinding.js from DarkFO; unused since the
-│                    CE hex A*, still loaded by play.html — cleanup_audit CA14)
+├── lib/             Third-party JS: wasmoon/ (Lua 5.4 in WebAssembly, MIT, 1.16.0, added 2026-10-19)
 ├── audio/           Extracted WAV audio (music/ and sfx/) — git-ignored
 ├── mods/            Mod folders (git-ignored but mods_order.txt): Lua mods (mods/<name>/scripts/), and the
 │                    ones build_mods makes from the install's mods (mods/upu/ + manifest.json, modAssets.ts)
@@ -45,15 +43,13 @@ DarkHarold2/
 │   ├── fonts.py           FON font extraction
 │   ├── convertAudio.py    ACM → WAV (acmDecoder.py: CE sound_decoder.cc port, no ffmpeg)
 │   ├── stitchWorldmap.py  World map tiles → art/worldmap.png (stitch_worldmap stage)
-│   ├── mpserv.py          Multiplayer WebSocket server (unrelated to asset conversion)
 │   ├── convertLST.py      LST → JSON pre-bake (lut/lst/)
 │   ├── convertPRO.py      Standalone PRO converter (debug)
 │   ├── convertEndgame.py  Endgame slide extraction
-│   ├── parseCritTable.py  Extracts criticalTables.json from fallout2.exe
-│   └── oldPy/             Superseded/experimental script iterations — reference only
+│   └── parseCritTable.py  Extracts criticalTables.json from fallout2.exe
 ├── play.html        Main entry point (loads js/main.js)
 ├── ui.css           All UI/HUD styling
-├── tsconfig.json    TypeScript config (target: ES2021, outDir: js/, strict)
+├── tsconfig.json    TypeScript config (target: ES2021, outDir: js/, noImplicitAny; strictNullChecks off)
 ├── package.json     npm devDeps only: typescript, eslint
 ├── Pipfile          Python deps for asset pipeline
 ├── CLAUDE.md        Claude Code project instructions
@@ -249,10 +245,10 @@ The engine consumes only pre-baked JSON/PNG — no runtime DAT parsing.
 | DAT extraction | `tools/dat2.py` | raw files |
 | FRM → PNG | `tools/exportImagesPar.py` / `exportImagesPar_updated.py` | `art/**/*.png` |
 | PRO → JSON | `tools/exportPRO.py` | `proto/**/*.json` |
-| MAP → JSON | `tools/fomap.py` (`tools/oldPy/convertMaps.py` is an unused parallel variant) | `maps/*.json`, `maps/*.images.json` |
+| MAP → JSON | `tools/fomap.py` | `maps/*.json`, `maps/*.images.json` |
 | LST → JSON | `tools/convertLST.py` | `lut/lst/*.json` |
 | PRO indexes | `tools/convertPRO.py` (no pipeline stage; nothing reads its output) | `lut/pro/*.json` (proto lookup) |
-| AAF/FON fonts | `tools/fonts.py` (`tools/oldPy/fonts2.py`, `fonts7alphawhite.py`, `data_fonts*.py` are superseded iterations) | `art/fonts/` |
+| AAF/FON fonts | `tools/fonts.py` | `art/fonts/` |
 | ACM → WAV | `tools/convertAudio.py` (`export_audio` stage, default; `tools/acmDecoder.py`, a port of CE `sound_decoder.cc`) | `audio/**/*.wav` |
 | AAF/FON fonts → PNG atlas + web font | `tools/exportFonts.py` (`export_fonts` stage; the `.woff` needs fontTools) | `art/fonts/font<N>_aaf.png/.json/.woff`, `font<N>_fon.png/.json` |
 | MVE → WebM | `tools/convertMovies.py` (`export_movies` stage; needs ffmpeg) | `art/cuts/*.webm` + `.json` |

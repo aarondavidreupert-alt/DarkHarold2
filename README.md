@@ -166,8 +166,6 @@ pipenv run python tools/pipeline_gui.py
 | [`tools/convertEndgame.py`](tools/convertEndgame.py) | Endgame slide extraction |
 | [`tools/parseCritTable.py`](tools/parseCritTable.py) | EXE table extractor → `lut/` |
 | [`tools/stitchWorldmap.py`](tools/stitchWorldmap.py) | World map tiles → `art/worldmap.png` (`stitch_worldmap` stage) |
-| [`tools/mpserv.py`](tools/mpserv.py) | Multiplayer WebSocket server (unrelated to asset conversion) |
-| [`tools/oldPy/`](tools/oldPy/) | Superseded/experimental script iterations, kept for reference only |
 | [`wiki/animation.md`](wiki/animation.md) → "imageMap.json" | Atlas/imageMap.json schema reference |
 
 ---
