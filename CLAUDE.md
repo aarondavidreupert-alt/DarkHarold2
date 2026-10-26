@@ -7,7 +7,7 @@ DarkHarold2 is a semi-faithful browser recreation of Fallout 2, forked from the 
 - Rendering: WebGL 2.0 (no canvas 2D fallback)
 - Audio: Web Audio API (ACM source files, converted to WAV by pipeline)
 - Asset pipeline: Python 3.9+ / Pipenv, scripts under `tools/` (`tools/setup.py` orchestrates full extraction; `tools/pipeline_gui.py` is a Tkinter GUI front-end)
-- Package management: npm (TS devDeps only — no runtime npm modules), Pipenv (Python). Browser libraries are vendored under `lib/` (pathfinding-browser.js, wasmoon/ — Lua 5.4 for the Lua script backend)
+- Package management: npm (TS devDeps only — no runtime npm modules), Pipenv (Python). Browser libraries are vendored under `lib/` (wasmoon/ — Lua 5.4 for the Lua script backend)
 - No native dependencies — browser-safe only
 
 ## Build Commands

@@ -12,7 +12,7 @@
 | Part | File | What it does |
 |------|------|--------------|
 | Decompiler | `tools/int2lua.py` | `.int` bytecode → Lua 5.4. Pipeline stage `decompile_scripts` writes `data/scripts/<name>.lua` next to each `.int` |
-| Lua engine | `lib/wasmoon/` | wasmoon 1.16.0 (Lua 5.4 in WebAssembly, MIT, vendored like `lib/pathfinding-browser.js`; loaded by `play.html` as the `wasmoon` global) |
+| Lua engine | `lib/wasmoon/` | wasmoon 1.16.0 (Lua 5.4 in WebAssembly, MIT, vendored in `lib/`; loaded by `play.html` as the `wasmoon` global) |
 | Prelude | `src/lua/prelude.ts` | Lua side: SSL semantics, the per-script sandbox, coroutine driver for dialogue |
 | Runtime | `src/lua/luaRuntime.ts` | TS side: starts the engine, turns a `Script` object into a Lua-backed one (`attachLuaScript`) |
 | Hook | `src/scripting.ts` `loadScript` / `loadLuaScript` | With `Config.scripting.backend === 'lua'`, loads `<name>.lua`; no file or a load error → the `.int` runs |

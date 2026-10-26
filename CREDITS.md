@@ -47,7 +47,7 @@ are on the linked pages.
 
 - **wasmoon** — Gabriel Francisco (MIT License): Lua 5.4 in WebAssembly, runs the decompiled scripts.
 - **PathFinding.js** — qiao and contributors, including Gerard Meier and aniero
-  (<https://github.com/qiao/PathFinding.js>).
+  (<https://github.com/qiao/PathFinding.js>); DarkFO's path finder, vendored until 2026-10-26 (replaced by the CE hex A*).
 
 ## Adding to this file
 
