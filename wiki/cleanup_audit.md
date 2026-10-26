@@ -28,6 +28,20 @@ Status column: **fixed** (this pass), **open** (RISKY, waiting), **no action**.
 | `as any` in `src/` | 694 (Combat.ts 158, scripting.ts 63, main.ts 50, render/camera.ts 48, object/Obj.ts 31) |
 | TODO / FIXME / XXX / HACK in `src/` | 107, none with an owner (mostly inherited from DarkFO) |
 
+## After the SAFE fixes
+
+| Check | Result |
+|---|---|
+| `npx tsc -p .` | 0 errors |
+| ESLint | 5490 problems: 4051 errors, 1439 warnings. `no-unused-vars` 195 → 104; the +3 errors are `curly` counts that moved with the console code (same code, counted in new files) |
+| `js/` | apart from the intended edits, every changed file compiles identical (trailing commas aside); evaluation order of the existing modules unchanged |
+| `main.ts` | 1045 → 370 lines |
+| `play.html` without `#dev` | `typeof window.setEggMode === 'undefined'`; `exportEventLog`, `globalState`, `Config` still defined |
+| `play.html#dev` | `blackBar()`, `lightingDebug()`, `setEggMode()` ... work |
+| `tools/luadiff.html` | 36 scripts, 12800 runs (69 cut short), 0 differing procedures, 70 runs where the VM threw (= baseline) |
+| Story crawler (`?crawl=story&maps=arvillag,klamall,kladwtwn,denbus1`) | before: VM then Lua, 4 maps / 6916 steps, Lua = VM on all 4. After: VM run identical to the VM run before (no repeat difference) and to the Lua trace; Lua run identical to VM and to the Lua run before. (The full 29-map run takes ~2.5 h per backend; the subset covers Arroyo, Klamath and Den) |
+| Play test | `play.html?artemple`: Temple of Trials loads, the player walks; `play.html?klamall` (there is no `klamath` map): the citizen's `talk_p_proc` answers, `A` starts combat (32 combatants), Enter ends it |
+
 ## Findings
 
 ### Debug console and window globals
