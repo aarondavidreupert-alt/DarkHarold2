@@ -1,4 +1,12 @@
 {
+  "name": "darkharold2",
+  "private": true,
+  "description": "Browser recreation of Fallout 2 (TypeScript + WebGL 2), forked from DarkFO",
+  "license": "Apache-2.0",
+  "scripts": {
+    "build": "tsc -p .",
+    "lint": "eslint \"src/**/*.ts\""
+  },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^5.25.0",
     "@typescript-eslint/parser": "^5.25.0",

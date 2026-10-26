@@ -182,10 +182,10 @@ export const Config = {
         soundsEnabled: true,
         musicEnabled: true,
         speechEnabled: true,
-        debug: true, // set true to enable debug/cheat utilities in src/debug.ts
+        debug: true, // debug/cheat utilities (src/debug.ts) and the AutoCrawler; on by default
         // DH2 developer hotkeys (teleport h, elevation q/e, layer toggles r/f/o/w, tile
         // inspector i, kill k, ...; none of them exist in CE). Off so they can't fire
-        // while playing or typing; console: setDevKeys(true).
+        // while playing or typing; console (play.html#dev): setDevKeys(true).
         devKeys: false,
         // Walk/run movement model (console: setWalkModel('ce' | 'dh2' | 'smooth')):
         //   'ce'     — CE animation.cc _object_move: per-frame FRM deltas accumulate, the
