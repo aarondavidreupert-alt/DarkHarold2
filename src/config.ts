@@ -52,7 +52,7 @@ export const Config = {
         // [dh2] mouse_wheel: 'zoom' (default, DH2) zooms the map; 'ce' scrolls it a step
         // (game.cc gameHandleKey → mapScroll; up / down, sideways with a tilt wheel)
         mouseWheel: 'zoom' as 'zoom' | 'ce',
-        // [dh2] save_slots: 'dh2' (default) — any number of slots, a free one always at the end,
+        // [dh2] save_slots: 'dh2' (default) — any number of slots (at least 20, scrolling), a free one at the end,
         // DELETE / Del removes a save; 'ce' — loadsave.cc: ten slots, no deleting (the
         // ten oldest saves fill them; any more stay stored but aren't listed)
         saveSlots: 'dh2' as 'ce' | 'dh2',

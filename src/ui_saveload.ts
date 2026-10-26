@@ -23,7 +23,7 @@ limitations under the License.
 //     selected slot 32747
 //   - info box: character name at (396, 254), "DD MON YYYY   HHMM" at (397, 266), city +
 //     map wrapped at 164 px from (399, 279), 12 px apart; "Empty." (114) at (404, 262)
-// DH2 additions: any number of slots (always one free slot when saving) with a scroll
+// DH2 additions: any number of slots (at least 20, always one free slot when saving) with a scroll
 // bar and mouse wheel, and deleting a save (DELETE button / Del key, with confirmation).
 
 import { makePanelDraggable } from './ui_drag.js'
@@ -47,7 +47,8 @@ const LIST_W = 230
 const LIST_H = 353
 const SLOT_H = 34          // lineHeight + 2 * lineHeight + 4
 const VISIBLE_SLOTS = 10
-const MIN_SLOTS = 10
+const MIN_SLOTS = 10       // CE's ten slots ([dh2] save_slots=ce)
+const DH2_MIN_SLOTS = 20   // DH2: always more than a screenful, so the list scrolls
 
 function lsg(id: number, fallback: string): string {
     return getMessage('lsgame', id) ?? fallback
@@ -174,7 +175,8 @@ export function uiSaveLoad(isSave: boolean, quick = false, onCancel: (() => void
         slots = [...saves]
         if (Config.ui.saveSlots === 'ce') slots = slots.slice(0, MIN_SLOTS) // [dh2] save_slots=ce
         else if (isSave || slots.length === 0) slots.push(null)
-        while (slots.length < MIN_SLOTS) slots.push(null)
+        const min = Config.ui.saveSlots === 'ce' ? MIN_SLOTS : DH2_MIN_SLOTS
+        while (slots.length < min) slots.push(null)
         cursor = Math.min(cursor, slots.length - 1)
     }
 
