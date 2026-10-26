@@ -252,6 +252,40 @@ export async function showCredits(overlay: HTMLDivElement): Promise<void> {
 // ---------- slide renderers ----------
 
 // CE: endgame.cc:endgameEndingRenderStaticScene (0x440004)
+// CE main.cc showDeath: with the subtitles preference, the whole text/english/cuts/<name>.txt
+// (_mainDeathGrabTextFile: newlines read as spaces) word-wrapped to 560 px in one block on
+// black at the bottom of DEATH.FRM, white — no timing.
+export async function showDeathScreen(voiceBaseName: string, overlay: HTMLDivElement): Promise<void> {
+    const [canvas, ctx] = createSlideCanvas(overlay)
+    await loadImageToCanvas(ctx, 'art/intrface/death.png')
+    if (Config.ui.subtitles) {
+        let text = ''
+        try { text = getFileText(`data/text/english/cuts/${voiceBaseName}.txt`).replace(/\r?\n/g, ' ').trim() } catch (_e) { text = '' }
+        if (text) {
+            const block = document.createElement('div')
+            block.style.cssText = [
+                'position:absolute', 'left:50%', 'bottom:8px', 'transform:translateX(-50%)', 'width:560px',
+                'background:#000', 'color:#fff', 'font-size:12px', 'font-family:monospace', 'line-height:1.25',
+                'padding:1px 2px', 'pointer-events:none',
+            ].join(';')
+            block.textContent = text
+            overlay.appendChild(block)
+        }
+    }
+    const audio = playNarratorAudio(voiceBaseName)
+    await fadeIn(canvas, 500)
+    // CE: until any input, the end of the speech, or 3 s without speech
+    await new Promise<void>((resolve) => {
+        let resolved = false
+        const done = () => { if (!resolved) { resolved = true; document.removeEventListener('keydown', done); resolve() } }
+        document.addEventListener('keydown', done, { once: true })
+        overlay.addEventListener('click', done, { once: true })
+        if (audio) audio.addEventListener('ended', done, { once: true })
+        else setTimeout(done, 3000)
+    })
+    audio?.pause()
+}
+
 export async function showStaticSlide(
     imagePath: string | null,
     voiceBaseName: string,

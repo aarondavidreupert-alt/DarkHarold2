@@ -37,8 +37,8 @@ export function scriptHand(c: Critter): Hand {
 // critter's art follows (the weapon drawn when it is the active hand).
 // `animate` (the script opcodes): CE _invenWieldFunc registers animationRegisterTakeOutWeapon
 // for the new weapon when the map is showing (!isoIsDisabled) and the hand is the one in use.
-// (CE's ANIM_PUT_AWAY of the old weapon first, and the unwield's, aren't played: the hand
-// changes at once, the art would have to lag behind.)
+// (CE's ANIM_PUT_AWAY of the old weapon first isn't played here: a script's wield changes the
+// hand at once; the AI's switch, which waits, uses invenWieldAnimated.)
 export function invenWield(c: Critter, item: Obj, hand: Hand, animate = false): void {
     const a = c as any
     if (item.subtype === 'armor') {
@@ -88,12 +88,47 @@ function mapShowing(): boolean {
     return globalState.uiMode === UIMode.none
 }
 
+/** CE _invenWieldFunc(animate) for a turn that waits (the AI's weapon switch): ANIM_PUT_AWAY of
+ *  the drawn weapon, the new item in the hand, its take-out (animationRegisterTakeOutWeapon),
+ *  then `done`. False — wielded at once, `done` not called — when nothing is animated. */
+export function invenWieldAnimated(c: Critter, item: Obj, hand: Hand, done: () => void): boolean {
+    if (hand !== scriptHand(c) || !mapShowing() || c.inAnim() || c.dead || item.subtype === 'armor') {
+        invenWield(c, item, hand)
+        return false
+    }
+    const takeOut = () => {
+        if (critterWeaponCode(c) > 0 && c.hasAnimation('weapon-draw')) {
+            playCharAnimSfx(c, ANIM.takeOut, critterWeaponCode(c))
+            c.staticAnimation('weapon-draw', () => { c.clearAnim(); done() })
+        } else {
+            done()
+        }
+    }
+    if (critterWeaponCode(c) > 0 && c.hasAnimation('weapon-holster')) {
+        playCharAnimSfx(c, ANIM.putAway)
+        c.staticAnimation('weapon-holster', () => { c.clearAnim(); invenWield(c, item, hand); takeOut() })
+        return true
+    }
+    invenWield(c, item, hand)
+    if (critterWeaponCode(c) > 0 && c.hasAnimation('weapon-draw')) { takeOut(); return true }
+    return false
+}
+
 // CE _invenUnwieldFunc(critter, hand): the item leaves the hand (an NPC keeps it in
 // its inventory, the dude gets it back there); the art drops the weapon.
-export function invenUnwield(c: Critter, hand: Hand): void {
+// `animate` (inven_unwield): CE _invenUnwieldFunc's ANIM_PUT_AWAY on a live map — the hand is
+// empty at once, the put-away plays with the weapon's art (staticAnimation takes it now) and
+// the critter stands unarmed after it.
+export function invenUnwield(c: Critter, hand: Hand, animate = false): void {
     const a = c as any
     const item = a[hand]
     if (!isReal(item)) return
+    const holster = animate && hand === scriptHand(c) && mapShowing() && !c.inAnim() && !c.dead
+        && critterWeaponCode(c) > 0 && c.hasAnimation('weapon-holster')
+    if (holster) {
+        playCharAnimSfx(c, ANIM.putAway)
+        c.staticAnimation('weapon-holster', () => c.clearAnim())
+    }
     item.flags = (item.flags ?? 0) & ~OBJECT_IN_ANY_HAND
     if (c.isPlayer) {
         c.inventory.push(item)
@@ -101,7 +136,7 @@ export function invenUnwield(c: Critter, hand: Hand): void {
     } else {
         a[hand] = (c.constructor as any).makeFist?.() ?? undefined
     }
-    if (hand === scriptHand(c)) c.setIdleArt?.()
+    if (hand === scriptHand(c) && !holster) c.setIdleArt?.() // (else clearAnim after the put-away)
     refreshStealthState(c)
     if (c.isPlayer) uiDrawWeapon()
 }

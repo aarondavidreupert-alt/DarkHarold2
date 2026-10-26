@@ -20,6 +20,7 @@ limitations under the License.
 
 import { stopTalkingHead } from './talkingHead.js'
 import globalState from './globalState.js'
+import { Events } from './events.js'
 import { Critter } from './object.js'
 import { objectBoundingBox } from './renderer.js'
 import { centerCamera, getCenterTile } from './render/camera.js'
@@ -72,7 +73,15 @@ export function uiAnimateBox($el: HTMLElement, origin: number | null, target: nu
  * not dialogue-list options, and the background frame swaps between
  * di_talk.frm (regular NPC) / di_talkp.frm (party member) (line 4328-4330).
  */
+// CE game_dialog.cc _gdialogUpdatePartyStatus: recruited or dismissed in the middle of a
+// dialogue, the speaker's window is rebuilt — di_talkp with Combat Control, or di_talk
+let dialogueSpeaker: Critter | undefined
+Events.on('partyChanged', () => {
+    if (dialogueSpeaker && $id('dialogueBox').style.visibility === 'visible') setupDialogueActionButtons(dialogueSpeaker)
+})
+
 function setupDialogueActionButtons(target: Critter | undefined): void {
+    dialogueSpeaker = target
     const $barterBtn = $id('dialogueBarterButton')
     const $controlBtn = $id('dialogueCombatControlButton')
     $id('dialogueReviewButton').onclick = () => uiShowDialogueReview()

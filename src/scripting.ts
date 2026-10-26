@@ -2936,7 +2936,7 @@ export module Scripting {
         inven_unwield() {
             const self = this.self_obj as Critter
             if (!self || self.type !== 'critter') return
-            invenUnwield(self, scriptHand(self))
+            invenUnwield(self, scriptHand(self), true)
         }
         // CE opGameUiIsDisabled (0x8135)
         game_ui_is_disabled() {

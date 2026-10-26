@@ -23,6 +23,7 @@ import { SkillSet } from './char.js'
 import { loadPRO } from './pro.js'
 import { uiLog } from './ui_hud.js'
 import { Scripting } from './scripting.js'
+import { Events } from './events.js'
 import { AiPacket, Disposition, findCompanionPacketForDisposition, getAiPacket } from './aiPackets.js'
 
 // Party member system for DarkFO
@@ -117,6 +118,7 @@ export class Party {
         // pending script timers are dropped
         const list = Scripting.timeEventList
         for (let i = list.length - 1; i >= 0; i--) if (list[i].obj === obj && list[i].script) list.splice(i, 1)
+        Events.emit('partyChanged', { obj }) // CE partyMemberAdd → _gdialogUpdatePartyStatus
     }
 
     // CE ref: party_member.cc:1454 _partyMemberIncLevels — called once per PC level-up
@@ -171,6 +173,7 @@ export class Party {
     removePartyMember(obj: Critter) {
         dbg('party', `party member ${(obj as any).name ?? obj.pid} removed`)
         if (!arrayRemove(this.party, obj)) throw Error('Could not remove party member')
+        Events.emit('partyChanged', { obj }) // CE partyMemberRemove → _gdialogUpdatePartyStatus
     }
 
     getPartyMembers(): Critter[] {

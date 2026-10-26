@@ -26,7 +26,7 @@ import { hexDirectionTo, hexDistance, hexFromScreen, hexInDirection, hexInDirect
 import globalState from '../globalState.js'
 import { eventLogPush, dbg, dbgWarn } from '../logger.js'
 import { cloneItem, createObjectWithPID, Critter, itemIsHidden, Obj, PROTO_ID_FLARE, PROTO_ID_LIT_FLARE, refillHand, useFlare } from '../object.js'
-import { invenWield } from '../inventoryWield.js'
+import { invenWield, invenWieldAnimated } from '../inventoryWield.js'
 import { Player } from '../player.js'
 import { Scripting } from '../scripting.js'
 import { drawAC, drawAP, drawHP, uiDrawWeapon, uiEndCombat, uiEndButtonsGreenLights, uiEndButtonsRedLights, uiLog, uiStartCombat } from '../ui.js'
@@ -825,6 +825,9 @@ export class Combat {
         if (hex !== null) obj.orientation = hex.direction
 
         var weaponObj = obj.equippedWeapon
+        // CE combat_ai.cc _ai_pick_hit_mode: an item that isn't ITEM_TYPE_WEAPON — the Shiv
+        // (itemGetType MISC) — makes the AI punch (HIT_MODE_PUNCH); the Shiv stays in hand
+        if (!obj.isPlayer && weaponObj && weaponObj.pid === 383) weaponObj = Critter.makeFist()
         var who = obj.isPlayer ? 'You' : obj.name
 
         // Early ammo guard — no animation, no AP loss for any attacker
@@ -1409,22 +1412,23 @@ export class Combat {
     // wields its best inventory weapon (_inven_wield, HAND_RIGHT). It keeps punching
     // only if the target is an unarmed biped it can punch (throw-punch FRM) and within
     // reach; out of reach CE switches too (COMBAT_BAD_SHOT_OUT_OF_RANGE, weapon ==
-    // nullptr). Returns true if a weapon was wielded.
-    private aiWieldInventoryWeapon(attacker: Critter, defender: Critter): boolean {
+    // nullptr). 'animating' while _inven_wield's take-out plays (then `again`), 'wielded' when
+    // the weapon is in hand at once, 'none' without a switch.
+    private aiWieldInventoryWeapon(attacker: Critter, defender: Critter, again: () => void): 'none' | 'wielded' | 'animating' {
         const inHand = attacker.equippedWeapon
-        if (inHand && inHand.pid !== undefined) return false
+        if (inHand && inHand.pid !== undefined) return 'none'
         const defenderBiped = ((defender.pro as any)?.extra?.bodyType ?? 0) === 0
         const defenderUnarmed = defenderUnarmedNow(defender) // CE: the fid's weapon code is 0
         const canPunch = !!globalState.imageInfo[attacker.getBase() + 'ap']
         const punchRange = inHand?.weapon?.getMaximumRange(1) ?? 1
         const inReach = hexDistance(attacker.position, defender.position) <= punchRange
-        if (defenderBiped && defenderUnarmed && canPunch && inReach) return false
+        if (defenderBiped && defenderUnarmed && canPunch && inReach) return 'none'
         const weapon = Combat.aiSearchInvenWeap(attacker, defender)
-        if (!weapon) return false
+        if (!weapon) return 'none'
         ;(attacker as any).activeHand = 'rightHand'
-        invenWield(attacker, weapon, 'rightHand') // _inven_wield(attacker, weapon, HAND_RIGHT)
         dbg('ai', `[AI] ${actorName(attacker)} wields ${weapon.name} (CE _ai_switch_weapons)`)
-        return true
+        // _inven_wield(attacker, weapon, HAND_RIGHT), animated
+        return invenWieldAnimated(attacker, weapon, 'rightHand', again) ? 'animating' : 'wielded'
     }
 
     // CE combat_ai.cc _ai_pick_hit_mode. DH2 weapons only expose a burst secondary,
@@ -2422,7 +2426,8 @@ export class Combat {
     // CE _ai_try_attack (weapon == nullptr) → _ai_switch_weapons: with nothing in hand
     // wield the best inventory weapon, else fetch one lying within reach.
     private aiWieldOrRetrieve(obj: Critter, target: Critter, again: () => void): 'acting' | 'retry' | 'done' {
-        if (this.aiWieldInventoryWeapon(obj, target)) return 'retry'
+        const wielded = this.aiWieldInventoryWeapon(obj, target, again)
+        if (wielded !== 'none') return wielded === 'animating' ? 'acting' : 'retry'
         const inHand = obj.equippedWeapon
         if (inHand && inHand.pid !== undefined) return 'retry'
         const defenderBiped = ((target.pro as any)?.extra?.bodyType ?? 0) === 0
@@ -2439,8 +2444,9 @@ export class Combat {
         const best = Combat.aiSearchInvenWeap(obj, target)
         if (best) {
             ;(obj as any).activeHand = 'rightHand'
-            invenWield(obj, best, 'rightHand') // _inven_wield(attacker, weapon, HAND_RIGHT)
             dbg('ai', `[AI] ${actorName(obj)} wields ${best.name} (CE _ai_switch_weapons)`)
+            // _inven_wield(attacker, weapon, HAND_RIGHT): the put-away and take-out play first
+            if (invenWieldAnimated(obj, best, 'rightHand', again)) return 'acting'
             return this.checkBadShot(obj, target, false) === 'notEnoughAp' ? 'fail' : 'retry'
         }
         const found = this.aiSearchEnviron(obj, 'weapon', target)

@@ -27,7 +27,7 @@ import { Scripting } from './scripting.js'
 import globalState from './globalState.js'
 import { getFileJSON, getMessage } from './util.js'
 import { dbg, dbgWarn } from './logger.js'
-import { createOverlay, removeOverlay, showStaticSlide, showPanningSlide, showCredits } from './endgame/slideRender.js'
+import { createOverlay, removeOverlay, showDeathScreen, showStaticSlide, showPanningSlide, showCredits } from './endgame/slideRender.js'
 import { getDeathEndingFileName, setupDeathEnding, DEATH_REASON_DEATH } from './endgame/deathEndings.js'
 
 export { EndgameDeathEnding, DEATH_REASON_DEATH, DEATH_REASON_TIMEOUT, setupDeathEnding, getDeathEndingFileName } from './endgame/deathEndings.js'
@@ -138,7 +138,7 @@ export async function playDeathEnding(): Promise<void> {
         ? selected.slice('narrator/'.length)
         : selected
     const overlay = createOverlay()
-    // CE ref: main.cc:390 — DEATH.FRM is interface art #309, blitted as the death background
-    await showStaticSlide('art/intrface/death.png', baseName, overlay)
+    // CE ref: main.cc:390 showDeath — DEATH.FRM (interface art #309) with the text block
+    await showDeathScreen(baseName, overlay)
     removeOverlay()
 }
