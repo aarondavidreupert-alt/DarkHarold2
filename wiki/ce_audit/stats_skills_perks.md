@@ -136,12 +136,12 @@ Top findings (by severity):
 | critterUpdateDerivedStats | src/skills.ts:117-128 live dependencies | ⚠️ | HIGH | Formulas match (`15+ST+2EN`, `AG/2+5`, `AG`, `max(ST−5,1)`, `25ST+25`, `2PE`, `max(EN/3,1)`, `LK`, 0, `2EN`, `5EN`) but Max HP reads live ST/EN (STAT-01) and min/max clamp after deltas (STAT-02). |
 | statGetName / statGetDescription / statGetValueDescription / statGetFrmId | ui_character/statPanels.ts | 🚫 | | UI. |
 | pcGetStat | `stats.get('Level'/'Experience'/…)`, `skills.skillPoints` | ✅ | | |
-| pcSetStat | src/scripting.ts:1566 `set_pc_stat` (sfall) | ⚠️ | LOW | CE: XP ≥ current → set then `pcAddExperienceWithOptions(0)` (level-ups), lower → `pcSetExperience` (level down, HP loss); out-of-range rejected (−2/−3). DH2 sets XP/level directly and clamps. Vanilla scripts don't call it. |
+| pcSetStat | src/scripting.ts:1566 `set_pc_stat` (sfall) | 🟡 PARTLY FIXED (2026-10-26) | LOW | CE: XP ≥ current → set then `pcAddExperienceWithOptions(0)` (level-ups), lower → `pcSetExperience` (level down, HP loss); out-of-range rejected (−2/−3). DH2 sets XP/level directly and clamps. Vanilla scripts don't call it. — **2026-10-26:** XP: level-ups or pcSetExperience; −2 below 0 (the other stats keep DH2's clamps). |
 | pcGetExperienceForNextLevel / pcGetExperienceForLevel | src/player.ts:236 `xpForLevel` | ✅ | LOW | Same values. CE returns −1 for level ≥ 99 (so level 98→99 is free in CE); unreachable in practice. |
 | pcStatGetName / pcStatGetDescription | stat.msg 400+/500+ | 🚫 | | |
 | statRoll | src/combat/Combat.ts:134, whoHitMe.ts:29, radiation.ts:138 (inline d10) | ✅ | | d10 ≤ stat + modifier. |
 | pcAddExperience / pcAddExperienceWithOptions | src/player.ts:240 `addExperience` | ⚠️ | MED | Swift Learner `rank*5*xp/100` (trunc) ✓, level loop ✓, msg 600 ✓, levelup sound ✓, HP/level `EN/2+2 + 4·Lifegiver` ✓ formula, party `incLevels` ✓. **Differs:** HP per level reads contaminated base EN (STAT-01); SP + perk flag granted at level-up instead of when the editor opens (`characterEditorUpdateLevel`, chareditor scope); no `DUDE_STATE_LEVEL_UP_AVAILABLE` (HUD LEVEL shows while SP > 0, src/ui_hud.ts:262); `a2=false` (Here and Now) not honoured; negative XP lets the base go below 0 (get() clamps). |
-| pcSetExperience | — | ❌ | LOW | Level-down path absent (only reached by pcSetStat with lower XP / Here-and-Now removal). |
+| pcSetExperience | — | ✅ FIXED (2026-10-26) | LOW | Level-down path absent (only reached by pcSetStat with lower XP / Here-and-Now removal). — **2026-10-26:** ported (setExperienceLower). |
 
 ### skill.cc
 

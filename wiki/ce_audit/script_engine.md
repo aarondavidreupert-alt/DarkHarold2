@@ -39,11 +39,11 @@ Top findings, most severe first:
 | gameTimeGetTime | gametime.ts `getTime` | ✅ | | |
 | gameTimeGetDate | gametime.ts `getDate` | ✅ | | Same result as CE's `(days+gStartDay)%365` walk from July, with gStartDay = 24 |
 | gameTimeGetHour | gametime.ts `getHourMilitary`; vm_bridge.ts:57 | ✅ | | Read live |
-| gameTimeGetTimeString | gametime.ts `getTimeString` | ⚠️ | LOW | DH2 shows `h:mm AM/PM`; CE shows `%d:%02d` in 24 h. Cosmetic |
+| gameTimeGetTimeString | gametime.ts `getTimeString` | ✅ FIXED (2026-10-26) | LOW | DH2 shows `h:mm AM/PM`; CE shows `%d:%02d` in 24 h. Cosmetic — **2026-10-26:** 24-hour. |
 | gameTimeSetTime | gametime.ts `setTime` | ✅ | | The 0 → 1 clamp is kept |
 | gameTimeAddTicks | gametime.ts `advanceTicks`; gameTick.ts:216-225 | 🟡 | LOW | The 13-year TIMEOUT check runs only on the 10 Hz tick path, not on a jump, so it fires on the next tick |
 | gameTimeAddSeconds | gametime.ts `advanceSeconds` | ✅ | | |
-| gameTimeScheduleUpdateEvent | gameTick.ts `lastMidnightDay`, `nextMapUpdateTick` | 🟡 | LOW | Midnight is a day-number compare. `nextMapUpdateTick` is never reset on map load; CE schedules +600 ticks from the load |
+| gameTimeScheduleUpdateEvent | gameTick.ts `lastMidnightDay`, `nextMapUpdateTick` | ✅ FIXED (2026-10-26) | LOW | Midnight is a day-number compare. `nextMapUpdateTick` is never reset on map load; CE schedules +600 ticks from the load — **2026-10-26:** the next map update 600 ticks after a load. |
 | gameTimeEventProcess | gameTick.ts `processMidnightForDay` | ✅ FIXED (2026-10-25) | LOW | Midnight unjam, story check and rads are done. CE skips the story check while a dialogue is active and skips everything while a movie plays; DH2 can run it from `game_time_advance` inside a dialogue — **Fixed 2026-10-25:** no story check during a dialogue ("Smaller ones"). |
 | _scriptsCheckGameEvents | gameTick.ts `scriptsCheckGameEvents` | ✅ | LOW | Day thresholds are hard-coded to the sfall defaults 90/180/270/360; CE reads them from ddraw.ini |
 | mapUpdateEventProcess | gameTick.ts:273-281 | ⚠️ | MED | SCR-04: blocked in combat |

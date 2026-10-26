@@ -67,7 +67,7 @@ None of these are listed in `wiki/known_bugs.md`. Related closed rows: IU1 (use_
 | itemGetActionPointCost | useItemOn.ts:40 `USE_ITEM_AP = 2`; `Weapon.getAttackAPCost` | ✅ MATCH | – | |
 | itemGetQuantity | `obj_is_carrying_obj_pid` scripting.ts:1301; inventory amounts | 🟡 PARTIAL | LOW | No recursion into containers (sfall-fixed CE) checked |
 | itemIsQueued | timeEventList scan in approxEq Obj.ts:924 | 🟡 PARTIAL | LOW | The barter refusal of queued items (inventory.cc:4735) was not verified |
-| itemReplace | — (useItemOn.ts `removeOne`) | 🟡 PARTIAL | LOW | After the last unit in a hand is used, CE moves an identical item from the inventory into the hand; DH2 leaves the hand empty |
+| itemReplace | — (useItemOn.ts `removeOne`) | ✅ FIXED (2026-10-26) | LOW | After the last unit in a hand is used, CE moves an identical item from the inventory into the hand; DH2 leaves the hand empty — **2026-10-26:** refillHand (bags included). |
 | itemIsHidden | object flag 0x01 at Obj.ts:963, combat/results.ts:87, Combat.ts:1320 | ⚠️ DIFFERS | HIGH | ITEM-01 |
 | weaponGetAttackTypeForHitMode | Weapon.ts:333, hitChance.ts:125 | ✅ MATCH | – | |
 | weaponGetSkillForHitMode | `getWeaponSkillFromPro` Weapon.ts:104 | ✅ FIXED (2026-10-25) | LOW | Big Guns comes from animCode {8,9,10} instead of the ext flag 0x0100 (`weaponFlags & 0x01`). Mode 0 → 'Unarmed' (CE −1). ITEM-05 |

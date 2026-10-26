@@ -67,10 +67,10 @@ Top findings:
 | characterEditorDrawCardWithOptions | `viewer.ts:393` | 🚫 | — | |
 | characterEditorHandleFolderButtonPressed | `viewer.ts:296` activateFolder | ✅ | — | ib3p1xx1, folder card. |
 | characterEditorHandleInfoButtonPressed | per-element onclick | 🟡 | LOW | SPECIAL/skills/derived/conditions/traits are clickable; Level/Exp/Next Level/Tag/SP are not. |
-| characterEditorHandleAdjustSkillButtonPressed | `viewer.ts:547` modifySkill | ⚠️ | LOW | Cost and minimum logic ✅ (`char.ts:150-191`). The errors (editor.msg 132/133 "At maximum level", 134/135 "At minimum level", 136 "Not enough skill points") are only a `dbgWarn` — no dialog, no error sound. |
-| characterEditorToggleTaggedSkill | `creator.ts:809` | ⚠️ | LOW | A 4th tag is refused silently; CE shows 140/141 with iisxxxx1. |
+| characterEditorHandleAdjustSkillButtonPressed | `viewer.ts:547` modifySkill | ✅ FIXED (2026-10-26) | LOW | Cost and minimum logic ✅ (`char.ts:150-191`). The errors (editor.msg 132/133 "At maximum level", 134/135 "At minimum level", 136 "Not enough skill points") are only a `dbgWarn` — no dialog, no error sound. — **2026-10-26:** the 132-136 refusals in a dialog with iisxxxx1. |
+| characterEditorToggleTaggedSkill | `creator.ts:809` | ✅ FIXED (2026-10-26) | LOW | A 4th tag is refused silently; CE shows 140/141 with iisxxxx1. — **2026-10-26:** 140 / 141 in a dialog. |
 | characterEditorDrawOptionalTraits | `creator.ts:619` refreshTraitPanel | ✅ | — | |
-| characterEditorToggleOptionalTrait | `creator.ts:690` | ⚠️ | LOW | A 3rd trait shows the invented card text "You may only pick 2 traits."; CE shows the dialog 148/149 with iisxxxx1. |
+| characterEditorToggleOptionalTrait | `creator.ts:690` | ✅ FIXED (2026-10-26) | LOW | A 3rd trait shows the invented card text "You may only pick 2 traits."; CE shows the dialog 148/149 with iisxxxx1. — **2026-10-26:** 148 / 149 in a dialog. |
 | characterEditorDrawKarmaFolder | `folders.ts:93` | ✅ | — | karmavar/genrep, town tiers (−30/−15/0/15/30), addictions 4001. |
 | characterEditorSave / Load (last level, free perk) | `saveload.ts:203` pendingPerkPick | ✅ | — | |
 | characterEditorUpdateLevel | `player.ts:262-287` (at XP gain) | 🟡 | LOW | Same SP formula and every-3/4-levels rule. Differences: SP is computed when the XP arrives, not when the editor opens (INT is read at a different time); no 37-perk cap. |
@@ -138,8 +138,8 @@ Top findings:
 | interfaceRenderArmorClass | `ui_hud.ts:119` drawAC | ✅ | — | |
 | interfaceRenderActionPoints | `ui_hud.ts:143` drawAP | ✅ | — | Green / yellow free move / all red off-turn; no animation (C42). |
 | interfaceGetCurrentHitMode | `Weapon.ts` mode, `unarmed.ts` currentUnarmed | ✅ | — | |
-| interfaceUpdateItems | uiDrawWeapon | ⚠️ | LOW | CE resets the action to primary when a hand's item changes; DH2 keeps `weapon.mode` on the item object (e.g. a weapon re-equipped still in burst). |
-| interfaceBarSwapHands | `ui.ts:181` swapHands | ⚠️ | LOW | Animation ✅. CE also drops the crosshair / use-crosshair mouse mode back to move; DH2 keeps `cursorMode`. |
+| interfaceUpdateItems | uiDrawWeapon | ✅ FIXED (2026-10-26) | LOW | CE resets the action to primary when a hand's item changes; DH2 keeps `weapon.mode` on the item object (e.g. a weapon re-equipped still in burst). — **2026-10-26:** a new hand item starts on its primary action. |
+| interfaceBarSwapHands | `ui.ts:181` swapHands | ✅ FIXED (2026-10-26) | LOW | Animation ✅. CE also drops the crosshair / use-crosshair mouse mode back to move; DH2 keeps `cursorMode`. — **2026-10-26:** the crosshairs go back to the move cursor. |
 | interfaceGetItemActions / GetCurrentHand / GetActiveItem | `player.activeHand` | ✅ | — | |
 | interfaceCycleItemAction | `ui.ts:193`, `Weapon.ts:244` cycleMode | ✅ | — | primary → aimed → secondary → secondary aimed → reload (if not full); Fast Shot blocks aiming. |
 | _intface_use_item | `ui.ts:249` attack button onclick | ⚠️ | MED | HUD-02 (reload AP). Misc-item use in combat: CE checks and charges AP (`itemGetActionPointCost`); DH2 calls `activeItem.use(player)`, AP charge unverified. Crosshair + combat start ✅. |

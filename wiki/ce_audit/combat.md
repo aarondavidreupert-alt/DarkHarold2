@@ -95,14 +95,14 @@ Top findings, most severe first:
 | `attackComputeCriticalFailure` | `computeCriticalFailure` Combat.ts:587 | ✅ | | Day-6 limit, Luck formula, `_cf_table` and all flag branches. `_combat_ai_random_target` is combat_ai scope (`aiRandomTarget` Combat.ts:631). |
 | `_do_random_cripple` | `doRandomCripple` results.ts:73 | ✅ | | |
 | `_determine_to_hit` | `getHitChance` hitChance.ts:139 | ✅ | | |
-| `_determine_to_hit_no_range` | `getHitChance(..., useDistance=false)` | ⚠️ | LOW | CE adds the distance term only when `useDistance` or it is a bonus (>0). DH2 always subtracts it, so a Scope Range weapon (min distance 8) gets −32 in the AI's no-range check. |
+| `_determine_to_hit_no_range` | `getHitChance(..., useDistance=false)` | ✅ FIXED (2026-10-26) | LOW | CE adds the distance term only when `useDistance` or it is a bonus (>0). DH2 always subtracts it, so a Scope Range weapon (min distance 8) gets −32 in the AI's no-range check. — **2026-10-26:** the distance term only as a bonus. |
 | `_determine_to_hit_from_tile` | `getHitChance(..., from)` | ✅ | | |
 | `attackDetermineToHit` | `getHitChance` hitChance.ts:139 | ✅ FIXED (2026-10-25) | LOW | All terms match: skill, perception/range perks, Sharpshooter, blind ×−12 / −25, line-of-fire −10s, One Hander, min ST, Accurate, AC + ammo AC, location penalty (half for melee), multihex +15, darkness / Night Sight, knockdown +40, difficulty ±20, cap 95. The one difference is that `_gcsd->accuracyBonus` isn't added inside (COMBAT-15). AC uses `bonusAC` (COMBAT-04). |
 | `attackComputeDamage` | `attackComputeDamage` 646 / `damageAgainst` 662 / damage.ts | ⚠️ | MED | Vanilla formula, bypass, penetrate (weapon + unarmed), Finesse, Bonus Ranged Damage, difficulty, Living Anatomy / Pyromaniac, knockback rules and Stonewall match. Differences: Glovz / YAAM (COMBAT-13); natural damage type; Living Anatomy reads the hit critter's kill type (CE: `attack->defender` even on a self-hit, LOW). |
 | `attackComputeDeathFlags` | Combat.ts:533 | ✅ | | |
 | `_apply_damage` | `applyDamage` Combat.ts:951 | ⚠️ | MED | COMBAT-07 / 08: the miss path (results, retaliation and onlookers for oops) is missing; `damage_p_proc` gating differs; no damage proc for a non-critter defender (N/A, DH2 targets only critters). The attacker's combat_p_proc(2) after a hit matches. |
 | `_check_for_death` | `checkForDeath` Combat.ts:140 | ✅ | | |
-| `_set_new_results` | `setNewResults` results.ts:94 | ⚠️ | LOW | DAM_DEAD: CE `queueRemoveEvents` drops *all* the critter's queued events; DH2 drops only knockouts. KO timer 10×(35−3·END) and the persistent mask match. |
+| `_set_new_results` | `setNewResults` results.ts:94 | ✅ FIXED (2026-10-26) | LOW | DAM_DEAD: CE `queueRemoveEvents` drops *all* the critter's queued events; DH2 drops only knockouts. KO timer 10×(35−3·END) and the persistent mask match. — **2026-10-26:** DAM_DEAD drops all the critter's events. |
 | `_damage_object` | `critterDamage` lifecycle.ts:332, `critterKill` 71, `perish` Combat.ts:1687 | ⚠️ | HIGH | Missing pieces:<br>- COMBAT-06: no invulnerable check.<br>- COMBAT-07: `damage_p_proc` conditions.<br>- COMBAT-03: no `partyMemberRemove`.<br>- No `itemDestroyAllHidden` or `scriptRemove` (LOW, unverified).<br>- Kill count ignores `scriptOverrides` (LOW).<br>- `destroy_p_proc` source is the attacker (CE: whoHitMe).<br>damageLastTurn and XP match. |
 | `_combat_display` | `combatDisplay` Combat.ts:1028 | ✅ | | Message ids, oops line, critical text, killed line and extras match. The "%s missed" for a non-critter accidental target is N/A. |
 | `combatCopyDamageAmountDescription` | `damageAmountDescription` Combat.ts:1122 | ✅ | | |
@@ -110,14 +110,14 @@ Top findings, most severe first:
 | `_combat_anim_begin` | — | 🚫 | | UI disable / cursor during the animation. |
 | `_combat_anim_finished` | `resolveAttack` / `proceed` Combat.ts:856–945 | 🟡 | LOW | Ammo spend → display → apply → standup after the attacker's own knockdown matches. DH2 applies on the action frame / projectile impact; CE applies after the whole animation (ordering only). `_scr_end_combat` (dead path) not ported. |
 | `_combat_standup` | `combatStandup` results.ts:147 | ✅ | | 3 AP (1 with Quick Recovery). |
-| `_print_tohit` | `drawDigits` ui_calledshot.ts:58 | ⚠️ | LOW | CE shows "00" for 0 % and dashes only below 0; DH2 shows "--" for ≤ 0. |
+| `_print_tohit` | `drawDigits` ui_calledshot.ts:58 | ✅ FIXED (2026-10-26) | LOW | CE shows "00" for 0 % and dashes only below 0; DH2 shows "--" for ≤ 0. — **2026-10-26:** "00" for 0 %. |
 | `hitLocationGetName` | `hitLocationName` Combat.ts:1153 | ✅ | | combat.msg 1000 + 10 × alias + location. |
 | `_draw_loc_off` | ui_calledshot.ts (CSS) | 🚫 | | DOM equivalent. |
 | `_draw_loc_on_` | ui_calledshot.ts (CSS) | 🚫 | | |
 | `_draw_loc_` | ui_calledshot.ts | 🚫 | | |
-| `calledShotSelectHitLocation` | `uiCalledShot` ui_calledshot.ts:52 | ⚠️ | LOW | 8 locations with the hit mode's to-hit, Esc/cancel. DH2-only: crippled limbs are greyed out and can't be picked (CE allows them). No `icsxxxx1` sound on pick. |
+| `calledShotSelectHitLocation` | `uiCalledShot` ui_calledshot.ts:52 | ✅ FIXED (2026-10-26) | LOW | 8 locations with the hit mode's to-hit, Esc/cancel. DH2-only: crippled limbs are greyed out and can't be picked (CE allows them). No `icsxxxx1` sound on pick. — **2026-10-26:** crippled limbs can be picked, icsxxxx1. |
 | `_combat_check_bad_shot` | `checkBadShot` Combat.ts:2136 | ✅ | | Order and conditions match (two-hand flag = weaponFlags 0x02, i.e. 0x200). |
-| `_combat_to_hit` | `uiShowCombatHover` ui_hud.ts:594 | ⚠️ | LOW | CE shows "X" whenever `_combat_check_bad_shot` fails (range, AP, aim blocked); DH2 tests only ammo. |
+| `_combat_to_hit` | `uiShowCombatHover` ui_hud.ts:594 | ✅ FIXED (2026-10-26) | LOW | CE shows "X" whenever `_combat_check_bad_shot` fails (range, AP, aim blocked); DH2 tests only ammo. — **2026-10-26:** X for every _combat_check_bad_shot refusal. |
 | `_combat_attack_this` | playerUse.ts:278–380 | 🟡 | LOW | combat.msg 100–106 refusals and the out-of-ammo sound match. The out-of-combat branch (start `_combat` with csd so the player's first turn auto-attacks) isn't reachable in DH2. |
 | `_combat_outline_on` | `refreshHighlights` Combat.ts:3112 | 🟡 | LOW | See the outline row. |
 | `_combat_outline_off` | `finish` / `clearNeutralOutlines` Combat.ts:338 | ✅ | | |

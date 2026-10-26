@@ -73,7 +73,7 @@ Top findings, by severity:
 | `wmMapMarkMapEntranceState` | `scripting.ts:959 metarule3 104` only | ⚠️ | HIGH | Not called from map load, elevation change or exit grids (WM-02); matching differs (WM-04). |
 | `wmWorldMap` | `ui_worldmap.ts:60 uiWorldMap` | ✅ | — | |
 | `wmWorldMapFunc` | `Worldmap.ts:1136 updateWorldmapPlayer` (+ `init` click handlers) | 🟡 | MED | The walking frame matches (steps, car steps, fuel, out of gas, healing, fog, end of walk, 18000 ticks, encounter). Gaps: hotspot click ignores the town-map rule (WM-03); keys T / Home / Ctrl+F1–F7 / Ctrl+↑↓ are missing; arrow keys pan 2 px a frame only while stopped (CE: 20 px a press, also while walking); the mouse wheel over the map does not scroll it (CE 20 px). Out of gas: CE matches the area at the mouse (`worldX/worldY`, a CE bug); DH2 uses the party position. |
-| `wmCheckGameAreaEvents` | — | ❌ | LOW | CE `mapLoad` hides CITY_FAKE_VAULT_13_A (45) and shows / visits B (46) while the party is at A. NEW. |
+| `wmCheckGameAreaEvents` | — | ✅ FIXED (2026-10-26) | LOW | CE `mapLoad` hides CITY_FAKE_VAULT_13_A (45) and shows / visits B (46) while the party is at A. NEW. — **2026-10-26:** the Fake Vault 13 swap. |
 | `wmInterfaceCenterOnParty` | `applyPan(x − 222, y − 219)` at `Worldmap.ts:850, 1164` | ⚠️ | LOW | CE offsets are −203/−200 and it is bound to Home. DH2 centers on the 445×438 view and recenters every walking frame; CE scrolls 1 px a step, so the party keeps its place on screen. |
 | `wmCheckGameEvents` | `Worldmap.ts:1138 scriptsCheckGameEvents` | ✅ | — | |
 | `wmRndEncounterOccurred` | `encounters.ts:95 rndEncounterOccurred` | ✅ | — | 1.5 s gate, 3 px in both axes, no roll inside an area, Horrigan after day 35 (special blink, no question), frequency ±freq/15 by difficulty, roll 0–100, special area put at the party and made known unless locked, car day-part modifier [40,30,0], best party Outdoorsman + motion sensor 20, cap 95, + tile difficulty, XP 100 − skill and misc.msg 8500, worldmap.msg 2999 / 3000+50t+e. The sfall forced-encounter branch is missing (see `wmForceEncounter`). The motion sensor is looked for in the top-level inventory only; CE also requires `owner == gDude`, so the outcome is the same. |
@@ -125,13 +125,13 @@ Top findings, by severity:
 | `wmTownMapRefresh` | `uiWorldMapShowArea:168` | ⚠️ | MED | Entrance label: worldmap.msg `200+10·area+index` (CE) vs the maps.txt lookup name (WM-06). |
 | `wmTownMapExit` | `uiWorldMapWorldView` | 🚫 | — | |
 | `wmCarUseGas` | `Worldmap.ts:196 carUseGas` | ✅ | — | Super car −90 %, NR upgrade −10 %, regulator /2, clamp 0. |
-| `wmCarFillGas` | `Worldmap.ts:289 addCarFuel`, `scripting.ts:907 metarule 32` | ⚠️ | LOW | CE returns the amount that does not fit; DH2 metarule returns 1. DH2 ignores negative amounts; CE subtracts them. |
+| `wmCarFillGas` | `Worldmap.ts:289 addCarFuel`, `scripting.ts:907 metarule 32` | ✅ FIXED (2026-10-26) | LOW | CE returns the amount that does not fit; DH2 metarule returns 1. DH2 ignores negative amounts; CE subtracts them. — **2026-10-26:** CE's amount and result. |
 | `wmCarGasAmount` | `getCarFuel` | ✅ | — | |
 | `wmCarIsOutOfGas` | `scripting.ts:1024 metarule3 110` | ⚠️ | LOW | CE `carFuel <= 0` whether or not the party is in the car; DH2 also requires `isInCar`. Not used by name in the vanilla scripts. |
 | `wmCarCurrentArea` | `getCarAreaId`, metarule 30 | ✅ | — | |
 | `wmCarGiveToParty` | `scripting.ts:890 metarule 31` | ✅ | — | Empty-tank message 1502 and −1; isInCar; worldmap; CAR_OUT_OF_GAS reset. DH2 opens the worldmap at once instead of through a −2 map transition at the end of the frame. |
 | `wmSfxMaxCount` / `wmSfxRollNextIdx` | `audio.ts:301 rollNextSfx` | ✅ | — | |
-| `wmSfxIdxName` | `audio.ts` (sfx name used as is) | ❌ | LOW | Night remap `brdchir1` → `cricket`, `brdchirp` → `cricket1` (hour ≤ 600 or ≥ 1800) is missing. NEW. |
+| `wmSfxIdxName` | `audio.ts` (sfx name used as is) | ✅ FIXED (2026-10-26) | LOW | Night remap `brdchir1` → `cricket`, `brdchirp` → `cricket1` (hour ≤ 600 or ≥ 1800) is missing. NEW. — **2026-10-26:** the night cricket remap. |
 | `wmRefreshInterfaceOverlay` | static DOM chrome | 🚫 | — | |
 | `wmInterfaceRefreshCarFuel` | `Worldmap.ts:336-341` | ✅ | — | 70 px, rounded down to even. |
 | `wmRefreshTabs` | `ui_worldmap.ts:195 uiWorldMapLabels` | ✅ | — | |
@@ -141,7 +141,7 @@ Top findings, by severity:
 | `wmRefreshInterfaceDial` / `wmInterfaceDialSyncTime` | `Worldmap.ts:217 updateDial` | ✅ | — | |
 | `wmAreaFindFirstValidMap` | — | ❌ | HIGH | Part of WM-03. |
 | `wmMapMusicStart` | `map/GameMap.ts` map-load music | ✅ | — | Owned by the sound/maps audit. |
-| `wmSetMapMusic` | `data.ts:389 setMapMusicOverride` | 🟡 | LOW | CE restarts the music at once when the index is the current map; DH2 only stores it for the next load. |
+| `wmSetMapMusic` | `data.ts:389 setMapMusicOverride` | ✅ FIXED (2026-10-26) | LOW | CE restarts the music at once when the index is the current map; DH2 only stores it for the next load. — **2026-10-26:** the current map's music restarts. |
 | `wmMatchAreaContainingMapIdx` | `Worldmap.ts:911 areaIdContainingMap` | ✅ | — | 0 when nothing matches, as in CE. |
 | `wmTeleportToArea` | `Worldmap.ts:543 teleportToArea` | ✅ | — | Sphere centre − WM_VIEW (sfall fix). |
 | `wmFadeOut` / `wmFadeIn` / `wmFadeReset` | `mapFade.ts beginMapFade/endMapFade` | 🟡 | LOW | Black overlay around map loads, not a palette fade; nothing before the encounter blink (documented in worldmap.md §17 #2). |

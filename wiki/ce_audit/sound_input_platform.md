@@ -30,17 +30,17 @@ Top findings:
 | gameSoundInit | `main.ts:246` `new HTMLAudioEngine()` | 🚫 N/A | — | Web Audio / `<audio>` replaces DirectSound init, cache, file IO procs. `[sound] initialize/sounds/music/speech` enable flags not read (only volumes, CI1). |
 | gameSoundReset | `audio.ts:293` `stopAll` | 🟡 PARTIAL | LOW | stops music + ambient schedule; speech is stopped separately (talkingHead). No effect counter to reset. |
 | gameSoundExit | — | 🚫 N/A | — | page unload. |
-| soundEffectsEnable / Disable / IsEnabled | — | ❌ MISSING | LOW | No "sounds on/off" switch (`[sound] sounds=0`); sfx volume 0 is the only way to mute. |
+| soundEffectsEnable / Disable / IsEnabled | — | ✅ FIXED (2026-10-26) | LOW | No "sounds on/off" switch (`[sound] sounds=0`); sfx volume 0 is the only way to mute. — **2026-10-26:** [sound] sounds=0. |
 | gameSoundSetMasterVolume / Get | `audio.ts:261` `setVolume('master')` | ⚠️ DIFFERS | LOW | CE: master 0 disables music (`_gsound_background_df_vol`) and re-enables it (restarting the track) when raised. DH2 just scales volume (music keeps playing silently, resumes mid-track). |
 | soundEffectsSetVolume / Get | `audio.ts:261` (sfx branch) | ⚠️ DIFFERS | LOW | CE sets volume at allocation (`_gsound_get_sound_ready_for_effect`), so already-playing sfx keep the old volume; DH2 gain node changes live. Inaudible in practice. |
-| backgroundSoundDisable / Enable / IsEnabled | — | ❌ MISSING | LOW | No music on/off (`[sound] music=0`). Movie volume coupling (`movieSetVolume(music×0.94)`) not ported (gameMovie volume is independent — unverified beyond grep). |
+| backgroundSoundDisable / Enable / IsEnabled | — | 🟡 PARTLY FIXED (2026-10-26) | LOW | No music on/off (`[sound] music=0`). Movie volume coupling (`movieSetVolume(music×0.94)`) not ported (gameMovie volume is independent — unverified beyond grep). — **2026-10-26:** [sound] music=0; the movie volume coupling is not. |
 | backgroundSoundSetVolume / Get / _gsound_background_volume_get_set | `audio.ts:261` (music branch) | ⚠️ DIFFERS | LOW | CE plays music at `musicVolume × 0.94` and disables music at volume 0 (restart on raise). DH2 uses `music × master` with no 0.94 factor and never disables. |
 | backgroundSoundSetEndCallback / GetDuration | — | 🚫 N/A | — | no CE callers set an end callback for map music in vanilla flow (endgame uses it; DH2 endgame drives its own timing). |
 | backgroundSoundLoad (+ `_gsound_background_play_level_music`) | `audio.ts:168` `playMusic`, `GameMap.ts:475` `playMapMusic` | 🟡 PARTIAL | HIGH | Map music matches (`wmMapMusicStart`, loop). But the other CE callers are absent — see SND-01 (worldmap `23world`/`20car`, main-menu `07desert`, map-load `wind2`). No `_gsound_background_fade` (CE leaves it 0 in vanilla, so no fade — match). CE restarts the same track on every map load (backgroundSoundDelete + load); DH2 also restarts (`stopAll` + `playMusic`) — match. |
 | backgroundSoundDelete | `audio.ts:284` `stopMusic` | ✅ MATCH | — | L13 (drops the stream). |
 | backgroundSoundRestart | `talkingHead.ts:410` (dialog end) | 🟡 PARTIAL | LOW | only the dialogue restart (`game_dialog.cc:999`) is ported; master/music re-enable restart is not (see above). |
 | backgroundSoundPause / Resume | — | ❌ MISSING | LOW | CE pauses music during save/load screens (`loadsave.cc:1537`) and non-stopping movies (`game_movie.cc:189/298`). DH2 keeps playing under the save/load screen; `gameMovie.ts:294` only implements the STOP flag. |
-| speechDisable / Enable / IsEnabled | — | ❌ MISSING | LOW | `[sound] speech=0` not honoured. |
+| speechDisable / Enable / IsEnabled | — | ✅ FIXED (2026-10-26) | LOW | `[sound] speech=0` not honoured. — **2026-10-26:** [sound] speech=0. |
 | speechSetVolume / Get / _gsound_speech_volume_get_set | `audio.ts:261` (speech branch), `talkingHead.ts:280` | ✅ MATCH | — | speech at `speech × master × 0.69` (lips). Volume change during playback not applied live (CE applies it) — trivial. |
 | speechSetEndCallback / GetDuration | `talkingHead.ts` | 🚫 N/A | — | handled by `<audio>` events. |
 | speechLoad / _gsound_speech_play_preloaded / speechPlay / speechDelete / Pause / Resume | `talkingHead.ts:262`, `endgame/slideRender.ts:52` | ✅ MATCH | — | dialogue speech, endgame narrator. Death narration (`main.cc:440`) is the endgame/main auditor's scope. `preferences.cc:1502` "narrator\options" not checked here. |
@@ -89,7 +89,7 @@ Top findings:
 | _gmouse_handle_event — right button | `input.ts:283` → `cycleMouseMode` | ✅ MATCH | — | |
 | _gmouse_handle_event — left up, MOVE mode | `input.ts:269` → `playerUse(getObjectUnderCursor(isSelectable))` | ⚠️ DIFFERS | MED | MOUSE-01: CE always walks/runs to the hex in move mode (Shift inverts `running`); DH2 uses/attacks/talks to the clicked object and has no Shift toggle. |
 | _gmouse_handle_event — left up, ARROW mode (primary action) | `input.ts:258` (opens action menu) | ⚠️ DIFFERS | MED | MOUSE-02: CE click = primary action (pick up / talk / use / look / loot / rotate dude), hold = action menu. DH2: every click opens the menu; menu closing resets to move mode (`ui_contextmenu.ts:41`), CE stays in arrow mode. Partially documented (README "Known approximations": says "right-click", the code uses left-click in command mode). |
-| _gmouse_handle_event — left up, CROSSHAIR | `input.ts:264` | 🟡 PARTIAL | LOW | DH2 attacks any object under the cursor except the dude; CE picks a critter first, else only a door (`objectIsDoor`), and re-arms the hover readout. Attacking scenery other than doors is possible in DH2 (playerUse decides). |
+| _gmouse_handle_event — left up, CROSSHAIR | `input.ts:264` | 🟡 PARTLY FIXED (2026-10-26) | LOW | DH2 attacks any object under the cursor except the dude; CE picks a critter first, else only a door (`objectIsDoor`), and re-arms the hover readout. Attacking scenery other than doors is possible in DH2 (playerUse decides). — **2026-10-26:** a critter is the target; doors can't be attacked yet. |
 | _gmouse_handle_event — USE_CROSSHAIR (item on object) | `input.ts:253` `usePendingItemOn` | ✅ MATCH | — | AP cost in combat handled in `useItemOn.ts` (not re-verified here). |
 | _gmouse_handle_event — skill crosshairs | `input.ts:267` → `playerUse` (useSkill) | ✅ MATCH | — | CE: clicking empty ground keeps the mode only when actionUseSkill fails; DH2 First Aid/Doctor on empty ground → self (CE: `object == nullptr` → leaves mode, no self-use). ⚠️ LOW, see MOUSE-08. |
 | _gmouse_handle_event — action menu (left-hold) | `ui_contextmenu.ts:45` `uiContextMenu` | ✅ MATCH (content) | — | C42: menu items per type match CE; opening gesture differs (documented). |
@@ -108,7 +108,7 @@ Top findings:
 | gameMouseLoadItemHighlight | `Config.ui.itemHighlight` (CI7) | ✅ MATCH | — | |
 | gameMouseObjectsInit / Reset / Free, gameMouseActionMenuInit / Free, customMouseModeFrmsInit | `mapLoader.ts:383` art preload | 🚫 N/A | — | |
 | gmouse_3d_set_flat_fid / gameMouseUpdateHexCursorFid / _gmouse_3d_move_to | `renderer.ts:221` (hex outline at `hexCellTopLeft`) | ✅ MATCH | — | hex cursor drawn post-roof (`object.cc _obj_render_post_roof`). |
-| _gmouse_remove_item_outline | `input.ts:302` | ⚠️ DIFFERS | LOW | CE outlines the hovered item only in ARROW mode and only after the 250 ms hover; DH2 outlines it in every mode immediately on mouse move. |
+| _gmouse_remove_item_outline | `input.ts:302` | ✅ FIXED (2026-10-26) | LOW | CE outlines the hovered item only in ARROW mode and only after the 250 ms hover; DH2 outlines it in every mode immediately on mouse move. — **2026-10-26:** the outline after the arrow-mode hover only. |
 | objectIsDoor | `Obj.isDoor` | ✅ MATCH | — | |
 | gmouse_get_outlined_object | `globalState.hoveredItem` | ✅ MATCH | — | |
 

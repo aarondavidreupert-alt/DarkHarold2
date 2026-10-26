@@ -242,28 +242,23 @@ control-screen keys, the special message pairs, case-insensitive procedures …)
 The rest — about 275 — still differ; they were not re-tested one by one against today's code, so a few
 may be stale. Sorted by what they are:
 
-**Worth fixing (player-visible, CE behaviour clear):**
-- *Messages and dialogs:* `_is_next_to` / `_can_talk_to` "Can't reach that." (CE misc.msg 2000, with a
-  recheck after the walk); the character editor's refusals (editor.msg 132–136, 140 / 141, 148 / 149 dialogs
-  with iisxxxx1 instead of a log line or nothing); the dialogue Barter refusals (903 / 913) in the reply
-  window; the death message in a dialog box (misc.msg 1006); `[sound] sounds= / music= / speech=0`.
-- *Inventory:* newest-first item order; ammo counts shown as rounds and `x<n>` only above 1; ammo dropped on
-  a weapon that can't take it is refused; the wield / unwield animations; the quantity window's typing
-  (first digit replaces, Backspace); drop one item of a stack; a used-up hand item refilled from the
-  inventory (`itemReplace`); caps in carried containers counted.
-- *Combat:* `_print_tohit` "00" for 0 %; the called-shot window allows crippled limbs; "X" for every bad shot
-  (range, AP, blocked aim), not just ammo; `_determine_to_hit_no_range` without the scope's distance term;
-  DAM_DEAD drops all the critter's queued events; the swap-hands button drops the crosshair; a hand change
-  resets the attack to primary; the crosshair picks a critter, else only a door; the item outline only in
-  arrow mode after the hover delay.
-- *Game flow:* quitting and the endgame's "No" go back to the main menu (now: page reload); the death screen
-  and endgame subtitles follow the subtitles preference; DH2's initial defaults (player speedup on, volumes
-  100 %) are CE's (off, 22281 / 32767); the elevator panel's Esc and floor keys; the save description
-  pre-filled and capped at 29 characters; music paused under the save/load screen.
-- *World map / scripts:* the night ambient remap (brdchir1 → cricket); CITY_FAKE_VAULT_13_A / B swap;
-  `wmCarFillGas` returns the overflow; `wmSetMapMusic` restarts the current map's music; the 24-hour time
-  string; `nextMapUpdateTick` reset on load; `pcSetStat` lowering XP levels down (and Here and Now removed);
-  the party's control-screen Trade checks CRITTER_BARTER; recruiting clears the recruit's script timers.
+**Worth fixing — done 2026-10-26** (44 rows, each marked in its report): misc.msg 2000 for reach failures;
+the character editor's refusal dialogs; the dialogue Barter refusals in the reply window and the control
+screen's CRITTER_BARTER check; the radiation death dialog; `[sound] sounds / music / speech=0`; newest-first
+item lists, ammo counted in rounds and `x<n>` only above 1, ammo refused by a weapon that can't load it, CE's
+quantity typing, used-up hand items refilled (`refillHand`), caps in bags; the called-shot window (crippled
+limbs, "00", sound), the hover's " X " for every bad shot, the no-range distance term, all events of the dead
+dropped, swap hands leaving the crosshair, a new hand item on its primary action, the crosshair targeting
+critters, the item outline after the arrow hover; quitting / the endgame's No / death to the main menu without
+the opening movies, subtitles per the preference, CE's starting defaults, the elevator's Esc and floor keys, the
+save description pre-filled and capped; night crickets, the Fake Vault 13 swap, `wmCarFillGas`,
+`wmSetMapMusic`, the 24-hour time, the map-update timer after a load, `pcSetStat` levelling down, a recruit's
+script timers dropped; `wield_obj_critter`'s take-out animation.
+
+**Still open from that list:** doors can't be attacked (the crosshair ignores them); the put-away animations
+(an NPC's weapon switch, `inven_unwield`) — the hand changes at once and the art would have to lag; the party
+status refresh in the middle of a dialogue; an NPC already holding the Shiv stabs (CE punches); the death
+screen's subtitle timing.
 
 **Presentation only (left as DH2's):** fonts and text widths, scroll and tab speeds, number and gauge
 animations, cursor hotspots, palette fades, splash and credits styling, colour-cycling pauses.

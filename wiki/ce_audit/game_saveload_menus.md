@@ -59,10 +59,10 @@ Top findings:
 | gameTakeScreenshot | — | ❌ MISSING | LOW | F12 screenshot in CE windows; browser has its own. |
 | gameFreeGlobalVars | — | 🚫 N/A | — | |
 | showHelp | `src/hotkeys.ts:55` | ✅ MATCH | — | helpscrn over black until any input. |
-| showQuitConfirmationDialog | `src/ui_options.ts:672` quitConfirmation | ⚠️ DIFFERS | LOW | misc.msg 0 Yes/No ✓; Yes **reloads the page** (opening movies replay unless skipped) instead of `_game_user_wants_to_quit = 2` → main menu. |
+| showQuitConfirmationDialog | `src/ui_options.ts:672` quitConfirmation | ✅ FIXED (2026-10-26) | LOW | misc.msg 0 Yes/No ✓; Yes **reloads the page** (opening movies replay unless skipped) instead of `_game_user_wants_to_quit = 2` → main menu. — **2026-10-26:** Yes goes to the main menu (a fresh page, no opening movies). |
 | gameDbInit | — | 🚫 N/A | — | DAT files unpacked by the pipeline. |
 | showSplash | — | ❌ MISSING | LOW | Random `splash<n>.rix` before the intro movies. |
-| gameShowDeathDialog | `src/radiation.ts:181` | ⚠️ DIFFERS | LOW | CE (sfall) shows misc.msg 1006 in a modal dialog box; DH2 logs it to the message log. |
+| gameShowDeathDialog | `src/radiation.ts:181` | ✅ FIXED (2026-10-26) | LOW | CE (sfall) shows misc.msg 1006 in a modal dialog box; DH2 logs it to the message log. — **2026-10-26:** misc.msg 1006 in a dialog box. |
 | gameGetGlobalPointer / gameSetGlobalPointer | — | 🚫 N/A | — | sfall pointer vars, unused. |
 
 ### main.cc
@@ -77,7 +77,7 @@ Top findings:
 | main_loadgame_new | `ui_mainmenu.ts:192` | 🟡 PARTIAL | MED | See MENU-02 (cancel). |
 | main_unload_new | — | 🚫 N/A | — | |
 | mainLoop | `src/gameTick.ts` | ✅ MATCH | — | Death check incl. knocked-out-outside-combat (`gameTick.ts:232`), scripts' requests, map transitions. |
-| showDeath | `src/endgame.ts:129` dudeDeathScene / playDeathEnding | 🟡 PARTIAL | LOW | DEATH.FRM + narrator, any input/end of speech/3 s ✓. Diffs: subtitles shown whether or not the preference is on (CE only with `subtitles`), shown timed like slides rather than one word-wrapped block at the bottom; no death.pal; afterwards page reload (CE: main menu). |
+| showDeath | `src/endgame.ts:129` dudeDeathScene / playDeathEnding | 🟡 PARTLY FIXED (2026-10-26) | LOW | DEATH.FRM + narrator, any input/end of speech/3 s ✓. Diffs: subtitles shown whether or not the preference is on (CE only with `subtitles`), shown timed like slides rather than one word-wrapped block at the bottom; no death.pal; afterwards page reload (CE: main menu). — **2026-10-26:** subtitles only with the preference; their timing stays DH2's. |
 | _main_death_voiceover_callback | `showStaticSlide` audio `ended` | ✅ MATCH | — | |
 | _mainDeathGrabTextFile / _mainDeathWordWrap | `slideRender.ts:17 loadSubtitleLines` | 🟡 PARTIAL | LOW | See showDeath. |
 
@@ -97,7 +97,7 @@ Top findings:
 | lsgSaveHeaderInSlot / lsgLoadHeaderInSlot | `SaveGame` fields (`name`, `timestamp`, `gameTickTime`, `currentMap`, `currentElevation`, `playerState.name`) | ✅ MATCH | — | |
 | _GetSlotList | `saveLoad` / `saveList` (`saveload.ts:267`) | ⚠️ DIFFERS | LOW | DH2-only: unlimited slots (IndexedDB), scroll bar. |
 | _ShowSlotList / _DrawInfoBox / _LoadTumbSlot | `ui_saveload.ts:177/194` | ✅ MATCH | — | |
-| _GetComment / _get_input_str2 | `ui_dialog.ts:230 showInput` | ⚠️ DIFFERS | LOW | Generic input box: no default text, no 29-char limit, not lsgame `BOX` art. |
+| _GetComment / _get_input_str2 | `ui_dialog.ts:230 showInput` | 🟡 PARTLY FIXED (2026-10-26) | LOW | Generic input box: no default text, no 29-char limit, not lsgame `BOX` art. — **2026-10-26:** the old description, 29 characters; the input is still DH2's. |
 | _DummyFunc / _PrepLoad | `gameReset()` in `load` (`saveload.ts:342`) | ✅ MATCH | — | |
 | _EndLoad | `saveload.ts:478-487` | ✅ MATCH | — | HUD redraw; music via `runLoadGameProcs`. |
 | _GameMap2Slot / _SlotMap2Game | `savedMaps` = current + `dirtyMapCache` | ✅ MATCH | — | Modified party/item protos (`proto/critters`, `proto/items` copies) not saved — DH2 never writes protos (unverified for sfall `set_proto_data`). |
@@ -139,7 +139,7 @@ Top findings:
 |---|---|---|---|---|
 | preferencesInit / _SetSystemPrefs | `ui_options/preferences.ts:50 loadPreferences` | ✅ MATCH | — | |
 | _SaveSettings / _RestoreSettings | `ui_options.ts:608 snapshotPrefs` (CANCEL) | ✅ MATCH | — | |
-| preferencesSetDefaults | DEFAULT button `ui_options.ts:401` | ⚠️ DIFFERS | LOW | DEFAULT button = CE values ✓; but DH2 *initial* defaults differ: `playerSpeedup: true` (`config.ts:160`, CE `false`), volumes 100 % (CE 22281/32767 ≈ 68 %). |
+| preferencesSetDefaults | DEFAULT button `ui_options.ts:401` | ✅ FIXED (2026-10-26) | LOW | DEFAULT button = CE values ✓; but DH2 *initial* defaults differ: `playerSpeedup: true` (`config.ts:160`, CE `false`), volumes 100 % (CE 22281/32767 ≈ 68 %). — **2026-10-26:** player speedup off, volumes 22281 / 32767. |
 | _JustUpdate_ | applied ad hoc on change | ✅ FIXED (2026-10-25) | LOW | `aiMessageListReloadIfNeeded` (badword reload) missing — see PREF-02. |
 | _UpdateThing / preferencesWindowInit / preferencesWindowFree / _DoThing | `ui_options.ts:58 buildPrefsPanel` | ✅ MATCH | — | Knobs, sliders, checkbox (rendering not pixel-verified). |
 | _SavePrefs | `preferences.ts:102 savePreferences` | ✅ MATCH | — | |
@@ -174,13 +174,13 @@ Top findings:
 |---|---|---|---|---|
 | endgamePlaySlideshow | `endgame.ts:62 playSlideshow` | ⚠️ DIFFERS | MED | END-01. |
 | endgamePlayMovie | `endgame.ts:99 playMovie` | ✅ MATCH | — | akiss, 3 s, credits, continue (EG4). |
-| endgameEndingHandleContinuePlaying | `endgame.ts:52 showContinueDialog` | ⚠️ DIFFERS | LOW | misc.msg 30 ✓; "No" reloads the page (CE back to the main menu). |
+| endgameEndingHandleContinuePlaying | `endgame.ts:52 showContinueDialog` | ✅ FIXED (2026-10-26) | LOW | misc.msg 30 ✓; "No" reloads the page (CE back to the main menu). — **2026-10-26:** "No" goes to the main menu. |
 | endgameEndingRenderPanningScene | `slideRender.ts showPanningSlide` | ✅ MATCH | — | EG3 timing. |
 | endgameEndingRenderStaticScene | `slideRender.ts:250 showStaticSlide` | ✅ MATCH | — | |
 | endgameEndingSlideshowWindowInit / Free | `createOverlay` / `removeOverlay` | ✅ MATCH | — | |
 | endgameEndingVoiceOverInit / Reset / Free / _endgame_voiceover_callback | `playNarratorAudio`, `ended` | ✅ MATCH | — | |
 | endgameEndingLoadPalette | — | 🚫 N/A | — | Pre-baked PNG slides. |
-| endgameEndingSubtitlesLoad / Refresh / Free | `slideRender.ts:17 loadSubtitleLines`, `scheduleSubtitles` | ⚠️ DIFFERS | LOW | Shown regardless of the subtitles preference (CE `endgame.cc:595` `gEndgameEndingSubtitlesEnabled = settings.preferences.subtitles`). |
+| endgameEndingSubtitlesLoad / Refresh / Free | `slideRender.ts:17 loadSubtitleLines`, `scheduleSubtitles` | ✅ FIXED (2026-10-26) | LOW | Shown regardless of the subtitles preference (CE `endgame.cc:595` `gEndgameEndingSubtitlesEnabled = settings.preferences.subtitles`). — **2026-10-26:** only with the subtitles preference. |
 | _endgame_movie_callback / _endgame_movie_bk_process | `music` pause at end | ✅ MATCH | — | |
 | endgameEndingInit / endgameEndingFree | `lut/endgame.json` | ✅ MATCH | — | |
 | endgameDeathEndingInit / Exit | `deathEndings.ts:41` (`lut/enddeath.json`, default nar_5) | ✅ MATCH | — | |
@@ -212,9 +212,9 @@ Top findings:
 
 | CE function (file) | DH2 counterpart (file:line) | Status | Sev | Notes |
 |---|---|---|---|---|
-| elevatorSelectLevel | `ui_elevator.ts:76 uiElevator` | ⚠️ DIFFERS | LOW | Gauge start/animation timing ✓ (EV1/EV2), door reset ✓. Diffs: no Esc cancel and no floor keys (CE `gElevatorLevelLabels`, e.g. G/1, 3/4/6) — the panel only closes by picking a floor; sound = `selevdx1` on map change / `elv1_<dist>` on same map, played after the gauge (CE `gElevatorSoundEffects[levels-2][dist]`, e.g. ELV2_3 for 2 floors of a 4-level car, played before the gauge). |
+| elevatorSelectLevel | `ui_elevator.ts:76 uiElevator` | 🟡 PARTLY FIXED (2026-10-26) | LOW | Gauge start/animation timing ✓ (EV1/EV2), door reset ✓. Diffs: no Esc cancel and no floor keys (CE `gElevatorLevelLabels`, e.g. G/1, 3/4/6) — the panel only closes by picking a floor; sound = `selevdx1` on map change / `elv1_<dist>` on same map, played after the gauge (CE `gElevatorSoundEffects[levels-2][dist]`, e.g. ELV2_3 for 2 floors of a 4-level car, played before the gauge). — **2026-10-26:** Esc and the floor keys. |
 | elevatorWindowInit / elevatorWindowFree | `uiElevator` / `uiElevatorDone` | ✅ MATCH | — | |
-| elevatorGetLevelFromKeyCode | — | ❌ MISSING | LOW | See above. |
+| elevatorGetLevelFromKeyCode | — | ✅ FIXED (2026-10-26) | LOW | See above. — **2026-10-26:** the labels as typed. |
 | elevatorsInit | `lut/elevators.json` | 🚫 N/A | — | sfall elevators.ini not ported. |
 
 ### automap.cc
