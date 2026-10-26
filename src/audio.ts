@@ -23,6 +23,7 @@ import { assetUrl } from './modAssets.js'
 import type { Obj } from './object.js'
 import { soundSourceVolume } from './soundVolume.js'
 import { Config } from './config.js'
+import { getHourMilitary } from './gametime.js'
 
 // Has the page had a user gesture yet? (browser autoplay policy; true where the
 // UserActivation API is missing)
@@ -63,6 +64,15 @@ export class NullAudioEngine implements AudioEngine {
     stopAll(): void {}
     tick(): void {}
     setVolume(_channel: 'master' | 'music' | 'sfx' | 'speech', _value: number): void {}
+}
+
+// CE worldmap.cc wmSfxIdxName: at night (game hour ≤ 600 or ≥ 1800) the birds are crickets —
+// brdchir1 → cricket, brdchirp → cricket1 (wmRemapSfxList)
+function nightRemap(name: string): string {
+    if (name !== 'brdchir1' && name !== 'brdchirp') return name
+    const hour = getHourMilitary()
+    if (hour > 600 && hour < 1800) return name
+    return name === 'brdchir1' ? 'cricket' : 'cricket1'
 }
 
 export class HTMLAudioEngine implements AudioEngine {
@@ -350,7 +360,7 @@ export class HTMLAudioEngine implements AudioEngine {
         this.nextSfxTime = now + 10 * getRandomInt(15, 20)
         if (sfx) {
             const real = window.performance.now()
-            if (real - this.lastAmbientTime >= 5000) this.playSfx(sfx)
+            if (real - this.lastAmbientTime >= 5000) this.playSfx(nightRemap(sfx))
             this.lastAmbientTime = real
         }
     }

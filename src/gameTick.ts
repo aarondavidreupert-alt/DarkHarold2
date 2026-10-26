@@ -51,6 +51,9 @@ import { globalScriptsProcessInput, globalScriptsProcessMain, globalScriptsProce
 // the cadence here and reschedule from a local counter rather than a
 // persisted field (map entry resets the cadence anyway).
 let nextMapUpdateTick = 600
+// CE map.cc mapLoad → gameTimeScheduleUpdateEvent: the next map update comes 600 ticks after
+// the map loads (a game time far past the old schedule doesn't fire it at once)
+Events.on('loadMapPost', () => { nextMapUpdateTick = globalState.gameTickTime + 600 })
 // CE scripts.cc _script_chk_timed_events: map_update_p_proc also every 30 s of real time
 let lastRealTimeMapUpdate = -1
 let critterScriptCursor = -1 // CE scripts.cc _count_

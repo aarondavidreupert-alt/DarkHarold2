@@ -132,13 +132,9 @@ export function getDate(ticks: number = globalState.gameTickTime): GameDate {
     return { day, month, year, hours: Math.floor(totalMinutes / 60) % 24, minutes: totalMinutes % 60 }
 }
 
-// "8:24 AM" style, for the PipBoy STATUS tab.
+// CE scripts.cc gameTimeGetTimeString: 24-hour "%d:%02d" ("8:24", "20:05")
 export function getTimeString(): string {
-    const h = getHour()
-    const m = getMinute()
-    const suffix = h < 12 ? 'AM' : 'PM'
-    const h12 = h === 0 ? 12 : (h > 12 ? h - 12 : h)
-    return `${h12}:${String(m).padStart(2, '0')} ${suffix}`
+    return `${getHour()}:${String(getMinute()).padStart(2, '0')}`
 }
 
 // "Aug 25, 2241" style.

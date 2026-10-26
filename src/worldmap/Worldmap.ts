@@ -287,9 +287,14 @@ export function setCarFuel(amount: number): void {
     _carFuel = Math.min(CAR_FUEL_MAX, Math.max(0, amount))
     if (worldmapPlayer) worldmapPlayer.carFuel = _carFuel
 }
-export function addCarFuel(amount: number): void {
-    _carFuel = Math.min(CAR_FUEL_MAX, _carFuel + Math.max(0, amount))
+// CE worldmap.cc wmCarFillGas: the fuel goes up by `amount` (a negative one takes some away);
+// past CAR_FUEL_MAX the tank is full and the result is the room there was, else 0.
+export function addCarFuel(amount: number): number {
+    let result = 0
+    if (amount + _carFuel <= CAR_FUEL_MAX) _carFuel += amount
+    else { result = CAR_FUEL_MAX - _carFuel; _carFuel = CAR_FUEL_MAX }
     if (worldmapPlayer) worldmapPlayer.carFuel = _carFuel
+    return result
 }
 export function fillCarFuel(): void {
     _carFuel = CAR_FUEL_MAX
@@ -766,6 +771,13 @@ export function init(): void {
         if (!globalState.gMap?.name) return
         markMapVisited(globalState.gMap.name)
         markMapEntranceState(globalState.gMap.name, globalState.gMap.currentElevation, true)
+        // CE wmCheckGameAreaEvents: at CITY_FAKE_VAULT_13_A (45) the real Vault 13 entry swaps
+        // in — A unknown, B (46) known and visited
+        if (currentAreaId === 45) {
+            setAreaVisible(45, false)
+            setAreaVisible(46, true)
+            setAreaVisitedState(46, 2)
+        }
     })
     // map.cc mapSetElevation → wmMapMarkMapEntranceState(gMapHeader.index, elevation, 1)
     Events.on('elevationChanged', (e: { elevation: number; isMapLoading?: boolean }) => {

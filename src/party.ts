@@ -22,6 +22,7 @@ import { arrayIncludes, arrayRemove, getFileText, getMessage, getRandomInt, pars
 import { SkillSet } from './char.js'
 import { loadPRO } from './pro.js'
 import { uiLog } from './ui_hud.js'
+import { Scripting } from './scripting.js'
 import { AiPacket, Disposition, findCompanionPacketForDisposition, getAiPacket } from './aiPackets.js'
 
 // Party member system for DarkFO
@@ -112,6 +113,10 @@ export class Party {
         // CE: critterSetTeam(object, 0) — party members join the player's team.
         const player = globalState.player as Critter | null
         if (player) obj.teamNum = player.teamNum
+        // CE partyMemberAdd: queueRemoveEventsByType(object, EVENT_TYPE_SCRIPT) — the recruit's
+        // pending script timers are dropped
+        const list = Scripting.timeEventList
+        for (let i = list.length - 1; i >= 0; i--) if (list[i].obj === obj && list[i].script) list.splice(i, 1)
     }
 
     // CE ref: party_member.cc:1454 _partyMemberIncLevels — called once per PC level-up

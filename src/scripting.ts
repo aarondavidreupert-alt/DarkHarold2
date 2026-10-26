@@ -1002,8 +1002,7 @@ export module Scripting {
                     // CE ref: interpreter_extra.cc:3241 METARULE_GIVE_CAR_GAS →
                     // worldmap.cc:5984 wmCarFillGas(amount).
                     const gasAmount = typeof target === 'number' ? target : 0
-                    Worldmap.addCarFuel(gasAmount)
-                    return 1
+                    return Worldmap.addCarFuel(gasAmount)
                 }
                 case 52: {
                     // CE ref: interpreter_extra.cc:3331 METARULE_SET_CAR_CARRY_AMOUNT — writes
@@ -1686,9 +1685,18 @@ export module Scripting {
                 case 1: // PCSTAT_level — direct set, no side effects
                     p.stats.setBase('Level', Math.max(1, Math.min(99, value)))
                     return 0
-                case 2: // PCSTAT_experience — direct set
-                    p.stats.setBase('Experience', Math.max(0, value))
+                case 2: {
+                    // PCSTAT_experience: below 0 refused (−2); a higher value runs the level-ups
+                    // (pcAddExperienceWithOptions(0)), a lower one pcSetExperience (level down)
+                    if (value < 0) return -2
+                    if (value >= p.stats.getBase('Experience')) {
+                        p.stats.setBase('Experience', value)
+                        ;(p as any).addExperience?.(0)
+                    } else {
+                        ;(p as any).setExperienceLower?.(value)
+                    }
                     return 0
+                }
                 case 3: // PCSTAT_reputation
                     p.stats.setBase('Reputation', Math.max(-20, Math.min(20, value)))
                     return 0
@@ -3049,6 +3057,8 @@ export module Scripting {
         // CE opSetMapMusic (0x80E2) — worldmap.cc wmSetMapMusic: override maps.txt music.
         set_map_music(mapIndex: number, music: string) {
             setMapMusicOverride(mapIndex, String(music))
+            // … and the current map's music changes at once (backgroundSoundDelete + wmMapMusicStart)
+            if (mapIndex === currentMapID) (globalState.gMap as any)?.playMapMusic?.()
         }
         // CE opWorldmap (0x8108) — scriptsRequestWorldMap
         world_map() {

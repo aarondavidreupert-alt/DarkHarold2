@@ -24,6 +24,7 @@ import globalState from './globalState.js'
 import { Critter, createObjectWithPID, Obj, WeaponObj } from './object.js'
 import { centerCamera } from './renderer.js'
 import { fromTileNum } from './tile.js'
+import { drawHP } from './ui_hud.js'
 import { uiLog, uiWorldMap } from './ui.js'
 
 // Contains the Player class and relevant initialization logic
@@ -244,6 +245,24 @@ export class Player extends Critter {
     // XP required to *reach* a given level: level * (level - 1) / 2 * 1000
     static xpForLevel(level: number): number {
         return Math.floor(level * (level - 1) / 2) * 1000
+    }
+
+    // CE stat.cc pcSetExperience (pcSetStat with less XP): the level follows the XP down, no
+    // level-up pending, and the HP the lost levels gave come off (END / 2 + 2, + 4 per
+    // Lifegiver rank, a level) — from the current and the maximum HP.
+    setExperienceLower(xp: number): void {
+        const oldLevel = this.stats.get('Level')
+        this.stats.setBase('Experience', xp)
+        let level = 1
+        do { level += 1 } while (xp >= Player.xpForLevel(level) && level < 99)
+        const newLevel = level - 1
+        this.stats.setBase('Level', newLevel)
+        this.levelUpAvailable = false
+        const hpPerLevel = Math.trunc(this.stats.getBase('END') / 2) + 2 + 4 * this.perks.filter((p) => p === 'Lifegiver').length
+        const deltaHp = (oldLevel - newLevel) * hpPerLevel
+        this.stats.modifyBase('HP', -deltaHp)
+        this.stats.modifyBase('Max HP', -deltaHp)
+        drawHP(this.getStat('HP'))
     }
 
     addExperience(xp: number) {
