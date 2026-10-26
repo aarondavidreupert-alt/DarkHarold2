@@ -67,11 +67,13 @@ window.onload = async function () {
     globalState.$fpsOverlay = document.getElementById('fpsOverlay')
     initLogScrollZones()
 
-    const _v = '?v=' + Date.now()
-    const fragment = await fetch('shaders/fragment.glsl' + _v)
-    const fragmentLighting = await fetch('shaders/fragmentLighting.glsl' + _v)
-    const vertex = await fetch('shaders/vertex.glsl' + _v)
-    const fragmentFont = await fetch('shaders/fragmentFont.glsl' + _v)
+    // no-cache: the browser revalidates its copy (a 304 when unchanged) instead of a
+    // ?v=Date.now() URL that is downloaded again on every load
+    const fetchShader = (name: string) => fetch(`shaders/${name}.glsl`, { cache: 'no-cache' })
+    const fragment = await fetchShader('fragment')
+    const fragmentLighting = await fetchShader('fragmentLighting')
+    const vertex = await fetchShader('vertex')
+    const fragmentFont = await fetchShader('fragmentFont')
 
     // initialize renderer
     globalState.renderer = new WebGLRenderer(
