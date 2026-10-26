@@ -511,7 +511,7 @@ export function computeMapContentBounds(floorMap: string[][] | null): void {
 // Copyable console diagnostic. Call `scrollDebug()` in DevTools to print the
 // current content bbox, camera, zoom, screen size, and the black-bar widths the
 // overlay would draw this frame. Returns the same object so it copies cleanly.
-;(window as any).scrollDebug = function () {
+export function scrollDebug() {
     const ob = objectContentBounds
     const cam = globalState.cameraPosition
     const z = getZoom()
@@ -555,7 +555,7 @@ const BB_STEP = 20
 
 let _bbKeyListener: ((e: KeyboardEvent) => void) | null = null
 
-;(window as any).blackBar = function (side?: 'W' | 'E' | 'N' | 'S') {
+export function blackBar(side?: 'W' | 'E' | 'N' | 'S') {
     // Exit mode
     if (!side) {
         ;(window as any).borderDebug = false
@@ -605,14 +605,14 @@ let _bbKeyListener: ((e: KeyboardEvent) => void) | null = null
     console.log('[blackBar] current = ' + JSON.stringify((window as any).scrollLimits))
 }
 
-;(window as any).borderSave = function () {
+export function borderSave() {
     const mapName = (globalState.gMap as any)?.name ?? '?'
     const lim = (window as any).scrollLimits ?? objectContentBounds
     console.log(mapName + ': ' + JSON.stringify(lim))
     return lim
 }
 
-;(window as any).clearBorder = function () {
+export function clearBorder() {
     delete (window as any).scrollLimits
     ;(window as any).borderDebug = false
     ;(window as any)._bbSide = null

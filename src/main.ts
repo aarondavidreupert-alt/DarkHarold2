@@ -48,10 +48,9 @@ import { getFileJSON, getRandomInt } from './util.js'
 import { WebGLRenderer } from './webglrenderer.js'
 import { Config } from './config.js'
 import { fonUnpack } from './formats/fon.js'
-import { Lightmap } from './lightmap.js'
 import { installInputHandlers } from './input.js'
 import { tickGame } from './gameTick.js'
-import { registerCacheAndOutlineCommands, registerEggCommands, registerLightingCommands, registerToggleCommands } from './devConsole.js'
+import { devConsoleEnabled, registerDevConsole, registerEventLogCommands } from './devConsole.js'
 import './autocrawler.js'
 import './mapFade.js' // black screen over map changes (CE isoDisable / wmFadeOut)
 
@@ -69,6 +68,8 @@ function miscHealingItemUse(item: import('./object.js').Obj, user: import('./obj
     objUseItemOn(user, user, item)
     return true
 }
+
+registerEventLogCommands()
 
 window.onload = async function () {
     globalState.isInitializing = true
@@ -360,22 +361,14 @@ window.onload = async function () {
                 globalState.drugHandler = useDrug
                 globalState.miscItemUseHandler = miscHealingItemUse
                 globalState.isInitializing = false
-
-                // debug exposure for console inspection
-                ;(window as any).debugLightmap = Lightmap
-                ;(window as any).debugRenderer = globalState.renderer
-                ;(window as any).debugGlobalState = globalState
             })
         })
     })
 
     heart._init()
 
-    registerToggleCommands()
-    registerLightingCommands()
-    registerEggCommands()
-    registerCacheAndOutlineCommands()
-
+    // the developer console commands: play.html#dev only (src/devConsole/register.ts)
+    if (devConsoleEnabled()) registerDevConsole()
 }
 
 installInputHandlers()

@@ -65,6 +65,7 @@ export module Worldmap {
     export const subTileVisitedState = _WorldmapMod.subTileVisitedState
     export const markMapEntranceState = _WorldmapMod.markMapEntranceState
     export const markSubTileRadiusVisited = _WorldmapMod.markSubTileRadiusVisited
+    export const giveCar = _WorldmapMod.giveCar // console helper (src/devConsole)
 
     // Random encounters (worldmap/encounters.ts): save / load / new game.
     export type SavedEncounters = _Encounters.SavedEncounters

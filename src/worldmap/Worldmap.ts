@@ -140,30 +140,28 @@ const MAP_W = NUM_SQUARES_X * SQUARE_SIZE   // 1400
 const MAP_H = NUM_SQUARES_Y * SQUARE_SIZE   // 1500
 const EDGE_THRESHOLD = 20  // px from edge that triggers mouse-edge scroll
 
-// Console command: window.giveCar([fuel]) — test helper standing in for the quest
+// Console command giveCar([fuel]) (play.html#dev, src/devConsole) — test helper standing in for the quest
 // that hands over the Highwayman: sets GVAR_PLAYER_GOT_CAR (which the town map
 // scripts check before placing the car) and parks the car in the current area
 // (CE wmCarSetCurrentArea), or puts the party in it when outside any area.
-if (typeof window !== 'undefined') {
-    ;(window as any).giveCar = (fuel: number = CAR_FUEL_MAX) => {
-        _carFuel = Math.min(CAR_FUEL_MAX, Math.max(0, fuel))
-        if (worldmapPlayer) worldmapPlayer.carFuel = _carFuel
-        setGlobalVarHook?.(GVAR_PLAYER_GOT_CAR, 1)
-        const mapName = (globalState.gMap as any)?.name as string | undefined
-        if (!globalState.mapAreas) {
-            try { globalState.mapAreas = loadAreas() } catch (_) {}
-        }
-        const area = mapName && globalState.mapAreas ? areaContainingMap(mapName) : null
-        if (area) {
-            setIsInCar(false)
-            _currentCarAreaId = area.id
-            console.log(`Car parked in "${area.name}" — its map script places it on the next map load.`)
-        } else {
-            setIsInCar(true)
-            console.log(`Car enabled (travel mode). Fuel: ${_carFuel} / ${CAR_FUEL_MAX}`)
-        }
-        updateCarUI()
+export function giveCar(fuel: number = CAR_FUEL_MAX): void {
+    _carFuel = Math.min(CAR_FUEL_MAX, Math.max(0, fuel))
+    if (worldmapPlayer) worldmapPlayer.carFuel = _carFuel
+    setGlobalVarHook?.(GVAR_PLAYER_GOT_CAR, 1)
+    const mapName = (globalState.gMap as any)?.name as string | undefined
+    if (!globalState.mapAreas) {
+        try { globalState.mapAreas = loadAreas() } catch (_) {}
     }
+    const area = mapName && globalState.mapAreas ? areaContainingMap(mapName) : null
+    if (area) {
+        setIsInCar(false)
+        _currentCarAreaId = area.id
+        console.log(`Car parked in "${area.name}" — its map script places it on the next map load.`)
+    } else {
+        setIsInCar(true)
+        console.log(`Car enabled (travel mode). Fuel: ${_carFuel} / ${CAR_FUEL_MAX}`)
+    }
+    updateCarUI()
 }
 
 // game_vars.h car GVARs. Scripting registers the accessors (avoids a worldmap →
