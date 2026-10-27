@@ -66,9 +66,24 @@ export interface SerializedCritter extends SerializedObj {
 }
 
 export const SERIALIZED_CRITTER_PROPS = [
-    'stats', 'skills', 'aiNum', 'teamNum', 'hostile', 'isPlayer', 'dead',
-    'anim', 'crippledLeftArm', 'crippledRightArm', 'crippledLeftLeg', 'crippledRightLeg',
-    'poisonLevel', 'radiationLevel', 'radiated', 'addictions', 'addictedState', 'customAiOverrides',
+    'stats',
+    'skills',
+    'aiNum',
+    'teamNum',
+    'hostile',
+    'isPlayer',
+    'dead',
+    'anim',
+    'crippledLeftArm',
+    'crippledRightArm',
+    'crippledLeftLeg',
+    'crippledRightLeg',
+    'poisonLevel',
+    'radiationLevel',
+    'radiated',
+    'addictions',
+    'addictedState',
+    'customAiOverrides',
 ]
 
 export class Critter extends Obj {
@@ -111,22 +126,46 @@ export class Critter extends Obj {
     // The cripple / blind / prone accessors below read and write them.
     injuryFlags = 0
 
-    private resultBit(bit: number): boolean { return (this.injuryFlags & bit) !== 0 }
-    private setResultBit(bit: number, on: boolean): void {
-        this.injuryFlags = (on ? (this.injuryFlags | bit) : (this.injuryFlags & ~bit)) >>> 0
+    private resultBit(bit: number): boolean {
+        return (this.injuryFlags & bit) !== 0
     }
-    get crippledLeftLeg(): boolean { return this.resultBit(0x04) }   // DAM_CRIP_LEG_LEFT
-    set crippledLeftLeg(v: boolean) { this.setResultBit(0x04, !!v) }
-    get crippledRightLeg(): boolean { return this.resultBit(0x08) }  // DAM_CRIP_LEG_RIGHT
-    set crippledRightLeg(v: boolean) { this.setResultBit(0x08, !!v) }
-    get crippledLeftArm(): boolean { return this.resultBit(0x10) }   // DAM_CRIP_ARM_LEFT
-    set crippledLeftArm(v: boolean) { this.setResultBit(0x10, !!v) }
-    get crippledRightArm(): boolean { return this.resultBit(0x20) }  // DAM_CRIP_ARM_RIGHT
-    set crippledRightArm(v: boolean) { this.setResultBit(0x20, !!v) }
-    get isBlinded(): boolean { return this.resultBit(0x40) }         // DAM_BLIND
-    set isBlinded(v: boolean) { this.setResultBit(0x40, !!v) }
+    private setResultBit(bit: number, on: boolean): void {
+        this.injuryFlags = (on ? this.injuryFlags | bit : this.injuryFlags & ~bit) >>> 0
+    }
+    get crippledLeftLeg(): boolean {
+        return this.resultBit(0x04)
+    } // DAM_CRIP_LEG_LEFT
+    set crippledLeftLeg(v: boolean) {
+        this.setResultBit(0x04, !!v)
+    }
+    get crippledRightLeg(): boolean {
+        return this.resultBit(0x08)
+    } // DAM_CRIP_LEG_RIGHT
+    set crippledRightLeg(v: boolean) {
+        this.setResultBit(0x08, !!v)
+    }
+    get crippledLeftArm(): boolean {
+        return this.resultBit(0x10)
+    } // DAM_CRIP_ARM_LEFT
+    set crippledLeftArm(v: boolean) {
+        this.setResultBit(0x10, !!v)
+    }
+    get crippledRightArm(): boolean {
+        return this.resultBit(0x20)
+    } // DAM_CRIP_ARM_RIGHT
+    set crippledRightArm(v: boolean) {
+        this.setResultBit(0x20, !!v)
+    }
+    get isBlinded(): boolean {
+        return this.resultBit(0x40)
+    } // DAM_BLIND
+    set isBlinded(v: boolean) {
+        this.setResultBit(0x40, !!v)
+    }
     // CE _critter_is_prone: DAM_KNOCKED_OUT | DAM_KNOCKED_DOWN
-    get isKnockedDown(): boolean { return this.resultBit(0x03) }
+    get isKnockedDown(): boolean {
+        return this.resultBit(0x03)
+    }
 
     // Poison / radiation / addiction (FO2-CE ref: critter.cc, radiation.cc)
     poisonLevel: number = 0
@@ -134,7 +173,7 @@ export class Critter extends Obj {
     // CE CRITTER_RADIATED (proto data flag): set when a dose is taken, consumed by the
     // nightly radiation check (src/radiation.ts checkRads).
     radiated: boolean = false
-    addictions: string[] = []   // legacy (pre-2026-10-06 saves); addiction state now lives in the CE GVARs
+    addictions: string[] = [] // legacy (pre-2026-10-06 saves); addiction state now lives in the CE GVARs
     // CE DUDE_STATE_ADDICTED (critter.cc dudeEnableState) — drives the ADDICT indicator.
     addictedState: boolean = false
 
@@ -169,7 +208,8 @@ export class Critter extends Obj {
             if (mobj.skills) {
                 const sk = mobj.skills
                 const proto = sk.protoDefaults || !mobj.isPlayer
-                const base = proto && !sk.protoDefaults ? SkillSet.withProtoDefaults(sk.baseSkills ?? {}) : sk.baseSkills
+                const base =
+                    proto && !sk.protoDefaults ? SkillSet.withProtoDefaults(sk.baseSkills ?? {}) : sk.baseSkills
                 obj.skills = new SkillSet(base, sk.tagged, sk.skillPoints)
                 obj.skills.hasTagPerk = !!sk.hasTagPerk
                 obj.skills.protoDefaults = proto
@@ -181,12 +221,13 @@ export class Critter extends Obj {
             // CE ref: inventory.cc critterGetItem1/critterGetItem2 — use hand-slot
             // flags (OBJECT_IN_LEFT_HAND=0x1000000, OBJECT_IN_RIGHT_HAND=0x2000000).
             // Any item can be in a hand (a flare, a Stealth Boy), not only weapons.
-            obj.leftHand  = Critter.makeFist()
+            obj.leftHand = Critter.makeFist()
             obj.rightHand = Critter.makeFist()
             for (const inv of obj.inventory) {
                 const w = inv as WeaponObj
-                if (inv.flags & 0x1000000) obj.leftHand  = w       // OBJECT_IN_LEFT_HAND
-                else if (inv.flags & 0x2000000) obj.rightHand = w  // OBJECT_IN_RIGHT_HAND
+                if (inv.flags & 0x1000000)
+                    obj.leftHand = w // OBJECT_IN_LEFT_HAND
+                else if (inv.flags & 0x2000000) obj.rightHand = w // OBJECT_IN_RIGHT_HAND
             }
         } else if (typeof mobj.extra?.hp === 'number') {
             // CE: the map file stores each critter's current HP (data.critter.hp), and
@@ -244,11 +285,12 @@ export class Critter extends Obj {
         // is encoded as flags on inventory items: OBJECT_IN_LEFT_HAND=0x1000000,
         // OBJECT_IN_RIGHT_HAND=0x2000000.  fomap.py exports these flags, so we
         // can faithfully restore which weapon each NPC had drawn on map load.
-        this.leftHand  = Critter.makeFist()
+        this.leftHand = Critter.makeFist()
         this.rightHand = Critter.makeFist()
         for (const inv of this.inventory) {
             const w = inv as WeaponObj
-            if (inv.flags & 0x1000000) this.leftHand  = w  // OBJECT_IN_LEFT_HAND
+            if (inv.flags & 0x1000000)
+                this.leftHand = w // OBJECT_IN_LEFT_HAND
             else if (inv.flags & 0x2000000) this.rightHand = w // OBJECT_IN_RIGHT_HAND
         }
         // CE: a critter other than the player acts with its right-hand item
@@ -269,23 +311,27 @@ export class Critter extends Obj {
 
     static makeFist(): WeaponObj {
         const f = new WeaponObj()
-        f.type = 'item'; f.subtype = 'weapon'
+        f.type = 'item'
+        f.subtype = 'weapon'
         f.weapon = new Weapon(null as unknown as WeaponObj)
         return f
     }
 
     /** CE ref: critter.cc critterEquipCurrent — equip first two weapons from inventory. */
     equipFromInventory(): void {
-        this.leftHand  = undefined
+        this.leftHand = undefined
         this.rightHand = undefined
         for (const inv of this.inventory) {
             if (inv.subtype !== 'weapon') continue
             const w = inv as WeaponObj
             if (!w.weapon?.canEquip(this)) continue
             if (this.leftHand === undefined) this.leftHand = w
-            else if (this.rightHand === undefined) { this.rightHand = w; break }
+            else if (this.rightHand === undefined) {
+                this.rightHand = w
+                break
+            }
         }
-        if (!this.leftHand)  this.leftHand  = Critter.makeFist()
+        if (!this.leftHand) this.leftHand = Critter.makeFist()
         if (!this.rightHand) this.rightHand = Critter.makeFist()
     }
 
@@ -294,8 +340,11 @@ export class Critter extends Obj {
         if (!this.isPlayer || !(this as any).isSneaking || this.hasPerk('Silent Running')) return
         ;(this as any).isSneaking = false
         ;(this as any).sneakWorking = false
-        Scripting.timeEventList.splice(0, Scripting.timeEventList.length,
-            ...Scripting.timeEventList.filter((e) => !(e.obj === this && e.userdata === 'sneak')))
+        Scripting.timeEventList.splice(
+            0,
+            Scripting.timeEventList.length,
+            ...Scripting.timeEventList.filter((e) => !(e.obj === this && e.userdata === 'sneak')),
+        )
     }
 
     move(position: Point, curIdx?: number, signalEvents = true): boolean {
@@ -316,17 +365,31 @@ export class Critter extends Obj {
         // CE scripts.cc scriptsExecSpatialProc: not for hidden or flat objects or tiles below
         // 10, and not while a spatial_p_proc is already running or map_enter / map_update
         // scripts run (_scr_SpatialsEnabled).
-        if (Config.engine.doSpatials !== false && this.visible !== false && ((this.flags ?? 0) & 0x08) === 0 // OBJECT_FLAT
-            && toTileNum(position) >= 10 && !spatialsBusy && Scripting.spatialsEnabled()) {
+        if (
+            Config.engine.doSpatials !== false &&
+            this.visible !== false &&
+            ((this.flags ?? 0) & 0x08) === 0 && // OBJECT_FLAT
+            toTileNum(position) >= 10 &&
+            !spatialsBusy &&
+            Scripting.spatialsEnabled()
+        ) {
             spatialsBusy = true
             try {
-            const hitSpatials = hitSpatialTrigger(position, (this as any).elevation ?? globalState.gMap.currentElevation)
-            for (let i = 0; i < hitSpatials.length; i++) {
-                const spatial = hitSpatials[i]
-                dbg('object', `[Object] triggered spatial ${spatial.script} (range=${spatial.range}) @ (${spatial.position.x}, ${spatial.position.y})`)
-                Scripting.spatial(spatial, this)
+                const hitSpatials = hitSpatialTrigger(
+                    position,
+                    (this as any).elevation ?? globalState.gMap.currentElevation,
+                )
+                for (let i = 0; i < hitSpatials.length; i++) {
+                    const spatial = hitSpatials[i]
+                    dbg(
+                        'object',
+                        `[Object] triggered spatial ${spatial.script} (range=${spatial.range}) @ (${spatial.position.x}, ${spatial.position.y})`,
+                    )
+                    Scripting.spatial(spatial, this)
+                }
+            } finally {
+                spatialsBusy = false
             }
-            } finally { spatialsBusy = false }
         }
 
         return true
@@ -344,8 +407,10 @@ export class Critter extends Obj {
             // CE traitGetSkillModifier — the dude's traits (Gifted, Good Natured) apply always
             traits: this.isPlayer ? (this as any).traits : undefined,
             // CE perkGetSkillModifier: Ghost reads objectGetLightIntensity(gDude).
-            lightIntensity: skill === 'Sneak' && this.perks.includes('Ghost') && globalState.player
-                ? getObjectLightIntensity(globalState.player as Critter, true) : undefined,
+            lightIntensity:
+                skill === 'Sneak' && this.perks.includes('Ghost') && globalState.player
+                    ? getObjectLightIntensity(globalState.player as Critter, true)
+                    : undefined,
         })
     }
 
@@ -535,7 +600,10 @@ export class Critter extends Obj {
         const ap = this.AP
         const walkThere = (then: () => void): boolean => {
             if (!exactHex) return this.walkInFrontOf(targetPos, then)
-            if (this.position.x === exactHex.x && this.position.y === exactHex.y) { then(); return true }
+            if (this.position.x === exactHex.x && this.position.y === exactHex.y) {
+                then()
+                return true
+            }
             return this.walkTo(exactHex, Config.engine.doAlwaysRun || hexDistance(this.position, exactHex) >= 5, then)
         }
         if (!globalState.inCombat || !this.isPlayer || !ap) {

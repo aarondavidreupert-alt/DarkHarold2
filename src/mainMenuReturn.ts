@@ -22,13 +22,21 @@ limitations under the License.
 const KEY = 'dh2.returnToMainMenu'
 
 export function returnToMainMenu(): void {
-    try { sessionStorage.setItem(KEY, '1') } catch (_) { /* private mode: the movies play */ }
+    try {
+        sessionStorage.setItem(KEY, '1')
+    } catch (_) {
+        /* private mode: the movies play */
+    }
     location.reload()
 }
 
 /** True when this page load comes from returnToMainMenu (without taking the flag). */
 export function isMainMenuReturn(): boolean {
-    try { return sessionStorage.getItem(KEY) === '1' } catch (_) { return false }
+    try {
+        return sessionStorage.getItem(KEY) === '1'
+    } catch (_) {
+        return false
+    }
 }
 
 /** True (once) when this page load comes from returnToMainMenu. */

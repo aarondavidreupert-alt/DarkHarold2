@@ -26,7 +26,14 @@ import { heart } from './heart.js'
 import { dbg, dbgWarn } from './logger.js'
 import type { EventLogEntry } from './eventlog.types.js'
 import { SerializedMap } from './map.js'
-import { Critter, deserializeObj, PROTO_ID_LIT_FLARE, scheduleExplosion, scheduleFlareBurnOut, SerializedObj } from './object.js'
+import {
+    Critter,
+    deserializeObj,
+    PROTO_ID_LIT_FLARE,
+    scheduleExplosion,
+    scheduleFlareBurnOut,
+    SerializedObj,
+} from './object.js'
 import { refreshStealthState, scheduleTrickle } from './miscItem.js'
 import { Scripting } from './scripting.js'
 import { scheduleSneakEvent, sneakClear, serializeSkillUsage, deserializeSkillUsage } from './skillUse.js'
@@ -37,7 +44,12 @@ import { gameReset } from './gameReset.js'
 import { Worldmap } from './worldmap.js'
 import { beginMapFade, endMapFade } from './mapFade.js'
 import { deserializeSfallGlobals, serializeSfallGlobals } from './sfallGlobalScripts.js'
-import { applyPreferences, currentPreferences, savePreferences, type SavedPreferences } from './ui_options/preferences.js'
+import {
+    applyPreferences,
+    currentPreferences,
+    savePreferences,
+    type SavedPreferences,
+} from './ui_options/preferences.js'
 import { scheduleKnockoutEvent } from './combat/results.js'
 import { Combat, type SavedCombat } from './combat/Combat.js'
 
@@ -142,13 +154,22 @@ export interface SaveGame {
 // (LS_PREVIEW_WIDTH/HEIGHT). The WebGL canvas has no preserveDrawingBuffer, so the
 // frame is rendered and read back in the same task; reading it later gives a blank.
 const PLAYER_CONDITION_PROPS = [
-    'dead', 'crippledLeftArm', 'crippledRightArm', 'crippledLeftLeg', 'crippledRightLeg', 'isBlinded',
-    'poisonLevel', 'radiationLevel', 'radiated', 'addictedState',
+    'dead',
+    'crippledLeftArm',
+    'crippledRightArm',
+    'crippledLeftLeg',
+    'crippledRightLeg',
+    'isBlinded',
+    'poisonLevel',
+    'radiationLevel',
+    'radiated',
+    'addictedState',
 ]
 
 const LS_PREVIEW_WIDTH = 224
 const LS_PREVIEW_HEIGHT = 133
-const ISO_W = 640, ISO_H = 380
+const ISO_W = 640,
+    ISO_H = 380
 const INTERFACE_BAR_HEIGHT = 99
 let pendingSnapshot: string | undefined
 
@@ -175,7 +196,9 @@ export function takeSaveSnapshot(): void {
 }
 
 // The snapshot the open save screen previews for an empty slot.
-export function getSaveSnapshot(): string | undefined { return pendingSnapshot }
+export function getSaveSnapshot(): string | undefined {
+    return pendingSnapshot
+}
 
 function captureScreenshot(): string | undefined {
     if (pendingSnapshot === undefined) takeSaveSnapshot()
@@ -307,10 +330,11 @@ export function save(name: string, slot = -1, callback?: (id: number) => void): 
     const save = gatherSaveData(name)
 
     const dirtyMapNames = Object.keys(globalState.dirtyMapCache)
-    dbg('saveload',
+    dbg(
+        'saveload',
         `[SaveLoad] Saving ${1 + dirtyMapNames.length} maps (current: ${
             globalState.gMap.name
-        } plus dirty maps: ${dirtyMapNames.join(', ')})`
+        } plus dirty maps: ${dirtyMapNames.join(', ')})`,
     )
 
     if (slot !== -1) {
@@ -318,12 +342,17 @@ export function save(name: string, slot = -1, callback?: (id: number) => void): 
     }
 
     let savedId = slot
-    withTransaction((trans) => {
-        const req = trans.objectStore('saves').put(save)
-        req.onsuccess = () => { savedId = Number(req.result) }
+    withTransaction(
+        (trans) => {
+            const req = trans.objectStore('saves').put(save)
+            req.onsuccess = () => {
+                savedId = Number(req.result)
+            }
 
-        dbg('saveload', "[SaveLoad] Saving game data as '%s'", name)
-    }, () => callback?.(savedId))
+            dbg('saveload', "[SaveLoad] Saving game data as '%s'", name)
+        },
+        () => callback?.(savedId),
+    )
 }
 
 // DH2 addition (CE has no delete): remove a saved game from the database.
@@ -390,8 +419,8 @@ export function load(id: number): void {
                     Scripting.setGameUiDisabled(ps.gameUIDisabled ?? false) // CE interfaceLoad
                     p.isSneaking = ps.isSneaking
                     ;(p as any).sneakWorking = ps.sneakWorking ?? false
-                    p.leftHand = ps.leftHand ? deserializeObj(ps.leftHand) as any : undefined
-                    p.rightHand = ps.rightHand ? deserializeObj(ps.rightHand) as any : undefined
+                    p.leftHand = ps.leftHand ? (deserializeObj(ps.leftHand) as any) : undefined
+                    p.rightHand = ps.rightHand ? (deserializeObj(ps.rightHand) as any) : undefined
                     p.armor = ps.armor ? deserializeObj(ps.armor) : null
                     for (const k of PLAYER_CONDITION_PROPS) {
                         if (ps.condition?.[k] !== undefined) (p as any)[k] = ps.condition[k]
@@ -468,11 +497,17 @@ export function load(id: number): void {
                     addByUid(globalState.player)
                     if (globalState.player) byUid.set(globalState.player.uid, globalState.player)
                     for (const ev of save.timedEvents) {
-                        const obj = ev.objUid != null
-                            ? byUid.get(ev.objUid) ?? null
-                            : ev.objPid !== null ? mapObjects.find(o => o.pid === ev.objPid) ?? null : null
+                        const obj =
+                            ev.objUid != null
+                                ? (byUid.get(ev.objUid) ?? null)
+                                : ev.objPid !== null
+                                  ? (mapObjects.find((o) => o.pid === ev.objPid) ?? null)
+                                  : null
                         const { ticks, userdata } = ev
-                        if (typeof userdata === 'string' && (userdata.startsWith('drug:') || userdata.startsWith('withdrawal:'))) {
+                        if (
+                            typeof userdata === 'string' &&
+                            (userdata.startsWith('drug:') || userdata.startsWith('withdrawal:'))
+                        ) {
                             // CE ref: item.cc drugEffectEventRead / withdrawalEventRead. Old-format
                             // drug events (pre-2026-10-06 'drug:<name>') don't parse and are dropped.
                             const user = (obj ?? globalState.player) as Critter | null
@@ -481,9 +516,15 @@ export function load(id: number): void {
                             // CE ref: critter.cc:1194 sneakEventProcess — restore periodic sneak roll timer.
                             const playerForSneak = globalState.player
                             if (playerForSneak && (playerForSneak as any).isSneaking) {
-                                Scripting.timeEventList.push({ obj: playerForSneak, ticks, userdata,
-                                    fn: () => { if ((playerForSneak as any).isSneaking) scheduleSneakEvent(playerForSneak) },
-                                    leaveMap: () => sneakClear(playerForSneak) })
+                                Scripting.timeEventList.push({
+                                    obj: playerForSneak,
+                                    ticks,
+                                    userdata,
+                                    fn: () => {
+                                        if ((playerForSneak as any).isSneaking) scheduleSneakEvent(playerForSneak)
+                                    },
+                                    leaveMap: () => sneakClear(playerForSneak),
+                                })
                             }
                         } else if (typeof userdata === 'string' && userdata.startsWith('radiation:')) {
                             // CE ref: critter.cc radiationEventRead — restore sickness / recovery event.
@@ -493,8 +534,13 @@ export function load(id: number): void {
                             // CE ref: critter.cc poisonEventProcess — restore poison decay timer.
                             const player = globalState.player as Critter | null
                             if (player && !player.dead) {
-                                Scripting.timeEventList.push({ obj: player, ticks, userdata,
-                                    fn: () => Scripting.poisonDecayEvent(player), leaveMap: 'keep' })
+                                Scripting.timeEventList.push({
+                                    obj: player,
+                                    ticks,
+                                    userdata,
+                                    fn: () => Scripting.poisonDecayEvent(player),
+                                    leaveMap: 'keep',
+                                })
                             }
                         } else if (userdata === 'knockout') {
                             // CE queue.cc knockout event: the critter wakes up when it runs out
@@ -510,8 +556,12 @@ export function load(id: number): void {
                             if (obj) scheduleExplosion(obj, ticks, userdata === 'explosionFailure')
                         } else if (obj?._script) {
                             const script = obj._script
-                            Scripting.timeEventList.push({ obj, ticks, userdata, script: true,
-                                fn: () => Scripting.timedEvent(script, userdata)
+                            Scripting.timeEventList.push({
+                                obj,
+                                ticks,
+                                userdata,
+                                script: true,
+                                fn: () => Scripting.timedEvent(script, userdata),
                             })
                         }
                     }
@@ -521,11 +571,17 @@ export function load(id: number): void {
                     const playerForPoison = globalState.player as Critter | null
                     if (playerForPoison && !playerForPoison.dead && (playerForPoison.poisonLevel ?? 0) > 0) {
                         const hasEvent = Scripting.timeEventList.some(
-                            e => e.obj === playerForPoison && e.userdata === 'poison')
+                            (e) => e.obj === playerForPoison && e.userdata === 'poison',
+                        )
                         if (!hasEvent) {
                             const delay = 10 * (505 - 5 * playerForPoison.poisonLevel)
-                            Scripting.timeEventList.push({ obj: playerForPoison, ticks: delay, userdata: 'poison',
-                                fn: () => Scripting.poisonDecayEvent(playerForPoison), leaveMap: 'keep' })
+                            Scripting.timeEventList.push({
+                                obj: playerForPoison,
+                                ticks: delay,
+                                userdata: 'poison',
+                                fn: () => Scripting.poisonDecayEvent(playerForPoison),
+                                leaveMap: 'keep',
+                            })
                         }
                     }
 
@@ -534,7 +590,8 @@ export function load(id: number): void {
                     const playerForSneak2 = globalState.player
                     if (playerForSneak2 && (playerForSneak2 as any).isSneaking) {
                         const hasSneakEvent = Scripting.timeEventList.some(
-                            e => e.obj === playerForSneak2 && e.userdata === 'sneak')
+                            (e) => e.obj === playerForSneak2 && e.userdata === 'sneak',
+                        )
                         if (!hasSneakEvent) scheduleSneakEvent(playerForSneak2)
                     }
 

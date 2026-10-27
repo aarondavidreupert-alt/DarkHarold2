@@ -47,7 +47,7 @@ export interface Area {
 
 interface AreaEntrance {
     startState: string
-    state: boolean   // runtime toggle: CE wmMapMarkMapEntranceState sets entrance->state
+    state: boolean // runtime toggle: CE wmMapMarkMapEntranceState sets entrance->state
     x: number
     y: number
     mapLookupName: string
@@ -102,7 +102,6 @@ function parseAreas(data: string): AreaMap {
         // map/label art
         const mapArtIdx = parseInt(area.townmap_art_idx)
         const labelArtIdx = parseInt(area.townmap_label_art_idx)
-
 
         if (mapArtIdx !== -1) newArea.mapArt = lookupInterfaceArt(mapArtIdx)
         if (labelArtIdx !== -1) newArea.labelArt = lookupInterfaceArt(labelArtIdx)
@@ -316,7 +315,12 @@ function parseMapInfo() {
             randomStartPoints: randomStartPoints,
             saved: (ini[category].saved ?? 'Yes').split(';')[0].trim().toLowerCase() !== 'no',
             deadBodiesAge: (ini[category].dead_bodies_age ?? 'Yes').split(';')[0].trim().toLowerCase() !== 'no',
-            canRestHere: [0, 1, 2].map((e) => ((ini[category].can_rest_here ?? 'Yes,Yes,Yes').split(';')[0].split(',')[e] ?? 'Yes').trim().toLowerCase() !== 'no'),
+            canRestHere: [0, 1, 2].map(
+                (e) =>
+                    ((ini[category].can_rest_here ?? 'Yes,Yes,Yes').split(';')[0].split(',')[e] ?? 'Yes')
+                        .trim()
+                        .toLowerCase() !== 'no',
+            ),
         }
     }
 }

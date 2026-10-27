@@ -23,25 +23,24 @@ import { dbg } from './logger.js'
 
 // --- Tick constants (all match fallout2-ce) ---
 export const TICKS_PER_SECOND = 10
-export const TICKS_PER_MINUTE = 600         // 60 * 10
-export const TICKS_PER_HOUR = 36000         // 60 * 60 * 10
-export const TICKS_PER_DAY = 864000         // 24 * 36000
-export const TICKS_PER_YEAR = 315360000     // 365 * 864000
+export const TICKS_PER_MINUTE = 600 // 60 * 10
+export const TICKS_PER_HOUR = 36000 // 60 * 60 * 10
+export const TICKS_PER_DAY = 864000 // 24 * 36000
+export const TICKS_PER_YEAR = 315360000 // 365 * 864000
 
 // --- Starting date ---
 // Fallout 2 starts 302400 ticks in (= 8 hours 24 minutes), on July 25, 2241.
 // CE ref: sfall_config.cc:31 gStartMonth = 6 (0-indexed = July).
-export const START_TICKS = 302400            // 8:24 AM
+export const START_TICKS = 302400 // 8:24 AM
 export const START_DAY = 25
-export const START_MONTH = 6                 // 0-indexed (July); CE sfall_config.cc:31
+export const START_MONTH = 6 // 0-indexed (July); CE sfall_config.cc:31
 export const START_YEAR = 2241
 
 const DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 // --- Light constants (match fallout2-ce light.h) ---
-export const LIGHT_INTENSITY_MIN = 65536 / 4  // 16384
+export const LIGHT_INTENSITY_MIN = 65536 / 4 // 16384
 export const LIGHT_INTENSITY_MAX = 65536
 
 // Night floor used by the day/night curve. Decoupled from LIGHT_INTENSITY_MIN
@@ -77,10 +76,18 @@ export function setTime(ticks: number): void {
 
 // Total elapsed seconds / minutes / hours / days since Jan 1 of year 1 of
 // the game world. These are monotonic; they are not the "hour of day".
-export function getTotalSeconds(): number { return Math.floor(globalState.gameTickTime / TICKS_PER_SECOND) }
-export function getTotalMinutes(): number { return Math.floor(globalState.gameTickTime / TICKS_PER_MINUTE) }
-export function getTotalHours(): number { return Math.floor(globalState.gameTickTime / TICKS_PER_HOUR) }
-export function getTotalDays(): number { return Math.floor(globalState.gameTickTime / TICKS_PER_DAY) }
+export function getTotalSeconds(): number {
+    return Math.floor(globalState.gameTickTime / TICKS_PER_SECOND)
+}
+export function getTotalMinutes(): number {
+    return Math.floor(globalState.gameTickTime / TICKS_PER_MINUTE)
+}
+export function getTotalHours(): number {
+    return Math.floor(globalState.gameTickTime / TICKS_PER_HOUR)
+}
+export function getTotalDays(): number {
+    return Math.floor(globalState.gameTickTime / TICKS_PER_DAY)
+}
 
 // Hour of day (0..23).
 export function getHour(): number {
@@ -108,11 +115,11 @@ export function getDay(): number {
 // real-world month-length table. Leap years are ignored (same as the
 // original).
 export interface GameDate {
-    day: number       // 1..31
-    month: number     // 0..11
+    day: number // 1..31
+    month: number // 0..11
     year: number
-    hours: number     // 0..23
-    minutes: number   // 0..59
+    hours: number // 0..23
+    minutes: number // 0..59
 }
 // `ticks` defaults to the current game time (e.g. a save's gameTickTime).
 export function getDate(ticks: number = globalState.gameTickTime): GameDate {
@@ -159,9 +166,15 @@ export function advanceTicks(ticks: number): void {
     globalState.gameTickTime += ticks
     timeJumpHandler?.(ticks)
 }
-export function advanceSeconds(seconds: number): void { advanceTicks(seconds * TICKS_PER_SECOND) }
-export function advanceMinutes(minutes: number): void { advanceTicks(minutes * TICKS_PER_MINUTE) }
-export function advanceHours(hours: number): void { advanceTicks(hours * TICKS_PER_HOUR) }
+export function advanceSeconds(seconds: number): void {
+    advanceTicks(seconds * TICKS_PER_SECOND)
+}
+export function advanceMinutes(minutes: number): void {
+    advanceTicks(minutes * TICKS_PER_MINUTE)
+}
+export function advanceHours(hours: number): void {
+    advanceTicks(hours * TICKS_PER_HOUR)
+}
 
 // --- Ambient light ---
 //
@@ -182,9 +195,9 @@ export function advanceHours(hours: number): void { advanceTicks(hours * TICKS_P
 let ambientIntensity = LIGHT_INTENSITY_MAX
 
 const LIGHT_CURVE: { hour: number; intensity: number }[] = [
-    { hour: 0,  intensity: LIGHT_CURVE_NIGHT_FLOOR },
-    { hour: 4,  intensity: LIGHT_CURVE_NIGHT_FLOOR },
-    { hour: 8,  intensity: LIGHT_INTENSITY_MAX },
+    { hour: 0, intensity: LIGHT_CURVE_NIGHT_FLOOR },
+    { hour: 4, intensity: LIGHT_CURVE_NIGHT_FLOOR },
+    { hour: 8, intensity: LIGHT_INTENSITY_MAX },
     { hour: 18, intensity: LIGHT_INTENSITY_MAX },
     { hour: 22, intensity: LIGHT_CURVE_NIGHT_FLOOR },
     { hour: 24, intensity: LIGHT_CURVE_NIGHT_FLOOR },
@@ -240,12 +253,15 @@ export function setLightLevelOverride(level0to100: number): void {
     if (data === 50) {
         intensity = mid
     } else if (data > 50) {
-        intensity = Math.trunc(mid + data * (LIGHT_INTENSITY_MAX - mid) / 100)
+        intensity = Math.trunc(mid + (data * (LIGHT_INTENSITY_MAX - mid)) / 100)
     } else {
-        intensity = Math.trunc(LIGHT_INTENSITY_MIN + data * (mid - LIGHT_INTENSITY_MIN) / 100)
+        intensity = Math.trunc(LIGHT_INTENSITY_MIN + (data * (mid - LIGHT_INTENSITY_MIN)) / 100)
     }
     setAmbientIntensity(intensity)
-    dbg('script', `[lighting] set_light_level(${level0to100}) -> ambient=${(ambientIntensity / LIGHT_INTENSITY_MAX).toFixed(3)}`)
+    dbg(
+        'script',
+        `[lighting] set_light_level(${level0to100}) -> ambient=${(ambientIntensity / LIGHT_INTENSITY_MAX).toFixed(3)}`,
+    )
 }
 
 // CE ref: map.cc:927 — ambient light resets to maximum on every map load.

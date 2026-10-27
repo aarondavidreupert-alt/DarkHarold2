@@ -12,8 +12,8 @@ import type { StoryReport } from './story.js'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-export const DIALOGUE_OPEN_TIMEOUT_MS = 5000   // hard cap for dialogue-open wait
-export const DIALOGUE_POLL_MS = 200            // polling interval; UIMode.none after first poll → no-dialogue
+export const DIALOGUE_OPEN_TIMEOUT_MS = 5000 // hard cap for dialogue-open wait
+export const DIALOGUE_POLL_MS = 200 // polling interval; UIMode.none after first poll → no-dialogue
 export const COMBAT_ACTIVE_TIMEOUT_MS = 2000
 export const PLAYER_TURN_TIMEOUT_MS = 10000
 export const AI_TURN_TIMEOUT_MS = 10000
@@ -54,7 +54,7 @@ export async function waitFor(pred: () => boolean, timeoutMs: number): Promise<b
     const deadline = performance.now() + timeoutMs
     while (!pred()) {
         stepEngine()
-        await new Promise<void>(r => setTimeout(r, 0))
+        await new Promise<void>((r) => setTimeout(r, 0))
         if (performance.now() > deadline) return false
     }
     return true
@@ -91,7 +91,7 @@ export function listHostileCritters(): Critter[] {
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 
 export function critterDisplayName(c: Critter): string {
-    return (c.name || (c as any).art || String(c.uid))
+    return c.name || (c as any).art || String(c.uid)
 }
 
 // Move the player to the first hex neighbour of `target`.
@@ -121,12 +121,19 @@ export function getReplyText(): string {
 // Substrings that identify "exit" dialogue options (case-insensitive).
 // These are clicked last so all substantive branches are explored first.
 export const EXIT_OPTION_PATTERNS = [
-    'goodbye', 'farewell', 'never mind', 'nevermind',
-    "i'll be going", "i'm going", "i've got to go",
-    "that's all", 'nothing else', 'forget it',
+    'goodbye',
+    'farewell',
+    'never mind',
+    'nevermind',
+    "i'll be going",
+    "i'm going",
+    "i've got to go",
+    "that's all",
+    'nothing else',
+    'forget it',
 ]
 
 export function isExitOption(label: string): boolean {
     const lower = label.toLowerCase()
-    return EXIT_OPTION_PATTERNS.some(p => lower.includes(p))
+    return EXIT_OPTION_PATTERNS.some((p) => lower.includes(p))
 }

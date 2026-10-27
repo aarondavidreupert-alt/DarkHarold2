@@ -116,7 +116,7 @@ export async function initLuaRuntime(wasmUri = 'lib/wasmoon/glue.wasm', factory?
     lua.global.set('__host_var', (script: LuaHostScript, name: string) => sslValue(readBuiltin!(script, name)))
     // CE exported variables live on the map script (vm_bridge.ts op_fetch_external)
     lua.global.set('__host_get_ext', (script: LuaHostScript, name: string) =>
-        sslValue((script._mapScript ?? script)[name])
+        sslValue((script._mapScript ?? script)[name]),
     )
     lua.global.set('__host_set_ext', (script: LuaHostScript, name: string, v: any) => {
         ;(script._mapScript ?? script)[name] = v
@@ -161,7 +161,10 @@ export function attachLuaScript(script: LuaHostScript, name: string, source: str
         script[procName] = (...args: any[]) => {
             // CE scriptExecProc: the startup code runs before the first proc (deferEntry)
             const entry = script._pendingEntry
-            if (entry) { script._pendingEntry = undefined; entry() }
+            if (entry) {
+                script._pendingEntry = undefined
+                entry()
+            }
             // … script->action = proc before the run, script->source = 0 after it (not while
             // the proc waits in a dialogue)
             script.action = scriptProcNumber(procName)
@@ -182,7 +185,9 @@ export function attachLuaScript(script: LuaHostScript, name: string, source: str
     if (typeof script[entry] !== 'function') return
     // (run as the VM runs its startup code, not as an engine call: no action / source change;
     // a map object's runs when its first proc does, Scripting.initScript)
-    const run = () => { luaCall(id, entry) }
+    const run = () => {
+        luaCall(id, entry)
+    }
     if (deferEntry) script._pendingEntry = run
     else run()
 }

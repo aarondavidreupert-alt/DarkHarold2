@@ -59,10 +59,10 @@ export const AUTOMAP_CANVAS_H = 360
 
 // Clickable tab dot positions (left of each label in pip.png)
 const TABS: { tab: PipBoyTab; x: number; y: number }[] = [
-    { tab: 'STATUS',   x: 53, y: 340 },
+    { tab: 'STATUS', x: 53, y: 340 },
     { tab: 'AUTOMAPS', x: 53, y: 394 },
     { tab: 'ARCHIVES', x: 53, y: 422 },
-    { tab: 'CLOSE',    x: 53, y: 448 },
+    { tab: 'CLOSE', x: 53, y: 448 },
 ]
 
 let pipBoyContainer: HTMLDivElement | null = null
@@ -70,12 +70,19 @@ let currentTab: PipBoyTab = 'STATUS'
 const dotElements: Map<string, HTMLDivElement> = new Map()
 let alarmOn = false
 let waitMenuDiv: HTMLDivElement | null = null
-let isRestAnimating = false  // prevents re-entry during time-advance animation
+let isRestAnimating = false // prevents re-entry during time-advance animation
 
 // ESC stops a rest in progress (CE pipboyRest: inputGetInput() == KEY_ESCAPE)
-window.addEventListener('keydown', (e) => {
-    if (isRestAnimating && e.key === 'Escape') { restCancelled = true; e.stopImmediatePropagation() }
-}, true)
+window.addEventListener(
+    'keydown',
+    (e) => {
+        if (isRestAnimating && e.key === 'Escape') {
+            restCancelled = true
+            e.stopImmediatePropagation()
+        }
+    },
+    true,
+)
 
 // numbers.png sprite: each digit is 9x17, laid out horizontally 0-9 then extra glyphs
 // Index 12 = colon character
@@ -184,7 +191,10 @@ function calcTimeUntilHour(wakeUpHour: number): { hours: number; minutes: number
     hours = wakeUpHour - hours
     if (hours < 0) {
         hours += 24
-        if (minutes !== 0) { hours -= 1; minutes = 60 - minutes }
+        if (minutes !== 0) {
+            hours -= 1
+            minutes = 60 - minutes
+        }
     } else if (minutes !== 0) {
         hours -= 1
         minutes = 60 - minutes
@@ -204,13 +214,16 @@ let restCancelled = false
 let restBail = false
 // CE queueProcessEvents returning 1 (poison at 5 HP or less, radiation, withdrawal,
 // the midnight movie) during a rest sets _proc_bail_flag
-Events.on('queueBail', () => { if (isRestAnimating) restBail = true })
+Events.on('queueBail', () => {
+    if (isRestAnimating) restBail = true
+})
 
 // CE party_member.cc partyIsAnyoneCanBeHealedByRest / partyGetMaxWoundToHealByRest:
 // living, visible, non-robot party members (the dude excluded).
 function restHealableParty(): Critter[] {
-    return (globalState.gParty?.getPartyMembers() ?? []).filter((c) =>
-        c.type === 'critter' && !c.dead && c.visible !== false && c.killType !== KILL_TYPE_ROBOT)
+    return (globalState.gParty?.getPartyMembers() ?? []).filter(
+        (c) => c.type === 'critter' && !c.dead && c.visible !== false && c.killType !== KILL_TYPE_ROBOT,
+    )
 }
 function partyMaxWound(): number {
     let max = 0
@@ -239,7 +252,14 @@ function addHealth(): void {
 // starts combat, kills the dude or opens a dialogue ends the rest and closes the Pip-Boy.
 function restInterrupted(): boolean {
     const mode = globalState.uiMode
-    if (globalState.inCombat || globalState.player?.dead || mode === UIMode.dialogue || mode === UIMode.barter || mode === UIMode.worldMap) restBail = true
+    if (
+        globalState.inCombat ||
+        globalState.player?.dead ||
+        mode === UIMode.dialogue ||
+        mode === UIMode.barter ||
+        mode === UIMode.worldMap
+    )
+        restBail = true
     return restBail || restCancelled
 }
 
@@ -265,7 +285,10 @@ function waitWatchCursor(el: HTMLElement): () => void {
     const timer = setInterval(() => {
         if (frames.length) el.style.cursor = `url(${frames[n++ % frames.length]}) 6 7, wait`
     }, 100)
-    return () => { clearInterval(timer); el.style.cursor = before }
+    return () => {
+        clearInterval(timer)
+        el.style.cursor = before
+    }
 }
 
 // CE pipboy.cc pipboyRest(hours, minutes, duration): the clock runs at ~20 frames per
@@ -276,15 +299,18 @@ async function pipboyRest(hours: number, minutes: number, duration: number): Pro
     if (duration === 0) {
         const hoursInMinutes = hours * 60
         const v1 = hoursInMinutes + minutes
-        const v2 = v1 / 1440 * 3.5 + 0.25
-        const v3 = v1 > 0 ? minutes / v1 * v2 : 0
+        const v2 = (v1 / 1440) * 3.5 + 0.25
+        const v3 = v1 > 0 ? (minutes / v1) * v2 : 0
         if (minutes !== 0) {
             const start = GameTime.getTime()
             const v4 = v3 * 20
             for (let i = 0; i < Math.trunc(v4) && !rc; i++) {
-                GameTime.setTime(Math.trunc(i / v4 * (minutes * 600) + start))
+                GameTime.setTime(Math.trunc((i / v4) * (minutes * 600) + start))
                 rc = restInterrupted()
-                if (!rc) { renderRestClock(); await sleep(50) }
+                if (!rc) {
+                    renderRestClock()
+                    await sleep(50)
+                }
             }
             if (!rc) {
                 GameTime.setTime(start + 600 * minutes)
@@ -298,7 +324,7 @@ async function pipboyRest(hours: number, minutes: number, duration: number): Pro
             for (let h = 0; h < Math.trunc(v7) && !rc; h++) {
                 rc = restInterrupted()
                 if (rc) break
-                GameTime.setTime(Math.trunc(h / v7 * (hours * GameTime.TICKS_PER_HOUR) + start))
+                GameTime.setTime(Math.trunc((h / v7) * (hours * GameTime.TICKS_PER_HOUR) + start))
                 rc = restInterrupted()
                 if (!rc) {
                     if (check4Health(Math.trunc(hoursInMinutes / v7))) addHealth()
@@ -314,7 +340,7 @@ async function pipboyRest(hours: number, minutes: number, duration: number): Pro
         const wound = () => player.getStat('Max HP') - player.getStat('HP')
         if (wound() === 0 && !(duration === REST_UNTIL_PARTY_HEALED && partyMaxWound() > 0)) return false
         // first pass: the dude
-        let hoursToHeal = Math.trunc(wound() / Math.max(1, player.getStat('Healing Rate')) * 3)
+        let hoursToHeal = Math.trunc((wound() / Math.max(1, player.getStat('Healing Rate'))) * 3)
         while (!rc && hoursToHeal !== 0) {
             const h = Math.min(hoursToHeal, 24)
             rc = await pipboyRest(h, 0, 0)
@@ -337,7 +363,8 @@ function renderRestClock(): void {
     renderDateTimeBar()
     const hpEl = pipBoyContainer?.querySelector('#pipboyRestHP')
     const player = globalState.player
-    if (hpEl && player) hpEl.textContent = `${getMessage('pipboy', 301) ?? 'Hit Points'} ${player.getStat('HP')}/${player.getStat('Max HP')}`
+    if (hpEl && player)
+        hpEl.textContent = `${getMessage('pipboy', 301) ?? 'Hit Points'} ${player.getStat('HP')}/${player.getStat('Max HP')}`
 }
 
 // CE pipboy.cc pipboyHandleAlarmClock(1024) → pipboyWindowRenderRestOptions: ALARM CLOCK
@@ -375,8 +402,11 @@ function toggleWaitMenu(): void {
     hpRow.style.cssText = TEXT_STYLE + 'font-size: 13px; text-align: center; padding: 2px 0 8px 0;'
     content.appendChild(hpRow)
 
-    const count = (globalState.gParty?.getPartyMembers().length ?? 0) > 0 && restHealableParty().some((c) => c.getStat('HP') < c.getStat('Max HP'))
-        ? REST_UNTIL_PARTY_HEALED + 1 : REST_UNTIL_HEALED + 1
+    const count =
+        (globalState.gParty?.getPartyMembers().length ?? 0) > 0 &&
+        restHealableParty().some((c) => c.getStat('HP') < c.getStat('Max HP'))
+            ? REST_UNTIL_PARTY_HEALED + 1
+            : REST_UNTIL_HEALED + 1
     const rows: HTMLDivElement[] = []
     for (let option = 0; option < count; option++) {
         const row = makeListItem(getMessage('pipboy', 302 + option) ?? `Rest option ${option + 1}`, async () => {
@@ -388,7 +418,11 @@ function toggleWaitMenu(): void {
             row.style.color = '#fcfc7c' // 32747
             globalState.audioEngine?.playSfxByName?.('ib1p1xx1')
             const stopCursor = pipBoyContainer ? waitWatchCursor(pipBoyContainer) : () => {}
-            try { await restFor(option) } finally { stopCursor() }
+            try {
+                await restFor(option)
+            } finally {
+                stopCursor()
+            }
             globalState.audioEngine?.playSfxByName?.('ib2lu1x1')
             row.style.color = '#3cf800'
             isRestAnimating = false
@@ -446,7 +480,8 @@ export const TEXT_STYLE = 'color: #3cf800; font-family: monospace;' // CE _color
 
 export function makeHeader(title: string): HTMLDivElement {
     const h = document.createElement('div')
-    h.style.cssText = TEXT_STYLE + 'font-size: 16px; padding: 2px 6px 4px 6px; border-bottom: 1px solid #00AA00; margin-bottom: 6px;'
+    h.style.cssText =
+        TEXT_STYLE + 'font-size: 16px; padding: 2px 6px 4px 6px; border-bottom: 1px solid #00AA00; margin-bottom: 6px;'
     h.textContent = title
     return h
 }
@@ -464,10 +499,15 @@ export function makeRow(label: string, value: string, highlighted = false): HTML
 
 export function makeListItem(label: string, onClick: () => void): HTMLDivElement {
     const el = document.createElement('div')
-    el.style.cssText = TEXT_STYLE + 'font-size: 13px; padding: 3px 8px; cursor: pointer; border-bottom: 1px solid #003300;'
+    el.style.cssText =
+        TEXT_STYLE + 'font-size: 13px; padding: 3px 8px; cursor: pointer; border-bottom: 1px solid #003300;'
     el.textContent = label
-    el.onmouseenter = () => { el.style.backgroundColor = 'rgba(0,80,0,0.35)' }
-    el.onmouseleave = () => { el.style.backgroundColor = 'transparent' }
+    el.onmouseenter = () => {
+        el.style.backgroundColor = 'rgba(0,80,0,0.35)'
+    }
+    el.onmouseleave = () => {
+        el.style.backgroundColor = 'transparent'
+    }
     el.onclick = onClick
     return el
 }
@@ -475,7 +515,9 @@ export function makeListItem(label: string, onClick: () => void): HTMLDivElement
 export function makeButton(label: string, onClick: () => void): HTMLDivElement {
     const b = document.createElement('div')
     b.textContent = label
-    b.style.cssText = TEXT_STYLE + `
+    b.style.cssText =
+        TEXT_STYLE +
+        `
         font-size: 12px; padding: 2px 8px;
         border: 1px solid #00AA00; background: rgba(0,20,0,0.6);
         cursor: pointer; display: inline-block; margin-right: 4px;
@@ -538,9 +580,10 @@ export function renderTab(tab: PipBoyTab): void {
 
     // Update indicator dots
     for (const [tabName, dotEl] of dotElements) {
-        dotEl.style.backgroundImage = tabName === tab
-            ? "url('" + assetUrl('art/intrface/lilreddn.png') + "')"
-            : "url('" + assetUrl('art/intrface/lilredup.png') + "')"
+        dotEl.style.backgroundImage =
+            tabName === tab
+                ? "url('" + assetUrl('art/intrface/lilreddn.png') + "')"
+                : "url('" + assetUrl('art/intrface/lilredup.png') + "')"
     }
 }
 

@@ -62,7 +62,6 @@ export function parseWorldmap(data: string): Worldmap {
     // CE ref: worldmap.cc:1337 — one optional walk_mask_name per [Tile N] section.
     const walkMaskNames: (string | null)[] = []
 
-
     for (const key in ini) {
         const m = key.match(/Tile (\d+)/)
         if (m !== null) {

@@ -14,52 +14,46 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { assertEq, BinaryReader } from "./util.js";
+import { assertEq, BinaryReader } from './util.js'
 
 // Parser for .INT files
 
 interface Procedure {
-    nameIndex: number;
-    name: string;
-    offset: number;
-    index: number;
-    argc: number;
-    flags: number; // CE PROCEDURE_FLAG_* (0x04 imported, 0x08 exported, 0x10 critical)
+    nameIndex: number
+    name: string
+    offset: number
+    index: number
+    argc: number
+    flags: number // CE PROCEDURE_FLAG_* (0x04 imported, 0x08 exported, 0x10 critical)
 }
 
 export interface IntFile {
-    procedures: { [name: string]: Procedure };
-    proceduresTable: Procedure[];
-    identifiers: { [offset: number]: string };
-    strings: { [offset: number]: string };
-    codeOffset: number;
-    name: string;
+    procedures: { [name: string]: Procedure }
+    proceduresTable: Procedure[]
+    identifiers: { [offset: number]: string }
+    strings: { [offset: number]: string }
+    codeOffset: number
+    name: string
 }
 
 // parse .INT files
-export function parseIntFile(reader: BinaryReader, name: string=""): IntFile {
-    reader.seek(0x2A) // seek to procedure table
+export function parseIntFile(reader: BinaryReader, name: string = ''): IntFile {
+    reader.seek(0x2a) // seek to procedure table
 
     // read procedure table
     const numProcs = reader.read32()
     const procs: Procedure[] = []
     const procedures: { [name: string]: Procedure } = {}
 
-    for(let i = 0; i < numProcs; i++) {
+    for (let i = 0; i < numProcs; i++) {
         const nameIndex = reader.read32()
         const flags = reader.read32()
-        assertEq(reader.read32(), 0, "unk0 != 0")
-        assertEq(reader.read32(), 0, "unk1 != 0")
+        assertEq(reader.read32(), 0, 'unk0 != 0')
+        assertEq(reader.read32(), 0, 'unk1 != 0')
         let offset = reader.read32()
         const argc = reader.read32()
 
-        procs.push({nameIndex: nameIndex
-                   ,name: ""
-                   ,offset: offset
-                   ,index: i
-                   ,argc: argc
-                   ,flags: flags
-                   })
+        procs.push({ nameIndex: nameIndex, name: '', offset: offset, index: i, argc: argc, flags: flags })
     }
 
     // offset->identifier table
@@ -67,51 +61,46 @@ export function parseIntFile(reader: BinaryReader, name: string=""): IntFile {
     const identifiers: { [offset: number]: string } = {}
 
     let baseOffset = reader.offset
-    while(true) {
-        if(reader.offset - baseOffset >= identEnd)
-            break
+    while (true) {
+        if (reader.offset - baseOffset >= identEnd) break
 
         let len = reader.read16()
         let offset = reader.offset - baseOffset + 4
-        let str = ""
+        let str = ''
 
-        for(let j = 0; j < len; j++) {
+        for (let j = 0; j < len; j++) {
             let c = reader.read8()
-            if(c)
-                str += String.fromCharCode(c)
+            if (c) str += String.fromCharCode(c)
         }
 
         identifiers[offset] = str
     }
 
-    assertEq(reader.read32(), 0xFFFFFFFF, "did not get 0xFFFFFFFF signature")
+    assertEq(reader.read32(), 0xffffffff, 'did not get 0xFFFFFFFF signature')
 
     // give procedures their names from the identifier table
-    procs.forEach(proc => proc.name = identifiers[proc.nameIndex])
+    procs.forEach((proc) => (proc.name = identifiers[proc.nameIndex]))
 
     // and populate the procedures table
-    procs.forEach(proc => procedures[proc.name] = proc)
-
+    procs.forEach((proc) => (procedures[proc.name] = proc))
 
     // offset->strings table
     const stringEnd = reader.read32()
     const strings: { [offset: number]: string } = {}
 
-    if(stringEnd !== 0xFFFFFFFF) {
+    if (stringEnd !== 0xffffffff) {
         // read string table
         let baseOffset = reader.offset
-        while(true) {
-            if(reader.offset - baseOffset >= stringEnd)
-                break
+        while (true) {
+            if (reader.offset - baseOffset >= stringEnd) break
 
             let len = reader.read16()
             let offset = reader.offset - baseOffset + 4
-            let str = ""
+            let str = ''
 
-            for(let j = 0; j < len; j++) {
+            for (let j = 0; j < len; j++) {
                 let c = reader.read8()
-                if(c)
-                    str += String.fromCharCode(c)
+                if (c) str += String.fromCharCode(c)
             }
 
             strings[offset] = str
@@ -120,10 +109,12 @@ export function parseIntFile(reader: BinaryReader, name: string=""): IntFile {
 
     const codeOffset = reader.offset
 
-    return {procedures: procedures
-           ,proceduresTable: procs
-           ,identifiers: identifiers
-           ,strings: strings
-           ,codeOffset: codeOffset
-           ,name: name}
+    return {
+        procedures: procedures,
+        proceduresTable: procs,
+        identifiers: identifiers,
+        strings: strings,
+        codeOffset: codeOffset,
+        name: name,
+    }
 }

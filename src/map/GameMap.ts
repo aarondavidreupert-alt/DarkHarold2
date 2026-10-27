@@ -18,7 +18,17 @@ import { pathfinderFindPathPoints } from './pathfinder.js'
 import { Config } from '../config.js'
 import { getCurrentMapInfo } from '../data.js'
 import { Events } from '../events.js'
-import { hexDistance, hexFromScreen, hexInDirection, hexInDirectionDistance, hexLine, hexNeighbors, hexToScreen, HEX_GRID_SIZE, Point } from '../geometry.js'
+import {
+    hexDistance,
+    hexFromScreen,
+    hexInDirection,
+    hexInDirectionDistance,
+    hexLine,
+    hexNeighbors,
+    hexToScreen,
+    HEX_GRID_SIZE,
+    Point,
+} from '../geometry.js'
 import globalState from '../globalState.js'
 import { Lightmap } from '../lightmap.js'
 import { dbg, dbgWarn } from '../logger.js'
@@ -141,7 +151,7 @@ export class GameMap {
                 }
                 if (found) break
             }
-            if (!found) dbgWarn('object', "drainRemovalQueue: object not found on map")
+            if (!found) dbgWarn('object', 'drainRemovalQueue: object not found on map')
         }
     }
 
@@ -152,7 +162,10 @@ export class GameMap {
         this.removeObject(obj)
         // CE objectDestroy → _obj_turn_off_light / tileWindowRefresh: a light source, or a wall /
         // scenery that shaped the light, leaves the lightmap at once
-        if (Config.engine.doFloorLighting && ((obj.lightRadius ?? 0) > 0 || obj.type === 'wall' || obj.type === 'scenery')) {
+        if (
+            Config.engine.doFloorLighting &&
+            ((obj.lightRadius ?? 0) > 0 || obj.type === 'wall' || obj.type === 'scenery')
+        ) {
             Lightmap.rebuildLight()
         }
     }
@@ -206,7 +219,7 @@ export class GameMap {
         dbg(
             'map',
             `[lighting] isOutdoor(${this.name}, elev ${this.currentElevation}) = ${result} ` +
-            `(${empty}/${total} empty roof tiles)`
+                `(${empty}/${total} empty roof tiles)`,
         )
         return result
     }
@@ -217,7 +230,7 @@ export class GameMap {
         if (!this.objects) return // no map loaded yet
         const allObjs: Obj[] = (this.objects as Obj[][]).reduce((acc, level) => acc.concat(level), [])
         if (this.spatials) {
-            (this.spatials as any[][]).forEach(level => level.forEach((s: any) => allObjs.push(s)))
+            ;(this.spatials as any[][]).forEach((level) => level.forEach((s: any) => allObjs.push(s)))
         }
         Scripting.updateMap(this.mapScript, allObjs, this.currentElevation)
     }
@@ -275,7 +288,12 @@ export class GameMap {
         computeObjectContentBounds(this.getObjects())
 
         // set up renderer data
-        globalState.renderer.initData(this.roofMap, this.floorMap, this.getObjects(), this.mapObj.levels[level].tiles.roofFlags ?? null)
+        globalState.renderer.initData(
+            this.roofMap,
+            this.floorMap,
+            this.getObjects(),
+            this.mapObj.levels[level].tiles.roofFlags ?? null,
+        )
 
         if (updateScripts) {
             // TODO: we need some kind of active/inactive flag on scripts to toggle here,
@@ -304,8 +322,15 @@ export class GameMap {
         }
         const overlay = document.createElement('div')
         Object.assign(overlay.style, {
-            position: 'fixed', top: '0', left: '0', width: '100%', height: '100%',
-            background: 'black', opacity: '1', pointerEvents: 'none', zIndex: '9000',
+            position: 'fixed',
+            top: '0',
+            left: '0',
+            width: '100%',
+            height: '100%',
+            background: 'black',
+            opacity: '1',
+            pointerEvents: 'none',
+            zIndex: '9000',
         })
         document.body.appendChild(overlay)
         this.changeElevation(level, updateScripts, false)
@@ -355,8 +380,13 @@ export class GameMap {
                 if (attempts >= 100) break
                 for (let rotation = 0; rotation < 6; rotation++) {
                     newTile = toTileNum(hexInDirectionDistance(from, rotation, dist))
-                    if (this.blockingObjectAt(newTile, elevation, 0, null) === null && dist > 1
-                        && dude && this.recalcPath(dude.position, fromTileNum(newTile), false, dude).length > 0) break
+                    if (
+                        this.blockingObjectAt(newTile, elevation, 0, null) === null &&
+                        dist > 1 &&
+                        dude &&
+                        this.recalcPath(dude.position, fromTileNum(newTile), false, dude).length > 0
+                    )
+                        break
                 }
                 dist++
             }
@@ -407,8 +437,13 @@ export class GameMap {
                     if (obj._script) Scripting.initScript(obj._script, obj)
                 }
             }
-            const overridenStartPos = Scripting.enterMap(this.mapScript, this.getObjectsAndSpatials(),
-                this.currentElevation, this.mapID, false)
+            const overridenStartPos = Scripting.enterMap(
+                this.mapScript,
+                this.getObjectsAndSpatials(),
+                this.currentElevation,
+                this.mapID,
+                false,
+            )
             if (overridenStartPos && this.mapObj.levels[overridenStartPos.elevation]) {
                 globalState.player.position = overridenStartPos.position
                 globalState.player.orientation = overridenStartPos.orientation
@@ -419,7 +454,7 @@ export class GameMap {
                 }
             })
             this.spatials.forEach((level) =>
-                level.forEach((spatial) => Scripting.objectEnterMap(spatial, this.currentElevation, this.mapID))
+                level.forEach((spatial) => Scripting.objectEnterMap(spatial, this.currentElevation, this.mapID)),
             )
             Scripting.updateMap(this.mapScript, this.getObjectsAndSpatials(), this.currentElevation)
         } finally {
@@ -437,7 +472,7 @@ export class GameMap {
             objectsAndSpatials,
             this.currentElevation,
             this.mapID,
-            isFirstRun
+            isFirstRun,
         )
 
         if (overridenStartPos) {
@@ -453,7 +488,10 @@ export class GameMap {
             if (this.mapObj.levels[newElev]) {
                 this.currentElevation = globalState.currentElevation = newElev
             } else {
-                dbgWarn('map', `override_map_start: elevation ${newElev} out of bounds (map has ${this.numLevels} levels), ignoring`)
+                dbgWarn(
+                    'map',
+                    `override_map_start: elevation ${newElev} out of bounds (map has ${this.numLevels} levels), ignoring`,
+                )
             }
         }
 
@@ -473,28 +511,27 @@ export class GameMap {
             }
         })
         this.spatials.forEach((level) =>
-            level.forEach((spatial) => Scripting.objectEnterMap(spatial, this.currentElevation, this.mapID))
+            level.forEach((spatial) => Scripting.objectEnterMap(spatial, this.currentElevation, this.mapID)),
         )
 
         Scripting.updateMap(this.mapScript, objectsAndSpatials, this.currentElevation)
     }
-	
-	/** @internal — used by mapLoader.ts via the prototype. */
-	playMapMusic(): void {
-		// The startup map DH2 loads behind the intro movies and the main menu stays silent:
-		// CE has no map loaded there (main.cc), so no map music plays over the movies.
-		if (globalState.backgroundMapLoad) return
-		const curMapInfo = getCurrentMapInfo()
-		dbg('audio', '[Music] curMapInfo:', curMapInfo)
-		dbg('audio', '[Music] music field:', curMapInfo?.music)
-		globalState.audioEngine.stopAll()
-		// CE map.cc mapLoad starts the looping wind2; wmMapMusicStart replaces it only when
-		// maps.txt gives the map music, so a map without a music= entry keeps the wind.
-		const music = curMapInfo?.music || 'wind2'
-		dbg('audio', '[Music] calling playMusic with:', music)
-		globalState.audioEngine.playMusic(music)
-	}
-	
+
+    /** @internal — used by mapLoader.ts via the prototype. */
+    playMapMusic(): void {
+        // The startup map DH2 loads behind the intro movies and the main menu stays silent:
+        // CE has no map loaded there (main.cc), so no map music plays over the movies.
+        if (globalState.backgroundMapLoad) return
+        const curMapInfo = getCurrentMapInfo()
+        dbg('audio', '[Music] curMapInfo:', curMapInfo)
+        dbg('audio', '[Music] music field:', curMapInfo?.music)
+        globalState.audioEngine.stopAll()
+        // CE map.cc mapLoad starts the looping wind2; wmMapMusicStart replaces it only when
+        // maps.txt gives the map music, so a map without a music= entry keeps the wind.
+        const music = curMapInfo?.music || 'wind2'
+        dbg('audio', '[Music] calling playMusic with:', music)
+        globalState.audioEngine.playMusic(music)
+    }
 
     objectsAtPosition(position: Point): Obj[] {
         return this.getObjects().filter((obj: Obj) => obj.position.x === position.x && obj.position.y === position.y)
@@ -519,13 +556,21 @@ export class GameMap {
     //   3 SIGHT  → object.cc:2583 _obj_sight_blocking_at
     //   4 SCROLL → CE get_blocking_func's default branch, i.e. _obj_blocking_at
     // (Restored + extended to all 5 types 2026-10-06; the 2-type version was lost in b282cca.)
-    blockingObjectAt(tile: number, elevation: number, blockType: number, excludeObj?: Obj | null,
-                     aiState?: { moveBlockObj: Obj | null }): Obj | null {
+    blockingObjectAt(
+        tile: number,
+        elevation: number,
+        blockType: number,
+        excludeObj?: Obj | null,
+        aiState?: { moveBlockObj: Obj | null },
+    ): Obj | null {
         if (tile < 0 || tile >= 40000) return null
         const pos = fromTileNum(tile)
         const objs = this.getObjects(elevation)
         const at = (p: Point) => objs.filter((o) => o.position && o.position.x === p.x && o.position.y === p.y)
-        const NO_BLOCK = 0x10, MULTIHEX = 0x800, LIGHT_THRU = 0x20000000, SHOOT_THRU = 0x80000000
+        const NO_BLOCK = 0x10,
+            MULTIHEX = 0x800,
+            LIGHT_THRU = 0x20000000,
+            SHOOT_THRU = 0x80000000
         const isBlockerType = (o: Obj) => o.type === 'critter' || o.type === 'scenery' || o.type === 'wall'
         const flagsOf = (o: Obj) => ((o as any).flags ?? 0) >>> 0
         const neighbourMultihex = (pred: (o: Obj) => boolean): Obj | null => {
@@ -565,8 +610,8 @@ export class GameMap {
             return neighbourMultihex(multihex)
         }
 
-        const plain = (o: Obj) => o !== excludeObj && !GameMap.isHiddenObj(o)
-            && (flagsOf(o) & NO_BLOCK) === 0 && isBlockerType(o)
+        const plain = (o: Obj) =>
+            o !== excludeObj && !GameMap.isHiddenObj(o) && (flagsOf(o) & NO_BLOCK) === 0 && isBlockerType(o)
 
         if (blockType === 2) {
             const state = aiState ?? { moveBlockObj: null }
@@ -615,10 +660,14 @@ export class GameMap {
 
         const fromSc = hexToScreen(from.x, from.y)
         const toSc = hexToScreen(to.x, to.y)
-        let tileX = fromSc.x + 16, tileY = fromSc.y + 8
-        const toX = toSc.x + 16, toY = toSc.y + 8
-        const stepX = Math.sign(toX - tileX), stepY = Math.sign(toY - tileY)
-        const ddx = 2 * Math.abs(toX - tileX), ddy = 2 * Math.abs(toY - tileY)
+        let tileX = fromSc.x + 16,
+            tileY = fromSc.y + 8
+        const toX = toSc.x + 16,
+            toY = toSc.y + 8
+        const stepX = Math.sign(toX - tileX),
+            stepY = Math.sign(toY - tileY)
+        const ddx = 2 * Math.abs(toX - tileX),
+            ddy = 2 * Math.abs(toY - tileY)
         let prevTile = from
 
         if (ddx <= ddy) {
@@ -626,7 +675,10 @@ export class GameMap {
             while (true) {
                 const cur = hexFromScreen(tileX, tileY)
                 if (tileY === toY) return null
-                if (middle >= 0) { tileX += stepX; middle -= ddy }
+                if (middle >= 0) {
+                    tileX += stepX
+                    middle -= ddy
+                }
                 tileY += stepY
                 middle += ddx
                 if (cur.x !== prevTile.x || cur.y !== prevTile.y) {
@@ -640,7 +692,10 @@ export class GameMap {
             while (true) {
                 const cur = hexFromScreen(tileX, tileY)
                 if (tileX === toX) return null
-                if (middle >= 0) { tileY += stepY; middle -= ddx }
+                if (middle >= 0) {
+                    tileY += stepY
+                    middle -= ddx
+                }
                 tileX += stepX
                 middle += ddy
                 if (cur.x !== prevTile.x || cur.y !== prevTile.y) {
@@ -680,8 +735,16 @@ export class GameMap {
     // tile must be free unless `isGoalBlocking` is false (CE a5); `mover` (default: the
     // player) decides door use and goo cost and doesn't block itself.
     recalcPath(start: Point, goal: Point, isGoalBlocking?: boolean, mover?: Obj) {
-        if (start.x < 0 || start.x >= HEX_GRID_SIZE || start.y < 0 || start.y >= HEX_GRID_SIZE ||
-            goal.x < 0 || goal.x >= HEX_GRID_SIZE || goal.y < 0 || goal.y >= HEX_GRID_SIZE) {
+        if (
+            start.x < 0 ||
+            start.x >= HEX_GRID_SIZE ||
+            start.y < 0 ||
+            start.y >= HEX_GRID_SIZE ||
+            goal.x < 0 ||
+            goal.x >= HEX_GRID_SIZE ||
+            goal.y < 0 ||
+            goal.y >= HEX_GRID_SIZE
+        ) {
             return []
         }
         return pathfinderFindPathPoints(mover ?? globalState.player ?? null, start, goal, isGoalBlocking !== false)
@@ -714,12 +777,14 @@ export class GameMap {
             }),
             // FO2-CE ref: map.cc mapSave — spatials persist their LVARs across saves
             spatials: this.spatials
-                ? this.spatials.map(level => level.map((s: Spatial): SerializedSpatial => ({
-                      script: s.script,
-                      tileNum: s.tileNum,
-                      range: s.range ?? 0,
-                      lvars: s._script ? Object.assign({}, s._script.lvars) : undefined,
-                  })))
+                ? this.spatials.map((level) =>
+                      level.map((s: Spatial): SerializedSpatial => ({
+                          script: s.script,
+                          tileNum: s.tileNum,
+                          range: s.range ?? 0,
+                          lvars: s._script ? Object.assign({}, s._script.lvars) : undefined,
+                      })),
+                  )
                 : [[], [], []],
             // CE ref: map.cc gMapHeader.lastVisitTime — record exit tick so days_since_visited works
             lastVisitTime: globalState.gameTickTime,
@@ -732,11 +797,13 @@ export class GameMap {
         this.numLevels = obj.numLevels
         this.mapObj = obj.mapObj
         this.mapScript = obj.mapScript ? Scripting.deserializeScript(obj.mapScript) : null
-        this.objects = obj.objects.map((level, levelIdx) => level.map((o) => {
-            const deserialized = deserializeObj(o)
-            deserialized.elevation = levelIdx
-            return deserialized
-        }))
+        this.objects = obj.objects.map((level, levelIdx) =>
+            level.map((o) => {
+                const deserialized = deserializeObj(o)
+                deserialized.elevation = levelIdx
+                return deserialized
+            }),
+        )
         this.lastVisitTime = obj.lastVisitTime ?? 0
         // Restore spatials: re-load scripts from names, then reapply saved LVARs.
         // FO2-CE ref: map.cc mapLoad — spatials are always re-initialized from map data
@@ -757,7 +824,7 @@ export class GameMap {
                         spatial._script = scr
                     }
                     return spatial
-                })
+                }),
             )
         } else {
             this.spatials = [[], [], []]

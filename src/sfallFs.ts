@@ -26,7 +26,10 @@ const files: VFile[] = []
 const FRM_HEADER_SIZE = 0x3e // version, fps, action frame, frames/dir, 6 shiftX, 6 shiftY, 6 offsets, size
 
 function normalize(path: string): string {
-    return String(path ?? '').replace(/\\/g, '/').replace(/^\/+/, '').toLowerCase()
+    return String(path ?? '')
+        .replace(/\\/g, '/')
+        .replace(/^\/+/, '')
+        .toLowerCase()
 }
 
 /** "art/critters/marobeag.frm" -> the imageInfo key "art/critters/marobeag" */

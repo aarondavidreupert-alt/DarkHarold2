@@ -14,14 +14,14 @@ import { dbg, dbgWarn } from '../logger.js'
 
 // CE: endgame.h EndgameDeathEnding struct
 export interface EndgameDeathEnding {
-    gvar: number           // -1 = no check
+    gvar: number // -1 = no check
     value: number
-    worldAreaKnown: number  // -1 = no check
+    worldAreaKnown: number // -1 = no check
     worldAreaNotKnown: number
     minLevel: number
     percentage: number
     voiceOverBaseName: string
-    enabled?: boolean      // runtime only, not in JSON
+    enabled?: boolean // runtime only, not in JSON
 }
 
 // CE: ENDGAME_DEATH_ENDING_REASON_DEATH / _TIMEOUT (endgame.h)

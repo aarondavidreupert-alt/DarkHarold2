@@ -69,10 +69,10 @@ export class WebGLRenderer extends Renderer {
     uTransQuant: WebGLUniformLocation | null = null
     uStealthTint: WebGLUniformLocation | null = null
     // CE ref: cycle.cc colorCycleTicker() — animated palette entries 229-254.
-    uCycleTime: WebGLUniformLocation | null = null   // seconds since page load
-    uCycleMask: WebGLUniformLocation | null = null   // sampler2D unit 7: R8 cycle-group texture
+    uCycleTime: WebGLUniformLocation | null = null // seconds since page load
+    uCycleMask: WebGLUniformLocation | null = null // sampler2D unit 7: R8 cycle-group texture
     cycleMaskTextures: { [key: string]: WebGLTexture | null } = {}
-    cycleMaskNullTex: WebGLTexture | null = null      // 1×1 R8=0, bound when no cycle data
+    cycleMaskNullTex: WebGLTexture | null = null // 1×1 R8=0, bound when no cycle data
     uEggMode: WebGLUniformLocation | null = null
     uEggCenter: WebGLUniformLocation | null = null
     uEggSize: WebGLUniformLocation | null = null
@@ -83,20 +83,20 @@ export class WebGLRenderer extends Renderer {
     uOutlineColor: WebGLUniformLocation | null = null
     uOutlineAlpha: WebGLUniformLocation | null = null
     uObjectBaseY: WebGLUniformLocation | null = null
-    uObjectBaseX: WebGLUniformLocation | null = null      // 'flat' mode: fixed tile-centre X; <0 = per-fragment
-    uObjectSmoothPx: WebGLUniformLocation | null = null   // '*-smooth' blur kernel radius (world px); 0 = off
+    uObjectBaseX: WebGLUniformLocation | null = null // 'flat' mode: fixed tile-centre X; <0 = per-fragment
+    uObjectSmoothPx: WebGLUniformLocation | null = null // '*-smooth' blur kernel radius (world px); 0 = off
     uObjectHardClampY: WebGLUniformLocation | null = null // 'wall-clamp': 1 = world_y pinned exactly to baseY
-    uWallFadePx: WebGLUniformLocation | null = null       // wall top-edge fade depth (art texels); 0 = off/non-wall
-    uWallTexelStepV: WebGLUniformLocation | null = null   // v-delta for one art row = 1/sheet-height-texels
+    uWallFadePx: WebGLUniformLocation | null = null // wall top-edge fade depth (art texels); 0 = off/non-wall
+    uWallTexelStepV: WebGLUniformLocation | null = null // v-delta for one art row = 1/sheet-height-texels
 
     // Tile-intensity interpolation mode (u_lightInterp) — see setLightInterpMode
     // and shaders/fragment*.glsl sampleTileLight. wiki/alignment.md §7.
-    uLightInterp: WebGLUniformLocation | null = null       // on tileShader (fragment.glsl)
-    uFloorLightInterp: WebGLUniformLocation | null = null  // on floorLightShader (fragmentLighting.glsl)
-    uFloorCycleTime: WebGLUniformLocation | null = null    // floorLightShader u_cycleTime (RD10, CPU path)
-    uFloorUseCycle: WebGLUniformLocation | null = null     // floorLightShader u_useCycleMask
-    lightInterpValue = 2                                    // int passed to shaders (default 'hex-lerp')
-    tileIntensityLinear = false                            // texture filter state (LINEAR vs NEAREST)
+    uLightInterp: WebGLUniformLocation | null = null // on tileShader (fragment.glsl)
+    uFloorLightInterp: WebGLUniformLocation | null = null // on floorLightShader (fragmentLighting.glsl)
+    uFloorCycleTime: WebGLUniformLocation | null = null // floorLightShader u_cycleTime (RD10, CPU path)
+    uFloorUseCycle: WebGLUniformLocation | null = null // floorLightShader u_useCycleMask
+    lightInterpValue = 2 // int passed to shaders (default 'hex-lerp')
+    tileIntensityLinear = false // texture filter state (LINEAR vs NEAREST)
 
     // Resolution uniforms stashed at init-time so resize() can re-upload them
     // (they are set once in init() and then re-read by the fragment shader
@@ -125,7 +125,10 @@ export class WebGLRenderer extends Renderer {
     textCanvas: HTMLCanvasElement
     textCtx: CanvasRenderingContext2D
 
-    constructor(public shaderSources: ShaderSources, fonts: Font[]) {
+    constructor(
+        public shaderSources: ShaderSources,
+        fonts: Font[],
+    ) {
         super()
         this.fonts = fonts
     }
@@ -270,18 +273,25 @@ export class WebGLRenderer extends Renderer {
     // procedural fallback stays active — no flat-alpha regression.
     _loadEggTexture(): void {
         const gl = this.gl
-        const W = 129, H = 98  // CE egg.frm dimensions
-        const cx = (W - 1) / 2, cy = (H - 1) / 2
-        const rx = W / 2, ry = H / 2
+        const W = 129,
+            H = 98 // CE egg.frm dimensions
+        const cx = (W - 1) / 2,
+            cy = (H - 1) / 2
+        const rx = W / 2,
+            ry = H / 2
         const data = new Uint8Array(W * H * 4)
         for (let y = 0; y < H; y++) {
             for (let x = 0; x < W; x++) {
-                const nx = (x - cx) / rx, ny = (y - cy) / ry
+                const nx = (x - cx) / rx,
+                    ny = (y - cy) / ry
                 const dist = Math.sqrt(nx * nx + ny * ny)
                 // Linear gradient: center=255 (transparent), edge=0 (opaque).
                 const a = dist < 1.0 ? Math.round((1.0 - dist) * 255) : 0
                 const i = (y * W + x) * 4
-                data[i] = 255; data[i + 1] = 255; data[i + 2] = 255; data[i + 3] = a
+                data[i] = 255
+                data[i + 1] = 255
+                data[i + 2] = 255
+                data[i + 3] = a
             }
         }
         const tex = gl.createTexture()
@@ -350,7 +360,7 @@ export class WebGLRenderer extends Renderer {
         // Keep the CSS display size at the logical resolution so game coordinates
         // (0–SCREEN_WIDTH, 0–SCREEN_HEIGHT) remain valid without any changes.
         const dpr = window.devicePixelRatio || 1
-        const cssWidth = this.canvas.width   // logical width  (e.g. 800)
+        const cssWidth = this.canvas.width // logical width  (e.g. 800)
         const cssHeight = this.canvas.height // logical height (e.g. 600)
         this.canvas.style.width = cssWidth + 'px'
         this.canvas.style.height = cssHeight + 'px'
@@ -414,7 +424,7 @@ export class WebGLRenderer extends Renderer {
         gl.bufferData(
             gl.ARRAY_BUFFER,
             new Float32Array([0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 1.0]),
-            gl.STATIC_DRAW
+            gl.STATIC_DRAW,
         )
         gl.enableVertexAttribArray(this.texCoordLocation)
         gl.vertexAttribPointer(this.texCoordLocation, 2, gl.FLOAT, false, 0, 0)
@@ -460,11 +470,12 @@ export class WebGLRenderer extends Renderer {
         const uTileTileIntensity = gl.getUniformLocation(this.tileShader, 'u_tileIntensity')
         const uTileScreenResolution = gl.getUniformLocation(this.tileShader, 'u_screenResolution')
         this.uTileScreenResolutionLoc = uTileScreenResolution
-        dbg('renderer',
+        dbg(
+            'renderer',
             `[lighting/init] tileShader uniforms — u_ambient=${this.uTileAmbient !== null}, ` +
-            `u_camera=${this.uTileCamera !== null}, u_tileIntensity=${uTileTileIntensity !== null}, ` +
-            `u_screenResolution=${uTileScreenResolution !== null}, ` +
-            `canvasSize=${this.canvas.width}x${this.canvas.height}`
+                `u_camera=${this.uTileCamera !== null}, u_tileIntensity=${uTileTileIntensity !== null}, ` +
+                `u_screenResolution=${uTileScreenResolution !== null}, ` +
+                `canvasSize=${this.canvas.width}x${this.canvas.height}`,
         )
         gl.uniform1i(uTileTileIntensity, 5)
         gl.uniform2f(uTileScreenResolution, this.canvas.width, this.canvas.height)
@@ -501,7 +512,7 @@ export class WebGLRenderer extends Renderer {
         // -1.0 = per-fragment fallback (floor tiles, UI draws)
         if (this.uObjectBaseY) gl.uniform1f(this.uObjectBaseY, -1.0)
         this.uObjectBaseX = gl.getUniformLocation(this.tileShader, 'u_objectBaseX')
-        if (this.uObjectBaseX) gl.uniform1f(this.uObjectBaseX, -1.0)      // <0 = not flat
+        if (this.uObjectBaseX) gl.uniform1f(this.uObjectBaseX, -1.0) // <0 = not flat
         this.uObjectSmoothPx = gl.getUniformLocation(this.tileShader, 'u_objectSmoothPx')
         if (this.uObjectSmoothPx) gl.uniform1f(this.uObjectSmoothPx, 0.0) // 0 = no blur
         this.uObjectHardClampY = gl.getUniformLocation(this.tileShader, 'u_objectHardClampY')
@@ -613,7 +624,17 @@ export class WebGLRenderer extends Renderer {
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, this.canvas.width, this.canvas.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null)
+            gl.texImage2D(
+                gl.TEXTURE_2D,
+                0,
+                gl.RGBA8,
+                this.canvas.width,
+                this.canvas.height,
+                0,
+                gl.RGBA,
+                gl.UNSIGNED_BYTE,
+                null,
+            )
             gl.bindFramebuffer(gl.FRAMEBUFFER, this.floorFBO)
             gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.floorFBOTexture, 0)
             gl.bindFramebuffer(gl.FRAMEBUFFER, null)
@@ -625,7 +646,7 @@ export class WebGLRenderer extends Renderer {
             gl.bufferData(
                 gl.ARRAY_BUFFER,
                 new Float32Array([0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0]),
-                gl.STATIC_DRAW
+                gl.STATIC_DRAW,
             )
 
             gl.activeTexture(gl.TEXTURE0)
@@ -643,7 +664,7 @@ export class WebGLRenderer extends Renderer {
         gl.bufferData(
             gl.ARRAY_BUFFER,
             new Float32Array([x1, y1, x2, y1, x1, y2, x1, y2, x2, y1, x2, y2]),
-            gl.STATIC_DRAW
+            gl.STATIC_DRAW,
         )
         return buffer
     }
@@ -694,11 +715,12 @@ export class WebGLRenderer extends Renderer {
             const ambient = GameTime.getAmbientLightNormalized()
             if (!this.tileLightingLoggedOnce) {
                 this.tileLightingLoggedOnce = true
-                dbg('renderer',
+                dbg(
+                    'renderer',
                     `[setTileLighting] FIRST CALL — ambient=${ambient.toFixed(3)}, ` +
-                    `uTileAmbient=${this.uTileAmbient}, uTileCamera=${this.uTileCamera}, ` +
-                    `tileIntensityTex=${this.tileIntensityTexture}, ` +
-                    `program=${gl.getParameter(gl.CURRENT_PROGRAM) === this.tileShader ? 'tileShader' : 'OTHER'}`
+                        `uTileAmbient=${this.uTileAmbient}, uTileCamera=${this.uTileCamera}, ` +
+                        `tileIntensityTex=${this.tileIntensityTexture}, ` +
+                        `program=${gl.getParameter(gl.CURRENT_PROGRAM) === this.tileShader ? 'tileShader' : 'OTHER'}`,
                 )
             }
             gl.uniform1f(this.uTileAmbient, ambient)
@@ -780,17 +802,7 @@ export class WebGLRenderer extends Renderer {
         // the next composite draws garbage / nothing.
         if (this.floorFBOTexture) {
             gl.bindTexture(gl.TEXTURE_2D, this.floorFBOTexture)
-            gl.texImage2D(
-                gl.TEXTURE_2D,
-                0,
-                gl.RGBA8,
-                physWidth,
-                physHeight,
-                0,
-                gl.RGBA,
-                gl.UNSIGNED_BYTE,
-                null,
-            )
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, physWidth, physHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, null)
         }
         this.floorFBOValid = false
 

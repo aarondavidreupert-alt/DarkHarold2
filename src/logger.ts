@@ -31,7 +31,6 @@ export function dbgWarn(category: DebugCategory, ...args: any[]): void {
     console.warn(`[${category}]`, ...args)
 }
 
-
 function deriveRoundTurn(): { round: number; turn: number } {
     const c = globalState.combat
     if (!c) return { round: 0, turn: 0 }

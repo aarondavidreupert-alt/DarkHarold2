@@ -55,7 +55,8 @@ function noPipboyInCombat(): void {
 // CE game.cc showHelp — helpscrn (interface #297) over a black screen until any input.
 function showHelp(): void {
     const overlay = document.createElement('div')
-    overlay.style.cssText = 'position:fixed;inset:0;background:#000;z-index:20000;display:flex;align-items:center;justify-content:center;'
+    overlay.style.cssText =
+        'position:fixed;inset:0;background:#000;z-index:20000;display:flex;align-items:center;justify-content:center;'
     const img = document.createElement('img')
     img.src = assetUrl('art/intrface/helpscrn.png')
     img.style.cssText = 'width:640px;height:480px;image-rendering:pixelated;'
@@ -63,7 +64,8 @@ function showHelp(): void {
     const prev = globalState.uiMode
     globalState.uiMode = UIMode.dialog
     const close = (e: Event) => {
-        e.preventDefault(); e.stopPropagation()
+        e.preventDefault()
+        e.stopPropagation()
         overlay.remove()
         globalState.uiMode = prev
         window.removeEventListener('keydown', close, true)
@@ -78,16 +80,27 @@ function showHelp(): void {
 // +/- still change the brightness, any other key or the button closes it.
 function showPause(): void {
     const overlay = document.createElement('div')
-    overlay.style.cssText = 'position:fixed;inset:0;z-index:20000;display:flex;align-items:center;justify-content:center;'
+    overlay.style.cssText =
+        'position:fixed;inset:0;z-index:20000;display:flex;align-items:center;justify-content:center;'
     const win = document.createElement('div')
-    win.style.cssText = "position:relative;width:139px;height:72px;margin-top:-108px;background:url('" + assetUrl('art/intrface/charwin.png') + "');"
+    win.style.cssText =
+        "position:relative;width:139px;height:72px;margin-top:-108px;background:url('" +
+        assetUrl('art/intrface/charwin.png') +
+        "');"
     const title = document.createElement('div')
-    title.style.cssText = 'position:absolute;left:0;right:0;top:10px;text-align:center;color:#907824;font:bold 14px monospace;'
+    title.style.cssText =
+        'position:absolute;left:0;right:0;top:10px;text-align:center;color:#907824;font:bold 14px monospace;'
     title.textContent = getMessage('options', 301) ?? 'PAUSED'
     const done = document.createElement('div')
-    done.style.cssText = "position:absolute;left:13px;top:42px;width:108px;height:24px;background:url('" + assetUrl('art/intrface/donebox.png') + "');"
+    done.style.cssText =
+        "position:absolute;left:13px;top:42px;width:108px;height:24px;background:url('" +
+        assetUrl('art/intrface/donebox.png') +
+        "');"
     const btn = document.createElement('div')
-    btn.style.cssText = "position:absolute;left:13px;top:4px;width:15px;height:16px;background:url('" + assetUrl('art/intrface/lilredup.png') + "');cursor:pointer;"
+    btn.style.cssText =
+        "position:absolute;left:13px;top:4px;width:15px;height:16px;background:url('" +
+        assetUrl('art/intrface/lilredup.png') +
+        "');cursor:pointer;"
     const label = document.createElement('div')
     label.style.cssText = 'position:absolute;left:39px;top:4px;color:#907824;font:bold 12px monospace;'
     label.textContent = getMessage('options', 300) ?? 'DONE'
@@ -108,12 +121,15 @@ function showPause(): void {
         window.removeEventListener('keydown', onKey, true)
     }
     const onKey = (e: KeyboardEvent) => {
-        e.preventDefault(); e.stopPropagation()
+        e.preventDefault()
+        e.stopPropagation()
         if (e.key === '+' || e.key === '=') changeBrightness(1)
         else if (e.key === '-' || e.key === '_') changeBrightness(-1)
         else close()
     }
-    btn.onmousedown = () => { btn.style.backgroundImage = "url('" + assetUrl('art/intrface/lilreddn.png') + "')" }
+    btn.onmousedown = () => {
+        btn.style.backgroundImage = "url('" + assetUrl('art/intrface/lilreddn.png') + "')"
+    }
     btn.onclick = () => close()
     window.addEventListener('keydown', onKey, true)
     document.body.appendChild(overlay)
@@ -152,12 +168,25 @@ function centerOnDude(): void {
 }
 
 const SKILL_KEYS: { [k: string]: Skills } = {
-    '1': Skills.Sneak, '2': Skills.Lockpick, '3': Skills.Steal, '4': Skills.Traps,
-    '5': Skills.FirstAid, '6': Skills.Doctor, '7': Skills.Science, '8': Skills.Repair,
+    '1': Skills.Sneak,
+    '2': Skills.Lockpick,
+    '3': Skills.Steal,
+    '4': Skills.Traps,
+    '5': Skills.FirstAid,
+    '6': Skills.Doctor,
+    '7': Skills.Science,
+    '8': Skills.Repair,
 }
 // Shift+digit (CE accepts both, e.g. KEY_1 / KEY_EXCLAMATION) — by physical key
 const DIGIT_CODES: { [code: string]: string } = {
-    Digit1: '1', Digit2: '2', Digit3: '3', Digit4: '4', Digit5: '5', Digit6: '6', Digit7: '7', Digit8: '8',
+    Digit1: '1',
+    Digit2: '2',
+    Digit3: '3',
+    Digit4: '4',
+    Digit5: '5',
+    Digit6: '6',
+    Digit7: '7',
+    Digit8: '8',
 }
 
 export type MouseModeCycler = () => void
@@ -172,18 +201,41 @@ export function gameHandleKey(e: KeyboardEvent, cycleMouseMode: MouseModeCycler)
 
     // combat.cc _combat_input (the player's turn)
     if (inCombat && globalState.combat?.inPlayerTurn) {
-        if (key === ' ') { globalState.combat.nextTurn(); return true }
-        if (key === 'Enter') { globalState.combat.attemptEnd(); return true }
+        if (key === ' ') {
+            globalState.combat.nextTurn()
+            return true
+        }
+        if (key === 'Enter') {
+            globalState.combat.attemptEnd()
+            return true
+        }
     }
     if (inCombat && !globalState.combat?.inPlayerTurn) return false // no input during AI turns
 
     if (ctrl) {
         switch (lower) {
-            case 'q': case 'x': click(); void quitConfirmation(); return true
-            case 'p': click(); showPause(); return true
-            case 's': click(); uiSaveLoad(true); return true
-            case 'l': click(); uiSaveLoad(false); return true
-            case 'v': click(); uiLog('FALLOUT II 1.02d'); uiLog('Dec 11 1998 16:54:30'); return true
+            case 'q':
+            case 'x':
+                click()
+                void quitConfirmation()
+                return true
+            case 'p':
+                click()
+                showPause()
+                return true
+            case 's':
+                click()
+                uiSaveLoad(true)
+                return true
+            case 'l':
+                click()
+                uiSaveLoad(false)
+                return true
+            case 'v':
+                click()
+                uiLog('FALLOUT II 1.02d')
+                uiLog('Dec 11 1998 16:54:30')
+                return true
         }
         return false
     }
@@ -198,41 +250,143 @@ export function gameHandleKey(e: KeyboardEvent, cycleMouseMode: MouseModeCycler)
     }
 
     switch (key) {
-        case 'F10': click(); void quitConfirmation(); return true
-        case 'Tab': if (bar) { click(); closeAllPanels(); toggleAutomap() } return true
-        case 'Escape': if (bar) { click(); closeAllPanels(); showOptionsMenu() } return true
-        case 'Home': centerOnDude(); return true
-        case 'F1': click(); showHelp(); return true
-        case 'F2': changeMasterVolume(-1); return true
-        case 'F3': changeMasterVolume(1); return true
-        case 'F4': click(); uiSaveLoad(true); return true
-        case 'F5': click(); uiSaveLoad(false); return true
-        case 'F6': click(); uiQuickSave(); return true
-        case 'F7': click(); uiQuickLoad(); return true
-        case '-': case '_': changeBrightness(-1); return true
-        case '=': case '+': changeBrightness(1); return true
-        case ',': case '<': rotateDude(-1); return true
-        case '.': case '>': rotateDude(1); return true
-        case '/': case '?': click(); showDate(); return true
+        case 'F10':
+            click()
+            void quitConfirmation()
+            return true
+        case 'Tab':
+            if (bar) {
+                click()
+                closeAllPanels()
+                toggleAutomap()
+            }
+            return true
+        case 'Escape':
+            if (bar) {
+                click()
+                closeAllPanels()
+                showOptionsMenu()
+            }
+            return true
+        case 'Home':
+            centerOnDude()
+            return true
+        case 'F1':
+            click()
+            showHelp()
+            return true
+        case 'F2':
+            changeMasterVolume(-1)
+            return true
+        case 'F3':
+            changeMasterVolume(1)
+            return true
+        case 'F4':
+            click()
+            uiSaveLoad(true)
+            return true
+        case 'F5':
+            click()
+            uiSaveLoad(false)
+            return true
+        case 'F6':
+            click()
+            uiQuickSave()
+            return true
+        case 'F7':
+            click()
+            uiQuickLoad()
+            return true
+        case '-':
+        case '_':
+            changeBrightness(-1)
+            return true
+        case '=':
+        case '+':
+            changeBrightness(1)
+            return true
+        case ',':
+        case '<':
+            rotateDude(-1)
+            return true
+        case '.':
+        case '>':
+            rotateDude(1)
+            return true
+        case '/':
+        case '?':
+            click()
+            showDate()
+            return true
     }
 
     switch (lower) {
-        case 'a': if (bar && !inCombat && Config.engine.doCombat) Combat.start(); return true
-        case 'n': if (bar) { click(); cycleActiveItemAction() } return true
-        case 'm': cycleMouseMode(); return true
-        case 'b': if (bar) { click(); swapHands() } return true
-        case 'c': if (bar) { click(); closeAllPanels(); showCharacterScreen() } return true
-        case 'i': if (bar) { click(); closeAllPanels(); showInventory() } return true
-        case 'o': if (bar) { click(); closeAllPanels(); showOptionsMenu() } return true
+        case 'a':
+            if (bar && !inCombat && Config.engine.doCombat) Combat.start()
+            return true
+        case 'n':
+            if (bar) {
+                click()
+                cycleActiveItemAction()
+            }
+            return true
+        case 'm':
+            cycleMouseMode()
+            return true
+        case 'b':
+            if (bar) {
+                click()
+                swapHands()
+            }
+            return true
+        case 'c':
+            if (bar) {
+                click()
+                closeAllPanels()
+                showCharacterScreen()
+            }
+            return true
+        case 'i':
+            if (bar) {
+                click()
+                closeAllPanels()
+                showInventory()
+            }
+            return true
+        case 'o':
+            if (bar) {
+                click()
+                closeAllPanels()
+                showOptionsMenu()
+            }
+            return true
         case 'p':
             if (!bar) return true
-            if (inCombat) { noPipboyInCombat(); return true }
-            click(); closeAllPanels(); openPipBoy(); return true
-        case 's': if (bar) { click(); closeAllPanels(); showSkilldex() } return true
+            if (inCombat) {
+                noPipboyInCombat()
+                return true
+            }
+            click()
+            closeAllPanels()
+            openPipBoy()
+            return true
+        case 's':
+            if (bar) {
+                click()
+                closeAllPanels()
+                showSkilldex()
+            }
+            return true
         case 'z':
             if (!bar) return true
-            if (inCombat) { noPipboyInCombat(); return true }
-            click(); closeAllPanels(); openPipBoyRest(); return true
+            if (inCombat) {
+                noPipboyInCombat()
+                return true
+            }
+            click()
+            closeAllPanels()
+            openPipBoyRest()
+            return true
     }
     return false
 }

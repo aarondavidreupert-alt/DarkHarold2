@@ -39,7 +39,7 @@ WebGLRenderer.prototype.renderLitFloorCPU = function (tileMap: TileMap, useColor
     // day/night on walls but no per-tile spotlight brightening.
     const tileData = this.tileDataBuffer
     for (let i = 0; i < 40000; i++) {
-        tileData[i] = Math.round(Math.min(Lightmap.tile_intensity[i], 65536) / 65536.0 * 255)
+        tileData[i] = Math.round((Math.min(Lightmap.tile_intensity[i], 65536) / 65536.0) * 255)
     }
     gl.activeTexture(gl.TEXTURE5)
     gl.bindTexture(gl.TEXTURE_2D, this.tileIntensityTexture)
@@ -55,7 +55,10 @@ WebGLRenderer.prototype.renderLitFloorCPU = function (tileMap: TileMap, useColor
     const ambientCPU = GameTime.getAmbientLightNormalized()
     gl.uniform1f(this.uAmbient, ambientCPU)
     if (ambientCPU !== this.lastLoggedAmbient) {
-        dbg('renderer', `[lighting/cpu] u_ambient = ${ambientCPU.toFixed(3)} (hour ${GameTime.getHour()}:${String(GameTime.getMinute()).padStart(2,'0')})`)
+        dbg(
+            'renderer',
+            `[lighting/cpu] u_ambient = ${ambientCPU.toFixed(3)} (hour ${GameTime.getHour()}:${String(GameTime.getMinute()).padStart(2, '0')})`,
+        )
         this.lastLoggedAmbient = ambientCPU
     }
 
@@ -158,7 +161,7 @@ WebGLRenderer.prototype.renderLitFloorCPU = function (tileMap: TileMap, useColor
             gl.uniform2f(
                 this.litOffsetLocation,
                 (scr.x - globalState.cameraPosition.x) * zCPU,
-                (scr.y - globalState.cameraPosition.y) * zCPU
+                (scr.y - globalState.cameraPosition.y) * zCPU,
             )
             gl.drawArrays(gl.TRIANGLES, 0, 6)
         }
@@ -181,7 +184,7 @@ WebGLRenderer.prototype.renderLitFloorGPU = function (tileMap: TileMap) {
     // Upload tile_intensity as 200×200 R8 (uint8, 0-255) — R8 always supports LINEAR filtering
     const tileData = this.tileDataBuffer
     for (let i = 0; i < 40000; i++) {
-        tileData[i] = Math.round(Math.min(Lightmap.tile_intensity[i], 65536) / 65536.0 * 255)
+        tileData[i] = Math.round((Math.min(Lightmap.tile_intensity[i], 65536) / 65536.0) * 255)
     }
     gl.activeTexture(gl.TEXTURE5)
     gl.bindTexture(gl.TEXTURE_2D, this.tileIntensityTexture)
@@ -317,7 +320,10 @@ WebGLRenderer.prototype.compositeFloorWithLighting = function (): void {
     const ambientGPU = GameTime.getAmbientLightNormalized()
     gl.uniform1f(this.uAmbient, ambientGPU)
     if (ambientGPU !== this.lastLoggedAmbient) {
-        dbg('renderer', `[lighting/gpu] u_ambient = ${ambientGPU.toFixed(3)} (hour ${GameTime.getHour()}:${String(GameTime.getMinute()).padStart(2,'0')})`)
+        dbg(
+            'renderer',
+            `[lighting/gpu] u_ambient = ${ambientGPU.toFixed(3)} (hour ${GameTime.getHour()}:${String(GameTime.getMinute()).padStart(2, '0')})`,
+        )
         this.lastLoggedAmbient = ambientGPU
     }
     gl.uniform2f(this.litScaleLocation, SCREEN_WIDTH, SCREEN_HEIGHT)

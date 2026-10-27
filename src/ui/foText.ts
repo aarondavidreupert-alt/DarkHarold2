@@ -61,7 +61,9 @@ export class FoText {
 
     // ── Text ──────────────────────────────────────────────────────────────────
 
-    get text(): string { return this._text }
+    get text(): string {
+        return this._text
+    }
     set text(v: string) {
         if (v === this._text) return
         this._text = v
@@ -76,7 +78,9 @@ export class FoText {
 
     // ── Color ─────────────────────────────────────────────────────────────────
 
-    get color(): string | undefined { return this._color }
+    get color(): string | undefined {
+        return this._color
+    }
     set color(v: string | undefined) {
         this._color = v
         if (this.renderer.isLoaded()) this.redraw()
@@ -91,9 +95,13 @@ export class FoText {
     // ── Dimensions ────────────────────────────────────────────────────────────
 
     /** Rendered pixel width (0 if font not yet loaded). */
-    get width(): number { return this.canvas?.width ?? 0 }
+    get width(): number {
+        return this.canvas?.width ?? 0
+    }
     /** Rendered pixel height (0 if font not yet loaded). */
-    get height(): number { return this.canvas?.height ?? 0 }
+    get height(): number {
+        return this.canvas?.height ?? 0
+    }
 
     // ── Convenience ───────────────────────────────────────────────────────────
 

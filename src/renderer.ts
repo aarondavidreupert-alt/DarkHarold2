@@ -18,7 +18,16 @@ limitations under the License.
 
 import { updateFloatText } from './floatText.js'
 import { heart } from './heart.js'
-import { BoundingBox, hexCellTopLeft, hexDistance, hexFromScreen, hexesInRadius, hexToScreen, Point, pointInBoundingBox } from './geometry.js'
+import {
+    BoundingBox,
+    hexCellTopLeft,
+    hexDistance,
+    hexFromScreen,
+    hexesInRadius,
+    hexToScreen,
+    Point,
+    pointInBoundingBox,
+} from './geometry.js'
 import globalState from './globalState.js'
 import { lazyLoadImage } from './images.js'
 import { dbg } from './logger.js'
@@ -67,7 +76,12 @@ export {
 // Returns a Set of "x,y" keys for tiles that should NOT be rendered.
 // A square whose roof flag has 0x02 (or 0x01, already hidden) stops the fill: CE hides only
 // squares with (flag & 0x03) == 0 and spreads only from those.
-function roofFloodFill(roof: TileMap, startX: number, startY: number, flags?: Record<string, number> | null): Set<string> {
+function roofFloodFill(
+    roof: TileMap,
+    startX: number,
+    startY: number,
+    flags?: Record<string, number> | null,
+): Set<string> {
     const hidden = new Set<string>()
     const H = roof.length
     const W = roof[0]?.length ?? 0
@@ -124,7 +138,14 @@ export interface FrameCell {
 export function frameCell(info: any, orientation: number, frame: number): FrameCell {
     const f = info.frameOffsets?.[orientation]?.[frame]
     if (f && typeof f.sy === 'number' && info.columns) {
-        return { sx: f.sx, sy: f.sy, column: Math.round(f.sx / info.frameWidth), row: Math.round(f.sy / info.frameHeight), columns: info.columns, rows: info.rows ?? 1 }
+        return {
+            sx: f.sx,
+            sy: f.sy,
+            column: Math.round(f.sx / info.frameWidth),
+            row: Math.round(f.sy / info.frameHeight),
+            columns: info.columns,
+            rows: info.rows ?? 1,
+        }
     }
     const n = info.numFrames * orientation + frame
     return { sx: n * info.frameWidth, sy: 0, column: n, row: 0, columns: info.totalFrames, rows: 1 }
@@ -155,7 +176,12 @@ export class Renderer {
     // A preset-hidden square is reached when a neighbour is in the dude's hide set.
     private roofFlagFillReaches(key: string, hideSet: Set<string>): boolean {
         const [x, y] = key.split(',').map(Number)
-        return hideSet.has(`${x - 1},${y}`) || hideSet.has(`${x + 1},${y}`) || hideSet.has(`${x},${y - 1}`) || hideSet.has(`${x},${y + 1}`)
+        return (
+            hideSet.has(`${x - 1},${y}`) ||
+            hideSet.has(`${x + 1},${y}`) ||
+            hideSet.has(`${x},${y - 1}`) ||
+            hideSet.has(`${x},${y + 1}`)
+        )
     }
 
     clearTileCache(): void {}
@@ -207,12 +233,13 @@ export class Renderer {
                     const s = worldToScreen(scr.x, scr.y)
                     // Flat-topped hex tile in isometric view: draw a simple filled rhombus
                     // whose corners match the four cardinal points of the 32×16 hex cell.
-                    const w = 32 * z, h = 16 * z
+                    const w = 32 * z,
+                        h = 16 * z
                     ctx.beginPath()
-                    ctx.moveTo(s.x + w / 2, s.y)          // top
-                    ctx.lineTo(s.x + w,     s.y + h / 2)  // right
-                    ctx.lineTo(s.x + w / 2, s.y + h)      // bottom
-                    ctx.lineTo(s.x,         s.y + h / 2)  // left
+                    ctx.moveTo(s.x + w / 2, s.y) // top
+                    ctx.lineTo(s.x + w, s.y + h / 2) // right
+                    ctx.lineTo(s.x + w / 2, s.y + h) // bottom
+                    ctx.lineTo(s.x, s.y + h / 2) // left
                     ctx.closePath()
                     ctx.fill()
                 }
@@ -287,7 +314,14 @@ export class Renderer {
             this.renderImage('img/hex_outline', screen.x, screen.y, hexW * z, hexH * z)
             // CE gameMouseRenderActionPoints: the AP / X centred in the hex cursor (font 101)
             const apText = globalState.hexCursorText
-            if (apText) this.renderText(apText.text, screen.x + hexW * z / 2, screen.y + hexH * z / 2 + 4, 'center', apText.color)
+            if (apText)
+                this.renderText(
+                    apText.text,
+                    screen.x + (hexW * z) / 2,
+                    screen.y + (hexH * z) / 2 + 4,
+                    'center',
+                    apText.color,
+                )
         }
 
         for (const window of this.windows.filter((w) => w.showing)) {
@@ -312,7 +346,7 @@ export class Renderer {
             this.renderText(
                 '[turn ' + globalState.combat.turnNum + ' of ' + whose + ' AP: ' + AP.getAvailableMoveAP() + ']',
                 SCREEN_WIDTH - 200,
-                15
+                15,
             )
         }
 
@@ -329,7 +363,7 @@ export class Renderer {
             this.renderText('x: ' + mouseHex.x, 5, 15)
             this.renderText('y: ' + mouseHex.y, 60, 15)
             const _hudTile = mouseHex.y * 200 + mouseHex.x
-            const _hudLit = (_hudTile >= 0 && _hudTile < 40000) ? Lightmap.tile_intensity[_hudTile] : 0
+            const _hudLit = _hudTile >= 0 && _hudTile < 40000 ? Lightmap.tile_intensity[_hudTile] : 0
             this.renderText('tile: ' + _hudTile, 115, 15)
             this.renderText('mt: ' + mouseSquare.x + ',' + mouseSquare.y, 225, 15)
             this.renderText('m: ' + mousePos[0] + ', ' + mousePos[1], 325, 15)
@@ -345,7 +379,25 @@ export class Renderer {
                 const _r = Math.round((_b.maxX - _cam.x) * _z)
                 const _t = Math.round((_b.minY - _cam.y) * _z)
                 const _bot = Math.round((_b.maxY - _cam.y) * _z)
-                this.renderText('bbox L' + _l + ' R' + _r + ' T' + _t + ' B' + _bot + ' (scr ' + SCREEN_WIDTH + 'x' + SCREEN_HEIGHT + ')', 5, 60, 'left', 'yellow')
+                this.renderText(
+                    'bbox L' +
+                        _l +
+                        ' R' +
+                        _r +
+                        ' T' +
+                        _t +
+                        ' B' +
+                        _bot +
+                        ' (scr ' +
+                        SCREEN_WIDTH +
+                        'x' +
+                        SCREEN_HEIGHT +
+                        ')',
+                    5,
+                    60,
+                    'left',
+                    'yellow',
+                )
             } else {
                 this.renderText('bbox: NULL', 5, 60, 'left', 'red')
             }
@@ -357,10 +409,15 @@ export class Renderer {
         // floatText.ts places them (textObjectFindPlacement) and draws them in the CE
         // interface font in a DOM layer. CE tileToScreenXY is the tile's top-left:
         // hexToScreen gives the sprite anchor (tile + 16, + 8).
-        updateFloatText((tile) => {
-            const scr = hexToScreen(tile.x, tile.y)
-            return worldToScreen(scr.x - 16, scr.y - 8)
-        }, getZoom(), SCREEN_WIDTH, SCREEN_HEIGHT)
+        updateFloatText(
+            (tile) => {
+                const scr = hexToScreen(tile.x, tile.y)
+                return worldToScreen(scr.x - 16, scr.y - 8)
+            },
+            getZoom(),
+            SCREEN_WIDTH,
+            SCREEN_HEIGHT,
+        )
 
         if (globalState.player.dead) {
             this.color(255, 0, 0, 50)
@@ -377,7 +434,13 @@ export class Renderer {
 
             if (globalState.cursorMode === 'command') {
                 const actarrowImg = globalState.images['art/intrface/actarrow']
-                this.renderImage('art/intrface/actarrow', rawX, rawY, actarrowImg?.naturalWidth ?? 28, actarrowImg?.naturalHeight ?? 13)
+                this.renderImage(
+                    'art/intrface/actarrow',
+                    rawX,
+                    rawY,
+                    actarrowImg?.naturalWidth ?? 28,
+                    actarrowImg?.naturalHeight ?? 13,
+                )
                 if (globalState.showLookCursor) {
                     const icon = globalState.hoverActionIcon ?? 'art/intrface/lookn'
                     const iconImg = globalState.images[icon]
@@ -391,7 +454,13 @@ export class Renderer {
                 this.renderImage('art/intrface/acrshair', rawX - Math.floor(w / 2), rawY - Math.floor(h / 2), w, h)
             } else if (globalState.cursorMode === 'interface') {
                 const stdarrowImg = globalState.images['art/intrface/stdarrow']
-                this.renderImage('art/intrface/stdarrow', rawX, rawY, stdarrowImg?.naturalWidth ?? 14, stdarrowImg?.naturalHeight ?? 17)
+                this.renderImage(
+                    'art/intrface/stdarrow',
+                    rawX,
+                    rawY,
+                    stdarrowImg?.naturalWidth ?? 14,
+                    stdarrowImg?.naturalHeight ?? 17,
+                )
             } else if (globalState.cursorMode === 'useSkill' || globalState.cursorMode === 'useItem') {
                 // FO2-CE ref: crossuse.frm — yellow crosshair for skill targeting
                 const crossuseImg = globalState.images['art/intrface/crossuse']
@@ -403,7 +472,13 @@ export class Renderer {
                 } else {
                     // Fallback to actarrow if crossuse not available
                     const fallbackImg = globalState.images['art/intrface/actarrow']
-                    this.renderImage('art/intrface/actarrow', rawX, rawY, fallbackImg?.naturalWidth ?? 28, fallbackImg?.naturalHeight ?? 13)
+                    this.renderImage(
+                        'art/intrface/actarrow',
+                        rawX,
+                        rawY,
+                        fallbackImg?.naturalWidth ?? 28,
+                        fallbackImg?.naturalHeight ?? 13,
+                    )
                 }
             } else if (globalState.cursorMode === 'scroll') {
                 const goN = rawY <= PAD
@@ -422,7 +497,13 @@ export class Renderer {
                 else if (goW) scrollCursor = 'art/intrface/scrwest'
 
                 const scrollImg = globalState.images[scrollCursor]
-                this.renderImage(scrollCursor, rawX, rawY, scrollImg?.naturalWidth ?? 32, scrollImg?.naturalHeight ?? 32)
+                this.renderImage(
+                    scrollCursor,
+                    rawX,
+                    rawY,
+                    scrollImg?.naturalWidth ?? 32,
+                    scrollImg?.naturalHeight ?? 32,
+                )
             }
             // 'move' mode: hex_outline handles cursor rendering (snapped to hex grid)
         }
@@ -485,11 +566,11 @@ export class Renderer {
             offsetY += frameInfo.oy + obj.artOffset.y
         }
 
-        if (obj === globalState.player &&
-                (obj.art !== _animLogLast.art || obj.frame !== _animLogLast.frame)) {
+        if (obj === globalState.player && (obj.art !== _animLogLast.art || obj.frame !== _animLogLast.frame)) {
             _animLogLast.art = obj.art
             _animLogLast.frame = obj.frame
-            dbg('animation',
+            dbg(
+                'animation',
                 `[Render] t=${performance.now().toFixed(1)}`,
                 `art=${obj.art} f=${obj.frame}`,
                 `frameOx=${frameInfo.ox} frameOy=${frameInfo.oy}`,
@@ -581,7 +662,9 @@ export class Renderer {
     }
     renderObject(obj: Obj): void {}
     // Whether the egg makes obj see-through near the dude (WebGL: webglDraw.ts isEggObject)
-    isEggTransparent(obj: Obj): boolean { return false }
+    isEggTransparent(obj: Obj): boolean {
+        return false
+    }
     renderOutlinePass(objs: Obj[]): void {}
     renderWindow(window: WindowFrame): void {
         this.renderImage(window.background, window.position.x, window.position.y, window.width, window.height)
@@ -692,8 +775,13 @@ export function getObjectUnderCursor(p: (obj: Obj) => boolean) {
     // CE: with objectType -1 (not the crosshair's critter pick) nothing is picked over a visible
     // roof outside the egg (_square_roof_intersect / _obj_intersects_with(gEgg))
     const renderer = globalState.renderer
-    if (globalState.cursorMode !== 'attack' && Config.ui.showRoof && renderer?.roofTiles && player
-        && !(Config.ui.showEgg !== false && hexDistance(player.position, mouseHex) <= eggRadius)) {
+    if (
+        globalState.cursorMode !== 'attack' &&
+        Config.ui.showRoof &&
+        renderer?.roofTiles &&
+        player &&
+        !(Config.ui.showEgg !== false && hexDistance(player.position, mouseHex) <= eggRadius)
+    ) {
         const sq = tileFromScreen(mousePosition.x, mousePosition.y + 96) // roofs draw 96 px up
         const roofTile = renderer.roofTiles[sq.x]?.[sq.y]
         if (roofTile && roofTile !== 'grid000' && !renderer.lastRoofHideSet?.has(`${sq.x},${sq.y}`)) return null
@@ -708,8 +796,11 @@ export function getObjectUnderCursor(p: (obj: Obj) => boolean) {
         const mouseRel = { x: mousePosition.x - bbox.x, y: mousePosition.y - bbox.y }
         if (objectTransparentAt(obj, mouseRel)) continue // DH2 lists only pixel hits
         candidate = obj
-        const inEgg = Config.ui.showEgg !== false && player && hexDistance(player.position, mouseHex) <= eggRadius
-            && globalState.renderer?.isEggTransparent(obj)
+        const inEgg =
+            Config.ui.showEgg !== false &&
+            player &&
+            hexDistance(player.position, mouseHex) <= eggRadius &&
+            globalState.renderer?.isEggTransparent(obj)
         if (inEgg) continue
         const c = obj as any
         if (obj.type === 'critter' && (c.dead || ((c.injuryFlags ?? 0) & 0x01) !== 0)) continue // DAM_KNOCKED_OUT | DAM_DEAD

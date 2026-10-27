@@ -56,24 +56,33 @@ export const FONT_ASSET_QUERY = '?r=2'
 // CE text colours (_colorTable[<RGB555>] → color.pal entry). The names say where CE
 // uses them; hex values are the palette colours.
 export const CE_COLOR = {
-    label: '#907824',          // 18979 — labels, headings, button text
-    labelPressed: '#7c6818',   // 14723 — pressed button text, inactive tab
-    green: '#3cf800',          // 992   — values / list entries
-    highlight: '#fcfc7c',      // 32747 — the selected list entry
-    tagged: '#a0a0a0',         // 21140 — tagged skill / picked trait
+    label: '#907824', // 18979 — labels, headings, button text
+    labelPressed: '#7c6818', // 14723 — pressed button text, inactive tab
+    green: '#3cf800', // 992   — values / list entries
+    highlight: '#fcfc7c', // 32747 — the selected list entry
+    tagged: '#a0a0a0', // 21140 — tagged skill / picked trait
     taggedHighlight: '#fcfcfc', // 32767 — selected tagged skill / picked trait
-    dimGreen: '#183018',       // 1313  — inactive condition
-    dimHighlight: '#707820',   // 15845 — selected inactive condition
-    dialog: '#fc9c48',         // 32328 — dialog box text
+    dimGreen: '#183018', // 1313  — inactive condition
+    dimHighlight: '#707820', // 15845 — selected inactive condition
+    dialog: '#fc9c48', // 32328 — dialog box text
 } as const
 
 // Legacy colour names some callers pass → CE colour.
 export function resolveFontColor(color: string): string {
     switch (color.toLowerCase()) {
-        case 'yellow': case '#ffd700': case '#ffff00': case '#ff0': return CE_COLOR.label
-        case 'green': case 'lime': case '#00ff00': return CE_COLOR.green
-        case 'red': return '#fc0000'
-        default: return color
+        case 'yellow':
+        case '#ffd700':
+        case '#ffff00':
+        case '#ff0':
+            return CE_COLOR.label
+        case 'green':
+        case 'lime':
+        case '#00ff00':
+            return CE_COLOR.green
+        case 'red':
+            return '#fc0000'
+        default:
+            return color
     }
 }
 
@@ -212,7 +221,7 @@ export class FontRenderer {
                 this.spriteImage,
                 this.symbolInfo as unknown as Record<string, SymbolInfo>,
                 this.letterSpacing,
-                hex
+                hex,
             )
             canvas.style.display = 'block'
             container.appendChild(canvas)
@@ -255,7 +264,7 @@ export class FontRenderer {
             this.spriteImage,
             this.symbolInfo as unknown as Record<string, SymbolInfo>,
             this.letterSpacing,
-            color
+            color,
         )
     }
 }
@@ -272,7 +281,7 @@ export class FontWidget extends Widget {
         y: number,
         public text: string,
         public renderer: FontRenderer,
-        public textColor?: string
+        public textColor?: string,
     ) {
         super(null, { x, y, w: 'auto', h: 'auto' })
         this.fontElem = renderer.renderText(text, textColor ?? 'yellow')
@@ -282,9 +291,7 @@ export class FontWidget extends Widget {
     /** Re-render in place when the underlying text changes. */
     setText(text: string): void {
         this.text = text
-        const rerender = (this.fontElem as any).__fontRerender as
-            | ((t: string) => void)
-            | undefined
+        const rerender = (this.fontElem as any).__fontRerender as ((t: string) => void) | undefined
         if (rerender) {
             rerender(text)
         }
@@ -300,12 +307,7 @@ export class FontWidget extends Widget {
 }
 
 /** Build a bitmap-font label widget at the given position. */
-export function makeFontLabel(
-    x: number,
-    y: number,
-    text: string,
-    fontRenderer: FontRenderer
-): FontWidget {
+export function makeFontLabel(x: number, y: number, text: string, fontRenderer: FontRenderer): FontWidget {
     return new FontWidget(x, y, text, fontRenderer)
 }
 
@@ -315,17 +317,9 @@ export function makeFontLabel(
 function parseHexColor(hex: string): [number, number, number] {
     const h = hex.replace('#', '')
     if (h.length === 3) {
-        return [
-            parseInt(h[0] + h[0], 16),
-            parseInt(h[1] + h[1], 16),
-            parseInt(h[2] + h[2], 16),
-        ]
+        return [parseInt(h[0] + h[0], 16), parseInt(h[1] + h[1], 16), parseInt(h[2] + h[2], 16)]
     }
-    return [
-        parseInt(h.substring(0, 2), 16),
-        parseInt(h.substring(2, 4), 16),
-        parseInt(h.substring(4, 6), 16),
-    ]
+    return [parseInt(h.substring(0, 2), 16), parseInt(h.substring(2, 4), 16), parseInt(h.substring(4, 6), 16)]
 }
 
 /**
@@ -355,7 +349,7 @@ export function renderBitmapText(
     spriteSheet: HTMLImageElement,
     glyphMap: Record<string, { x: number; y: number; w: number; h: number }>,
     letterSpacing: number = 1,
-    color?: string
+    color?: string,
 ): HTMLCanvasElement {
     // Pass 1: width and line height (the cell height = CE maxHeight).
     let totalWidth = 0
@@ -401,8 +395,8 @@ export function renderBitmapText(
         const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height)
         const d = imgData.data
         for (let i = 0; i < d.length; i += 4) {
-            const alpha = d[i]  // red channel = intensity
-            d[i]     = cr
+            const alpha = d[i] // red channel = intensity
+            d[i] = cr
             d[i + 1] = cg
             d[i + 2] = cb
             d[i + 3] = alpha

@@ -41,10 +41,24 @@ import { setIndicatorBarHidden, updateIndicatorBar } from '../ui_hud.js'
 import { WindowFrame, SmallButton, Label } from '../ui_components.js'
 import { makePanelDraggable } from '../ui_drag.js'
 import {
-    SPECIAL_NAMES, SPECIAL_TEXTS, SKILL_TEXTS, DERIVED_TEXTS, CONDITION_TEXTS,
-    skillTitle, skillSubtitle, derivedTitle, conditionTitle,
-    SPECIAL_IMG, SKILL_IMG, DERIVED_IMG, CONDITION_IMG,
-    statComment, FOLDER_TABS, STATS, SKILLS, EDITOR_CARDS,
+    SPECIAL_NAMES,
+    SPECIAL_TEXTS,
+    SKILL_TEXTS,
+    DERIVED_TEXTS,
+    CONDITION_TEXTS,
+    skillTitle,
+    skillSubtitle,
+    derivedTitle,
+    conditionTitle,
+    SPECIAL_IMG,
+    SKILL_IMG,
+    DERIVED_IMG,
+    CONDITION_IMG,
+    statComment,
+    FOLDER_TABS,
+    STATS,
+    SKILLS,
+    EDITOR_CARDS,
 } from './descriptions.js'
 
 // The editor-line cards (Level, Exp, …); set once the card area exists
@@ -70,8 +84,12 @@ let _statsChangedHandler: (() => void) | null = null
 export function editorRefuse(a: number, b?: number): Promise<void> {
     globalState.audioEngine?.playSfxByName?.('iisxxxx1')
     const line = (id: number) => getMessage('editor', id) ?? ''
-    return showAlert(b === undefined ? line(a) : `${line(a)}
-${line(b)}`)
+    return showAlert(
+        b === undefined
+            ? line(a)
+            : `${line(a)}
+${line(b)}`,
+    )
 }
 
 export function getCharacterWindow(): WindowFrame | null {
@@ -84,7 +102,10 @@ export function setCharacterWindow(w: WindowFrame): void {
 
 export function closeCharacterScreen(): void {
     setIndicatorBarHidden(false) // CE characterEditorWindowFree
-    if (_statsChangedHandler) { Events.off('statsChanged', _statsChangedHandler); _statsChangedHandler = null }
+    if (_statsChangedHandler) {
+        Events.off('statsChanged', _statsChangedHandler)
+        _statsChangedHandler = null
+    }
     if (characterWindow && characterWindow.showing) {
         characterWindow.close()
     }
@@ -134,7 +155,7 @@ export function showCharacterScreen() {
 
     // FO2-CE ref: stat.cc pcGetExperienceForLevel() — XP needed for next level
     const currentLevel = player.getStat('Level')
-    const nextLevelXP = Math.floor((currentLevel + 1) * currentLevel / 2) * 1000
+    const nextLevelXP = Math.floor(((currentLevel + 1) * currentLevel) / 2) * 1000
     // CE characterEditorDrawPcStats: _itostndn's thousands commas; pcGetExperienceForNextLevel
     // is −1 at PC_LEVEL_MAX (99) — no number; above 999,999 the short label (editor.msg 175)
     const itostndn = (n: number) => n.toLocaleString('en-US')
@@ -149,13 +170,16 @@ export function showCharacterScreen() {
     // Panel 2: Hit Points + condition flags (upper status box)
     // Both status boxes are drawn in one window-origin layer at CE coordinates
     // (statPanels.ts); panel3 stays empty.
-    const panel2 = new Widget(null, { x: 0, y: 0, w: 'auto', h: 'auto' })
-        .css({ fontSize: '0.69em', whiteSpace: 'pre' })
+    const panel2 = new Widget(null, { x: 0, y: 0, w: 'auto', h: 'auto' }).css({ fontSize: '0.69em', whiteSpace: 'pre' })
     const panel2El = panel2.elem
 
     // Panel 3: derived stats (lower status box)
-    const panel3 = new Widget(null, { x: 196, y: 176, w: 'auto', h: 'auto' })
-        .css({ fontSize: '0.69em', color: '#3cf800', whiteSpace: 'pre', lineHeight: '1.2' })
+    const panel3 = new Widget(null, { x: 196, y: 176, w: 'auto', h: 'auto' }).css({
+        fontSize: '0.69em',
+        color: '#3cf800',
+        whiteSpace: 'pre',
+        lineHeight: '1.2',
+    })
     const panel3El = panel3.elem
 
     // Slider widget elements (initially hidden)
@@ -215,41 +239,53 @@ export function showCharacterScreen() {
             y: Config.ui.screenHeight - 99 - 480,
         },
         640,
-        480
+        480,
     )
         // FO2-CE ref: editor.cc — Print / Done / Cancel buttons
         .add(new SmallButton(345, 454).onClick(() => printCharacterSheet())) // CE characterPrintToFile
         .add(makeFontLabel(345 + 18, 454, 'PRINT', font3).css({ pointerEvents: 'none' }))
         .add(doneButton)
         .add(makeFontLabel(455 + 18, 454, 'DONE', font3).css({ pointerEvents: 'none' }))
-        .add(
-            new SmallButton(552, 454).onClick(cancel)
-        )
+        .add(new SmallButton(552, 454).onClick(cancel))
         .add(makeFontLabel(552 + 18, 454, 'CANCEL', font3).css({ pointerEvents: 'none' }))
         // CE characterEditorDrawPcStats: x 32 from y 280, lineHeight + 1 apart, editor.msg 113-115
         .add(
-            new Label(32, 280, `${getMessage('editor', 113) ?? 'Level:'} ${currentLevel}`).css({
-                fontSize: '0.69em',
-                color: '#3cf800',
-                cursor: 'pointer',
-            }).onClick(() => editorCard('level'))
+            new Label(32, 280, `${getMessage('editor', 113) ?? 'Level:'} ${currentLevel}`)
+                .css({
+                    fontSize: '0.69em',
+                    color: '#3cf800',
+                    cursor: 'pointer',
+                })
+                .onClick(() => editorCard('level')),
         )
         .add(
-            new Label(32, 291, `${getMessage('editor', 114) ?? 'Exp:'} ${itostndn(player.getStat('Experience'))}`).css({
-                fontSize: '0.69em',
-                color: '#3cf800',
-                cursor: 'pointer',
-            }).onClick(() => editorCard('experience'))
+            new Label(32, 291, `${getMessage('editor', 114) ?? 'Exp:'} ${itostndn(player.getStat('Experience'))}`)
+                .css({
+                    fontSize: '0.69em',
+                    color: '#3cf800',
+                    cursor: 'pointer',
+                })
+                .onClick(() => editorCard('experience')),
         )
         .add(
-            new Label(32, 302, nextText).css({
-                fontSize: '0.69em',
-                color: '#3cf800',
-                cursor: 'pointer',
-            }).onClick(() => editorCard('nextLevel'))
+            new Label(32, 302, nextText)
+                .css({
+                    fontSize: '0.69em',
+                    color: '#3cf800',
+                    cursor: 'pointer',
+                })
+                .onClick(() => editorCard('nextLevel')),
         )
-        .add(makeFontLabel(380, 5, 'Skills', font3).css({ cursor: 'pointer' }).onClick(() => editorCard('skills')))
-        .add(makeFontLabel(399, 233, 'Skill Points', font3).css({ cursor: 'pointer' }).onClick(() => editorCard('skillPoints')))
+        .add(
+            makeFontLabel(380, 5, 'Skills', font3)
+                .css({ cursor: 'pointer' })
+                .onClick(() => editorCard('skills')),
+        )
+        .add(
+            makeFontLabel(399, 233, 'Skill Points', font3)
+                .css({ cursor: 'pointer' })
+                .onClick(() => editorCard('skillPoints')),
+        )
         .add(panel2)
         .add(panel3)
         .add(skillPointBignumW)
@@ -272,18 +308,25 @@ export function showCharacterScreen() {
     // Name — nameoff.png sprite + font3 name text on top
     const screenNameBtn = document.createElement('div')
     Object.assign(screenNameBtn.style, {
-        position: 'absolute', left: '11px', top: '0px',
-        width: '145px', height: '35px',
+        position: 'absolute',
+        left: '11px',
+        top: '0px',
+        width: '145px',
+        height: '35px',
         backgroundImage: "url('" + assetUrl('art/intrface/nameoff.png') + "')",
-        backgroundRepeat: 'no-repeat', backgroundSize: 'contain',
+        backgroundRepeat: 'no-repeat',
+        backgroundSize: 'contain',
         pointerEvents: 'none',
     })
     characterWindow.elem.appendChild(screenNameBtn)
 
     const screenNameLbl = document.createElement('div')
     Object.assign(screenNameLbl.style, {
-        position: 'absolute', left: '33px', top: '6px',
-        pointerEvents: 'none', zIndex: '2',
+        position: 'absolute',
+        left: '33px',
+        top: '6px',
+        pointerEvents: 'none',
+        zIndex: '2',
     })
     font3.onLoad(() => {
         screenNameLbl.appendChild(font3.renderText(player.name || 'none', '#907824'))
@@ -293,18 +336,25 @@ export function showCharacterScreen() {
     // Age — ageoff.png sprite + font3 age text on top
     const screenAgeBtn = document.createElement('div')
     Object.assign(screenAgeBtn.style, {
-        position: 'absolute', left: '156px', top: '0px',
-        width: '81px', height: '35px',
+        position: 'absolute',
+        left: '156px',
+        top: '0px',
+        width: '81px',
+        height: '35px',
         backgroundImage: "url('" + assetUrl('art/intrface/ageoff.png') + "')",
-        backgroundRepeat: 'no-repeat', backgroundSize: 'contain',
+        backgroundRepeat: 'no-repeat',
+        backgroundSize: 'contain',
         pointerEvents: 'none',
     })
     characterWindow.elem.appendChild(screenAgeBtn)
 
     const screenAgeLbl = document.createElement('div')
     Object.assign(screenAgeLbl.style, {
-        position: 'absolute', left: '184px', top: '6px',
-        pointerEvents: 'none', zIndex: '2',
+        position: 'absolute',
+        left: '184px',
+        top: '6px',
+        pointerEvents: 'none',
+        zIndex: '2',
     })
     font3.onLoad(() => {
         screenAgeLbl.appendChild(font3.renderText(String(player.getStat('Age')), '#907824'))
@@ -314,18 +364,25 @@ export function showCharacterScreen() {
     // Sex — sexoff.png sprite + font3 gender text on top
     const screenSexBtn = document.createElement('div')
     Object.assign(screenSexBtn.style, {
-        position: 'absolute', left: '237px', top: '0px',
-        width: '80px', height: '35px',
+        position: 'absolute',
+        left: '237px',
+        top: '0px',
+        width: '80px',
+        height: '35px',
         backgroundImage: "url('" + assetUrl('art/intrface/sexoff.png') + "')",
-        backgroundRepeat: 'no-repeat', backgroundSize: 'contain',
+        backgroundRepeat: 'no-repeat',
+        backgroundSize: 'contain',
         pointerEvents: 'none',
     })
     characterWindow.elem.appendChild(screenSexBtn)
 
     const screenSexLbl = document.createElement('div')
     Object.assign(screenSexLbl.style, {
-        position: 'absolute', left: '248px', top: '6px',
-        pointerEvents: 'none', zIndex: '2',
+        position: 'absolute',
+        left: '248px',
+        top: '6px',
+        pointerEvents: 'none',
+        zIndex: '2',
     })
     font3.onLoad(() => {
         screenSexLbl.appendChild(font3.renderText(player.gender === 'female' ? 'Female' : 'Male', '#907824'))
@@ -404,8 +461,12 @@ export function showCharacterScreen() {
         visibility: 'hidden',
         cursor: 'grab',
     })
-    cardImgEl.onload = () => { cardImgEl.style.visibility = 'visible' }
-    cardImgEl.onerror = () => { cardImgEl.style.visibility = 'hidden' }
+    cardImgEl.onload = () => {
+        cardImgEl.style.visibility = 'visible'
+    }
+    cardImgEl.onerror = () => {
+        cardImgEl.style.visibility = 'hidden'
+    }
     characterWindow.elem.appendChild(cardImgEl)
 
     const cardTitleEl = document.createElement('div')
@@ -459,7 +520,8 @@ export function showCharacterScreen() {
     cardBodyEl.appendChild(cardDescEl)
 
     const drawCard = (title: string, desc: string, imgPath?: string, subtitle?: string): void => {
-        if (cardTitleEl.firstChild && cardTitleEl.firstChild !== cardDividerEl) cardTitleEl.removeChild(cardTitleEl.firstChild)
+        if (cardTitleEl.firstChild && cardTitleEl.firstChild !== cardDividerEl)
+            cardTitleEl.removeChild(cardTitleEl.firstChild)
         cardTitleEl.insertBefore(renderCardTitle(title, subtitle), cardDividerEl)
         cardDescEl.textContent = desc
         if (imgPath) {
@@ -476,7 +538,10 @@ export function showCharacterScreen() {
         drawCard(title, desc, imgPath, subtitle)
     }
     // ── end info card ──────────────────────────────────────────────────────────
-    editorCard = (key) => { const [t, d, img] = EDITOR_CARDS[key](); showInfoCard(t, d, img) }
+    editorCard = (key) => {
+        const [t, d, img] = EDITOR_CARDS[key]()
+        showInfoCard(t, d, img)
+    }
 
     folderView = createFolderView(characterWindow.elem, player, drawCard)
 
@@ -505,7 +570,11 @@ export function showCharacterScreen() {
 
     const newStatSet = globalState.player!.stats.clone()
     const newSkillSet = globalState.player!.skills.clone()
-    const playerSkillOpts = { isPlayer: true, perks: globalState.player!.perks, traits: (globalState.player as any).traits }
+    const playerSkillOpts = {
+        isPlayer: true,
+        perks: globalState.player!.perks,
+        traits: (globalState.player as any).traits,
+    }
 
     const openingBaseSkills: { [name: string]: number } = {}
     for (const skill of SKILLS) {
@@ -540,13 +609,13 @@ export function showCharacterScreen() {
 
     // FO2-CE ref: editor.cc EDITOR_* condition flags
     const CONDITIONS: Array<[string, () => boolean]> = [
-        ['Poisoned',            () => player.getStat('Poison Level') > 0],
-        ['Radiated',            () => player.getStat('Radiation Level') > 0],
-        ['Eye Damage',          () => !!player.isBlinded],
-        ['Crippled Right Arm',  () => !!player.crippledRightArm],
-        ['Crippled Left Arm',   () => !!player.crippledLeftArm],
-        ['Crippled Right Leg',  () => !!player.crippledRightLeg],
-        ['Crippled Left Leg',   () => !!player.crippledLeftLeg],
+        ['Poisoned', () => player.getStat('Poison Level') > 0],
+        ['Radiated', () => player.getStat('Radiation Level') > 0],
+        ['Eye Damage', () => !!player.isBlinded],
+        ['Crippled Right Arm', () => !!player.crippledRightArm],
+        ['Crippled Left Arm', () => !!player.crippledLeftArm],
+        ['Crippled Right Leg', () => !!player.crippledRightLeg],
+        ['Crippled Left Leg', () => !!player.crippledLeftLeg],
     ]
 
     const renderPanel2 = () => {
@@ -555,9 +624,10 @@ export function showCharacterScreen() {
             maxHp: newStatSet.get('Max HP'),
             conditions: CONDITIONS.map(([, active]) => active()),
             stats: newStatSet,
-            onInfo: (label, kind) => kind === 'condition'
-                ? showInfoCard(conditionTitle(label), CONDITION_TEXTS[label] ?? label, CONDITION_IMG[label])
-                : showInfoCard(derivedTitle(label), DERIVED_TEXTS[label] ?? label, DERIVED_IMG[label]),
+            onInfo: (label, kind) =>
+                kind === 'condition'
+                    ? showInfoCard(conditionTitle(label), CONDITION_TEXTS[label] ?? label, CONDITION_IMG[label])
+                    : showInfoCard(derivedTitle(label), DERIVED_TEXTS[label] ?? label, DERIVED_IMG[label]),
         })
     }
 
@@ -591,8 +661,12 @@ export function showCharacterScreen() {
             row.onclick = () => {
                 selectedSkill = capturedSkill
                 positionSlider()
-                showInfoCard(skillTitle(capturedSkill), SKILL_TEXTS[capturedSkill] ?? capturedSkill, SKILL_IMG[capturedSkill],
-                    skillSubtitle(capturedSkill, skillDependencies[capturedSkill]?.startValue ?? 0))
+                showInfoCard(
+                    skillTitle(capturedSkill),
+                    SKILL_TEXTS[capturedSkill] ?? capturedSkill,
+                    SKILL_IMG[capturedSkill],
+                    skillSubtitle(capturedSkill, skillDependencies[capturedSkill]?.startValue ?? 0),
+                )
             }
             skillRowsEl.appendChild(row)
         }
@@ -626,22 +700,23 @@ export function showCharacterScreen() {
             }
         } else {
             const currentBase = newSkillSet.getBase(selectedSkill)
-            if (currentBase <= openingBaseSkills[selectedSkill]) { void editorRefuse(134, 135); return }
+            if (currentBase <= openingBaseSkills[selectedSkill]) {
+                void editorRefuse(134, 135)
+                return
+            }
             newSkillSet.decBase(selectedSkill, newStatSet, playerSkillOpts)
         }
 
         redrawStatsSkills()
     }
 
-    const wireSkillButton = (
-        btn: HTMLElement,
-        onSprite: string,
-        offSprite: string,
-        inc: boolean
-    ) => {
+    const wireSkillButton = (btn: HTMLElement, onSprite: string, offSprite: string, inc: boolean) => {
         let repeatTimer: number | null = null
         const stopRepeat = () => {
-            if (repeatTimer !== null) { clearInterval(repeatTimer); repeatTimer = null }
+            if (repeatTimer !== null) {
+                clearInterval(repeatTimer)
+                repeatTimer = null
+            }
         }
         btn.onmousedown = () => {
             btn.style.backgroundImage = `url('${assetUrl(onSprite)}')`
@@ -677,10 +752,14 @@ export function showCharacterScreen() {
         }
 
         characterWindow.add(
-            new Label(115, 260, '-').onClick(() => { modifyStat(-1) })
+            new Label(115, 260, '-').onClick(() => {
+                modifyStat(-1)
+            }),
         )
         characterWindow.add(
-            new Label(135, 260, '+').onClick(() => { modifyStat(+1) })
+            new Label(135, 260, '+').onClick(() => {
+                modifyStat(+1)
+            }),
         )
     }
 

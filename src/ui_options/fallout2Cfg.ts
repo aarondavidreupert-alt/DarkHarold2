@@ -103,15 +103,21 @@ export function applyCfg(cfg: CfgSections): void {
         const v = parseFloat(prefs[key])
         if (Number.isFinite(v) && v >= lo && v <= hi) set(v)
     }
-    flt('brightness', 1.0, 1.18, (v) => { Config.ui.brightness = v })
-    flt('mouse_sensitivity', 1.0, 2.5, (v) => { Config.ui.mouseSensitivity = v })
+    flt('brightness', 1.0, 1.18, (v) => {
+        Config.ui.brightness = v
+    })
+    flt('mouse_sensitivity', 1.0, 2.5, (v) => {
+        Config.ui.mouseSensitivity = v
+    })
     if (prefs['text_base_delay'] !== undefined) {
         const tbd = parseFloat(prefs['text_base_delay'])
         if (Number.isFinite(tbd) && tbd >= 1 && tbd <= 6) Config.ui.textBaseDelay = tbd
     }
     // CE text_object.cc textObjectsInit: text_line_delay as it is (the options screen
     // derives it from the base delay when that changes)
-    flt('text_line_delay', 0, 2, (v) => { Config.ui.textLineDelay = v })
+    flt('text_line_delay', 0, 2, (v) => {
+        Config.ui.textLineDelay = v
+    })
     // [system] interrupt_walk (CE animation.cc _check_move; default 1)
     const iw = int(system['interrupt_walk'])
     if (iw !== null) Config.engine.interruptWalk = iw !== 0
@@ -221,20 +227,34 @@ export function applyCfg(cfg: CfgSections): void {
     //   damage_formula=vanilla|glovz|glovz_tweak|yaam (or sfall's DamageFormula numbers 0/1/2/5):
     //   the damage ruleset (src/combat/damage.ts, wiki/damage_formula.md)
     const df = dh2['damage_formula']?.trim().toLowerCase()
-    const formula = ({ vanilla: 0, '0': 0, glovz: 1, '1': 1, glovz_tweak: 2, '2': 2, yaam: 5, '5': 5 } as { [k: string]: 0 | 1 | 2 | 5 })[df ?? '']
+    const formula = (
+        { vanilla: 0, '0': 0, glovz: 1, '1': 1, glovz_tweak: 2, '2': 2, yaam: 5, '5': 5 } as {
+            [k: string]: 0 | 1 | 2 | 5
+        }
+    )[df ?? '']
     if (formula !== undefined) Config.combat.damageCalculationType = formula
 
     // CE settings.cc settingsFromConfig: [sound] sounds / music / speech (on unless 0)
-    const onOff = (key: string, set: (on: boolean) => void) => { const v = int(sound[key]); if (v !== null) set(v !== 0) }
-    onOff('sounds', (on) => { Config.engine.soundsEnabled = on })
-    onOff('music', (on) => { Config.engine.musicEnabled = on })
-    onOff('speech', (on) => { Config.engine.speechEnabled = on })
+    const onOff = (key: string, set: (on: boolean) => void) => {
+        const v = int(sound[key])
+        if (v !== null) set(v !== 0)
+    }
+    onOff('sounds', (on) => {
+        Config.engine.soundsEnabled = on
+    })
+    onOff('music', (on) => {
+        Config.engine.musicEnabled = on
+    })
+    onOff('speech', (on) => {
+        Config.engine.speechEnabled = on
+    })
 
     const eng = globalState.audioEngine
     if (eng) {
         const vol = (key: string, channel: 'master' | 'music' | 'sfx' | 'speech') => {
             const v = int(sound[key])
-            if (v !== null && v >= 0 && v <= SOUND_VOLUME_MAX) eng.setVolume(channel, Math.round((v / SOUND_VOLUME_MAX) * 100))
+            if (v !== null && v >= 0 && v <= SOUND_VOLUME_MAX)
+                eng.setVolume(channel, Math.round((v / SOUND_VOLUME_MAX) * 100))
         }
         vol('master_volume', 'master')
         vol('music_volume', 'music')
@@ -290,5 +310,8 @@ export function loadModsOrder(path = 'mods/mods_order.txt'): boolean {
 
 /** `a, b` -> ['a', 'b']: folder names only (no paths), empty entries dropped. */
 export function parseModList(text: string): string[] {
-    return text.split(',').map((m) => m.trim()).filter((m) => /^[\w.-]+$/.test(m) && m !== '.' && m !== '..')
+    return text
+        .split(',')
+        .map((m) => m.trim())
+        .filter((m) => /^[\w.-]+$/.test(m) && m !== '.' && m !== '..')
 }

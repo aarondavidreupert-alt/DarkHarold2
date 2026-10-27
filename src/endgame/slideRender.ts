@@ -60,7 +60,7 @@ function playNarratorAudio(baseName: string): HTMLAudioElement | null {
 
 // Resolve with duration in ms once HTMLAudioElement metadata loads, 0 on failure.
 function waitAudioDurationMs(audio: HTMLAudioElement): Promise<number> {
-    return new Promise(resolve => {
+    return new Promise((resolve) => {
         if (audio.duration && !isNaN(audio.duration)) {
             resolve(audio.duration * 1000)
             return
@@ -79,9 +79,16 @@ export function createOverlay(): HTMLDivElement {
     const div = document.createElement('div')
     div.id = 'endgame-overlay'
     div.style.cssText = [
-        'position:fixed', 'top:0', 'left:0', 'width:100%', 'height:100%',
-        'background:#000', 'z-index:9999',
-        'display:flex', 'align-items:center', 'justify-content:center',
+        'position:fixed',
+        'top:0',
+        'left:0',
+        'width:100%',
+        'height:100%',
+        'background:#000',
+        'z-index:9999',
+        'display:flex',
+        'align-items:center',
+        'justify-content:center',
     ].join(';')
     document.body.appendChild(div)
     return div
@@ -105,10 +112,18 @@ function createSlideCanvas(overlay: HTMLDivElement): [HTMLCanvasElement, CanvasR
 function createSubtitleDiv(overlay: HTMLDivElement): HTMLDivElement {
     const div = document.createElement('div')
     div.style.cssText = [
-        'position:absolute', 'bottom:24px', 'left:50%', 'transform:translateX(-50%)',
-        'color:#fff', 'font-size:16px', 'font-family:monospace',
-        'text-align:center', 'text-shadow:1px 1px 3px #000',
-        'max-width:90%', 'white-space:pre-line', 'pointer-events:none',
+        'position:absolute',
+        'bottom:24px',
+        'left:50%',
+        'transform:translateX(-50%)',
+        'color:#fff',
+        'font-size:16px',
+        'font-family:monospace',
+        'text-align:center',
+        'text-shadow:1px 1px 3px #000',
+        'max-width:90%',
+        'white-space:pre-line',
+        'pointer-events:none',
     ].join(';')
     overlay.appendChild(div)
     return div
@@ -116,7 +131,7 @@ function createSubtitleDiv(overlay: HTMLDivElement): HTMLDivElement {
 
 // CSS-based fade-in
 function fadeIn(el: HTMLElement, ms: number): Promise<void> {
-    return new Promise(resolve => {
+    return new Promise((resolve) => {
         el.style.opacity = '0'
         el.style.transition = `opacity ${ms}ms linear`
         requestAnimationFrame(() => {
@@ -128,7 +143,7 @@ function fadeIn(el: HTMLElement, ms: number): Promise<void> {
 
 // CSS-based fade-out
 function fadeOut(el: HTMLElement, ms: number): Promise<void> {
-    return new Promise(resolve => {
+    return new Promise((resolve) => {
         el.style.transition = `opacity ${ms}ms linear`
         el.style.opacity = '0'
         setTimeout(resolve, ms)
@@ -138,12 +153,14 @@ function fadeOut(el: HTMLElement, ms: number): Promise<void> {
 // Schedule subtitle display via setTimeout. Returns handles for cleanup.
 function scheduleSubtitles(lines: string[], timings: number[], subDiv: HTMLDivElement): number[] {
     return lines.map((text, i) =>
-        window.setTimeout(() => { subDiv.textContent = text }, timings[i])
+        window.setTimeout(() => {
+            subDiv.textContent = text
+        }, timings[i]),
     )
 }
 
 function loadImageToCanvas(ctx: CanvasRenderingContext2D, imagePath: string | null): Promise<HTMLImageElement | null> {
-    return new Promise(resolve => {
+    return new Promise((resolve) => {
         if (!imagePath) {
             ctx.fillStyle = '#000'
             ctx.fillRect(0, 0, SLIDE_W, SLIDE_H)
@@ -197,9 +214,17 @@ export async function showCredits(overlay: HTMLDivElement, file = 'credits.txt',
     for (const rawLine of raw.split('\n')) {
         const line = rawLine.replace(/\r$/, '')
         if (line.startsWith(';')) continue
-        let font = nameFont, color = NAME_COLOR, text = line
-        if (line.startsWith('@')) { font = titleFont; color = TITLE_COLOR; text = line.slice(1) }
-        else if (line.startsWith('#')) { color = HIGHLIGHT; text = line.slice(1) }
+        let font = nameFont,
+            color = NAME_COLOR,
+            text = line
+        if (line.startsWith('@')) {
+            font = titleFont
+            color = TITLE_COLOR
+            text = line.slice(1)
+        } else if (line.startsWith('#')) {
+            color = HIGHLIGHT
+            text = line.slice(1)
+        }
         const row = document.createElement('div')
         row.style.cssText = `height:${lineHeight}px;display:flex;justify-content:center;align-items:flex-start;`
         if (text) {
@@ -246,13 +271,26 @@ export async function showDeathScreen(voiceBaseName: string, overlay: HTMLDivEle
     await loadImageToCanvas(ctx, 'art/intrface/death.png')
     if (Config.ui.subtitles) {
         let text = ''
-        try { text = getFileText(`data/text/english/cuts/${voiceBaseName}.txt`).replace(/\r?\n/g, ' ').trim() } catch (_e) { text = '' }
+        try {
+            text = getFileText(`data/text/english/cuts/${voiceBaseName}.txt`).replace(/\r?\n/g, ' ').trim()
+        } catch (_e) {
+            text = ''
+        }
         if (text) {
             const block = document.createElement('div')
             block.style.cssText = [
-                'position:absolute', 'left:50%', 'bottom:8px', 'transform:translateX(-50%)', 'width:560px',
-                'background:#000', 'color:#fff', 'font-size:12px', 'font-family:monospace', 'line-height:1.25',
-                'padding:1px 2px', 'pointer-events:none',
+                'position:absolute',
+                'left:50%',
+                'bottom:8px',
+                'transform:translateX(-50%)',
+                'width:560px',
+                'background:#000',
+                'color:#fff',
+                'font-size:12px',
+                'font-family:monospace',
+                'line-height:1.25',
+                'padding:1px 2px',
+                'pointer-events:none',
             ].join(';')
             block.textContent = text
             overlay.appendChild(block)
@@ -263,7 +301,13 @@ export async function showDeathScreen(voiceBaseName: string, overlay: HTMLDivEle
     // CE: until any input, the end of the speech, or 3 s without speech
     await new Promise<void>((resolve) => {
         let resolved = false
-        const done = () => { if (!resolved) { resolved = true; document.removeEventListener('keydown', done); resolve() } }
+        const done = () => {
+            if (!resolved) {
+                resolved = true
+                document.removeEventListener('keydown', done)
+                resolve()
+            }
+        }
         document.addEventListener('keydown', done, { once: true })
         overlay.addEventListener('click', done, { once: true })
         if (audio) audio.addEventListener('ended', done, { once: true })
@@ -285,7 +329,7 @@ export async function showStaticSlide(
     // CE: narrator loaded before fade-in
     const audio = playNarratorAudio(voiceBaseName)
     const speechMs = audio ? await waitAudioDurationMs(audio) : 0
-    const fallbackMs = 3000  // CE: delay = 3000 if no speech and no subtitles
+    const fallbackMs = 3000 // CE: delay = 3000 if no speech and no subtitles
 
     const subtitleLines = loadSubtitleLines(voiceBaseName)
     const subtitleTimings = buildSubtitleTimings(subtitleLines, speechMs || fallbackMs)
@@ -294,14 +338,19 @@ export async function showStaticSlide(
     await fadeIn(canvas, 500)
 
     // CE: inputPauseForTocks(500) after fade-in
-    await new Promise(r => setTimeout(r, 500))
+    await new Promise((r) => setTimeout(r, 500))
 
     const subHandles = scheduleSubtitles(subtitleLines, subtitleTimings, subDiv)
 
     // CE: wait loop — exits on keyCode != -1, speechEnded, subtitlesEnded, or delay timeout
-    await new Promise<void>(resolve => {
+    await new Promise<void>((resolve) => {
         let resolved = false
-        const done = () => { if (!resolved) { resolved = true; resolve() } }
+        const done = () => {
+            if (!resolved) {
+                resolved = true
+                resolve()
+            }
+        }
 
         const onKey = () => done()
         document.addEventListener('keydown', onKey, { once: true })
@@ -355,7 +404,7 @@ export async function showPanningSlide(
     // Load image (may be wider than SLIDE_W for panning)
     let img: HTMLImageElement | null = null
     if (imagePath) {
-        img = await new Promise<HTMLImageElement>(resolve => {
+        img = await new Promise<HTMLImageElement>((resolve) => {
             const i = new Image()
             i.onload = () => resolve(i)
             i.onerror = () => {
@@ -377,7 +426,7 @@ export async function showPanningSlide(
     let v9 = 16
     if (v8 > 0 && speechMs > (16 * v8) / 2) v9 = Math.trunc((speechMs + 16 * Math.trunc(v8 / 2)) / v8)
     const startX = direction === -1 ? v8 : 0
-    const endX   = direction === -1 ? 0 : v8
+    const endX = direction === -1 ? 0 : v8
     const voiceAt = direction === -1 ? v12 : v32
     const brightness = (x: number): number => {
         if (v32 === 0) return 1
@@ -393,22 +442,36 @@ export async function showPanningSlide(
     }
 
     let interrupted = false
-    const onKey = () => { interrupted = true }
+    const onKey = () => {
+        interrupted = true
+    }
     document.addEventListener('keydown', onKey, { once: true })
-    overlay.addEventListener('click', () => { interrupted = true }, { once: true })
+    overlay.addEventListener(
+        'click',
+        () => {
+            interrupted = true
+        },
+        { once: true },
+    )
 
     let x = startX
     let voiceStarted = false
     if (v8 === 0) startVoice()
-    await new Promise<void>(resolve => {
+    await new Promise<void>((resolve) => {
         let since = performance.now()
         function draw() {
-            if (interrupted || x === endX) { resolve(); return }
+            if (interrupted || x === endX) {
+                resolve()
+                return
+            }
             const now = performance.now()
             while (now - since >= v9 && x !== endX) {
                 since += v9
                 x += direction === -1 ? -1 : 1
-                if (!voiceStarted && x === voiceAt) { voiceStarted = true; startVoice() }
+                if (!voiceStarted && x === voiceAt) {
+                    voiceStarted = true
+                    startVoice()
+                }
             }
             ctx.fillStyle = '#000'
             ctx.fillRect(0, 0, SLIDE_W, SLIDE_H)

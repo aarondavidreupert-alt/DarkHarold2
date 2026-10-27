@@ -112,10 +112,10 @@ function drawTileFill(ctx: CanvasRenderingContext2D, centre: Obj, z: number): vo
         const scr = hexToScreen(pos.x, pos.y)
         const s = worldToScreen(scr.x - 16, scr.y - 12)
         ctx.beginPath()
-        ctx.moveTo(s.x + w / 2, s.y)         // top
-        ctx.lineTo(s.x + w, s.y + h / 2)     // right
-        ctx.lineTo(s.x + w / 2, s.y + h)     // bottom
-        ctx.lineTo(s.x, s.y + h / 2)         // left
+        ctx.moveTo(s.x + w / 2, s.y) // top
+        ctx.lineTo(s.x + w, s.y + h / 2) // right
+        ctx.lineTo(s.x + w / 2, s.y + h) // bottom
+        ctx.lineTo(s.x, s.y + h / 2) // left
         ctx.closePath()
         ctx.fill()
     }

@@ -18,13 +18,7 @@ limitations under the License.
 // See wiki/ts-split-refactor.md → "Per-file split proposals" §25.
 
 import { dbgWarn } from '../logger.js'
-import {
-    HEX_GRID_SIZE,
-    Point,
-    BoundingBox,
-    hexToScreen,
-    hexFromScreen,
-} from './hexScreen.js'
+import { HEX_GRID_SIZE, Point, BoundingBox, hexToScreen, hexFromScreen } from './hexScreen.js'
 
 interface Point3 {
     x: number
@@ -198,7 +192,10 @@ export function hexLineBeyond(from: Point, to: Point, distance: number): Point {
                 if (count === distance || hexIsEdge(cur)) return cur
                 prevHex = cur
             }
-            if (middle >= 0) { middle -= absX2; tileY += stepY }
+            if (middle >= 0) {
+                middle -= absX2
+                tileY += stepY
+            }
             middle += absY2
             tileX += stepX
         }
@@ -211,7 +208,10 @@ export function hexLineBeyond(from: Point, to: Point, distance: number): Point {
                 if (count === distance || hexIsEdge(cur)) return cur
                 prevHex = cur
             }
-            if (middle >= 0) { middle -= absY2; tileX += stepX }
+            if (middle >= 0) {
+                middle -= absY2
+                tileX += stepX
+            }
             middle += absX2
             tileY += stepY
         }
@@ -267,7 +267,10 @@ export function tile_in_tile_rect(tile: Point, a: Point, b: Point, c: Point, d: 
     if (c.x !== d.x || a.x !== b.x || a.x > c.x) error = true
     if (a.y !== d.y || b.y !== c.y || a.y > c.y) error = true
     if (error) {
-        dbgWarn('object', `[Geometry] pointInRect: not a rectangle: (${a.x},${a.y}), (${b.x},${b.y}), (${c.x},${c.y}), (${d.x},${d.y})`)
+        dbgWarn(
+            'object',
+            `[Geometry] pointInRect: not a rectangle: (${a.x},${a.y}), (${b.x},${b.y}), (${c.x},${c.y}), (${d.x},${d.y})`,
+        )
         return false
     }
     let inside = true

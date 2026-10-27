@@ -38,7 +38,7 @@ export function fileExistsSync(path: string): boolean {
 export function parseIni(text: string) {
     // Parse a .ini-style categorized key-value format
     const ini: { [category: string]: any } = {}
-    const lines = text.split('\n').map(l => l.replace(/\r$/, ''))
+    const lines = text.split('\n').map((l) => l.replace(/\r$/, ''))
     let category = null
 
     for (let i = 0; i < lines.length; i++) {
@@ -139,7 +139,7 @@ export enum RollResult {
 // criticalSuccessModifier = critter's Critical Chance stat
 // Returns: { roll: RollResult, delta: number }
 //   delta = difficulty - d100 (positive = success margin, negative = failure margin)
-export function randomRoll(difficulty: number, criticalSuccessModifier: number): { roll: RollResult, delta: number } {
+export function randomRoll(difficulty: number, criticalSuccessModifier: number): { roll: RollResult; delta: number } {
     const delta = difficulty - getRandomInt(1, 100)
     // CE random.cc:58 randomTranslateRoll — criticals are only possible once the game
     // clock has passed its first full day (gameTimeGetTime() / TICKS_PER_DAY >= 1).
@@ -256,7 +256,8 @@ export function assert(value: boolean, message: string) {
 }
 
 export function assertEq<T>(value: T, expected: T, message: string) {
-    if (value !== expected) throw new Error(`AssertionError: value (${value}) does not match expected (${expected}): ${message}`)
+    if (value !== expected)
+        throw new Error(`AssertionError: value (${value}) does not match expected (${expected}): ${message}`)
 }
 
 declare function structuredClone(value: any, options?: StructuredSerializeOptions): any

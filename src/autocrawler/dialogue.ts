@@ -79,7 +79,7 @@ async function crawlOneNpc(npc: Critter): Promise<DialogueNpcResult> {
     const openDeadline = performance.now() + DIALOGUE_OPEN_TIMEOUT_MS
     while (performance.now() < openDeadline) {
         stepEngine()
-        await new Promise<void>(r => setTimeout(r, DIALOGUE_POLL_MS))
+        await new Promise<void>((r) => setTimeout(r, DIALOGUE_POLL_MS))
         const mode = globalState.uiMode
         if (mode === UIMode.dialogue || globalState.inCombat) {
             dialogueOpened = true
@@ -131,18 +131,21 @@ async function crawlOneNpc(npc: Critter): Promise<DialogueNpcResult> {
 
         // Per-state visited tracking.
         const hash = optEls
-            .map(el => el.textContent?.trim() ?? '').filter(Boolean).sort().join('\x00')
+            .map((el) => el.textContent?.trim() ?? '')
+            .filter(Boolean)
+            .sort()
+            .join('\x00')
         if (!visitedPerState.has(hash)) visitedPerState.set(hash, new Set())
         const visitedInState = visitedPerState.get(hash)!
 
-        const optLabels = optEls.map(el => el.textContent?.trim() ?? '')
+        const optLabels = optEls.map((el) => el.textContent?.trim() ?? '')
         const nonExitEls = optEls.filter((_, i) => !isExitOption(optLabels[i]))
-        const exitEls    = optEls.filter((_, i) =>  isExitOption(optLabels[i]))
+        const exitEls = optEls.filter((_, i) => isExitOption(optLabels[i]))
 
         // Pick: first unvisited non-exit, then first unvisited exit.
         const toClick =
-            nonExitEls.find(el => !visitedInState.has(el.textContent?.trim() ?? '')) ??
-            exitEls.find(el => !visitedInState.has(el.textContent?.trim() ?? ''))
+            nonExitEls.find((el) => !visitedInState.has(el.textContent?.trim() ?? '')) ??
+            exitEls.find((el) => !visitedInState.has(el.textContent?.trim() ?? ''))
 
         if (!toClick) {
             // Every option in this state has been visited — tree fully explored.
@@ -162,7 +165,7 @@ async function crawlOneNpc(npc: Critter): Promise<DialogueNpcResult> {
         result.optionsSeen++
 
         // Yield so deferred async work (transitions, animation callbacks) can settle.
-        await new Promise<void>(r => setTimeout(r, 0))
+        await new Promise<void>((r) => setTimeout(r, 0))
 
         if (globalState.inCombat) {
             result.status = 'combat-triggered'
@@ -177,21 +180,29 @@ async function crawlOneNpc(npc: Critter): Promise<DialogueNpcResult> {
         // Barter mode is a valid terminal state — dismiss and stop.
         if (loopMode === UIMode.barter) {
             uiEndDialogue()
-            await new Promise<void>(r => setTimeout(r, 0))
+            await new Promise<void>((r) => setTimeout(r, 0))
             break
         }
     }
 
     if (clicks >= MAX_DIALOGUE_CLICKS && globalState.uiMode === UIMode.dialogue) {
         result.status = 'stuck-max-clicks'
-        try { Scripting.dialogueEnd() } catch { /* best-effort cleanup */ }
+        try {
+            Scripting.dialogueEnd()
+        } catch {
+            /* best-effort cleanup */
+        }
         await waitFor(() => globalState.uiMode === UIMode.none, 2000)
     }
 
     // Final sanity: uiMode must be none after a successful run.
     if (result.status === 'ok' && globalState.uiMode !== UIMode.none) {
         result.status = 'stuck-no-exit'
-        try { Scripting.dialogueEnd() } catch { /* best-effort cleanup */ }
+        try {
+            Scripting.dialogueEnd()
+        } catch {
+            /* best-effort cleanup */
+        }
         await waitFor(() => globalState.uiMode === UIMode.none, 2000)
     }
 
@@ -212,7 +223,7 @@ export async function runDialogueCrawler(mapName?: string): Promise<CrawlerRepor
     if (mapName) {
         console.log(`[AutoCrawler] Loading map: ${mapName}`)
         globalState.gMap.loadMap(mapName)
-        if (!await waitFor(() => !globalState.isLoading, 30000)) {
+        if (!(await waitFor(() => !globalState.isLoading, 30000))) {
             console.error('[AutoCrawler] Map load timed out — aborting')
             return null
         }
@@ -237,8 +248,10 @@ export async function runDialogueCrawler(mapName?: string): Promise<CrawlerRepor
             const r = await crawlOneNpc(npc)
             results.push(r)
             setLastReport(buildReport('dialogue', mapLabel, results))
-            console.log(`[AutoCrawler]     → status=${r.status}  options=${r.optionsSeen}  ${r.durationMs.toFixed(0)}ms`)
-            await new Promise<void>(r2 => setTimeout(r2, 20))
+            console.log(
+                `[AutoCrawler]     → status=${r.status}  options=${r.optionsSeen}  ${r.durationMs.toFixed(0)}ms`,
+            )
+            await new Promise<void>((r2) => setTimeout(r2, 20))
         }
     } finally {
         Config.scripting.debugLogShowType.stub = prevStub

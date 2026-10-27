@@ -18,12 +18,7 @@ limitations under the License.
 // See wiki/ts-split-refactor.md → "Per-file split proposals" §18.
 
 import globalState from '../globalState.js'
-import {
-    getSeenTiles,
-    markSeenAt,
-    getObjectSnapshot,
-    ObjType,
-} from './tracking.js'
+import { getSeenTiles, markSeenAt, getObjectSnapshot, ObjType } from './tracking.js'
 
 export interface RenderOptions {
     zoom?: number
@@ -135,13 +130,21 @@ export function drawAutomapInto(canvas: HTMLCanvasElement, opts: RenderOptions =
     // visited — not just the one currently loaded.
     const objSize = Math.max(2, Math.ceil(scale * 1.6))
 
-    interface RenderObj { x: number; y: number; color: string; anyTile?: boolean }
+    interface RenderObj {
+        x: number
+        y: number
+        color: string
+        anyTile?: boolean
+    }
     const renderObjects: RenderObj[] = []
 
     // CE automap.cc automapRenderInMapWindow (in game): walls green (colour 992), the dude red
     // (31744), scenery only in High detail (480; not PROTO_ID_0x2000158), PROTO_ID_0x2000031 in
     // 32328, living critters red with the scanner; items and the rest aren't drawn (colour 0)
-    const WALL = '#00f800', SCENERY = '#007800', DUDE = '#f80000', SPECIAL = '#f89040'
+    const WALL = '#00f800',
+        SCENERY = '#007800',
+        DUDE = '#f80000',
+        SPECIAL = '#f89040'
     const colorForLive = (obj: any): string | null => {
         if (obj.type === 'critter') {
             if ((obj as any).isPlayer) return null // the marker below

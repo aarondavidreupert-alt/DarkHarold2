@@ -27,7 +27,17 @@ import { uiLog } from './ui_hud.js'
 import { getMessage } from './util.js'
 import { showAlert } from './ui_dialog.js'
 import { Scripting } from './scripting.js'
-import { drawBagView, examineToLog, itemMenuActions, makeDropTarget, makeDraggable, MAX_OPEN_BAGS, showItemMenu, unloadWeapon, itemCountLabel } from './ui_inventory.js'
+import {
+    drawBagView,
+    examineToLog,
+    itemMenuActions,
+    makeDropTarget,
+    makeDraggable,
+    MAX_OPEN_BAGS,
+    showItemMenu,
+    unloadWeapon,
+    itemCountLabel,
+} from './ui_inventory.js'
 import { appendItemSlot, $id, clearEl, showv, hidev, off, makeEl } from './ui_dom.js'
 
 // --- Loot screen -----------------------------------------------------------
@@ -61,7 +71,11 @@ export function uiLoot(object: Obj) {
     }
     if ((object._script as any)?.pickup_p_proc && globalState.player) {
         let overridden = false
-        try { overridden = Scripting.pickup(object, globalState.player) } catch (e) { dbg('inventory', '[Loot] pickup_p_proc error: ' + e) }
+        try {
+            overridden = Scripting.pickup(object, globalState.player)
+        } catch (e) {
+            dbg('inventory', '[Loot] pickup_p_proc error: ' + e)
+        }
         if (overridden) return
     }
 
@@ -72,8 +86,8 @@ export function uiLoot(object: Obj) {
     // 9 deep); the body view (CE INVENTORY_LOOT_LEFT / RIGHT_BODY_VIEW) shows the open one
     const leftBags: Obj[] = []
     const rightBags: Obj[] = []
-    const leftList = () => leftBags.length ? leftBags[leftBags.length - 1].inventory : globalState.player.inventory
-    const rightList = () => rightBags.length ? rightBags[rightBags.length - 1].inventory : object.inventory
+    const leftList = () => (leftBags.length ? leftBags[leftBags.length - 1].inventory : globalState.player.inventory)
+    const rightList = () => (rightBags.length ? rightBags[rightBags.length - 1].inventory : object.inventory)
 
     async function uiLootMove(data: string /* "l"|"r" */, where: 'left' | 'right') {
         dbg('inventory', `[Loot] move ${data} to ${where}`)
@@ -104,13 +118,20 @@ export function uiLoot(object: Obj) {
         const toBag = where === 'left' ? leftBags[leftBags.length - 1] : rightBags[rightBags.length - 1]
         const toOwner: any = toBag ?? (where === 'left' ? globalState.player! : object)
         // (an open bag of the dude's: its room and the dude's carry weight, CE itemAttemptAdd)
-        const tooHeavy = toBag && where === 'left' && from !== globalState.player.inventory && !globalState.player.canCarry(obj, wantedAmount)
+        const tooHeavy =
+            toBag &&
+            where === 'left' &&
+            from !== globalState.player.inventory &&
+            !globalState.player.canCarry(obj, wantedAmount)
         if (wantedAmount > 0 && (tooHeavy || !toOwner.canCarry?.(obj, wantedAmount))) {
             // CE ref: inventory.cc:4622/4657 — msg 26 when the container is full,
             // msg 25 when the player is over their weight capacity.
-            uiLog(where === 'left'
-                ? (getMessage('inventry', 25) ?? 'You cannot pick that up. You are at your maximum weight capacity.')
-                : (getMessage('inventry', 26) ?? 'There is no space left for that item.'))
+            uiLog(
+                where === 'left'
+                    ? (getMessage('inventry', 25) ??
+                          'You cannot pick that up. You are at your maximum weight capacity.')
+                    : (getMessage('inventry', 26) ?? 'There is no space left for that item.'),
+            )
             return
         }
         uiSwapItem(from, obj, to, wantedAmount)
@@ -128,7 +149,13 @@ export function uiLoot(object: Obj) {
             const img = makeEl('img', {
                 src: inventoryImage + '.png',
                 attrs: { title: objects[i].name },
-                style: { maxWidth: '100%', maxHeight: '60px', objectFit: 'contain', display: 'inline-block', verticalAlign: 'middle' },
+                style: {
+                    maxWidth: '100%',
+                    maxHeight: '60px',
+                    objectFit: 'contain',
+                    display: 'inline-block',
+                    verticalAlign: 'middle',
+                },
             })
             appendItemSlot($el, img, itemCountLabel(objects[i]))
             makeDraggable(img, who + i)
@@ -140,12 +167,16 @@ export function uiLoot(object: Obj) {
                 showItemMenu(e, itemMenuActions(item, false, ownerIsDude), (action) => {
                     const bags = ownerIsDude ? leftBags : rightBags
                     const owner = bags[bags.length - 1] ?? (ownerIsDude ? globalState.player : object)
-                    if (action === 'use' && item.subtype === 'container') { if (bags.length < MAX_OPEN_BAGS) bags.push(item) }
-                    else if (action === 'look') examineToLog(item)
+                    if (action === 'use' && item.subtype === 'container') {
+                        if (bags.length < MAX_OPEN_BAGS) bags.push(item)
+                    } else if (action === 'look') examineToLog(item)
                     else if (action === 'unload') unloadWeapon(item, (ammo) => owner.addInventoryItem(ammo, 1))
                     else if (action === 'drop') {
                         const list = ownerIsDude ? leftList() : rightList()
-                        if (list !== globalState.player.inventory) { list.splice(list.indexOf(item), 1); globalState.player.inventory.push(item) }
+                        if (list !== globalState.player.inventory) {
+                            list.splice(list.indexOf(item), 1)
+                            globalState.player.inventory.push(item)
+                        }
                         item.drop(globalState.player)
                     }
                     drawLoot()
@@ -208,15 +239,32 @@ export function drawLootBagViews(leftBags: Obj[], rightBags: Obj[], redraw: () =
     }
     const leftBody = body('lootBoxLeftBody', 48, left, false)
     const rightBody = body('lootBoxRightBody', 426, right, true)
-    drawBagView($id('lootBox'), 'lootBoxLeftBag', { left: 44, top: 35, width: 60, height: 100 }, leftBags, redraw, leftBody)
-    drawBagView($id('lootBox'), 'lootBoxRightBag', { left: 422, top: 35, width: 60, height: 100 }, rightBags, redraw, rightBody)
+    drawBagView(
+        $id('lootBox'),
+        'lootBoxLeftBag',
+        { left: 44, top: 35, width: 60, height: 100 },
+        leftBags,
+        redraw,
+        leftBody,
+    )
+    drawBagView(
+        $id('lootBox'),
+        'lootBoxRightBag',
+        { left: 422, top: 35, width: 60, height: 100 },
+        rightBags,
+        redraw,
+        rightBody,
+    )
 }
 
 // CE inventoryOpenLooting's keys (the steal window too): Esc closes, A (Shift+A) takes all
 export function lootKey(e: KeyboardEvent): boolean {
     const quantity = document.getElementById('moveMultOverlay') // the quantity window has its own keys
     if (quantity && getComputedStyle(quantity).display !== 'none') return false
-    if (e.key === 'Escape') { $id('lootBoxDoneButton').click(); return true }
+    if (e.key === 'Escape') {
+        $id('lootBoxDoneButton').click()
+        return true
+    }
     if (e.key === 'A') {
         const takeAll = $id('lootBoxTakeAllButton')
         if (takeAll.style.visibility !== 'hidden') takeAll.click() // (none while stealing)

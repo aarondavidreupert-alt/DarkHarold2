@@ -26,21 +26,21 @@ import { assetUrl } from './modAssets.js'
 
 // ── CE layout constants (dbox.cc DIALOG_TYPE_LARGE) ──────────────────────────
 
-const DIALOG_W      = 302
-const DIALOG_H      = 127
-const TEXT_Y        = 27    // _ytable[LARGE]
-const TEXT_X        = 29    // _xtable[LARGE]
-const TEXT_W        = DIALOG_W - TEXT_X * 2  // 244px
-const TEXT_H        = 71    // _doneY - _ytable = 98 - 27
-const DONE_Y        = 98    // _doneY[LARGE]
-const DONE_X        = 37    // _doneX[LARGE] — first button in two-button layout
-const DONEBOX_W     = 108   // donebox.png width
-const DONEBOX_H     = 24    // donebox.png height
-const DONEBOX_GAP   = 24    // gap between two doneboxes
-const LILRED_X      = 13    // lilred button local x inside donebox
-const LILRED_Y      = 4     // lilred button local y inside donebox
-const LABEL_X       = 35    // text label local x inside donebox
-const LABEL_Y       = 3     // text label local y inside donebox
+const DIALOG_W = 302
+const DIALOG_H = 127
+const TEXT_Y = 27 // _ytable[LARGE]
+const TEXT_X = 29 // _xtable[LARGE]
+const TEXT_W = DIALOG_W - TEXT_X * 2 // 244px
+const TEXT_H = 71 // _doneY - _ytable = 98 - 27
+const DONE_Y = 98 // _doneY[LARGE]
+const DONE_X = 37 // _doneX[LARGE] — first button in two-button layout
+const DONEBOX_W = 108 // donebox.png width
+const DONEBOX_H = 24 // donebox.png height
+const DONEBOX_GAP = 24 // gap between two doneboxes
+const LILRED_X = 13 // lilred button local x inside donebox
+const LILRED_Y = 4 // lilred button local y inside donebox
+const LABEL_X = 35 // text label local x inside donebox
+const LABEL_Y = 3 // text label local y inside donebox
 
 // ── Internal DOM builders ─────────────────────────────────────────────────────
 
@@ -138,9 +138,15 @@ function makeDonebox(label: string, x: number): HTMLDivElement {
     el.appendChild(labelWrap)
 
     // Button press animation: switch lilred down/up
-    el.addEventListener('mousedown', () => { lilred.src = assetUrl('art/intrface/lilreddn.png') })
-    el.addEventListener('mouseup',   () => { lilred.src = assetUrl('art/intrface/lilredup.png') })
-    el.addEventListener('mouseleave',() => { lilred.src = assetUrl('art/intrface/lilredup.png') })
+    el.addEventListener('mousedown', () => {
+        lilred.src = assetUrl('art/intrface/lilreddn.png')
+    })
+    el.addEventListener('mouseup', () => {
+        lilred.src = assetUrl('art/intrface/lilredup.png')
+    })
+    el.addEventListener('mouseleave', () => {
+        lilred.src = assetUrl('art/intrface/lilredup.png')
+    })
 
     return el
 }
@@ -154,7 +160,7 @@ function makeDonebox(label: string, x: number): HTMLDivElement {
  * Keyboard: Enter/Y = buttons[0], Escape/N = buttons[last].
  */
 export function showDialog(message: string, buttons: string[], dim = true): Promise<string> {
-    return new Promise(resolve => {
+    return new Promise((resolve) => {
         const prevMode = globalState.uiMode
         globalState.uiMode = UIMode.dialog
 
@@ -191,9 +197,13 @@ export function showDialog(message: string, buttons: string[], dim = true): Prom
         // capture=true so this fires before any game key handlers
         const keyHandler = (e: KeyboardEvent): void => {
             if (e.key === 'Enter' || e.key.toLowerCase() === 'y') {
-                e.preventDefault(); e.stopPropagation(); close(buttons[0])
+                e.preventDefault()
+                e.stopPropagation()
+                close(buttons[0])
             } else if (e.key === 'Escape' || e.key.toLowerCase() === 'n') {
-                e.preventDefault(); e.stopPropagation(); close(buttons[buttons.length - 1])
+                e.preventDefault()
+                e.stopPropagation()
+                close(buttons[buttons.length - 1])
             }
         }
         document.addEventListener('keydown', keyHandler, true)
@@ -229,7 +239,7 @@ export async function showAlert(message: string): Promise<void> {
  * Used to replace window.prompt() for save-slot naming.
  */
 export function showInput(message: string, defaultValue = '', maxLength?: number): Promise<string | null> {
-    return new Promise(resolve => {
+    return new Promise((resolve) => {
         const prevMode = globalState.uiMode
         globalState.uiMode = UIMode.dialog
 
@@ -257,7 +267,7 @@ export function showInput(message: string, defaultValue = '', maxLength?: number
         Object.assign(input.style, {
             position: 'absolute',
             left: TEXT_X + 'px',
-            top: (TEXT_Y + 32) + 'px',
+            top: TEXT_Y + 32 + 'px',
             width: TEXT_W + 'px',
             background: '#141008',
             border: '1px solid #a07848',
@@ -292,8 +302,15 @@ export function showInput(message: string, defaultValue = '', maxLength?: number
         overlay.appendChild(box)
 
         const keyHandler = (e: KeyboardEvent): void => {
-            if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); close(input.value) }
-            else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(null) }
+            if (e.key === 'Enter') {
+                e.preventDefault()
+                e.stopPropagation()
+                close(input.value)
+            } else if (e.key === 'Escape') {
+                e.preventDefault()
+                e.stopPropagation()
+                close(null)
+            }
         }
         document.addEventListener('keydown', keyHandler, true)
 

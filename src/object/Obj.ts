@@ -18,8 +18,23 @@ limitations under the License.
 // Split out of object.ts per wiki/ts-split-refactor.md §2.
 
 import * as GameTime from '../gametime.js'
-import { ANIM, critterWeaponCode, playCharAnimSfx, playCharSfx, playOpenSfx, sfxBuildCharName, SCENERY_SOUND_EFFECT } from '../sfxNames.js'
-import { ammoFromRounds, ammoGetCapacity, ammoGetQuantity, ammoMergeInto, ammoSplitOff, initWeaponAmmo } from '../weaponAmmo.js'
+import {
+    ANIM,
+    critterWeaponCode,
+    playCharAnimSfx,
+    playCharSfx,
+    playOpenSfx,
+    sfxBuildCharName,
+    SCENERY_SOUND_EFFECT,
+} from '../sfxNames.js'
+import {
+    ammoFromRounds,
+    ammoGetCapacity,
+    ammoGetQuantity,
+    ammoMergeInto,
+    ammoSplitOff,
+    initWeaponAmmo,
+} from '../weaponAmmo.js'
 import type { Proto } from '../proto_types.js'
 
 // Object kinds as getPROTypeName() names them (plus map-object kinds that carry no proto).
@@ -151,7 +166,10 @@ const EXPLOSIVES: { [pid: number]: { active: number; min: number; max: number } 
  *  asks with the armed pid (CE's call there matches nothing and reads uninitialised
  *  values — DH2 uses the explosive's range). */
 export function explosiveGetDamage(pid: number, plainOnly = false): { min: number; max: number } | null {
-    const ini = (key: string) => { const v = parseInt(sfallIniGetString('ddraw.ini|Misc|' + key) ?? '', 10); return isNaN(v) ? null : v }
+    const ini = (key: string) => {
+        const v = parseInt(sfallIniGetString('ddraw.ini|Misc|' + key) ?? '', 10)
+        return isNaN(v) ? null : v
+    }
     for (const [p, d] of Object.entries(EXPLOSIVES)) {
         if (Number(p) !== pid && (plainOnly || d.active !== pid)) continue
         const name = Number(p) === 51 ? 'Dynamite' : 'PlasticExplosive'
@@ -175,7 +193,11 @@ async function useExplosive(obj: Obj, source: Critter): Promise<void> {
         if (obj.pid === 206 || obj.pid === 209) uiLog(getMessage('proto', 590) ?? 'The timer is already ticking!')
         return
     }
-    if (Scripting.timeEventList.some((e) => e.obj === obj && (e.userdata === 'explosion' || e.userdata === 'explosionFailure'))) {
+    if (
+        Scripting.timeEventList.some(
+            (e) => e.obj === obj && (e.userdata === 'explosion' || e.userdata === 'explosionFailure'),
+        )
+    ) {
         uiLog(getMessage('proto', 590) ?? 'The timer is already ticking!') // OBJECT_QUEUED
         return
     }
@@ -191,8 +213,13 @@ async function useExplosive(obj: Obj, source: Critter): Promise<void> {
     let delay = 10 * seconds
     const roll = source.hasPerk('Demolition Expert') ? RollResult.Success : skillRoll(source, 'Traps', 0)
     let failure = false
-    if (roll === RollResult.CriticalFailure) { delay = 0; failure = true }
-    else if (roll === RollResult.Failure) { delay = Math.trunc(delay / 2); failure = true }
+    if (roll === RollResult.CriticalFailure) {
+        delay = 0
+        failure = true
+    } else if (roll === RollResult.Failure) {
+        delay = Math.trunc(delay / 2)
+        failure = true
+    }
     dbg('object', `[Object] explosive armed: ${seconds}s, Traps ${RollResult[roll]}, fires in ${delay} ticks`)
     // … and is placed at the owner's feet (_obj_connect), then _protinstTestDroppedExplosive
     const gMap = globalState.gMap
@@ -201,8 +228,10 @@ async function useExplosive(obj: Obj, source: Critter): Promise<void> {
         obj.position = { x: source.position.x, y: source.position.y }
         testDroppedExplosive(source)
     }
-    if (delay === 0) { const dmg = explosiveGetDamage(obj.pid) ?? desc; explosiveDetonate(obj, dmg.min, dmg.max, failure) }
-    else scheduleExplosion(obj, delay, failure)
+    if (delay === 0) {
+        const dmg = explosiveGetDamage(obj.pid) ?? desc
+        explosiveDetonate(obj, dmg.min, dmg.max, failure)
+    } else scheduleExplosion(obj, delay, failure)
 }
 
 // CE queue.cc EVENT_TYPE_EXPLOSION / EXPLOSION_FAILURE on an armed explosive (also queueLoad:
@@ -211,9 +240,16 @@ export function scheduleExplosion(obj: Obj, ticks: number, failure: boolean): vo
     const dmg = explosiveGetDamage(obj.pid)
     if (!dmg) return
     // CE queue.cc _queue_explode_exit: leaving the map sets it off at once, unanimated
-    Scripting.timeEventList.push({ obj, ticks, userdata: failure ? 'explosionFailure' : 'explosion',
+    Scripting.timeEventList.push({
+        obj,
+        ticks,
+        userdata: failure ? 'explosionFailure' : 'explosion',
         fn: () => explosiveDetonate(obj, dmg.min, dmg.max, failure),
-        leaveMap: () => { explosiveDetonate(obj, dmg.min, dmg.max, false, false); return true } })
+        leaveMap: () => {
+            explosiveDetonate(obj, dmg.min, dmg.max, false, false)
+            return true
+        },
+    })
 }
 
 // CE item.cc itemRemove(owner, item, 1) + itemReplace: a single item comes off the stack
@@ -248,8 +284,13 @@ export function refillHand(owner: Critter, hand: 'leftHand' | 'rightHand', used:
     }
     const same = find(owner.inventory)
     if (!same) a[hand] = owner.isPlayer ? null : (owner.constructor as any).makeFist?.()
-    else if ((same.item.amount ?? 1) > 1) { same.item.amount -= 1; a[hand] = Object.assign(cloneItem(same.item), { amount: 1 }) }
-    else { same.list.splice(same.list.indexOf(same.item), 1); a[hand] = same.item }
+    else if ((same.item.amount ?? 1) > 1) {
+        same.item.amount -= 1
+        a[hand] = Object.assign(cloneItem(same.item), { amount: 1 })
+    } else {
+        same.list.splice(same.list.indexOf(same.item), 1)
+        a[hand] = same.item
+    }
     if (owner.isPlayer) uiDrawWeapon()
 }
 
@@ -271,8 +312,16 @@ export function testDroppedExplosive(dude: Critter): void {
         setTimeout(() => {
             if (globalState.inCombat || attacker.dead) return
             Combat.start(undefined, {
-                attacker, defender: dude, actionPointsBonus: 0, accuracyBonus: 0, damageBonus: 0,
-                minDamage: 0, maxDamage: 99999, overrideAttackResults: false, attackerResults: 0, targetResults: 0,
+                attacker,
+                defender: dude,
+                actionPointsBonus: 0,
+                accuracyBonus: 0,
+                damageBonus: 0,
+                minDamage: 0,
+                maxDamage: 99999,
+                overrideAttackResults: false,
+                attackerResults: 0,
+                targetResults: 0,
             })
         }, 0)
     }
@@ -293,9 +342,9 @@ export function switchItemProto(obj: Obj, pid: number): void {
 
 // CE item.cc booksInit (vanilla table): book PID → [proto.msg line, skill]
 const BOOKS: { [pid: number]: [number, string] } = {
-    73: [802, 'Science'],     // PROTO_ID_BIG_BOOK_OF_SCIENCE
-    76: [803, 'Repair'],      // PROTO_ID_DEANS_ELECTRONICS
-    80: [804, 'First Aid'],   // PROTO_ID_FIRST_AID_BOOK
+    73: [802, 'Science'], // PROTO_ID_BIG_BOOK_OF_SCIENCE
+    76: [803, 'Repair'], // PROTO_ID_DEANS_ELECTRONICS
+    80: [804, 'First Aid'], // PROTO_ID_FIRST_AID_BOOK
     102: [805, 'Small Guns'], // PROTO_ID_GUNS_AND_BULLETS
     86: [806, 'Outdoorsman'], // PROTO_ID_SCOUT_HANDBOOK
 }
@@ -316,7 +365,7 @@ function useBook(book: Obj): void {
     if (increase <= 0) {
         messageId = 801
     } else {
-        if (dude.hasPerk('Comprehension')) increase = Math.trunc(150 * increase / 100)
+        if (dude.hasPerk('Comprehension')) increase = Math.trunc((150 * increase) / 100)
         for (let i = 0; i < increase; i++) {
             if (dude.getSkill(skill) >= 300) break // skillAddForce: −3 at the cap
             dude.skills.baseSkills[skill] = dude.skills.getBase(skill) + 1
@@ -354,13 +403,14 @@ function itemOwner(item: Obj): Critter | null {
 // back (the dude 4 hexes at full intensity — objectsInit — an NPC its proto's).
 export function updateHandFlareLight(c: Critter): void {
     const a = c as any
-    let radius = c.isPlayer ? 4 : (c.pro as any)?.lightDistance ?? 0
-    let intensity = c.isPlayer ? 65536 : (c.pro as any)?.lightIntensity ?? 0
+    let radius = c.isPlayer ? 4 : ((c.pro as any)?.lightDistance ?? 0)
+    let intensity = c.isPlayer ? 65536 : ((c.pro as any)?.lightIntensity ?? 0)
     // CE inventory.cc _inven_update_lighting: the dude's light is max(4, the hand item's
     // lightDistance) at 0x10000 — any light-giving item, the lit flare among them
     for (const h of [a.leftHand, a.rightHand]) {
         if (!h || h.pid === undefined) continue
-        const r = h.pid === PROTO_ID_LIT_FLARE ? (h.lightRadius ?? 8) : (h.lightRadius ?? (h.pro as any)?.lightDistance ?? 0)
+        const r =
+            h.pid === PROTO_ID_LIT_FLARE ? (h.lightRadius ?? 8) : (h.lightRadius ?? (h.pro as any)?.lightDistance ?? 0)
         if (!(r > 0)) continue
         radius = Math.max(radius, r)
         if (!c.isPlayer) intensity = Math.max(intensity, h.lightIntensity ?? 65536)
@@ -408,7 +458,16 @@ export function scheduleFlareBurnOut(obj: Obj, ticks: number): void {
         }
     }
     // its clear proc is flareEventProcess too — leaving the map burns it out
-    Scripting.timeEventList.push({ obj, ticks, userdata: 'flare', fn: burnOut, leaveMap: () => { burnOut(); return true } })
+    Scripting.timeEventList.push({
+        obj,
+        ticks,
+        userdata: 'flare',
+        fn: burnOut,
+        leaveMap: () => {
+            burnOut()
+            return true
+        },
+    })
 }
 
 // CE actions.cc _action_in_explode: an animated explosion is on screen (a stale flag — a
@@ -425,9 +484,13 @@ function explosiveDetonate(obj: Obj, min: number, max: number, failure: boolean,
     if (!gMap) return
     if (failure) uiLog(getMessage('misc', 4000) ?? 'Due to your inept handling, the explosive detonates prematurely.')
     const player = globalState.player
-    if (player?.hasPerk('Demolition Expert')) { min += 10; max += 10 }
-    const owner = gMap.getObjects().find((o) => o.type === 'critter' && (o as Critter).inventory.includes(obj)) as Critter | undefined
-        ?? (player && player.inventory.includes(obj) ? player : undefined)
+    if (player?.hasPerk('Demolition Expert')) {
+        min += 10
+        max += 10
+    }
+    const owner =
+        (gMap.getObjects().find((o) => o.type === 'critter' && (o as Critter).inventory.includes(obj)) as
+            Critter | undefined) ?? (player && player.inventory.includes(obj) ? player : undefined)
     if (owner) {
         const idx = owner.inventory.indexOf(obj)
         if (idx !== -1) owner.inventory.splice(idx, 1)
@@ -490,7 +553,7 @@ export function itemIsHidden(item: Obj | null | undefined): boolean {
 // CE proto_instance.cc _check_door_state: an open door (CE _obj_is_portal) gets
 // OBJECT_OPEN_DOOR (shoot-through, light-through, no-block), a closed one loses it, and
 // the light is rebuilt — every blocking, line-of-fire and light query reads these flags.
-const OBJECT_OPEN_DOOR = 0xA0000010
+const OBJECT_OPEN_DOOR = 0xa0000010
 export function setDoorPassable(obj: Obj, open: boolean): void {
     if (!obj.isDoor) return
     const flags = (obj.flags ?? 0) >>> 0
@@ -557,7 +620,7 @@ function objectZCompareDH2(a: Obj, b: Obj): number {
     }
     const aInFront = hexIsInFrontOf(a.position, b.position)
     const bInFront = hexIsInFrontOf(b.position, a.position)
-    if (aInFront && !bInFront) return 1   // a renders later → drawn on top
+    if (aInFront && !bInFront) return 1 // a renders later → drawn on top
     if (bInFront && !aInFront) return -1
     // Ambiguous (neither strictly in front) — fall back to a stable ordering.
     if (a.position.y !== b.position.y) return a.position.y - b.position.y
@@ -719,10 +782,10 @@ export class Obj {
     lightRadius = 0
     lightIntensity = 655
 
-    miscOn?: boolean      // CE ref: item.cc miscItemIsOn() — true while trickle event is queued
-    miscCharges?: number  // CE ref: item.cc — remaining charge count (Stealth Boy / Geiger Counter)
+    miscOn?: boolean // CE ref: item.cc miscItemIsOn() — true while trickle event is queued
+    miscCharges?: number // CE ref: item.cc — remaining charge count (Stealth Boy / Geiger Counter)
     ammoQuantity?: number // CE obj->data.item.weapon.ammoQuantity — rounds loaded (weapons; see weaponAmmo.ts)
-    ammoTypePid?: number  // CE obj->data.item.weapon.ammoTypePid — loaded ammo type
+    ammoTypePid?: number // CE obj->data.item.weapon.ammoTypePid — loaded ammo type
 
     static fromPID(pid: number, sid?: number): Obj {
         return Obj.fromPID_(new Obj(), pid, sid)
@@ -771,19 +834,35 @@ export class Obj {
         if (pidType === 2) {
             const e: any = (obj.extra = obj.extra ?? {})
             switch (ex.subType) {
-                case 0: { // SCENERY_TYPE_DOOR: openFlags (proto.py reads it as walkthroughFlag)
+                case 0: {
+                    // SCENERY_TYPE_DOOR: openFlags (proto.py reads it as walkthroughFlag)
                     const f = ex.walkthroughFlag ?? 0
                     e.openFlags = f
                     obj.locked = (f & 0x02000000) !== 0
                     obj.jammed = (f & 0x04000000) !== 0
                     break
                 }
-                case 1: e.destination = ex.destination; e.destinationMap = ex.destinationMap; break // stairs
-                case 2: e.elevatorType = ex.elevatorType; e.elevatorLevel = ex.elevatorLevel; break // elevator
-                case 3: case 4: e.destinationMap = ex.destination; break // ladders: field_0 is the map
+                case 1:
+                    e.destination = ex.destination
+                    e.destinationMap = ex.destinationMap
+                    break // stairs
+                case 2:
+                    e.elevatorType = ex.elevatorType
+                    e.elevatorLevel = ex.elevatorLevel
+                    break // elevator
+                case 3:
+                case 4:
+                    e.destinationMap = ex.destination
+                    break // ladders: field_0 is the map
             }
         } else if (pidType === 5 && pid >= 0x5000010 && pid <= 0x5000017) {
-            obj.extra = { ...(obj.extra ?? {}), exitMapID: -1, startingPosition: -1, startingElevation: 0, startingOrientation: 0 }
+            obj.extra = {
+                ...(obj.extra ?? {}),
+                exitMapID: -1,
+                startingPosition: -1,
+                startingElevation: 0,
+                startingOrientation: 0,
+            }
         }
         obj.init()
         obj.loadScript(sid)
@@ -844,8 +923,14 @@ export class Obj {
         if (!deserializing && typeof mobj.extra?.charges === 'number' && mobj.extra.charges >= 0) {
             // CE misc.charges from the .map: a money pile on the ground holds its amount
             // there (itemGetMoney; _obj_pickup takes at least 1), a charged item its charges.
-            if (obj.pid === 41 && mobj.amount === undefined) obj.amount = Math.max(1, mobj.extra.charges) // PROTO_ID_MONEY
-            else if (obj.pid !== 41 && mobj.miscCharges === undefined && mobj.extra.charges !== (obj.pro as any)?.extra?.charges) obj.miscCharges = mobj.extra.charges
+            if (obj.pid === 41 && mobj.amount === undefined)
+                obj.amount = Math.max(1, mobj.extra.charges) // PROTO_ID_MONEY
+            else if (
+                obj.pid !== 41 &&
+                mobj.miscCharges === undefined &&
+                mobj.extra.charges !== (obj.pro as any)?.extra?.charges
+            )
+                obj.miscCharges = mobj.extra.charges
         }
         if (obj.subtype === 'ammo') {
             if (deserializing && mobj.ammoQuantity === undefined) {
@@ -924,7 +1009,9 @@ export class Obj {
                     dbg('object', `[Script] PRO sid=${lstIndex} → applying SID stub for pid=${this.pid}`)
                     this.script = sidStub.scriptName
                     this._script = sidStub
-                    try { Scripting.initScript(this._script, this) } catch (e) {
+                    try {
+                        Scripting.initScript(this._script, this)
+                    } catch (e) {
                         dbgWarn('object', `[Script] initScript stub error for sid=${lstIndex}:`, e)
                     }
                     this.scriptAttached()
@@ -1013,10 +1100,10 @@ export class Obj {
 
     updateAnim(): void {
         if (!this.anim) return
-        if (this.anim === 'dead') return  // corpse is frozen, never step frames
+        if (this.anim === 'dead') return // corpse is frozen, never step frames
 
         const imageInfo = globalState.imageInfo[this.art]
-        if (!imageInfo) return  // image metadata not yet loaded, skip this tick
+        if (!imageInfo) return // image metadata not yet loaded, skip this tick
 
         const time = window.performance.now()
         let fps = imageInfo.fps
@@ -1068,7 +1155,7 @@ export class Obj {
             return false
         }
 
-        return !((this.pro.flags & 0x00000010) /* NoBlock */)
+        return !(this.pro.flags & 0x00000010 /* NoBlock */)
     }
 
     // Pathfinding-only predicate. CE pathfinder allows traversal through
@@ -1196,10 +1283,10 @@ export class Obj {
             if (rounds > 0 && ammoPid !== -1) {
                 const ammo = loadPRO(ammoPid, ammoPid & 0xffff)
                 const perBox = Math.max(1, ammo?.extra?.quantity ?? 1)
-                cost += Math.trunc(rounds * (ammo?.extra?.cost ?? 0) / perBox)
+                cost += Math.trunc((rounds * (ammo?.extra?.cost ?? 0)) / perBox)
             }
         } else if (this.subtype === 'ammo') {
-            cost = Math.trunc(cost * ammoGetQuantity(this) / ammoGetCapacity(this))
+            cost = Math.trunc((cost * ammoGetQuantity(this)) / ammoGetCapacity(this))
         }
         return cost
     }
@@ -1220,7 +1307,12 @@ export class Obj {
             const self = this as any
             for (const slot of ['leftHand', 'rightHand', 'armor']) {
                 const item = self[slot]
-                if (item && item.pid !== undefined && !this.inventory.includes(item) && typeof item.stackWeight === 'function') {
+                if (
+                    item &&
+                    item.pid !== undefined &&
+                    !this.inventory.includes(item) &&
+                    typeof item.stackWeight === 'function'
+                ) {
                     w += item.stackWeight()
                 }
             }
@@ -1321,7 +1413,12 @@ export class Obj {
 
     get isExplosive(): boolean {
         // CE explosiveIsExplosive + explosiveIsActiveExplosive (armed 206 / 209)
-        return this.pid === 85 /* Plastic Explosives */ || this.pid === 51 /* Dynamite */ || this.pid === 206 || this.pid === 209
+        return (
+            this.pid === 85 /* Plastic Explosives */ ||
+            this.pid === 51 /* Dynamite */ ||
+            this.pid === 206 ||
+            this.pid === 209
+        )
     }
 
     get isSelectable(): boolean {
@@ -1363,7 +1460,8 @@ export class Obj {
                     const i = owner.inventory.indexOf(this)
                     if (i !== -1) owner.inventory.splice(i, 1)
                     const a = owner as any
-                    for (const hand of ['leftHand', 'rightHand'] as const) if (a[hand] === this) refillHand(owner, hand, this)
+                    for (const hand of ['leftHand', 'rightHand'] as const)
+                        if (a[hand] === this) refillHand(owner, hand, this)
                     if (owner.isPlayer) uiDrawWeapon()
                 }
                 return true
@@ -1402,7 +1500,7 @@ export class Obj {
                 const handled = globalState.drugHandler(this, source)
                 if (handled) {
                     // CE ref: item.cc itemUse() — drug item is consumed on use.
-                    const owner = source ?? globalState.player as Critter
+                    const owner = source ?? (globalState.player as Critter)
                     if (owner) {
                         const idx = owner.inventory.indexOf(this)
                         if (idx !== -1) {
@@ -1411,7 +1509,12 @@ export class Obj {
                         } else {
                             // in a hand: one off the stack, the last one replaced (itemReplace)
                             const ownerAny = owner as any
-                            const hand = ownerAny.leftHand === this ? 'leftHand' : ownerAny.rightHand === this ? 'rightHand' : null
+                            const hand =
+                                ownerAny.leftHand === this
+                                    ? 'leftHand'
+                                    : ownerAny.rightHand === this
+                                      ? 'rightHand'
+                                      : null
                             if (hand && (this.amount ?? 1) > 1) this.amount--
                             else if (hand) refillHand(owner as Critter, hand, this)
                         }
@@ -1448,7 +1551,7 @@ export class Obj {
 
         // CE _obj_use_item → _obj_use_flare
         if (this.pid === PROTO_ID_FLARE) {
-            useFlare(this, source ?? globalState.player as Critter)
+            useFlare(this, source ?? (globalState.player as Critter))
             return true
         }
 
@@ -1472,7 +1575,12 @@ export class Obj {
             setObjectOpen(this, !this.open, true, true, true)
         } else if (this.isContainer) {
             // CE _obj_use_container: proto.msg 485 "You search the %s." / 486 "You close the %s."
-            if (source?.isPlayer ?? true) uiLog((getProtoMsg(this.open ? 486 : 485) ?? (this.open ? 'You close the %s.' : 'You search the %s.')).replace('%s', this.name ?? ''))
+            if (source?.isPlayer ?? true)
+                uiLog(
+                    (
+                        getProtoMsg(this.open ? 486 : 485) ?? (this.open ? 'You close the %s.' : 'You search the %s.')
+                    ).replace('%s', this.name ?? ''),
+                )
             toggleObjectOpen(this, true, true)
         } else if (this.isStairs) {
             // CE proto_instance.cc useStairs: builtTile -1 fails; destinationMap > 0 is
@@ -1490,7 +1598,10 @@ export class Obj {
                 // CE ref: map.cc:386 mapSetElevation fires only map_update_p_proc, not map_enter_p_proc
                 globalState.gMap.updateMap()
             } else {
-                dbg('object', `[Object] stairs → ${this.extra.destinationMap} @ (${destTile.x}, ${destTile.y}), elev=${destElev}`)
+                dbg(
+                    'object',
+                    `[Object] stairs → ${this.extra.destinationMap} @ (${destTile.x}, ${destTile.y}), elev=${destElev}`,
+                )
                 globalState.gMap.loadMapByID(this.extra.destinationMap, destTile, destElev)
             }
         } else if (this.isLadder) {
@@ -1503,7 +1614,10 @@ export class Obj {
             const destTile = fromTileNum(this.extra.destination & 0xffff)
             const destElev = ((this.extra.destination >> 28) & 0xf) >> 1
             const destMap = this.extra.destinationMap ?? 0
-            dbg('object', `[Object] ladder (${isTop ? 'top' : 'bottom'} → map ${destMap} tile=${destTile.x},${destTile.y} elev=${destElev})`)
+            dbg(
+                'object',
+                `[Object] ladder (${isTop ? 'top' : 'bottom'} → map ${destMap} tile=${destTile.x},${destTile.y} elev=${destElev})`,
+            )
 
             if (destMap < 0) {
                 // CE mapHandleTransition: -1 town map, -2 world map — no vanilla ladder has either
@@ -1536,8 +1650,16 @@ export class Obj {
                 }
                 const climb = () => {
                     playCharSfx(actor, sfxBuildCharName(actor, 4 /* ANIM_CLIMB_LADDER */))
-                    if (actor.hasAnimation('climb')) actor.staticAnimation('climb', () => { actor.clearAnim(); transition(); takeOut() })
-                    else { transition(); takeOut() }
+                    if (actor.hasAnimation('climb'))
+                        actor.staticAnimation('climb', () => {
+                            actor.clearAnim()
+                            transition()
+                            takeOut()
+                        })
+                    else {
+                        transition()
+                        takeOut()
+                    }
                 }
                 if (weaponCode > 0 && actor.hasAnimation('weapon-holster')) {
                     playCharAnimSfx(actor, ANIM.putAway)
@@ -1548,7 +1670,10 @@ export class Obj {
                 return true // updateMap() runs in transition()
             } else if (actor.hasAnimation('use')) {
                 // A ladder down: the normal magic-hands use (CE _action_use_an_item_on_object)
-                actor.staticAnimation('use', () => { actor.clearAnim(); transition() })
+                actor.staticAnimation('use', () => {
+                    actor.clearAnim()
+                    transition()
+                })
                 return true
             }
             transition()
@@ -1561,7 +1686,8 @@ export class Obj {
         } else {
             this.singleAnimation()
             // CE _obj_use: a scenery use no script overrode — "You see: %s." (proto.msg 480)
-            if (this.type === 'scenery' && (source?.isPlayer ?? true)) uiLog((getProtoMsg(480) ?? 'You see: %s.').replace('%s', this.name ?? ''))
+            if (this.type === 'scenery' && (source?.isPlayer ?? true))
+                uiLog((getProtoMsg(480) ?? 'You see: %s.').replace('%s', this.name ?? ''))
         }
 
         globalState.gMap.updateMap()
@@ -1581,23 +1707,32 @@ export class Obj {
         const center = { x: this.position.x, y: this.position.y }
         const elevation = this.elevation ?? globalState.gMap?.currentElevation ?? 0
         const blast = () => this.explosionBlast(killer, center, elevation, minDmg, maxDmg)
-        if (!animate) { blast(); return true }
+        if (!animate) {
+            blast()
+            return true
+        }
         explosionStarted = performance.now()
         const explosion = createObjectWithPID(makePID(5 /* misc */, 14 /* Explosion */), -1)
         explosion.position = { ...center }
 
-        const adjExplosions = hexNeighbors(center).map(pos => {
+        const adjExplosions = hexNeighbors(center).map((pos) => {
             const adj = createObjectWithPID(makePID(5 /* misc */, 14 /* Explosion */), -1)
             adj.position = { x: pos.x, y: pos.y }
             return adj
         })
 
         lazyLoadImage(explosion.art, () => {
-            if (!globalState.gMap) { explosionStarted = -1; return }
+            if (!globalState.gMap) {
+                explosionStarted = -1
+                return
+            }
             globalState.gMap.addObject(explosion)
             for (const adj of adjExplosions) {
                 globalState.gMap!.addObject(adj)
-                adj.singleAnimation(false, () => { adj.anim = null; globalState.gMap?.destroyObject(adj) })
+                adj.singleAnimation(false, () => {
+                    adj.anim = null
+                    globalState.gMap?.destroyObject(adj)
+                })
             }
             globalState.audioEngine?.playSfxByName('whn1xxx1', this) // CE actionExplode
 
@@ -1621,7 +1756,7 @@ export class Obj {
         if (!gMap) return
 
         const atTile = gMap.blockingObjectAt(toTileNum(center), elevation, 0, null)
-        const main = atTile && atTile.type === 'critter' && !(atTile as Critter).dead ? atTile as Critter : null
+        const main = atTile && atTile.type === 'critter' && !(atTile as Critter).dead ? (atTile as Critter) : null
         const victims = [...(main ? [main] : []), ...explosionRingCritters(center, elevation, main, false)]
         dbg('object', `[Object] explosion: ${minDmg}-${maxDmg}, ${victims.length} critter(s)`)
         const wasDead = new Set(victims.filter((v) => v.dead))
@@ -1629,7 +1764,9 @@ export class Obj {
             if (v.dead) continue
             const { damage, knockback } = computeExplosionDamage(minDmg, maxDmg, v, getRandomInt)
             critterDamage(v, damage, killer, true, true, 'Explosive', undefined, {
-                attackerAnim: ANIM_STAND, weapon: null, knockback,
+                attackerAnim: ANIM_STAND,
+                weapon: null,
+                knockback,
                 knockbackRotation: hexDirectionTo(center, v.position),
                 // CE actionExplode → _check_death(ANIM_EXPLODED_TO_NOTHING, MAX_BLOOD) (the
                 // max-blood path critter_dmg uses too)
@@ -1658,8 +1795,16 @@ export class Obj {
             setTimeout(() => {
                 if (globalState.inCombat || attacker.dead) return
                 Combat.start(undefined, {
-                    attacker, defender: killer, actionPointsBonus: 0, accuracyBonus: 0, damageBonus: 0,
-                    minDamage: 0, maxDamage: 0x7fffffff, overrideAttackResults: false, attackerResults: 0, targetResults: 0,
+                    attacker,
+                    defender: killer,
+                    actionPointsBonus: 0,
+                    accuracyBonus: 0,
+                    damageBonus: 0,
+                    minDamage: 0,
+                    maxDamage: 0x7fffffff,
+                    overrideAttackResults: false,
+                    attackerResults: 0,
+                    targetResults: 0,
                 })
             }, 0)
         }
@@ -1699,7 +1844,16 @@ export class Obj {
         }
         const playPickup = () => {
             if (source.hasAnimation('pickUp')) {
-                source.staticAnimation('pickUp', () => { objPickup(); source.clearAnim() }, false, undefined, objPickup)
+                source.staticAnimation(
+                    'pickUp',
+                    () => {
+                        objPickup()
+                        source.clearAnim()
+                    },
+                    false,
+                    undefined,
+                    objPickup,
+                )
             } else {
                 objPickup()
                 source.clearAnim()
@@ -1752,13 +1906,15 @@ export class Obj {
             frame: this.frame,
             amount: this.amount,
             position: { x: this.position.x, y: this.position.y },
-            inventory: this.inventory.map((obj) => {
-                if (typeof obj.serialize !== 'function') {
-                    dbgWarn('object', '[Serialize] skipping non-serializable object', obj)
-                    return null
-                }
-                return obj.serialize()
-            }).filter((obj) => obj !== null),
+            inventory: this.inventory
+                .map((obj) => {
+                    if (typeof obj.serialize !== 'function') {
+                        dbgWarn('object', '[Serialize] skipping non-serializable object', obj)
+                        return null
+                    }
+                    return obj.serialize()
+                })
+                .filter((obj) => obj !== null),
             lightRadius: this.lightRadius,
             lightIntensity: this.lightIntensity,
             miscOn: this.miscOn,

@@ -30,7 +30,7 @@ import { assetUrl } from '../modAssets.js'
 const BIGNUM_DIGIT_W = 14
 const BIGNUM_DIGIT_H = 24
 const BIGNUM_DIGITS = 5
-const BIGNUM_X = 125  // relative to movemult.png (259×162)
+const BIGNUM_X = 125 // relative to movemult.png (259×162)
 const BIGNUM_Y = 45
 
 // CE ref: inventory.cc:5800 — item icon at (16, 46), INVENTORY_LARGE_SLOT 56×56.
@@ -41,10 +41,22 @@ const ICON_H = 56
 
 // CE ref: inventory.cc:5816-5866 — plus at (200,46) 16×12, minus at (200,58) 17×12.
 // Done at (98,128) 15×16, Cancel at (148,128) 15×16 (both baked into background art).
-const PLUS_X = 200;  const PLUS_Y = 46;  const PLUS_W = 16;  const PLUS_H = 12
-const MINUS_X = 200; const MINUS_Y = 58; const MINUS_W = 17; const MINUS_H = 12
-const DONE_X = 98;   const DONE_Y = 128; const DONE_W = 60;  const DONE_H = 16
-const CANCEL_X = 148; const CANCEL_Y = 128; const CANCEL_W = 60; const CANCEL_H = 16
+const PLUS_X = 200
+const PLUS_Y = 46
+const PLUS_W = 16
+const PLUS_H = 12
+const MINUS_X = 200
+const MINUS_Y = 58
+const MINUS_W = 17
+const MINUS_H = 12
+const DONE_X = 98
+const DONE_Y = 128
+const DONE_W = 60
+const DONE_H = 16
+const CANCEL_X = 148
+const CANCEL_Y = 128
+const CANCEL_W = 60
+const CANCEL_H = 16
 
 function drawBignumDigits(ctx: CanvasRenderingContext2D, bignum: HTMLImageElement, value: number): void {
     const clamped = Math.max(0, Math.min(value, 99999))
@@ -56,9 +68,17 @@ function drawBignumDigits(ctx: CanvasRenderingContext2D, bignum: HTMLImageElemen
         clamped % 10,
     ]
     for (let i = 0; i < BIGNUM_DIGITS; i++) {
-        ctx.drawImage(bignum,
-            digits[i] * BIGNUM_DIGIT_W, 0, BIGNUM_DIGIT_W, BIGNUM_DIGIT_H,
-            BIGNUM_X + i * BIGNUM_DIGIT_W, BIGNUM_Y, BIGNUM_DIGIT_W, BIGNUM_DIGIT_H)
+        ctx.drawImage(
+            bignum,
+            digits[i] * BIGNUM_DIGIT_W,
+            0,
+            BIGNUM_DIGIT_W,
+            BIGNUM_DIGIT_H,
+            BIGNUM_X + i * BIGNUM_DIGIT_W,
+            BIGNUM_Y,
+            BIGNUM_DIGIT_W,
+            BIGNUM_DIGIT_H,
+        )
     }
 }
 
@@ -79,16 +99,16 @@ export function uiGetAmount(item: Obj): Promise<number> {
         const max = Math.max(1, item.amount)
 
         const overlay = $id('moveMultOverlay')
-        const canvas  = $id('moveMultCanvas') as HTMLCanvasElement
-        const ctx     = canvas.getContext('2d')!
+        const canvas = $id('moveMultCanvas') as HTMLCanvasElement
+        const ctx = canvas.getContext('2d')!
 
         overlay.style.display = 'flex'
 
         // Lazy-load BIGNUM strip and item icon; redraw when each arrives.
         const bignumImg = new Image()
-        const iconImg   = new Image()
+        const iconImg = new Image()
         let bignumReady = false
-        let iconReady   = false
+        let iconReady = false
 
         function redraw() {
             ctx.clearRect(0, 0, DIALOG_W, DIALOG_H)
@@ -96,19 +116,25 @@ export function uiGetAmount(item: Obj): Promise<number> {
             if (iconReady && item.invArt) {
                 // CE ref: inventory.cc:5800 artRender — item icon at (ICON_X, ICON_Y),
                 // INVENTORY_LARGE_SLOT 56×56. Preserve aspect ratio within the slot.
-                const sw = iconImg.naturalWidth, sh = iconImg.naturalHeight
+                const sw = iconImg.naturalWidth,
+                    sh = iconImg.naturalHeight
                 const scale = Math.min(ICON_W / sw, ICON_H / sh)
-                const dw = sw * scale, dh = sh * scale
-                ctx.drawImage(iconImg,
-                    ICON_X + (ICON_W - dw) / 2, ICON_Y + (ICON_H - dh) / 2,
-                    dw, dh)
+                const dw = sw * scale,
+                    dh = sh * scale
+                ctx.drawImage(iconImg, ICON_X + (ICON_W - dw) / 2, ICON_Y + (ICON_H - dh) / 2, dw, dh)
             }
         }
 
-        bignumImg.onload = () => { bignumReady = true; redraw() }
+        bignumImg.onload = () => {
+            bignumReady = true
+            redraw()
+        }
         bignumImg.src = assetUrl('art/intrface/bignum.png')
         if (item.invArt) {
-            iconImg.onload = () => { iconReady = true; redraw() }
+            iconImg.onload = () => {
+                iconReady = true
+                redraw()
+            }
             iconImg.src = assetUrl(item.invArt + '.png')
         }
 
@@ -123,32 +149,56 @@ export function uiGetAmount(item: Obj): Promise<number> {
             holdTimer = setTimeout(tick, 300)
         }
         function stopHold() {
-            if (holdTimer !== null) { clearTimeout(holdTimer); holdTimer = null }
+            if (holdTimer !== null) {
+                clearTimeout(holdTimer)
+                holdTimer = null
+            }
         }
 
-        const plusBtn   = $id('moveMultPlusBtn')
-        const minusBtn  = $id('moveMultMinusBtn')
-        const allBtn    = $id('moveMultAllBtn')
-        const doneBtn   = $id('moveMultDoneBtn')
+        const plusBtn = $id('moveMultPlusBtn')
+        const minusBtn = $id('moveMultMinusBtn')
+        const allBtn = $id('moveMultAllBtn')
+        const doneBtn = $id('moveMultDoneBtn')
         const cancelBtn = $id('moveMultCancelBtn')
 
         // CE inventoryQuantitySelect: typing starts over on the first digit (isTyping); the
         // buttons end it
         let typing = false
-        function onPlusDown(e: Event)  { e.preventDefault(); typing = false; count = Math.min(max, count + 1); redraw(); startHold(1) }
-        function onMinusDown(e: Event) { e.preventDefault(); typing = false; count = Math.max(1,   count - 1); redraw(); startHold(-1) }
-        function onAllClick()          { typing = false; count = max; redraw() }
-        function onDoneClick()         { if (count >= 1 && count <= max) cleanup(count); else globalState.audioEngine?.playSfxByName?.('iisxxxx1') }
-        function onCancelClick()       { cleanup(0) }
+        function onPlusDown(e: Event) {
+            e.preventDefault()
+            typing = false
+            count = Math.min(max, count + 1)
+            redraw()
+            startHold(1)
+        }
+        function onMinusDown(e: Event) {
+            e.preventDefault()
+            typing = false
+            count = Math.max(1, count - 1)
+            redraw()
+            startHold(-1)
+        }
+        function onAllClick() {
+            typing = false
+            count = max
+            redraw()
+        }
+        function onDoneClick() {
+            if (count >= 1 && count <= max) cleanup(count)
+            else globalState.audioEngine?.playSfxByName?.('iisxxxx1')
+        }
+        function onCancelClick() {
+            cleanup(0)
+        }
 
         plusBtn.addEventListener('mousedown', onPlusDown)
-        plusBtn.addEventListener('mouseup',   stopHold)
+        plusBtn.addEventListener('mouseup', stopHold)
         plusBtn.addEventListener('mouseleave', stopHold)
         minusBtn.addEventListener('mousedown', onMinusDown)
-        minusBtn.addEventListener('mouseup',   stopHold)
+        minusBtn.addEventListener('mouseup', stopHold)
         minusBtn.addEventListener('mouseleave', stopHold)
-        allBtn.addEventListener('click',   onAllClick)
-        doneBtn.addEventListener('click',   onDoneClick)
+        allBtn.addEventListener('click', onAllClick)
+        doneBtn.addEventListener('click', onDoneClick)
         cancelBtn.addEventListener('click', onCancelClick)
 
         // CE ref: inventory.cc inventoryQuantitySelect (MOVE_ITEMS): a digit — the first one
@@ -156,15 +206,20 @@ export function uiGetAmount(item: Obj): Promise<number> {
         // digit; Return takes a value from 1 to max (ib1p1xx1), else iisxxxx1 and keeps going.
         const keyHandler = (e: KeyboardEvent) => {
             if (e.key === 'Enter') {
-                if (count >= 1 && count <= max) { globalState.audioEngine?.playSfxByName?.('ib1p1xx1'); cleanup(count) }
-                else globalState.audioEngine?.playSfxByName?.('iisxxxx1')
+                if (count >= 1 && count <= max) {
+                    globalState.audioEngine?.playSfxByName?.('ib1p1xx1')
+                    cleanup(count)
+                } else globalState.audioEngine?.playSfxByName?.('iisxxxx1')
                 return
             }
-            if (e.key === 'Escape') { cleanup(0);     return }
+            if (e.key === 'Escape') {
+                cleanup(0)
+                return
+            }
             const d = e.key.length === 1 ? parseInt(e.key) : NaN
             if (!isNaN(d) && d >= 0 && d <= 9) {
                 if (!typing) count = 0
-                count = (10 * count) % 100000 + d
+                count = ((10 * count) % 100000) + d
                 typing = true
                 redraw()
             }
@@ -174,8 +229,16 @@ export function uiGetAmount(item: Obj): Promise<number> {
                 typing = true
                 redraw()
             }
-            if (e.key === 'ArrowUp')   { typing = false; count = Math.min(max, count + 1); redraw() }
-            if (e.key === 'ArrowDown') { typing = false; count = Math.max(1,   count - 1); redraw() }
+            if (e.key === 'ArrowUp') {
+                typing = false
+                count = Math.min(max, count + 1)
+                redraw()
+            }
+            if (e.key === 'ArrowDown') {
+                typing = false
+                count = Math.max(1, count - 1)
+                redraw()
+            }
         }
         document.addEventListener('keydown', keyHandler, true)
 
@@ -183,13 +246,13 @@ export function uiGetAmount(item: Obj): Promise<number> {
             overlay.style.display = 'none'
             stopHold()
             plusBtn.removeEventListener('mousedown', onPlusDown)
-            plusBtn.removeEventListener('mouseup',   stopHold)
+            plusBtn.removeEventListener('mouseup', stopHold)
             plusBtn.removeEventListener('mouseleave', stopHold)
             minusBtn.removeEventListener('mousedown', onMinusDown)
-            minusBtn.removeEventListener('mouseup',   stopHold)
+            minusBtn.removeEventListener('mouseup', stopHold)
             minusBtn.removeEventListener('mouseleave', stopHold)
-            allBtn.removeEventListener('click',   onAllClick)
-            doneBtn.removeEventListener('click',   onDoneClick)
+            allBtn.removeEventListener('click', onAllClick)
+            doneBtn.removeEventListener('click', onDoneClick)
             cancelBtn.removeEventListener('click', onCancelClick)
             document.removeEventListener('keydown', keyHandler, true)
             resolve(amount)
@@ -209,7 +272,8 @@ export function uiGetAmount(item: Obj): Promise<number> {
 export function uiGetTimer(item: Obj): Promise<number> {
     const DIALOG_W = 259
     const DIALOG_H = 162
-    const MIN = 10, MAX = 180
+    const MIN = 10,
+        MAX = 180
     return new Promise((resolve) => {
         let value = 60
         const overlay = $id('moveMultOverlay')
@@ -221,45 +285,93 @@ export function uiGetTimer(item: Obj): Promise<number> {
         const doneBtn = $id('moveMultDoneBtn')
         const cancelBtn = $id('moveMultCancelBtn')
         const saved = { plus: plusBtn.style.cssText, minus: minusBtn.style.cssText, all: allBtn.style.display }
-        plusBtn.style.left = '194px'; plusBtn.style.top = '64px'
-        minusBtn.style.left = '194px'; minusBtn.style.top = '76px'
+        plusBtn.style.left = '194px'
+        plusBtn.style.top = '64px'
+        minusBtn.style.left = '194px'
+        minusBtn.style.top = '76px'
         allBtn.style.display = 'none'
         overlay.style.display = 'flex'
 
-        const bignum = new Image(), timer = new Image(), icon = new Image()
+        const bignum = new Image(),
+            timer = new Image(),
+            icon = new Image()
         let ready = 0
         const redraw = () => {
             ctx.clearRect(0, 0, DIALOG_W, DIALOG_H)
             if (timer.complete && timer.naturalWidth) ctx.drawImage(timer, 113, 34)
             if (icon.complete && icon.naturalWidth) {
                 const scale = Math.min(ICON_W / icon.naturalWidth, ICON_H / icon.naturalHeight)
-                const dw = icon.naturalWidth * scale, dh = icon.naturalHeight * scale
+                const dw = icon.naturalWidth * scale,
+                    dh = icon.naturalHeight * scale
                 ctx.drawImage(icon, ICON_X + (ICON_W - dw) / 2, ICON_Y + (ICON_H - dh) / 2, dw, dh)
             }
             if (bignum.complete && bignum.naturalWidth) {
-                const digit = (d: number, x: number) => ctx.drawImage(bignum, d * BIGNUM_DIGIT_W, 0, BIGNUM_DIGIT_W, BIGNUM_DIGIT_H, x, 64, BIGNUM_DIGIT_W, BIGNUM_DIGIT_H)
+                const digit = (d: number, x: number) =>
+                    ctx.drawImage(
+                        bignum,
+                        d * BIGNUM_DIGIT_W,
+                        0,
+                        BIGNUM_DIGIT_W,
+                        BIGNUM_DIGIT_H,
+                        x,
+                        64,
+                        BIGNUM_DIGIT_W,
+                        BIGNUM_DIGIT_H,
+                    )
                 digit(Math.trunc(value / 60), 133)
                 digit(Math.trunc((value % 60) / 10), 133 + 14 * 2)
                 digit(value % 10, 133 + 14 * 3)
             }
             void ready
         }
-        for (const [img, src] of [[bignum, 'art/intrface/bignum.png'], [timer, 'art/intrface/timer.png'], [icon, item.invArt ? item.invArt + '.png' : '']] as [HTMLImageElement, string][]) {
+        for (const [img, src] of [
+            [bignum, 'art/intrface/bignum.png'],
+            [timer, 'art/intrface/timer.png'],
+            [icon, item.invArt ? item.invArt + '.png' : ''],
+        ] as [HTMLImageElement, string][]) {
             if (!src) continue
-            img.onload = () => { ready++; redraw() }
+            img.onload = () => {
+                ready++
+                redraw()
+            }
             img.src = assetUrl(src)
         }
-        const sfx = (name: string) => { try { (globalState as any).audioEngine?.playSfxByName(name) } catch (e) { void e } }
-        const onPlus = (e: Event) => { e.preventDefault(); if (value < MAX) { value += 10; redraw() } }
-        const onMinus = (e: Event) => { e.preventDefault(); if (value > MIN) { value -= 10; redraw() } }
+        const sfx = (name: string) => {
+            try {
+                ;(globalState as any).audioEngine?.playSfxByName(name)
+            } catch (e) {
+                void e
+            }
+        }
+        const onPlus = (e: Event) => {
+            e.preventDefault()
+            if (value < MAX) {
+                value += 10
+                redraw()
+            }
+        }
+        const onMinus = (e: Event) => {
+            e.preventDefault()
+            if (value > MIN) {
+                value -= 10
+                redraw()
+            }
+        }
         const accept = () => {
-            if (value >= MIN && value <= MAX && value % 10 === 0) { sfx('ib1p1xx1'); cleanup(value) }
-            else sfx('iisxxxx1')
+            if (value >= MIN && value <= MAX && value % 10 === 0) {
+                sfx('ib1p1xx1')
+                cleanup(value)
+            } else sfx('iisxxxx1')
         }
         const onCancel = () => cleanup(-1)
         const keyHandler = (e: KeyboardEvent) => {
-            if (e.key === 'Enter') { e.preventDefault(); accept() }
-            else if (e.key === 'Escape') { e.preventDefault(); cleanup(-1) }
+            if (e.key === 'Enter') {
+                e.preventDefault()
+                accept()
+            } else if (e.key === 'Escape') {
+                e.preventDefault()
+                cleanup(-1)
+            }
         }
         plusBtn.addEventListener('mousedown', onPlus)
         minusBtn.addEventListener('mousedown', onMinus)

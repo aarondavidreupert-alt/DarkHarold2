@@ -55,14 +55,18 @@ export function snapshotCurrentMapObjects(): void {
     const numLevels: number = (map as any).numLevels ?? 1
     for (let level = 0; level < numLevels; level++) {
         let objs: any[] = []
-        try { objs = map.getObjects(level) || [] } catch (_e) { objs = [] }
+        try {
+            objs = map.getObjects(level) || []
+        } catch (_e) {
+            objs = []
+        }
         const out: ObjectSnapshotEntry[] = []
         for (const obj of objs) {
             if (!obj || !obj.position) continue
             let t: ObjType | null = null
             if (obj.type === 'wall') t = 'w'
             else if (obj.type === 'scenery') {
-                t = (obj.pro && obj.pro.extra && obj.pro.extra.subType === 0) ? 'd' : 's'
+                t = obj.pro && obj.pro.extra && obj.pro.extra.subType === 0 ? 'd' : 's'
             } else if (obj.type === 'item') t = 'i'
             if (!t) continue
             out.push({ x: obj.position.x, y: obj.position.y, t })
@@ -129,7 +133,7 @@ export function initAutomapTracking(): void {
     // Start the IDB load in the background. By the time any map finishes loading
     // and fires loadMapPost (which involves synchronous XHR + async image loads),
     // initStorage will have completed.
-    initStorage().catch(e => dbgWarn('automap', '[automapData] initStorage failed:', e))
+    initStorage().catch((e) => dbgWarn('automap', '[automapData] initStorage failed:', e))
 
     Events.on('playerMoved', (pos: Point) => {
         const map = globalState.gMap
@@ -150,5 +154,7 @@ export function initAutomapTracking(): void {
         snapshotCurrentMapObjects()
         flushAutomapSave()
     })
-    window.addEventListener('beforeunload', () => { flushAutomapSave() })
+    window.addEventListener('beforeunload', () => {
+        flushAutomapSave()
+    })
 }

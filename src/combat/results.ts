@@ -52,7 +52,7 @@ export const DAM_CRIP_LEG_ANY = DAM_CRIP_LEG_LEFT | DAM_CRIP_LEG_RIGHT
 export const DAM_CRIP_ARM_ANY = DAM_CRIP_ARM_LEFT | DAM_CRIP_ARM_RIGHT
 export const DAM_CRIP = DAM_CRIP_LEG_ANY | DAM_CRIP_ARM_ANY | DAM_BLIND
 
-const CRITTER_NO_DROP = 0x40       // proto critter flags (proto_types.h)
+const CRITTER_NO_DROP = 0x40 // proto critter flags (proto_types.h)
 const CRITTER_INVULNERABLE = 0x400
 
 export function results(c: Critter): number {
@@ -72,10 +72,14 @@ export function critterIsProne(c: Critter): boolean {
 export function doRandomCripple(flags: number): number {
     flags &= ~DAM_CRIP_RANDOM
     switch (randomBetween(0, 3)) {
-        case 0: return flags | DAM_CRIP_LEG_LEFT
-        case 1: return flags | DAM_CRIP_LEG_RIGHT
-        case 2: return flags | DAM_CRIP_ARM_LEFT
-        default: return flags | DAM_CRIP_ARM_RIGHT
+        case 0:
+            return flags | DAM_CRIP_LEG_LEFT
+        case 1:
+            return flags | DAM_CRIP_LEG_RIGHT
+        case 2:
+            return flags | DAM_CRIP_ARM_LEFT
+        default:
+            return flags | DAM_CRIP_ARM_RIGHT
     }
 }
 
@@ -101,7 +105,8 @@ export function setNewResults(c: Critter, flags: number): void {
         removeKnockoutEvents(c)
         scheduleKnockoutEvent(c, 10 * (35 - 3 * c.getStat('END')))
     }
-    c.injuryFlags = (results(c) | (flags & (DAM_KNOCKED_OUT | DAM_KNOCKED_DOWN | DAM_CRIP | DAM_DEAD | DAM_LOSE_TURN))) >>> 0
+    c.injuryFlags =
+        (results(c) | (flags & (DAM_KNOCKED_OUT | DAM_KNOCKED_DOWN | DAM_CRIP | DAM_DEAD | DAM_LOSE_TURN))) >>> 0
 }
 
 export function removeKnockoutEvents(c: Critter): void {
@@ -123,8 +128,13 @@ function critterWakeClear(c: Critter): boolean {
 // combat it stands up at the start of its next turn, otherwise at once.
 // CE queue.cc EVENT_TYPE_KNOCKOUT (also rebuilt from a save, saveload.ts)
 export function scheduleKnockoutEvent(c: Critter, ticks: number): void {
-    Scripting.timeEventList.push({ obj: c, ticks, userdata: 'knockout', fn: () => knockoutEventProcess(c),
-        leaveMap: () => critterWakeClear(c) })
+    Scripting.timeEventList.push({
+        obj: c,
+        ticks,
+        userdata: 'knockout',
+        fn: () => knockoutEventProcess(c),
+        leaveMap: () => critterWakeClear(c),
+    })
 }
 
 export function knockoutEventProcess(c: Critter): void {
@@ -141,7 +151,10 @@ export function dudeStandup(c: Critter, then?: () => void): void {
     const getUp = c.knockdownAnim === 'knockdownBack' ? 'getUpBack' : 'getUpFront'
     c.knockdownAnim = null
     if (c.hasAnimation(getUp)) {
-        c.staticAnimation(getUp, () => { c.clearAnim(); then?.() })
+        c.staticAnimation(getUp, () => {
+            c.clearAnim()
+            then?.()
+        })
     } else {
         c.clearAnim()
         then?.()

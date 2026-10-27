@@ -19,12 +19,24 @@ import { setVMFatalHook } from '../vm.js'
 import { attachLuaScript, detachLuaScript, initLuaRuntime, setLuaErrorHook, sslValue } from './luaRuntime.js'
 
 const OBJ_RESULTS = new Set([
-    'create_object_sid', 'party_member_obj', 'obj_carrying_pid_obj', 'critter_inven_obj',
-    'obj_being_used_with', 'tile_contains_pid_obj', 'obj_blocking_at',
+    'create_object_sid',
+    'party_member_obj',
+    'obj_carrying_pid_obj',
+    'critter_inven_obj',
+    'obj_being_used_with',
+    'tile_contains_pid_obj',
+    'obj_blocking_at',
 ])
 const STR_RESULTS = new Set([
-    'message_str', 'obj_name', 'sfx_build_open_name', 'sfx_build_char_name', 'sfx_build_ambient_name',
-    'sfx_build_interface_name', 'sfx_build_item_name', 'sfx_build_weapon_name', 'sfx_build_scenery_name',
+    'message_str',
+    'obj_name',
+    'sfx_build_open_name',
+    'sfx_build_char_name',
+    'sfx_build_ambient_name',
+    'sfx_build_interface_name',
+    'sfx_build_item_name',
+    'sfx_build_weapon_name',
+    'sfx_build_scenery_name',
 ])
 // Calls with side effects one run may make; a script waiting in a loop for the
 // world to change (the traps' projectile loops) never ends against the fake
@@ -38,23 +50,75 @@ const TOTAL_BUDGET = 50000
 const BUDGET_ERROR = 'call budget exceeded'
 const TOTAL_BUDGET_ERROR = 'total call budget exceeded'
 
-
 // tools/int2lua.py PURE: intrinsics without side effects. The decompiled
 // `a and b` may skip such a call where sslc's opAnd evaluates it, so these are
 // not traced, and their answers depend only on their arguments (not on how
 // many calls came before), so skipping one cannot shift later answers.
 const PURE = new Set([
-    'dude_obj', 'self_obj', 'source_obj', 'target_obj', 'fixed_param', 'action_being_used', 'game_time',
-    'game_time_hour', 'game_time_in_seconds', 'cur_map_index', 'combat_is_initialized', 'get_month', 'get_day',
-    'obj_being_used_with', 'script_action', 'game_difficulty', 'combat_difficulty', 'game_ui_is_disabled',
-    'days_since_visited', 'running_burning_guy',
-    'local_var', 'global_var', 'map_var', 'get_critter_stat', 'get_pc_stat', 'obj_can_see_obj', 'obj_can_hear_obj',
-    'has_trait', 'has_skill', 'obj_pid', 'obj_type', 'obj_item_subtype', 'obj_name', 'obj_art_fid', 'art_anim',
-    'obj_is_carrying_obj_pid', 'obj_carrying_pid_obj', 'obj_is_open', 'obj_is_locked', 'obj_on_screen', 'tile_num',
-    'tile_distance', 'tile_distance_objs', 'tile_num_in_direction', 'tile_is_visible', 'tile_in_tile_rect',
-    'tile_contains_obj_pid', 'tile_contains_pid_obj', 'rotation_to_tile', 'is_success', 'is_critical',
-    'critter_state', 'critter_is_fleeing', 'critter_inven_obj', 'party_member_obj', 'elevation', 'game_ticks',
-    'message_str', 'proto_data', 'item_caps_total', 'get_poison', 'anim_busy', 'using_skill', 'how_much',
+    'dude_obj',
+    'self_obj',
+    'source_obj',
+    'target_obj',
+    'fixed_param',
+    'action_being_used',
+    'game_time',
+    'game_time_hour',
+    'game_time_in_seconds',
+    'cur_map_index',
+    'combat_is_initialized',
+    'get_month',
+    'get_day',
+    'obj_being_used_with',
+    'script_action',
+    'game_difficulty',
+    'combat_difficulty',
+    'game_ui_is_disabled',
+    'days_since_visited',
+    'running_burning_guy',
+    'local_var',
+    'global_var',
+    'map_var',
+    'get_critter_stat',
+    'get_pc_stat',
+    'obj_can_see_obj',
+    'obj_can_hear_obj',
+    'has_trait',
+    'has_skill',
+    'obj_pid',
+    'obj_type',
+    'obj_item_subtype',
+    'obj_name',
+    'obj_art_fid',
+    'art_anim',
+    'obj_is_carrying_obj_pid',
+    'obj_carrying_pid_obj',
+    'obj_is_open',
+    'obj_is_locked',
+    'obj_on_screen',
+    'tile_num',
+    'tile_distance',
+    'tile_distance_objs',
+    'tile_num_in_direction',
+    'tile_is_visible',
+    'tile_in_tile_rect',
+    'tile_contains_obj_pid',
+    'tile_contains_pid_obj',
+    'rotation_to_tile',
+    'is_success',
+    'is_critical',
+    'critter_state',
+    'critter_is_fleeing',
+    'critter_inven_obj',
+    'party_member_obj',
+    'elevation',
+    'game_ticks',
+    'message_str',
+    'proto_data',
+    'item_caps_total',
+    'get_poison',
+    'anim_busy',
+    'using_skill',
+    'how_much',
     'anim_action_frame',
 ])
 
@@ -131,13 +195,23 @@ class World {
 
     answer(name: string, args: any[]): any {
         switch (name) {
-            case 'local_var': return this.stored(this.lvars, 'L', args[0])
-            case 'global_var': return this.stored(this.gvars, 'G', args[0])
-            case 'map_var': return this.stored(this.mvars, 'M', args[0])
-            case 'set_local_var': this.lvars.set(args[0], args[1]); return 0
-            case 'set_global_var': this.gvars.set(args[0], args[1]); return 0
-            case 'set_map_var': this.mvars.set(args[0], args[1]); return 0
-            case 'random': return args[1] >= args[0] ? this.int(args[0], args[1]) : args[0]
+            case 'local_var':
+                return this.stored(this.lvars, 'L', args[0])
+            case 'global_var':
+                return this.stored(this.gvars, 'G', args[0])
+            case 'map_var':
+                return this.stored(this.mvars, 'M', args[0])
+            case 'set_local_var':
+                this.lvars.set(args[0], args[1])
+                return 0
+            case 'set_global_var':
+                this.gvars.set(args[0], args[1])
+                return 0
+            case 'set_map_var':
+                this.mvars.set(args[0], args[1])
+                return 0
+            case 'random':
+                return args[1] >= args[0] ? this.int(args[0], args[1]) : args[0]
         }
         if (PURE.has(name)) return this.pureAnswer(name, args)
         if (OBJ_RESULTS.has(name)) return this.obj()
@@ -394,7 +468,10 @@ export async function runLuaDiff(names: string[], seeds: number, log: (s: string
         for (const p of procs) {
             for (let seed = 1; seed <= seeds; seed++) {
                 const argRng = mulberry32(seed * 7919)
-                const plan: Plan = { proc: p.name, args: Array.from({ length: p.argc }, () => Math.floor(argRng() * 5)) }
+                const plan: Plan = {
+                    proc: p.name,
+                    args: Array.from({ length: p.argc }, () => Math.floor(argRng() * 5)),
+                }
                 const vmRun = runVM(name, data, seed, plan, imports)
                 const luaRun = runLua(name, source, seed, plan, imports)
                 let vm = vmRun.trace
@@ -418,10 +495,16 @@ export async function runLuaDiff(names: string[], seeds: number, log: (s: string
                 if (i >= 0) {
                     failed++
                     report.failures.push({
-                        script: name, proc: p.name, seed, line: i,
-                        vm: vm.slice(Math.max(0, i - 3), i + 3), lua: lua.slice(Math.max(0, i - 3), i + 3),
-                        vmTrace: vm, luaTrace: lua,
-                        vmError: vmRun.error, luaError: luaRun.error,
+                        script: name,
+                        proc: p.name,
+                        seed,
+                        line: i,
+                        vm: vm.slice(Math.max(0, i - 3), i + 3),
+                        lua: lua.slice(Math.max(0, i - 3), i + 3),
+                        vmTrace: vm,
+                        luaTrace: lua,
+                        vmError: vmRun.error,
+                        luaError: luaRun.error,
                     })
                     break // one failing seed per procedure is enough
                 }

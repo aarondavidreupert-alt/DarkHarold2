@@ -24,7 +24,12 @@ const SCENERY = ['none', 'light', 'normal', 'heavy']
 const SCENERY_NORMAL = 2
 
 // CE EncounterItem
-export interface EncItem { pid: number; min: number; max: number; equipped: boolean }
+export interface EncItem {
+    pid: number
+    min: number
+    max: number
+    equipped: boolean
+}
 
 // CE EncounterEntry (one type_NN line of an [Encounter: Name] section)
 export interface EncEntry {
@@ -41,10 +46,21 @@ export interface EncEntry {
 }
 
 // CE Encounter ("enc base type": an [Encounter: Name] section)
-export interface EncBaseType { name: string; formation: number; spacing: number; distance: number; entries: EncEntry[] }
+export interface EncBaseType {
+    name: string
+    formation: number
+    spacing: number
+    distance: number
+    entries: EncEntry[]
+}
 
 // CE EncounterTableSubEntry — "(min-max) Name [situation]"; baseType -1 = Player
-export interface EncSubEntry { min: number; max: number; baseType: number; situation: number }
+export interface EncSubEntry {
+    min: number
+    max: number
+    baseType: number
+    situation: number
+}
 
 // CE EncounterTableEntry (one enc_NN line)
 export interface EncTableEntry {
@@ -57,8 +73,16 @@ export interface EncTableEntry {
     cond: Encounters.Node[] | null
 }
 
-export interface EncTable { lookupName: string; maps: number[]; entries: EncTableEntry[] }
-export interface Terrain { name: string; difficulty: number; maps: number[] }
+export interface EncTable {
+    lookupName: string
+    maps: number[]
+    entries: EncTableEntry[]
+}
+export interface Terrain {
+    name: string
+    difficulty: number
+    maps: number[]
+}
 
 export interface EncounterData {
     freqValues: { [name: string]: number } // [Data] forced / frequent / common / uncommon / rare / none
@@ -76,9 +100,16 @@ function atoi(s: string): number {
 }
 
 class Cursor {
-    constructor(public s: string, public i = 0) {}
-    rest(): string { return this.s.slice(this.i) }
-    done(): boolean { return this.i >= this.s.length }
+    constructor(
+        public s: string,
+        public i = 0,
+    ) {}
+    rest(): string {
+        return this.s.slice(this.i)
+    }
+    done(): boolean {
+        return this.i >= this.s.length
+    }
 }
 
 // CE strParseIntWithKey: "key:value" at the cursor (after an optional comma and
@@ -153,7 +184,8 @@ function parseItemType(s: string): EncItem {
     item.pid = atoi(s.slice(i))
     while (i < s.length && /\d/.test(s[i])) i++
     const rest = s.slice(i)
-    item.equipped = rest.includes('{wielded}') || rest.includes('(wielded)') || rest.includes('{worn}') || rest.includes('(worn)')
+    item.equipped =
+        rest.includes('{wielded}') || rest.includes('(wielded)') || rest.includes('{worn}') || rest.includes('(worn)')
     return item
 }
 
@@ -175,11 +207,28 @@ function parseEncounterItemType(c: Cursor, items: EncItem[]): boolean {
 
 // CE wmParseEncBaseSubTypeStr
 function parseBaseSubType(str: string): EncEntry {
-    const e: EncEntry = { useRatio: false, ratio: 100, pid: -1, dead: false, distance: 0, tile: -1, items: [], scriptIdx: -1, team: -1, cond: null }
+    const e: EncEntry = {
+        useRatio: false,
+        ratio: 100,
+        pid: -1,
+        dead: false,
+        distance: 0,
+        tile: -1,
+        items: [],
+        scriptIdx: -1,
+        team: -1,
+        cond: null,
+    }
     const c = new Cursor(str.toLowerCase())
     const ratio = parseIntWithKey(c, 'ratio')
-    if (ratio !== null) { e.ratio = ratio; e.useRatio = true }
-    if (c.rest().startsWith('dead,')) { e.dead = true; c.i += 5 }
+    if (ratio !== null) {
+        e.ratio = ratio
+        e.useRatio = true
+    }
+    if (c.rest().startsWith('dead,')) {
+        e.dead = true
+        c.i += 5
+    }
     const pid = parseIntWithKey(c, 'pid')
     if (pid !== null) e.pid = pid === 0 ? -1 : pid
     const distance = parseIntWithKey(c, 'distance')
@@ -278,7 +327,15 @@ function readBaseType(name: string, data: EncounterData, ini: IniLookup): number
 
 // CE wmParseEncounterTableIndex
 function parseTableEntry(str: string, data: EncounterData, ini: IniLookup): EncTableEntry {
-    const e: EncTableEntry = { chance: 0, counter: -1, special: false, map: -1, scenery: SCENERY_NORMAL, subEntries: [], cond: null }
+    const e: EncTableEntry = {
+        chance: 0,
+        counter: -1,
+        special: false,
+        map: -1,
+        scenery: SCENERY_NORMAL,
+        subEntries: [],
+        cond: null,
+    }
     const c = new Cursor(str.toLowerCase())
     while (!c.done()) {
         const at = c.i
@@ -310,7 +367,9 @@ function parseTableEntry(str: string, data: EncounterData, ini: IniLookup): EncT
 }
 
 // Case-insensitive access to the parsed worldmap.txt sections
-interface IniLookup { section(name: string): Map<string, string> | null }
+interface IniLookup {
+    section(name: string): Map<string, string> | null
+}
 function iniLookup(ini: { [section: string]: { [key: string]: string } }): IniLookup {
     const sections = new Map<string, Map<string, string>>()
     for (const name in ini) {

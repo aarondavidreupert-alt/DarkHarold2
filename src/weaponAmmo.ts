@@ -183,8 +183,10 @@ export function weaponAttemptReload(w: Obj, inventory: Obj[]): number {
         ammoSetQuantity(w, ammoGetCapacity(w))
         return 0
     }
-    const ammo = inventory.find((a) => a.subtype === 'ammo' && a.pid === weaponGetAmmoTypePid(w) && weaponCanBeReloadedWith(w, a))
-        ?? inventory.find((a) => weaponCanBeReloadedWith(w, a))
+    const ammo =
+        inventory.find(
+            (a) => a.subtype === 'ammo' && a.pid === weaponGetAmmoTypePid(w) && weaponCanBeReloadedWith(w, a),
+        ) ?? inventory.find((a) => weaponCanBeReloadedWith(w, a))
     if (!ammo) return -1
     const rc = weaponReload(w, ammo)
     if (rc === 0) ammoUseTopBox(ammo, inventory)

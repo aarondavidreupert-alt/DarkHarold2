@@ -22,7 +22,14 @@ import { dbg } from '../../logger.js'
 import { getMessage } from '../../util.js'
 import { mapIndexOf } from '../../data.js'
 import { drawAutomapInto, getArchivedMaps, getSeenTiles } from '../../automapData.js'
-import { getAutomapZoom, zoomIn, zoomOut, getAutomapPan, attachAutomapDragPan, attachAutomapWheelZoom } from '../../ui_automap.js'
+import {
+    getAutomapZoom,
+    zoomIn,
+    zoomOut,
+    getAutomapPan,
+    attachAutomapDragPan,
+    attachAutomapWheelZoom,
+} from '../../ui_automap.js'
 import {
     AUTOMAP_CANVAS_LEFT,
     AUTOMAP_CANVAS_TOP,
@@ -56,10 +63,10 @@ export function resetAutomapNavState(): void {
 
 // CE automap.cc _displayMapList: the maps.txt indices never listed (desert / encounter maps …)
 const AUTOMAP_HIDDEN_MAPS: ReadonlySet<number> = new Set([
-    0, 1, 2, 52, 53, 59, 60, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91,
-    94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 110, 111, 112, 113, 114, 115, 116, 117,
-    118, 119, 120, 121, 122, 123, 124, 125, 127, 141, 142, 143, 144, 145, 146, 149, 150, 151, 152, 153, 154, 155,
-    156, 157, 158, 159,
+    0, 1, 2, 52, 53, 59, 60, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 94,
+    95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119,
+    120, 121, 122, 123, 124, 125, 127, 141, 142, 143, 144, 145, 146, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158,
+    159,
 ])
 
 // CE worldmap.cc wmMatchAreaContainingMapIdx: the first area with an entrance to the map, or -1
@@ -67,7 +74,9 @@ function areaOfMap(mapName: string): number {
     const areas = globalState.mapAreas
     if (!areas) return -1
     const name = mapName.toLowerCase()
-    for (const id of Object.keys(areas).map(Number).sort((x, y) => x - y)) {
+    for (const id of Object.keys(areas)
+        .map(Number)
+        .sort((x, y) => x - y)) {
         if (areas[id].entrances.some((e: any) => (e.mapName ?? '').toLowerCase() === name)) return id
     }
     return -1
@@ -123,7 +132,13 @@ function styleAutomapCanvas(canvas: HTMLCanvasElement): void {
 
 // Create + size + style + draw an automap canvas in the correct order so the
 // pixels survive into the DOM (see styleAutomapCanvas comment).
-function createAutomapCanvas(opts: { zoom: number; panX: number; panY: number; forMap?: string; forElevation?: number }): HTMLCanvasElement {
+function createAutomapCanvas(opts: {
+    zoom: number
+    panX: number
+    panY: number
+    forMap?: string
+    forElevation?: number
+}): HTMLCanvasElement {
     const canvas = document.createElement('canvas')
     canvas.width = AUTOMAP_CANVAS_W
     canvas.height = AUTOMAP_CANVAS_H
@@ -140,7 +155,8 @@ export function renderAutomapsTab(screen: HTMLDivElement): void {
     if (automapViewing) {
         const v = automapViewing
         const header = document.createElement('div')
-        header.style.cssText = TEXT_STYLE +
+        header.style.cssText =
+            TEXT_STYLE +
             `position: absolute; left: ${CONTENT_X}px; top: ${CONTENT_Y - 22}px;` +
             `width: ${CONTENT_W}px; font-size: 13px;`
         header.textContent = elevationName(mapIndexOf(v.mapName), v.elevation) || v.mapName
@@ -161,7 +177,9 @@ export function renderAutomapsTab(screen: HTMLDivElement): void {
         const renderOpts = () => {
             const pan = getAutomapPan(v.mapName, v.elevation)
             const opts: { zoom: number; panX: number; panY: number; forMap?: string; forElevation?: number } = {
-                zoom: getAutomapZoom(), panX: pan.x, panY: pan.y,
+                zoom: getAutomapZoom(),
+                panX: pan.x,
+                panY: pan.y,
             }
             if (!v.isCurrent) {
                 opts.forMap = v.mapName
@@ -189,14 +207,29 @@ export function renderAutomapsTab(screen: HTMLDivElement): void {
         const zl = document.createElement('span')
         zl.style.cssText = TEXT_STYLE + 'font-size: 11px; margin-left: 6px;'
         zl.textContent = `ZOOM ${getAutomapZoom().toFixed(1)}x`
-        zoomBar.appendChild(makeButton('-', () => { zoomOut(); refresh(); zl.textContent = `ZOOM ${getAutomapZoom().toFixed(1)}x` }))
-        zoomBar.appendChild(makeButton('+', () => { zoomIn(); refresh(); zl.textContent = `ZOOM ${getAutomapZoom().toFixed(1)}x` }))
+        zoomBar.appendChild(
+            makeButton('-', () => {
+                zoomOut()
+                refresh()
+                zl.textContent = `ZOOM ${getAutomapZoom().toFixed(1)}x`
+            }),
+        )
+        zoomBar.appendChild(
+            makeButton('+', () => {
+                zoomIn()
+                refresh()
+                zl.textContent = `ZOOM ${getAutomapZoom().toFixed(1)}x`
+            }),
+        )
         zoomBar.appendChild(zl)
         screen.appendChild(zoomBar)
 
         // Mouse wheel zoom — scroll up = in, scroll down = out. Hooked after
         // the zoom label exists so its text can update in sync.
-        attachAutomapWheelZoom(canvas, () => { refresh(); zl.textContent = `ZOOM ${getAutomapZoom().toFixed(1)}x` })
+        attachAutomapWheelZoom(canvas, () => {
+            refresh()
+            zl.textContent = `ZOOM ${getAutomapZoom().toFixed(1)}x`
+        })
         return
     }
 
@@ -222,10 +255,12 @@ export function renderAutomapsTab(screen: HTMLDivElement): void {
 
         const backBar = document.createElement('div')
         backBar.style.cssText = 'padding: 2px 6px 4px 6px;'
-        backBar.appendChild(makeButton(getMessage('pipboy', 201) ?? 'Back', () => {
-            automapSelectedLocation = null
-            renderAutomapsTab(screen)
-        }))
+        backBar.appendChild(
+            makeButton(getMessage('pipboy', 201) ?? 'Back', () => {
+                automapSelectedLocation = null
+                renderAutomapsTab(screen)
+            }),
+        )
         content.appendChild(backBar)
 
         const list = document.createElement('div')
@@ -233,14 +268,20 @@ export function renderAutomapsTab(screen: HTMLDivElement): void {
         list.style.maxHeight = `${CONTENT_H - 80}px`
         const first = entries.filter((e) => e.mapName === sel.mapName)
         const rest = entries.filter((e) => e.mapName !== sel.mapName && sel.area >= 0 && e.area === sel.area)
-        const byMapThenElevation = (x: typeof entries[0], y: typeof entries[0]) => (x.mapIndex - y.mapIndex) || (x.elevation - y.elevation)
+        const byMapThenElevation = (x: (typeof entries)[0], y: (typeof entries)[0]) =>
+            x.mapIndex - y.mapIndex || x.elevation - y.elevation
         for (const e of [...first.sort(byMapThenElevation), ...rest.sort(byMapThenElevation)]) {
-            list.appendChild(makeListItem(elevationName(e.mapIndex, e.elevation) || e.mapName, () => {
-                const tiles = getSeenTiles(e.mapName, e.elevation)
-                dbg('map', `[automap] level-3 click: mapName=${e.mapName} elevation=${e.elevation} isCurrent=${e.isCurrent} seenTiles=${tiles.size}`)
-                automapViewing = { mapName: e.mapName, elevation: e.elevation, isCurrent: e.isCurrent }
-                renderAutomapsTab(screen)
-            }))
+            list.appendChild(
+                makeListItem(elevationName(e.mapIndex, e.elevation) || e.mapName, () => {
+                    const tiles = getSeenTiles(e.mapName, e.elevation)
+                    dbg(
+                        'map',
+                        `[automap] level-3 click: mapName=${e.mapName} elevation=${e.elevation} isCurrent=${e.isCurrent} seenTiles=${tiles.size}`,
+                    )
+                    automapViewing = { mapName: e.mapName, elevation: e.elevation, isCurrent: e.isCurrent }
+                    renderAutomapsTab(screen)
+                }),
+            )
         }
         content.appendChild(list)
         return
@@ -260,10 +301,12 @@ export function renderAutomapsTab(screen: HTMLDivElement): void {
     }
     cities.sort((x, y) => x.name.localeCompare(y.name))
     for (const c of cities) {
-        list.appendChild(makeListItem(c.name, () => {
-            automapSelectedLocation = { area: c.area, mapName: c.mapName }
-            renderAutomapsTab(screen)
-        }))
+        list.appendChild(
+            makeListItem(c.name, () => {
+                automapSelectedLocation = { area: c.area, mapName: c.mapName }
+                renderAutomapsTab(screen)
+            }),
+        )
     }
     content.appendChild(list)
 }

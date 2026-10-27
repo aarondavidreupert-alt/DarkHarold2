@@ -18,14 +18,15 @@ limitations under the License.
 // wiki/ts-split-refactor.md → "Per-file split proposals" §12.
 
 import globalState from '../../globalState.js'
-import { gameMovieIsSeen, gameMoviePlay, GAME_MOVIE_FADE_IN, GAME_MOVIE_FADE_OUT, GAME_MOVIE_PAUSE_MUSIC } from '../../gameMovie.js'
-import { getMessage } from '../../util.js'
 import {
-    TEXT_STYLE,
-    clearScreen,
-    makeContentArea,
-    makeHeader,
-} from '../shell.js'
+    gameMovieIsSeen,
+    gameMoviePlay,
+    GAME_MOVIE_FADE_IN,
+    GAME_MOVIE_FADE_OUT,
+    GAME_MOVIE_PAUSE_MUSIC,
+} from '../../gameMovie.js'
+import { getMessage } from '../../util.js'
+import { TEXT_STYLE, clearScreen, makeContentArea, makeHeader } from '../shell.js'
 
 // --- ARCHIVES tab: video archive (CE pipboy.cc:1708 pipboyRenderVideoArchive)
 // Lists every movie 2..15 the player has seen (pipboy.msg 500 + movie; header 206
@@ -46,8 +47,12 @@ export function renderArchivesTab(screen: HTMLDivElement): void {
         const row = document.createElement('div')
         row.textContent = getMessage('pipboy', 500 + movie) ?? `Movie ${movie}`
         row.style.cursor = 'pointer'
-        row.onmouseenter = () => { row.style.color = '#fcfc7c' } // CE 32747
-        row.onmouseleave = () => { row.style.color = '' }
+        row.onmouseenter = () => {
+            row.style.color = '#fcfc7c'
+        } // CE 32747
+        row.onmouseleave = () => {
+            row.style.color = ''
+        }
         row.onclick = () => {
             globalState.audioEngine?.playSfxByName?.('ib1p1xx1')
             void gameMoviePlay(movie, GAME_MOVIE_FADE_IN | GAME_MOVIE_FADE_OUT | GAME_MOVIE_PAUSE_MUSIC)

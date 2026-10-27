@@ -70,14 +70,16 @@ export function critterAdjustRadiation(obj: Critter, amount: number): void {
 
     if (amount > 0) {
         const resist = obj.getStat('DR Radiation')
-        amount -= Math.trunc(resist * amount / 100)
+        amount -= Math.trunc((resist * amount) / 100)
     }
 
     if (amount > 0) {
         obj.radiated = true // CE: proto->critter.data.flags |= CRITTER_RADIATED
 
         const hands = [obj.leftHand, obj.rightHand]
-        const geiger = hands.find((it) => it && (it.pid === PROTO_ID_GEIGER_COUNTER_I || it.pid === PROTO_ID_GEIGER_COUNTER_II))
+        const geiger = hands.find(
+            (it) => it && (it.pid === PROTO_ID_GEIGER_COUNTER_I || it.pid === PROTO_ID_GEIGER_COUNTER_II),
+        )
         if (geiger && geiger.miscOn === true) {
             // 1009 "The geiger counter is clicking wildly." / 1008 "...is clicking."
             const msg = miscMsg(amount > 5 ? 1009 : 1008)
@@ -111,7 +113,13 @@ function parseRadiationEvent(userdata: any): { level: number; isHealing: boolean
 
 function scheduleRadiationEvent(obj: Critter, ticks: number, level: number, isHealing: boolean): void {
     const userdata = `${RADIATION_EVENT_TAG}${level}:${isHealing ? 1 : 0}`
-    Scripting.timeEventList.push({ obj, ticks, userdata, fn: () => radiationEventProcess(obj, level, isHealing), leaveMap: 'keep' })
+    Scripting.timeEventList.push({
+        obj,
+        ticks,
+        userdata,
+        fn: () => radiationEventProcess(obj, level, isHealing),
+        leaveMap: 'keep',
+    })
 }
 
 // Re-arm a radiation event read from a save (saveload.ts). Returns false if `userdata`
@@ -177,7 +185,8 @@ function processRads(obj: Critter, level: number, isHealing: boolean): void {
     // SFALL fix kept by CE: removing the effects can never kill.
     if (!isHealing && !obj.dead) {
         for (let i = 0; i < RADIATION_EFFECT_PRIMARY_STAT_COUNT; i++) {
-            if (obj.stats.get(RADIATION_EFFECT_STATS[i]) < 1) { // PRIMARY_STAT_MIN
+            if (obj.stats.get(RADIATION_EFFECT_STATS[i]) < 1) {
+                // PRIMARY_STAT_MIN
                 critterKill(obj, undefined, false)
                 break
             }

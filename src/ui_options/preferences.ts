@@ -49,7 +49,11 @@ export const PREFS_KEY = 'dh2_preferences'
 /** Read persisted preferences from localStorage and apply them to Config + audioEngine. */
 export function loadPreferences(): void {
     let raw: string | null = null
-    try { raw = localStorage.getItem(PREFS_KEY) } catch { return }
+    try {
+        raw = localStorage.getItem(PREFS_KEY)
+    } catch {
+        return
+    }
     if (!raw) return
     let prefs: SavedPreferences
     try {
@@ -76,7 +80,10 @@ export function applyPreferences(prefs: SavedPreferences): void {
     if (prefs.doAlwaysRun !== undefined) Config.engine.doAlwaysRun = prefs.doAlwaysRun
     if (prefs.subtitles !== undefined) Config.ui.subtitles = prefs.subtitles
     if (prefs.languageFilter !== undefined) Config.ui.languageFilter = prefs.languageFilter
-    if (prefs.textBaseDelay !== undefined) { Config.ui.textBaseDelay = prefs.textBaseDelay; Config.ui.textLineDelay = undefined }
+    if (prefs.textBaseDelay !== undefined) {
+        Config.ui.textBaseDelay = prefs.textBaseDelay
+        Config.ui.textLineDelay = undefined
+    }
     if (prefs.playerSpeedup !== undefined) Config.engine.playerSpeedup = prefs.playerSpeedup
     if (prefs.itemHighlight !== undefined) Config.ui.itemHighlight = prefs.itemHighlight
     if (prefs.combatTaunts !== undefined) Config.ui.combatTaunts = prefs.combatTaunts
@@ -98,7 +105,7 @@ export function applyPreferences(prefs: SavedPreferences): void {
 export function getVolumeValue(channel: 'master' | 'music' | 'sfx' | 'speech'): number {
     const eng = globalState.audioEngine
     if (!eng || !('masterVolume' in eng)) return 100
-    const he = (eng as unknown) as { masterVolume: number; musicVolume: number; sfxVolume: number; speechVolume: number }
+    const he = eng as unknown as { masterVolume: number; musicVolume: number; sfxVolume: number; speechVolume: number }
     if (channel === 'master') return Math.round(he.masterVolume * 100)
     if (channel === 'music') return Math.round(he.musicVolume * 100)
     if (channel === 'speech') return Math.round((he.speechVolume ?? 1) * 100)
@@ -106,7 +113,11 @@ export function getVolumeValue(channel: 'master' | 'music' | 'sfx' | 'speech'): 
 }
 
 export function savePreferences(): void {
-    try { localStorage.setItem(PREFS_KEY, JSON.stringify(currentPreferences())) } catch { /* storage blocked */ }
+    try {
+        localStorage.setItem(PREFS_KEY, JSON.stringify(currentPreferences()))
+    } catch {
+        /* storage blocked */
+    }
 }
 
 /** The preferences as they are now (CE preferences.cc preferencesSave writes these into
@@ -114,9 +125,9 @@ export function savePreferences(): void {
 export function currentPreferences(): SavedPreferences {
     const eng = globalState.audioEngine
     const hasVol = eng && 'masterVolume' in eng
-    const he = hasVol ? ((eng as unknown) as { masterVolume: number; musicVolume: number; sfxVolume: number }) : null
+    const he = hasVol ? (eng as unknown as { masterVolume: number; musicVolume: number; sfxVolume: number }) : null
 
-    const heSpeech = hasVol ? ((eng as unknown) as { speechVolume: number }) : null
+    const heSpeech = hasVol ? (eng as unknown as { speechVolume: number }) : null
     const prefs: SavedPreferences = {
         gameDifficultyModifier: Config.combat.gameDifficultyModifier,
         difficultyModifier: Config.combat.difficultyModifier,
@@ -157,15 +168,16 @@ export function applyBrightness(): void {
     const table: string[] = []
     for (let i = 0; i < 64; i++) table.push((Math.min(63, Math.max(0, Math.pow(i, b))) / 63).toFixed(4))
     const values = table.join(' ')
-    let svg = document.getElementById("dh2GammaSvg") as unknown as SVGSVGElement | null
+    let svg = document.getElementById('dh2GammaSvg') as unknown as SVGSVGElement | null
     if (!svg) {
         svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
         svg.id = 'dh2GammaSvg'
         svg.setAttribute('width', '0')
         svg.setAttribute('height', '0')
         svg.style.position = 'absolute'
-        svg.innerHTML = '<filter id="dh2Gamma" color-interpolation-filters="sRGB"><feComponentTransfer>'
-            + '<feFuncR type="table"/><feFuncG type="table"/><feFuncB type="table"/></feComponentTransfer></filter>'
+        svg.innerHTML =
+            '<filter id="dh2Gamma" color-interpolation-filters="sRGB"><feComponentTransfer>' +
+            '<feFuncR type="table"/><feFuncG type="table"/><feFuncB type="table"/></feComponentTransfer></filter>'
         document.body.appendChild(svg)
     }
     for (const f of Array.from(svg.querySelectorAll('feFuncR, feFuncG, feFuncB'))) f.setAttribute('tableValues', values)

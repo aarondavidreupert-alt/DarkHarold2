@@ -39,24 +39,24 @@ export function gameReset(): void {
     globalState.inCombat = false
     globalState.combat = null
 
-    Scripting.resetGameState()                // gameLoadGlobalVars, _scr_reset, scriptsReset, queueExit
-    Scripting.clearScriptRequests()           // scriptsReset: gScriptsRequests = 0
-    globalState.seenMovies = new Set()        // gameMoviesReset
-    globalState.gameTickTime = START_TICKS    // gameTimeReset (via _scr_reset)
+    Scripting.resetGameState() // gameLoadGlobalVars, _scr_reset, scriptsReset, queueExit
+    Scripting.clearScriptRequests() // scriptsReset: gScriptsRequests = 0
+    globalState.seenMovies = new Set() // gameMoviesReset
+    globalState.gameTickTime = START_TICKS // gameTimeReset (via _scr_reset)
     globalState.eventLog = []
-    globalState.dirtyMapCache = {}            // other maps' saved state
-    killCounts.clear()                        // critterReset → killsReset
-    resetSkillUsage()                         // skillsReset → skill_use_slot_clear
-    globalState.gParty.deserialize([])        // partyMembersReset
+    globalState.dirtyMapCache = {} // other maps' saved state
+    killCounts.clear() // critterReset → killsReset
+    resetSkillUsage() // skillsReset → skill_use_slot_clear
+    globalState.gParty.deserialize([]) // partyMembersReset
     globalState.gParty.deserializeLevels(undefined)
-    Worldmap.resetWorldmap()                  // wmWorldMap_reset
-    Worldmap.resetEncounters()                // wmGenDataReset (didMeetFrankHorrigan)
-    resetAutomap()                            // automapReset: the automap belongs to the game
-    sfallArraysReset()                        // sfallArraysReset (CE game.cc gameReset)
-    sfallGlobalVarsReset()                    // sfall_gl_vars_reset
-    removeAllGlobalScripts()                  // sfall_gl_scr_reset
-    sfallHooksReset()                         // (sfall: hooks belong to the global scripts)
-    globalState.player?.resetForNewGame()     // stats/skills/perks/traits/_inven_reset_dude
-    globalState.player?.updateNativeLook()    // _proto_dude_update_gender: tribal again
+    Worldmap.resetWorldmap() // wmWorldMap_reset
+    Worldmap.resetEncounters() // wmGenDataReset (didMeetFrankHorrigan)
+    resetAutomap() // automapReset: the automap belongs to the game
+    sfallArraysReset() // sfallArraysReset (CE game.cc gameReset)
+    sfallGlobalVarsReset() // sfall_gl_vars_reset
+    removeAllGlobalScripts() // sfall_gl_scr_reset
+    sfallHooksReset() // (sfall: hooks belong to the global scripts)
+    globalState.player?.resetForNewGame() // stats/skills/perks/traits/_inven_reset_dude
+    globalState.player?.updateNativeLook() // _proto_dude_update_gender: tribal again
     dbg('saveload', '[gameReset] per-game state cleared')
 }

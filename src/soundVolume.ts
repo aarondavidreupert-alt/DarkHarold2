@@ -25,7 +25,8 @@ import { objectBoundingBox, SCREEN_HEIGHT, SCREEN_WIDTH, worldToScreen } from '.
 
 function carrier(obj: Obj): Obj {
     if (obj.position) return obj
-    const has = (c: any) => c && (c.inventory?.includes(obj) || c.leftHand === obj || c.rightHand === obj || c.armor === obj)
+    const has = (c: any) =>
+        c && (c.inventory?.includes(obj) || c.leftHand === obj || c.rightHand === obj || c.armor === obj)
     const player = globalState.player
     if (has(player)) return player!
     return globalState.gMap?.getObjects().find((o) => o.type === 'critter' && has(o)) ?? obj
@@ -38,7 +39,11 @@ export function soundSourceVolume(obj: Obj | null | undefined): number {
     const player = globalState.player
     if (!player || !source.position) return 1
     let bbox = null
-    try { bbox = objectBoundingBox(source) } catch { bbox = null }
+    try {
+        bbox = objectBoundingBox(source)
+    } catch {
+        bbox = null
+    }
     if (bbox) {
         const a = worldToScreen(bbox.x, bbox.y)
         const b = worldToScreen(bbox.x + bbox.w, bbox.y + bbox.h)
@@ -52,6 +57,7 @@ export function soundSourceVolume(obj: Obj | null | undefined): number {
     const distance = hexDistance(source.position, player.position)
     const perception = player.getStat('PER')
     if (distance <= perception) return 1
-    if (distance < 2 * perception) return (0x7fff - Math.trunc(0x5554 * (distance - perception) / perception)) / 0x7fff
+    if (distance < 2 * perception)
+        return (0x7fff - Math.trunc((0x5554 * (distance - perception)) / perception)) / 0x7fff
     return 0x2aaa / 0x7fff
 }

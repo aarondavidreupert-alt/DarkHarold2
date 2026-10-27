@@ -32,12 +32,12 @@ import { assetUrl } from './modAssets.js'
 // CE ref: elevator.cc — gauge sprite gaj000.png: 92×715, 13 rows (frames 0-12).
 // Frame 0 = needle at bottom, frame 12 = needle at top.
 // CE always spends ~276ms per gauge frame step regardless of elevator size.
-const GAUGE_FRAME_H = 55   // 715 / 13
+const GAUGE_FRAME_H = 55 // 715 / 13
 const GAUGE_FRAME_MS = 276 // CE: ~276ms per visible frame step
 
 function gaugeFrameForFloor(floorIdx: number, levels: number): number {
     if (levels <= 1) return 0
-    return Math.round(floorIdx * 12.0 / (levels - 1))
+    return Math.round((floorIdx * 12.0) / (levels - 1))
 }
 
 function setGaugeFrame(frame: number): void {
@@ -47,8 +47,11 @@ function setGaugeFrame(frame: number): void {
 
 function animateGauge(fromFloor: number, toFloor: number, levels: number, onDone: () => void): void {
     const fromFrame = gaugeFrameForFloor(fromFloor, levels)
-    const toFrame   = gaugeFrameForFloor(toFloor,   levels)
-    if (fromFrame === toFrame) { onDone(); return }
+    const toFrame = gaugeFrameForFloor(toFloor, levels)
+    if (fromFrame === toFrame) {
+        onDone()
+        return
+    }
     const step = fromFrame < toFrame ? 1 : -1
     const totalSteps = Math.abs(toFrame - fromFrame)
     const delay = Math.max(16, Math.round(GAUGE_FRAME_MS))
@@ -56,7 +59,10 @@ function animateGauge(fromFloor: number, toFloor: number, levels: number, onDone
     function tick(): void {
         cur += step
         setGaugeFrame(cur)
-        if (cur === toFrame) { setTimeout(onDone, 200); return }
+        if (cur === toFrame) {
+            setTimeout(onDone, 200)
+            return
+        }
         setTimeout(tick, delay)
     }
     setTimeout(tick, delay)
@@ -68,7 +74,10 @@ function animateGauge(fromFloor: number, toFloor: number, levels: number, onDone
 let activeElevator: Elevator | null = null
 export function elevatorKey(e: KeyboardEvent): boolean {
     if (!activeElevator) return false
-    if (e.key === 'Escape') { uiElevatorDone(); return true }
+    if (e.key === 'Escape') {
+        uiElevatorDone()
+        return true
+    }
     if (e.key.length !== 1) return false
     const idx = activeElevator.levelLabels.slice(0, activeElevator.buttonCount).indexOf(e.key)
     if (idx === -1) return false
@@ -133,8 +142,8 @@ export function uiElevator(elevator: Elevator) {
         showv($elevatorButton)
         $elevatorButton.onclick = () => {
             const targetFloorIdx = i - 1
-            const mapID    = elevator.buttons[targetFloorIdx].mapID
-            const level    = Number(elevator.buttons[targetFloorIdx].level) || 0
+            const mapID = elevator.buttons[targetFloorIdx].mapID
+            const level = Number(elevator.buttons[targetFloorIdx].level) || 0
             const position = fromTileNum(elevator.buttons[targetFloorIdx].tileNum)
 
             const proceed = (): void => {

@@ -141,7 +141,7 @@ export function transpile(intfile: IntFile, reader: BinaryReader): string {
 
     // disassemble __start (the code at 00x0-0x2A)
     emit('__start:')
-    for (; reader.offset < 0x2a; ) disasm(2)
+    for (; reader.offset < 0x2a;) disasm(2)
     emit('')
 
     const procOffsets: { [offset: number]: string } = {}
@@ -153,7 +153,7 @@ export function transpile(intfile: IntFile, reader: BinaryReader): string {
     // disassemble the rest of the code, marking procedures
     reader.seek(intfile.codeOffset)
     let t = 0
-    for (; reader.offset < reader.data.byteLength; ) {
+    for (; reader.offset < reader.data.byteLength;) {
         if (procOffsets[reader.offset] !== undefined) {
             emit('')
             emit(procOffsets[reader.offset] + ':')

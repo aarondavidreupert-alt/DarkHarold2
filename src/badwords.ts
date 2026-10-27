@@ -31,8 +31,11 @@ function loadBadwords(): string[] {
     if (badwords) return badwords
     badwords = []
     try {
-        badwords = getFileText('data/data/badwords.txt').split('\n')
-            .map((w) => w.replace(/\r$/, '')).filter((w) => w.length > 0).map((w) => w.toUpperCase())
+        badwords = getFileText('data/data/badwords.txt')
+            .split('\n')
+            .map((w) => w.replace(/\r$/, ''))
+            .filter((w) => w.length > 0)
+            .map((w) => w.toUpperCase())
     } catch (e) {
         dbg('load', `badwords.txt not loaded: ${e}`)
     }

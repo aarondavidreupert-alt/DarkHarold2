@@ -22,7 +22,13 @@ import { Obj, createObjectWithPID } from '../object.js'
 import { objExamine } from '../examine.js'
 import { uiLog } from '../ui_hud.js'
 import { $id, clearEl, hidev, makeEl } from '../ui_dom.js'
-import { ammoGetCapacity, ammoGetQuantity, ammoSetQuantity, weaponCanBeUnloaded, weaponGetAmmoTypePid } from '../weaponAmmo.js'
+import {
+    ammoGetCapacity,
+    ammoGetQuantity,
+    ammoSetQuantity,
+    weaponCanBeUnloaded,
+    weaponGetAmmoTypePid,
+} from '../weaponAmmo.js'
 
 export type ItemMenuAction = 'look' | 'use' | 'drop' | 'unload' | 'cancel'
 
@@ -43,7 +49,8 @@ export function itemMenuActions(item: Obj, normal: boolean, ownerIsDude: boolean
     }
     if (!normal) {
         // a container opens with USE (CE _container_enter): _act_use / _act_just_use
-        if (item.subtype === 'container') return ownerIsDude ? ['look', 'use', 'drop', 'cancel'] : ['look', 'use', 'cancel']
+        if (item.subtype === 'container')
+            return ownerIsDude ? ['look', 'use', 'drop', 'cancel'] : ['look', 'use', 'cancel']
         return ownerIsDude ? ['look', 'drop', 'cancel'] : ['look', 'cancel'] // _act_no_use / _act_nothing
     }
     // a container in the list opens with USE (_container_enter); in a hand it can't
@@ -93,7 +100,9 @@ export function showItemMenu(e: MouseEvent, actions: ItemMenuAction[], run: (act
         hidev($menu)
         document.removeEventListener('mousedown', outside, true)
     }
-    const outside = (ev: MouseEvent) => { if (!$menu.contains(ev.target as Node)) close() }
+    const outside = (ev: MouseEvent) => {
+        if (!$menu.contains(ev.target as Node)) close()
+    }
     document.addEventListener('mousedown', outside, true)
     for (const action of actions) {
         const btn = document.createElement('div')
@@ -112,28 +121,48 @@ export function showItemMenu(e: MouseEvent, actions: ItemMenuAction[], run: (act
 // and a click there goes back up one (the 2500 / 2501 buttons). `body` is the side's critter
 // picture, hidden while a bag is shown.
 export const MAX_OPEN_BAGS = 9
-export function drawBagView(parent: HTMLElement, id: string, rect: { left: number; top: number; width: number; height: number },
-    bags: Obj[], onExit: () => void, body?: HTMLElement): void {
+export function drawBagView(
+    parent: HTMLElement,
+    id: string,
+    rect: { left: number; top: number; width: number; height: number },
+    bags: Obj[],
+    onExit: () => void,
+    body?: HTMLElement,
+): void {
     let $view = document.getElementById(id)
     if (!$view) {
         $view = makeEl('div', { attrs: { id }, style: { position: 'absolute', cursor: 'pointer', zIndex: '2' } })
         parent.appendChild($view)
     }
-    Object.assign($view.style, { left: rect.left + 'px', top: rect.top + 'px', width: rect.width + 'px', height: rect.height + 'px' })
+    Object.assign($view.style, {
+        left: rect.left + 'px',
+        top: rect.top + 'px',
+        width: rect.width + 'px',
+        height: rect.height + 'px',
+    })
     clearEl($view)
     const bag = bags[bags.length - 1]
     $view.style.display = bag ? 'block' : 'none'
     if (body) body.style.visibility = bag ? 'hidden' : ''
     if (!bag) return
-    $view.appendChild(makeEl('img', { src: bag.invArt ? bag.invArt + '.png' : '', attrs: { title: bag.name ?? '' },
-        style: { maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' } }))
-    $view.onclick = () => { bags.pop(); onExit() }
+    $view.appendChild(
+        makeEl('img', {
+            src: bag.invArt ? bag.invArt + '.png' : '',
+            attrs: { title: bag.name ?? '' },
+            style: { maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' },
+        }),
+    )
+    $view.onclick = () => {
+        bags.pop()
+        onExit()
+    }
 }
 
 /** CE inventory.cc _display_inventory_info: an ammo stack shows its rounds
  *  (capacity × (boxes − 1) + the top box's), anything else `x<n>` only above 1; at most 99999. */
 export function itemCountLabel(item: Obj): string | null {
     const amount = item.amount ?? 1
-    if (item.subtype === 'ammo') return 'x' + Math.min(99999, ammoGetCapacity(item) * (amount - 1) + ammoGetQuantity(item))
+    if (item.subtype === 'ammo')
+        return 'x' + Math.min(99999, ammoGetCapacity(item) * (amount - 1) + ammoGetQuantity(item))
     return amount > 1 ? 'x' + Math.min(99999, amount) : null
 }

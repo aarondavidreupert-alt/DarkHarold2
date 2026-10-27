@@ -18,7 +18,7 @@ export function registerEventLogCommands(): void {
         const SUMMARY_FIELDS = new Set(['round', 'turn', 'actor', 'action', 'result', 'damage'])
         const FULL_OMIT = new Set(['RD', 'DT', 'DR', 'CD', 'ammoX', 'ammoY', 'critMultiplier', 'critChance'])
 
-        const filtered = globalState.eventLog.map(entry => {
+        const filtered = globalState.eventLog.map((entry) => {
             if (tier === 'diagnostic') return entry
             if (tier === 'summary') {
                 const out: Record<string, any> = {}

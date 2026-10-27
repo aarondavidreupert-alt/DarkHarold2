@@ -64,7 +64,7 @@ function getCenterTile(cameraPosition: Point): Point {
     const z = globalState.cameraZoom || 1.0
     return hexFromScreen(
         cameraPosition.x + ((SCREEN_WIDTH / (2 * z)) | 0) - 32,
-        cameraPosition.y + ((SCREEN_HEIGHT / (2 * z)) | 0) - 16
+        cameraPosition.y + ((SCREEN_HEIGHT / (2 * z)) | 0) - 16,
     )
     /*return hexFromScreen(cameraX + Math.floor((SCREEN_WIDTH - 32) / 2),
                        cameraY + Math.floor((SCREEN_HEIGHT - 16) / 2))*/
@@ -73,4 +73,3 @@ function getCenterTile(cameraPosition: Point): Point {
 export function setCenterTile() {
     globalState.centerTile = getCenterTile(globalState.cameraPosition)
 }
-

@@ -27,11 +27,11 @@ limitations under the License.
 // lightingDebug() in the browser console to see where this mode and the
 // literal 'dh2'/CE-derived mode disagree for the current map.
 
-import globalState from "../globalState.js"
-import { Obj } from "../object.js"
-import { Point } from "../geometry.js"
-import { hexNeighbors, hexDistance } from "../geometry.js"
-import { toTileNum } from "../tile.js"
+import globalState from '../globalState.js'
+import { Obj } from '../object.js'
+import { Point } from '../geometry.js'
+import { hexNeighbors, hexDistance } from '../geometry.js'
+import { toTileNum } from '../tile.js'
 
 export type LightWriter = (tileNum: number, intensity: number) => void
 

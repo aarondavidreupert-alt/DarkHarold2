@@ -26,7 +26,17 @@ import { aiAttemptWeaponReload } from '../combat/Combat.js'
 import { endLips } from '../talkingHead.js'
 import { UIMode } from '../ui_panels.js'
 import { uiAnimateBox, uiSetDialogueReply } from '../ui_dialogue.js'
-import { drawBagView, examineToLog, itemMenuActions, makeDropTarget, makeDraggable, MAX_OPEN_BAGS, showItemMenu, unloadWeapon, itemCountLabel } from '../ui_inventory.js'
+import {
+    drawBagView,
+    examineToLog,
+    itemMenuActions,
+    makeDropTarget,
+    makeDraggable,
+    MAX_OPEN_BAGS,
+    showItemMenu,
+    unloadWeapon,
+    itemCountLabel,
+} from '../ui_inventory.js'
 import { Config } from '../config.js'
 import { appendItemSlot, $id, clearEl, makeEl } from '../ui_dom.js'
 import { uiGetAmount, uiSwapItem } from './swap.js'
@@ -41,7 +51,12 @@ import { frameCell } from '../renderer.js'
 // left to right: frame = numFrames * direction + frameIndex.
 // overrideDirection overrides the direction derived from useLastFrame (used
 // by the player-spin animation loop below).
-export function renderBarterPortrait(el: HTMLElement, critter: Critter, useLastFrame = false, overrideDirection?: number): void {
+export function renderBarterPortrait(
+    el: HTMLElement,
+    critter: Critter,
+    useLastFrame = false,
+    overrideDirection?: number,
+): void {
     const art = critter.art
     if (!art) return
     const info = globalState.imageInfo?.[art]
@@ -49,10 +64,10 @@ export function renderBarterPortrait(el: HTMLElement, critter: Critter, useLastF
 
     // Clamp direction to the number of directions actually in this FRM (some
     // FRMs have only 1 direction — accessing index 3 would be undefined).
-    const wantedDir = overrideDirection !== undefined ? overrideDirection
-                    : useLastFrame ? (critter.orientation ?? 0) : 3  // 3 = ROTATION_SW for player
+    const wantedDir =
+        overrideDirection !== undefined ? overrideDirection : useLastFrame ? (critter.orientation ?? 0) : 3 // 3 = ROTATION_SW for player
     const direction = Math.min(wantedDir, info.frameOffsets.length - 1)
-    const frameIndex = useLastFrame ? (info.numFrames - 1) : 0
+    const frameIndex = useLastFrame ? info.numFrames - 1 : 0
 
     // info.frameWidth is the MAXIMUM frame slot width across ALL directions/frames
     // (used for uniform sprite-sheet packing). The standing pose is usually much
@@ -60,7 +75,8 @@ export function renderBarterPortrait(el: HTMLElement, critter: Critter, useLastF
     // source crop and the scale, so scale is relative to real content not padding.
     const frameInfo = info.frameOffsets[direction]?.[frameIndex]
     if (!frameInfo) return
-    const fw = frameInfo.w, fh = frameInfo.h
+    const fw = frameInfo.w,
+        fh = frameInfo.h
 
     // The frame's cell in the sprite sheet (renderer.ts frameCell); the content is
     // pasted at the cell's top-left corner (tools/frmpixels.py cellOrigin).
@@ -83,8 +99,10 @@ export function renderBarterPortrait(el: HTMLElement, critter: Critter, useLastF
         // matching CE's _display_body which scales every critter to the fixed box.
         // Center horizontally, bottom-align vertically (isometric convention).
         const scale = Math.min(40 / fw, 67 / fh)
-        const dw = fw * scale, dh = fh * scale
-        const dx = (40 - dw) / 2, dy = 67 - dh
+        const dw = fw * scale,
+            dh = fh * scale
+        const dx = (40 - dw) / 2,
+            dy = 67 - dh
         ctx.drawImage(img, sx, sy, fw, fh, dx, dy, dw, dh)
     }
 
@@ -106,7 +124,7 @@ let _portraitAnimInterval: ReturnType<typeof setInterval> | null = null
 
 export function startBarterPortraitAnimation(player: Critter): void {
     stopBarterPortraitAnimation()
-    let dir = 3  // start at ROTATION_SW (CE starts at whatever the dude's current rotation is; SW is common)
+    let dir = 3 // start at ROTATION_SW (CE starts at whatever the dude's current rotation is; SW is common)
     const el = $id('barterBoxPlayerPortrait')
     _portraitAnimInterval = setInterval(() => {
         dir = (dir + 1) % 6
@@ -215,8 +233,9 @@ export function uiBarterMode(merchant: Critter) {
     // their contents stand in for that side's list
     const playerBags: Obj[] = []
     const merchantBags: Obj[] = []
-    const playerList = () => playerBags.length ? playerBags[playerBags.length - 1].inventory : workingPlayerInventory
-    const merchantList = () => merchantBags.length ? merchantBags[merchantBags.length - 1].inventory : workingMerchantInventory
+    const playerList = () => (playerBags.length ? playerBags[playerBags.length - 1].inventory : workingPlayerInventory)
+    const merchantList = () =>
+        merchantBags.length ? merchantBags[merchantBags.length - 1].inventory : workingMerchantInventory
 
     // Scroll offsets — CE ref: inventory.cc _ptable_offset/_target_pud
     // (outer inventories, scroll buttons at inventory.cc:1086-1225) and the
@@ -271,11 +290,17 @@ export function uiBarterMode(merchant: Critter) {
     // DH2: the merchant's refusal of an offered item that is still running (a timed event)
     function runningItemReply(item: Obj | null): string {
         switch (item?.pid) {
-            case 205: return "Get that burning flare away from my stock!"
-            case 206: case 209: return "That thing is ticking! Get it out of here!"
-            case 207: return "Switch that Geiger counter off first. The clicking's driving me crazy."
-            case 210: return "Turn that Stealth Boy off first. I like to see what I'm buying."
-            default: return "Whatever that thing is doing, make it stop before you sell it to me."
+            case 205:
+                return 'Get that burning flare away from my stock!'
+            case 206:
+            case 209:
+                return 'That thing is ticking! Get it out of here!'
+            case 207:
+                return "Switch that Geiger counter off first. The clicking's driving me crazy."
+            case 210:
+                return "Turn that Stealth Boy off first. I like to see what I'm buying."
+            default:
+                return 'Whatever that thing is doing, make it stop before you sell it to me.'
         }
     }
 
@@ -287,8 +312,9 @@ export function uiBarterMode(merchant: Critter) {
         // carry that much." (31) — then an empty offer or one worth less is "not good enough".
         const player = globalState.player
         const tableWeight = merchantBarterTable.reduce((w, o) => w + o.stackWeight(o.amount ?? 1), 0)
-        const carried = workingPlayerInventory.reduce((w, o) => w + o.stackWeight(o.amount ?? 1), 0)
-            + ['leftHand', 'rightHand', 'armor'].reduce((w, h) => {
+        const carried =
+            workingPlayerInventory.reduce((w, o) => w + o.stackWeight(o.amount ?? 1), 0) +
+            ['leftHand', 'rightHand', 'armor'].reduce((w, h) => {
                 const it = (player as any)[h]
                 return w + (it && it.pid !== undefined ? it.stackWeight(it.amount ?? 1) : 0)
             }, 0)
@@ -304,12 +330,15 @@ export function uiBarterMode(merchant: Critter) {
         // armed explosive, a running Stealth Boy / Geiger counter), or one inside an offered
         // bag, makes the offer bad. (CE then tries miscItemTurnOff only when the *table* is a
         // Geiger counter, which it never is.) The table holds working copies — match by uid.
-        const queued = new Set(Scripting.timeEventList.map((e) => (e.obj as Obj | null)?.uid).filter((u) => u !== undefined))
+        const queued = new Set(
+            Scripting.timeEventList.map((e) => (e.obj as Obj | null)?.uid).filter((u) => u !== undefined),
+        )
         const isQueued = (o: Obj): boolean => queued.has(o.uid) || (o.inventory ?? []).some(isQueued)
         const queuedOffer = playerBarterTable.some(isQueued)
         // [dh2] barter_running_item=dh2: the merchant says what is wrong with it (CE: 28)
         if (queuedOffer && Config.engine.barterRunningItem === 'dh2') {
-            const running = (o: Obj): Obj | null => queued.has(o.uid) ? o : (o.inventory ?? []).map(running).find((x) => x) ?? null
+            const running = (o: Obj): Obj | null =>
+                queued.has(o.uid) ? o : ((o.inventory ?? []).map(running).find((x) => x) ?? null)
             const item = playerBarterTable.map(running).find((x) => x) ?? null
             uiSetDialogueReply(runningItemReply(item))
             return false
@@ -382,7 +411,13 @@ export function uiBarterMode(merchant: Critter) {
             const img = makeEl('img', {
                 src: inventoryImage ? inventoryImage + '.png' : '',
                 attrs: { title: obj.name },
-                style: { maxWidth: '100%', maxHeight: '60px', objectFit: 'contain', display: 'inline-block', verticalAlign: 'middle' },
+                style: {
+                    maxWidth: '100%',
+                    maxHeight: '60px',
+                    objectFit: 'contain',
+                    display: 'inline-block',
+                    verticalAlign: 'middle',
+                },
             })
             appendItemSlot($el, img, itemCountLabel(obj))
             // drag-data index is the index into the underlying array (`i`),
@@ -395,12 +430,14 @@ export function uiBarterMode(merchant: Critter) {
             img.oncontextmenu = (e: MouseEvent) => {
                 e.preventDefault()
                 const inList = who === 'p' || who === 'm'
-                const actions = itemMenuActions(obj, false, who === 'p' || who === 'l')
-                    .filter((a) => a !== 'drop' && (a !== 'use' || (inList && obj.subtype === 'container')))
+                const actions = itemMenuActions(obj, false, who === 'p' || who === 'l').filter(
+                    (a) => a !== 'drop' && (a !== 'use' || (inList && obj.subtype === 'container')),
+                )
                 showItemMenu(e, actions, (action) => {
                     const bags = who === 'p' ? playerBags : merchantBags
-                    if (action === 'use') { if (bags.length < MAX_OPEN_BAGS) bags.push(obj) }
-                    else if (action === 'look') examineToLog(obj)
+                    if (action === 'use') {
+                        if (bags.length < MAX_OPEN_BAGS) bags.push(obj)
+                    } else if (action === 'look') examineToLog(obj)
                     else if (action === 'unload') unloadWeapon(obj, (ammo) => objects.push(ammo))
                     redrawBarterInventory()
                 })
@@ -456,7 +493,12 @@ export function uiBarterMode(merchant: Critter) {
         }
         const amount = obj.amount > 1 ? await uiGetAmount(obj) : 1
         // back into an open bag: CE _drop_into_container's room check (inventry.msg 26)
-        const toBag = where === 'leftInv' ? playerBags[playerBags.length - 1] : where === 'rightInv' ? merchantBags[merchantBags.length - 1] : undefined
+        const toBag =
+            where === 'leftInv'
+                ? playerBags[playerBags.length - 1]
+                : where === 'rightInv'
+                  ? merchantBags[merchantBags.length - 1]
+                  : undefined
         if (amount > 0 && toBag && !toBag.canCarry(obj, amount)) {
             uiSetDialogueReply(getMessage('inventry', 26) ?? 'There is no space left for that item.')
             return
@@ -481,7 +523,9 @@ export function uiBarterMode(merchant: Critter) {
     })
 
     $id('barterTalkButton').onclick = uiEndBarterMode
-    $id('barterOfferButton').onclick = () => { offer() }
+    $id('barterOfferButton').onclick = () => {
+        offer()
+    }
     // CE inventoryOpenTrade keys: T talk (back to the dialogue), M make the offer
     if (barterKeyHandler) window.removeEventListener('keydown', barterKeyHandler)
     barterKeyHandler = (e: KeyboardEvent) => {
@@ -543,10 +587,28 @@ export function uiBarterMode(merchant: Critter) {
         drawInventory($id('barterBoxInventoryLeft'), 'p', playerList(), playerInvScroll)
         drawInventory($id('barterBoxInventoryRight'), 'm', merchantList(), merchantInvScroll)
         // CE _display_body: the open bag in the side's body view (inventory.cc:2039-2052)
-        drawBagView($id('barterBox'), 'barterBoxPlayerBag', { left: 29, top: 45, width: 40, height: 67 }, playerBags,
-            () => { playerInvScroll = 0; redrawBarterInventory() }, $id('barterBoxPlayerPortrait'))
-        drawBagView($id('barterBox'), 'barterBoxMerchantBag', { left: 574, top: 45, width: 40, height: 67 }, merchantBags,
-            () => { merchantInvScroll = 0; redrawBarterInventory() }, $id('barterBoxMerchantPortrait'))
+        drawBagView(
+            $id('barterBox'),
+            'barterBoxPlayerBag',
+            { left: 29, top: 45, width: 40, height: 67 },
+            playerBags,
+            () => {
+                playerInvScroll = 0
+                redrawBarterInventory()
+            },
+            $id('barterBoxPlayerPortrait'),
+        )
+        drawBagView(
+            $id('barterBox'),
+            'barterBoxMerchantBag',
+            { left: 574, top: 45, width: 40, height: 67 },
+            merchantBags,
+            () => {
+                merchantInvScroll = 0
+                redrawBarterInventory()
+            },
+            $id('barterBoxMerchantPortrait'),
+        )
         drawInventory($id('barterBoxLeft'), 'l', playerBarterTable, playerOfferScroll)
         drawInventory($id('barterBoxRight'), 'r', merchantBarterTable, merchantOfferScroll)
 

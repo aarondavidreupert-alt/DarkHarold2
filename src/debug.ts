@@ -14,7 +14,10 @@ import { fromTileNum } from './tile.js'
 import { centerCamera } from './renderer.js'
 
 let _crawlerModeSnapshot: {
-    stub: boolean; dialogue: boolean; combat: boolean; ai: boolean
+    stub: boolean
+    dialogue: boolean
+    combat: boolean
+    ai: boolean
     gameDifficultyModifier: 100 | 75 | 125
     difficultyModifier: 100 | 75 | 125
 } | null = null
@@ -31,13 +34,34 @@ function guardPlayer(method: string): import('./player.js').Player | null {
 
 // Item PIDs for debug.giveItemByName() (proto/items lst indices).
 const ITEM_ALIASES: Record<string, number> = {
-    'money': 41, 'combat knife': 4, 'hunting rifle': 15, 'leather jacket': 2,
-    'leather armor': 3, '10mm smg': 9, 'laser pistol': 22, 'laser rifle': 23,
-    'plasma pistol': 24, 'plasma rifle': 25, 'gatling laser': 27, 'minigun': 19,
-    'rocket launcher': 20, 'assault rifle': 16, '10mm jhp': 33, '10mm ap': 34,
-    'small energy cell': 42, 'micro fusion cell': 43, '5mm jhp': 38, '.223 fmj': 36,
-    'rocket ap': 44, 'rocket explosive': 45, 'stealth boy': 54, 'geiger counter': 52,
-    'motion sensor': 59, 'stimpak': 40, 'first aid kit': 47, "doctor's bag": 91,
+    money: 41,
+    'combat knife': 4,
+    'hunting rifle': 15,
+    'leather jacket': 2,
+    'leather armor': 3,
+    '10mm smg': 9,
+    'laser pistol': 22,
+    'laser rifle': 23,
+    'plasma pistol': 24,
+    'plasma rifle': 25,
+    'gatling laser': 27,
+    minigun: 19,
+    'rocket launcher': 20,
+    'assault rifle': 16,
+    '10mm jhp': 33,
+    '10mm ap': 34,
+    'small energy cell': 42,
+    'micro fusion cell': 43,
+    '5mm jhp': 38,
+    '.223 fmj': 36,
+    'rocket ap': 44,
+    'rocket explosive': 45,
+    'stealth boy': 54,
+    'geiger counter': 52,
+    'motion sensor': 59,
+    stimpak: 40,
+    'first aid kit': 47,
+    "doctor's bag": 91,
 }
 
 export const debug = {
@@ -106,7 +130,9 @@ export const debug = {
         }
         if (amount > 1) item.setAmount(amount)
         p.inventory.push(item)
-        console.log(`[debug] Added PID ${pid}${amount > 1 ? ` x${amount}` : ''} (${item.name || '?'}) to inventory. Inventory size: ${p.inventory.length}`)
+        console.log(
+            `[debug] Added PID ${pid}${amount > 1 ? ` x${amount}` : ''} (${item.name || '?'}) to inventory. Inventory size: ${p.inventory.length}`,
+        )
     },
 
     /** Add an item by common name (see ITEM_ALIASES). Case-insensitive.
@@ -116,7 +142,9 @@ export const debug = {
         if (!p) return
         const pid = ITEM_ALIASES[name.trim().toLowerCase()]
         if (pid === undefined) {
-            console.warn(`[debug.giveItemByName] Unknown item "${name}". Known names: ${Object.keys(ITEM_ALIASES).join(', ')}`)
+            console.warn(
+                `[debug.giveItemByName] Unknown item "${name}". Known names: ${Object.keys(ITEM_ALIASES).join(', ')}`,
+            )
             return
         }
         debug.giveItem(pid, amount)

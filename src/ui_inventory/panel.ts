@@ -31,7 +31,19 @@ import { drawAC, drawAP, uiDrawWeapon, uiLog } from '../ui_hud.js'
 import { makePanelDraggable } from '../ui_drag.js'
 import { UIMode, closeAllPanels, isInventoryOpen, registerCloseInventoryPanel } from '../ui_panels.js'
 import { appendItemSlot, $id, clearEl, showv, hidev, makeEl } from '../ui_dom.js'
-import { makeDropTarget, makeDraggable, uiMoveSlot, applyArmorArt, tryLoadAmmoIntoWeapon, dragInProgress, inventoryList, currentContainer, enterContainer, exitContainer, exitAllContainers } from './dragdrop.js'
+import {
+    makeDropTarget,
+    makeDraggable,
+    uiMoveSlot,
+    applyArmorArt,
+    tryLoadAmmoIntoWeapon,
+    dragInProgress,
+    inventoryList,
+    currentContainer,
+    enterContainer,
+    exitContainer,
+    exitAllContainers,
+} from './dragdrop.js'
 import { refreshStealthState } from '../miscItem.js'
 import { armorPerkSwap } from '../perks.js'
 import { Events } from '../events.js'
@@ -78,8 +90,12 @@ export function closeInventory(): void {
 
 // a button's press / release sounds (CE button.cc buttonSetCallbacks)
 function buttonSounds($el: HTMLElement, press: string, release: string): void {
-    $el.addEventListener('mousedown', (e) => { if (e.button === 0) globalState.audioEngine?.playSfxByName?.(press) })
-    $el.addEventListener('mouseup', (e) => { if (e.button === 0) globalState.audioEngine?.playSfxByName?.(release) })
+    $el.addEventListener('mousedown', (e) => {
+        if (e.button === 0) globalState.audioEngine?.playSfxByName?.(press)
+    })
+    $el.addEventListener('mouseup', (e) => {
+        if (e.button === 0) globalState.audioEngine?.playSfxByName?.(release)
+    })
 }
 
 /**
@@ -125,7 +141,10 @@ export function initInventory(): void {
     // opening and closing the inventory make no sound of their own
     buttonSounds($id('inventoryButton'), 'ib2p1xx1', 'ib2lu1x1')
     $id('inventoryButton').onclick = () => {
-        if (isInventoryOpen()) { closeInventory(); return }
+        if (isInventoryOpen()) {
+            closeInventory()
+            return
+        }
         closeAllPanels()
         showInventory()
     }
@@ -228,7 +247,10 @@ export function showInventory(useOn = false) {
                 addRow(getMessage('inventry', 14) ?? 'No item', '')
                 const mode = unarmedHandMode(p as any, hand)
                 const melee = (p as any).getStat('Melee') ?? 0
-                addRow(`  ${getMessage('inventry', 24) ?? 'Unarmed dmg:'} ${mode.bonusDamage + mode.minDmg}-${mode.bonusDamage + melee + mode.maxDmg}`, '')
+                addRow(
+                    `  ${getMessage('inventry', 24) ?? 'Unarmed dmg:'} ${mode.bonusDamage + mode.minDmg}-${mode.bonusDamage + melee + mode.maxDmg}`,
+                    '',
+                )
                 return
             }
             // CE inventoryRenderSummary: the item's name; armor held in a hand "(Not worn)";
@@ -252,7 +274,10 @@ export function showInventory(useOn = false) {
             if (cap > 0) {
                 const q = ammoGetQuantity(weapon)
                 const ammoPid = weaponGetAmmoTypePid(weapon)
-                const ammoName = q !== 0 && ammoPid !== -1 ? ' ' + (getMessage('pro_item', loadPRO(ammoPid, ammoPid & 0xffff)?.textID ?? -1) ?? '') : ''
+                const ammoName =
+                    q !== 0 && ammoPid !== -1
+                        ? ' ' + (getMessage('pro_item', loadPRO(ammoPid, ammoPid & 0xffff)?.textID ?? -1) ?? '')
+                        : ''
                 addRow(`${getMessage('inventry', 17) ?? 'Ammo:'} ${q}/${cap}${ammoName}`, '')
             }
         }
@@ -303,7 +328,8 @@ export function showInventory(useOn = false) {
         // Class, then DT/DR% for Normal, Laser, Fire, Plasma and Explosion — the critter's
         // stats (armor, perks, traits, drugs)
         const msg = (id: number, fallback: string) => (getMessage('inventry', id) ?? fallback).trim()
-        const dtdr = (type: string) => `${p.getStat('DT ' + type) + p.getArmorDT(type)}/${Math.min(100, p.getStat('DR ' + type) + p.getArmorDR(type))}%`
+        const dtdr = (type: string) =>
+            `${p.getStat('DT ' + type) + p.getArmorDT(type)}/${Math.min(100, p.getStat('DR ' + type) + p.getArmorDR(type))}%`
         const derivedStats: [string, string][] = [
             [msg(7, 'Hit Points'), `${p.getStat('HP')}/${p.getStat('Max HP')}`],
             [msg(8, 'Armor Class'), String(p.getStat('AC') + p.getArmorAC())],
@@ -343,7 +369,8 @@ export function showInventory(useOn = false) {
         const max = p.getStat('Carry')
         addRow(getMessage('inventry', 20) ?? 'Total Wt:', `${current}/${max}`)
         // CE: red while encumbered
-        if (current > max) (($info.lastElementChild as HTMLElement).lastElementChild as HTMLElement).style.color = '#fc0000'
+        if (current > max)
+            (($info.lastElementChild as HTMLElement).lastElementChild as HTMLElement).style.color = '#fc0000'
     }
 
     let _portraitInterval: ReturnType<typeof setInterval> | null = null
@@ -362,10 +389,16 @@ export function showInventory(useOn = false) {
         const bag = currentContainer()
         $char.onclick = null
         if (bag) {
-            const img = makeEl('img', { src: bag.invArt ? bag.invArt + '.png' : '', attrs: { title: bag.name ?? '' },
-                style: { maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', cursor: 'pointer' } })
+            const img = makeEl('img', {
+                src: bag.invArt ? bag.invArt + '.png' : '',
+                attrs: { title: bag.name ?? '' },
+                style: { maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', cursor: 'pointer' },
+            })
             $char.appendChild(img)
-            $char.onclick = () => { exitContainer(); showInventory() }
+            $char.onclick = () => {
+                exitContainer()
+                showInventory()
+            }
             return
         }
 
@@ -387,21 +420,34 @@ export function showInventory(useOn = false) {
             canvas.height = frameInfo.h
             const ctx = canvas.getContext('2d')!
             ctx.clearRect(0, 0, canvas.width, canvas.height)
-            ctx.drawImage(img, frameInfo.sx, frameInfo.sy ?? 0, frameInfo.w, frameInfo.h, 0, 0, frameInfo.w, frameInfo.h)
+            ctx.drawImage(
+                img,
+                frameInfo.sx,
+                frameInfo.sy ?? 0,
+                frameInfo.w,
+                frameInfo.h,
+                0,
+                0,
+                frameInfo.w,
+                frameInfo.h,
+            )
         }
 
         lazyLoadImage(art, (img: HTMLImageElement) => {
             renderOrientation(img, currentOrientation)
-            _portraitInterval = setInterval(() => {
-                const $box = document.getElementById('inventoryBox')
-                if (!$box || $box.style.visibility === 'hidden') {
-                    clearInterval(_portraitInterval!)
-                    _portraitInterval = null
-                    return
-                }
-                currentOrientation = (currentOrientation + 1) % 6
-                renderOrientation(img, currentOrientation)
-            }, Math.trunc(1000 / 6)) // CE INVENTORY_NORMAL_WINDOW_PC_ROTATION_DELAY
+            _portraitInterval = setInterval(
+                () => {
+                    const $box = document.getElementById('inventoryBox')
+                    if (!$box || $box.style.visibility === 'hidden') {
+                        clearInterval(_portraitInterval!)
+                        _portraitInterval = null
+                        return
+                    }
+                    currentOrientation = (currentOrientation + 1) % 6
+                    renderOrientation(img, currentOrientation)
+                },
+                Math.trunc(1000 / 6),
+            ) // CE INVENTORY_NORMAL_WINDOW_PC_ROTATION_DELAY
         })
     }
 
@@ -426,7 +472,13 @@ export function showInventory(useOn = false) {
             const img = makeEl('img', {
                 src: invObj.invArt ? invObj.invArt + '.png' : '',
                 attrs: { title: invObj.name },
-                style: { maxWidth: '100%', maxHeight: '60px', objectFit: 'contain', display: 'inline-block', verticalAlign: 'middle' },
+                style: {
+                    maxWidth: '100%',
+                    maxHeight: '60px',
+                    objectFit: 'contain',
+                    display: 'inline-block',
+                    verticalAlign: 'middle',
+                },
                 click: () => {
                     showItemInfo(invObj)
                 },
@@ -476,8 +528,10 @@ export function showInventory(useOn = false) {
                     if (data[0] === 'i') list.splice(list.indexOf(src), 1)
                     else {
                         playerAny[data] = null
-                        if (data === 'armor') { armorPerkSwap(globalState.player!, src, null); applyArmorArt(null) }
-                        else refreshStealthState(globalState.player!)
+                        if (data === 'armor') {
+                            armorPerkSwap(globalState.player!, src, null)
+                            applyArmorArt(null)
+                        } else refreshStealthState(globalState.player!)
                         uiDrawWeapon()
                     }
                     src.flags = (src.flags ?? 0) & ~0x7000000
@@ -488,7 +542,8 @@ export function showInventory(useOn = false) {
         }
     }
 
-    type ItemAction = 'cancel' | 'look' | 'use' | 'drop' | 'equip_left' | 'equip_right' | 'equip_armor' | 'unequip' | 'unload'
+    type ItemAction =
+        'cancel' | 'look' | 'use' | 'drop' | 'equip_left' | 'equip_right' | 'equip_armor' | 'unequip' | 'unload'
 
     function itemAction(obj: Obj, slot: string, action: ItemAction) {
         const playerAny = globalState.player as any
@@ -507,7 +562,7 @@ export function showInventory(useOn = false) {
                 }
                 dbg('inventory', '[UI] using object: ' + obj.art)
                 obj.use(globalState.player)
-                showInventory()  // refresh so consumed items disappear
+                showInventory() // refresh so consumed items disappear
                 break
             case 'drop':
                 dbg('inventory', '[UI] dropping: ' + obj.art + ' with pid ' + obj.pid)
@@ -658,9 +713,18 @@ export function showInventory(useOn = false) {
         // for the list and the hand / armor slots alike (an equipped item leaves its slot first
         // when dropped)
         type Action = { action: ItemAction; label: string; closeOnClick?: boolean }
-        const LABELS: { [a: string]: string } = { look: 'Look', use: 'Use', drop: 'Drop', unload: 'Unload', cancel: 'Cancel' }
-        const actions: Action[] = itemMenuActions(obj, true, true, !fromInventory)
-            .map((a) => ({ action: a as ItemAction, label: LABELS[a], closeOnClick: a === 'look' ? false : undefined }))
+        const LABELS: { [a: string]: string } = {
+            look: 'Look',
+            use: 'Use',
+            drop: 'Drop',
+            unload: 'Unload',
+            cancel: 'Cancel',
+        }
+        const actions: Action[] = itemMenuActions(obj, true, true, !fromInventory).map((a) => ({
+            action: a as ItemAction,
+            label: LABELS[a],
+            closeOnClick: a === 'look' ? false : undefined,
+        }))
 
         // DarkHarold2 addition: unequip button for equipped slots
         if (!fromInventory) {

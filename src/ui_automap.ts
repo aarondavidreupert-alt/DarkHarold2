@@ -29,7 +29,9 @@ let scannerOn = false
 // CE gAutomapFlags AUTOMAP_WTH_HIGH_DETAILS: kept between openings (Low at the start)
 let highDetail = false
 let automapDetailKeys: ((e: KeyboardEvent) => void) | null = null
-export function automapKey(e: KeyboardEvent): void { automapDetailKeys?.(e) }
+export function automapKey(e: KeyboardEvent): void {
+    automapDetailKeys?.(e)
+}
 
 // Inset of the dark map area within automap.png (516x460 image).
 // These dimensions are authoritative — do not override via CSS.
@@ -44,12 +46,18 @@ const ZOOM_MIN = 1
 const ZOOM_MAX = 4
 const ZOOM_STEP = 0.5
 
-export function getAutomapZoom(): number { return zoomLevel }
+export function getAutomapZoom(): number {
+    return zoomLevel
+}
 export function setAutomapZoom(z: number): void {
     zoomLevel = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z))
 }
-export function zoomIn(): void { setAutomapZoom(zoomLevel + ZOOM_STEP) }
-export function zoomOut(): void { setAutomapZoom(zoomLevel - ZOOM_STEP) }
+export function zoomIn(): void {
+    setAutomapZoom(zoomLevel + ZOOM_STEP)
+}
+export function zoomOut(): void {
+    setAutomapZoom(zoomLevel - ZOOM_STEP)
+}
 export { ZOOM_MIN, ZOOM_MAX, ZOOM_STEP }
 
 // --- Pan state, keyed per (mapName, elevation). Resets when the player
@@ -87,10 +95,11 @@ export function resetAutomapPan(mapName: string, elevation: number): void {
 export function attachAutomapDragPan(
     canvas: HTMLCanvasElement,
     getMap: () => { mapName: string; elevation: number } | null,
-    onPanned: () => void
+    onPanned: () => void,
 ): void {
     let isDragging = false
-    let lastX = 0, lastY = 0
+    let lastX = 0,
+        lastY = 0
 
     canvas.style.cursor = 'grab'
 
@@ -106,7 +115,10 @@ export function attachAutomapDragPan(
 
     const onMouseMove = (e: MouseEvent) => {
         if (!isDragging) return
-        if (!canvas.isConnected) { isDragging = false; return }
+        if (!canvas.isConnected) {
+            isDragging = false
+            return
+        }
         const m = getMap()
         if (!m) return
         const dx = e.clientX - lastX
@@ -134,10 +146,7 @@ export function attachAutomapDragPan(
 // out, using the same shared zoom state and limits as the +/- buttons. The
 // refresh callback redraws in-place on the same canvas element so the drag
 // listeners stay attached.
-export function attachAutomapWheelZoom(
-    canvas: HTMLCanvasElement,
-    onZoomed: () => void
-): void {
+export function attachAutomapWheelZoom(canvas: HTMLCanvasElement, onZoomed: () => void): void {
     const onWheel = (e: WheelEvent) => {
         if (!canvas.isConnected) return
         e.preventDefault()
@@ -202,11 +211,15 @@ export function openAutomap(useScanner = false): void {
     // attached across refreshes.
     const refresh = () => drawAutomapInto(canvas, renderOpts())
 
-    attachAutomapDragPan(canvas, () => {
-        const map = globalState.gMap
-        if (!map || !map.name) return null
-        return { mapName: map.name, elevation: map.currentElevation }
-    }, refresh)
+    attachAutomapDragPan(
+        canvas,
+        () => {
+            const map = globalState.gMap
+            if (!map || !map.name) return null
+            return { mapName: map.name, elevation: map.currentElevation }
+        },
+        refresh,
+    )
     attachAutomapWheelZoom(canvas, refresh)
 
     // SCANNER dot button
@@ -278,8 +291,18 @@ export function openAutomap(useScanner = false): void {
         btn.onclick = onClick
         return btn
     }
-    screen.appendChild(mkZoomBtn('-', MAP_INSET_X + MAP_INSET_W - 58, () => { zoomOut(); refresh() }))
-    screen.appendChild(mkZoomBtn('+', MAP_INSET_X + MAP_INSET_W - 32, () => { zoomIn(); refresh() }))
+    screen.appendChild(
+        mkZoomBtn('-', MAP_INSET_X + MAP_INSET_W - 58, () => {
+            zoomOut()
+            refresh()
+        }),
+    )
+    screen.appendChild(
+        mkZoomBtn('+', MAP_INSET_X + MAP_INSET_W - 32, () => {
+            zoomIn()
+            refresh()
+        }),
+    )
 
     // CANCEL dot button
     const cancelDot = document.createElement('div')

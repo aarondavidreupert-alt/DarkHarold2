@@ -79,9 +79,9 @@ const cycleMaskInFlight = new Set<string>()
 export function ensureCycleMask(art: string): void {
     if (!mightHaveCyclingPixels(art) || globalState.cycleMasks[art] !== undefined || cycleMaskInFlight.has(art)) return
     cycleMaskInFlight.add(art)
-    parsePNGCycleMask(art + '.png').then(mask => {
+    parsePNGCycleMask(art + '.png').then((mask) => {
         cycleMaskInFlight.delete(art)
-        globalState.cycleMasks[art] = mask  // null = no cycling pixels
+        globalState.cycleMasks[art] = mask // null = no cycling pixels
     })
 }
 
@@ -90,7 +90,7 @@ export function ensureCycleMask(art: string): void {
  * loaded successfully (and imageInfo is populated), false on 404/error.
  */
 export function artExists(art: string): Promise<boolean> {
-    return new Promise(resolve => {
+    return new Promise((resolve) => {
         lazyLoadImage(art, (img) => {
             resolve(img !== null && globalState.imageInfo[art] !== undefined)
         })

@@ -29,8 +29,16 @@ function isInteractiveDescendant(target: EventTarget | null, root: HTMLElement):
         if (el.onclick || el.onmousedown) return true
         const tag = el.tagName
         // A canvas (the automap, the Pip-Boy map) handles its own drags (panning).
-        if (tag === 'BUTTON' || tag === 'INPUT' || tag === 'SELECT' ||
-            tag === 'TEXTAREA' || tag === 'A' || tag === 'IMG' || tag === 'CANVAS') return true
+        if (
+            tag === 'BUTTON' ||
+            tag === 'INPUT' ||
+            tag === 'SELECT' ||
+            tag === 'TEXTAREA' ||
+            tag === 'A' ||
+            tag === 'IMG' ||
+            tag === 'CANVAS'
+        )
+            return true
         // Honor `cursor: pointer` as a hint that this child is clickable
         const cs = window.getComputedStyle(el)
         if (cs.cursor === 'pointer' || cs.cursor === 'grab') return true
@@ -43,8 +51,10 @@ function isInteractiveDescendant(target: EventTarget | null, root: HTMLElement):
 // switch in fallout2.cfg [dh2] (drag_windows=0 turns them all off, drag_<kind>=0 one).
 export function makePanelDraggable(elem: HTMLElement, kind: DragWindow): void {
     let isDragging = false
-    let startMouseX = 0, startMouseY = 0
-    let startLeft = 0, startTop = 0
+    let startMouseX = 0,
+        startMouseY = 0
+    let startLeft = 0,
+        startTop = 0
 
     const onMouseDown = (e: MouseEvent) => {
         if (e.button !== 0) return
@@ -64,7 +74,10 @@ export function makePanelDraggable(elem: HTMLElement, kind: DragWindow): void {
 
     const onMouseMove = (e: MouseEvent) => {
         if (!isDragging) return
-        if (!elem.isConnected) { isDragging = false; return }
+        if (!elem.isConnected) {
+            isDragging = false
+            return
+        }
         const dx = e.clientX - startMouseX
         const dy = e.clientY - startMouseY
         elem.style.left = `${startLeft + dx}px`

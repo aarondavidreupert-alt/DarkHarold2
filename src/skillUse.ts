@@ -20,9 +20,14 @@ import { SKILL_NAMES } from './skills.js'
 
 function emitSkillRoll(skillName: string, user: Critter, chance: number, roll: RollResult, d100: number): void {
     const actorName: string = (user as any).name ?? (user.isPlayer ? 'you' : 'critter')
-    const result = roll === RollResult.CriticalSuccess ? 'critical-success'
-        : roll === RollResult.Success ? 'success'
-        : roll === RollResult.CriticalFailure ? 'critical-failure' : 'failure'
+    const result =
+        roll === RollResult.CriticalSuccess
+            ? 'critical-success'
+            : roll === RollResult.Success
+              ? 'success'
+              : roll === RollResult.CriticalFailure
+                ? 'critical-failure'
+                : 'failure'
     dbg('skills', `[skill:${skillName}] ${actorName} — chance: ${chance}%  roll: ${d100}  → ${result}`)
     eventLogPush({
         actor: actorName,
@@ -78,7 +83,9 @@ export function serializeSkillUsage(): number[][] {
 export function deserializeSkillUsage(saved: number[][] | undefined): void {
     resetSkillUsage()
     if (!Array.isArray(saved)) return
-    saved.forEach((t, i) => { if (timesSkillUsed[i] && Array.isArray(t)) timesSkillUsed[i] = [t[0] | 0, t[1] | 0, t[2] | 0] })
+    saved.forEach((t, i) => {
+        if (timesSkillUsed[i] && Array.isArray(t)) timesSkillUsed[i] = [t[0] | 0, t[1] | 0, t[2] | 0]
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -86,11 +93,11 @@ export function deserializeSkillUsage(saved: number[][] | undefined): void {
 // ---------------------------------------------------------------------------
 const SKILL_EXPERIENCE: { [skill: string]: [number, boolean] } = {
     'First Aid': [25, false],
-    'Doctor': [50, false],
-    'Lockpick': [25, true],
-    'Steal': [25, true],
-    'Traps': [25, true],
-    'Outdoorsman': [100, false],
+    Doctor: [50, false],
+    Lockpick: [25, true],
+    Steal: [25, true],
+    Traps: [25, true],
+    Outdoorsman: [100, false],
 }
 
 function showSkillUseMessages(obj: Critter, skill: string, successCount: number, criticalChanceModifier: number): void {
@@ -118,20 +125,27 @@ export function skillRoll(critter: Critter, skill: string, modifier: number, out
         for (const c of globalState.gParty?.getPartyMembersAndPlayer() ?? []) {
             if (!c || c.visible === false) continue
             const v = c.getSkill(skill)
-            if (v > bestValue) { bestValue = v; best = c }
+            if (v > bestValue) {
+                bestValue = v
+                best = c
+            }
         }
         if (best) {
             let ownBest = SKILL_NAMES[0]
             let ownValue = 0
             for (const sk of SKILL_NAMES) {
                 const v = best.getSkill(sk)
-                if (v > ownValue) { ownValue = v; ownBest = sk }
+                if (v > ownValue) {
+                    ownValue = v
+                    ownBest = sk
+                }
             }
             if (ownBest === skill) critter = best
         }
     }
     let skillValue = critter.getSkill(skill)
-    if (critter.isPlayer && skill === 'Steal' && (critter as any).isSneaking && (critter as any).sneakWorking) skillValue += 30
+    if (critter.isPlayer && skill === 'Steal' && (critter as any).isSneaking && (critter as any).sneakWorking)
+        skillValue += 30
     const chance = skillValue + modifier
     const { roll, delta } = randomRoll(chance, critter.getStat('Critical Chance'))
     emitSkillRoll(skill, critter, chance, roll, chance - delta)
@@ -153,7 +167,13 @@ export interface SkillUseResult {
 // skill.cc gHealableDamageFlags / gRepairableDamageFlags (same list): DAM_BLIND,
 // DAM_CRIP_ARM_LEFT, DAM_CRIP_ARM_RIGHT, DAM_CRIP_LEG_RIGHT, DAM_CRIP_LEG_LEFT —
 // skill.msg 530 + index names each.
-const DAMAGE_FLAGS = ['isBlinded', 'crippledLeftArm', 'crippledRightArm', 'crippledRightLeg', 'crippledLeftLeg'] as const
+const DAMAGE_FLAGS = [
+    'isBlinded',
+    'crippledLeftArm',
+    'crippledRightArm',
+    'crippledRightLeg',
+    'crippledLeftLeg',
+] as const
 
 const isCritter = (o: Obj | null): o is Critter => !!o && o.type === 'critter'
 const BODY_TYPE_ROBOTIC = 2
@@ -173,12 +193,21 @@ const showTooTired = (): void => uiLog(skillMsg(590 + getRandomInt(0, 2)))
 // 501 / 502: You look healthy already. / %s looks healthy already.
 function showHealthy(obj: Critter, target: Obj): void {
     if (!obj.isPlayer) return
-    uiLog(target.type === 'critter' && (target as Critter).isPlayer ? skillMsg(501) : skillMsg(502).replace('%s', target.name ?? ''))
+    uiLog(
+        target.type === 'critter' && (target as Critter).isPlayer
+            ? skillMsg(501)
+            : skillMsg(502).replace('%s', target.name ?? ''),
+    )
 }
 
 // user = the critter using the skill; target = what it is used on.
 // `criticalChanceModifier`: CE skillUse's 4th argument — the medical kits add +20 / +40.
-export function skillUse(obj: Critter, target: Obj | null, skill: string, criticalChanceModifier: number = 0): SkillUseResult {
+export function skillUse(
+    obj: Critter,
+    target: Obj | null,
+    skill: string,
+    criticalChanceModifier: number = 0,
+): SkillUseResult {
     target = target ?? obj
     const result: SkillUseResult = { rc: 0, hpHealed: 0 }
     const currentHp = isCritter(target) ? target.getStat('HP') : 0
@@ -260,7 +289,10 @@ export function skillUse(obj: Critter, target: Obj | null, skill: string, critic
 
     switch (skill) {
         case 'First Aid':
-            if (skillGetFreeUsageSlot(id) === -1) { showTooTired(); return { rc: -1, hpHealed: 0 } }
+            if (skillGetFreeUsageSlot(id) === -1) {
+                showTooTired()
+                return { rc: -1, hpHealed: 0 }
+            }
             if (dead) {
                 dbg('skills', skillMsg(512 + getRandomInt(0, 2))) // CE: debugPrint only
                 break
@@ -276,19 +308,31 @@ export function skillUse(obj: Critter, target: Obj | null, skill: string, critic
                 }
                 globalState.gMap?.updateMap()
             } else {
-                if (obj.isPlayer) { showHealthy(obj, target); giveExp = false }
+                if (obj.isPlayer) {
+                    showHealthy(obj, target)
+                    giveExp = false
+                }
             }
             if (obj.isPlayer) GameTime.advanceSeconds(1800)
             break
 
         case 'Doctor':
-            if (skillGetFreeUsageSlot(id) === -1) { showTooTired(); return { rc: -1, hpHealed: 0 } }
-            if (dead) { uiLog(skillMsg(512 + getRandomInt(0, 2))); break }
+            if (skillGetFreeUsageSlot(id) === -1) {
+                showTooTired()
+                return { rc: -1, hpHealed: 0 }
+            }
+            if (dead) {
+                uiLog(skillMsg(512 + getRandomInt(0, 2)))
+                break
+            }
             if (currentHp < maximumHp || isCrippled(target)) {
                 if (!isRobotic(target) && isCrippled(target)) healDamageFlags()
                 healHpRoll()
             } else {
-                if (obj.isPlayer) { showHealthy(obj, target); giveExp = false }
+                if (obj.isPlayer) {
+                    showHealthy(obj, target)
+                    giveExp = false
+                }
             }
             if (obj.isPlayer) GameTime.advanceSeconds(3600 * damageHealingAttempts)
             break
@@ -315,9 +359,18 @@ export function skillUse(obj: Critter, target: Obj | null, skill: string, critic
             return { rc: -1, hpHealed: 0 }
 
         case 'Repair':
-            if (!isRobotic(target)) { uiLog(skillMsg(553)); return { rc: -1, hpHealed: 0 } } // You cannot repair that.
-            if (skillGetFreeUsageSlot(id) === -1) { showTooTired(); return { rc: -1, hpHealed: 0 } }
-            if (dead) { uiLog(skillMsg(1101)); break } // You got it?
+            if (!isRobotic(target)) {
+                uiLog(skillMsg(553))
+                return { rc: -1, hpHealed: 0 }
+            } // You cannot repair that.
+            if (skillGetFreeUsageSlot(id) === -1) {
+                showTooTired()
+                return { rc: -1, hpHealed: 0 }
+            }
+            if (dead) {
+                uiLog(skillMsg(1101))
+                break
+            } // You got it?
             if (currentHp < maximumHp || isCrippled(target)) {
                 healDamageFlags()
                 healHpRoll()
@@ -349,7 +402,7 @@ export function skillUse(obj: Critter, target: Obj | null, skill: string, critic
 // ---------------------------------------------------------------------------
 
 function clearSneakTimer(player: any): void {
-    const idx = Scripting.timeEventList.findIndex(e => e.obj === player && e.userdata === 'sneak')
+    const idx = Scripting.timeEventList.findIndex((e) => e.obj === player && e.userdata === 'sneak')
     if (idx !== -1) Scripting.timeEventList.splice(idx, 1)
 }
 
@@ -373,13 +426,22 @@ export function scheduleSneakEvent(player: any): void {
     } else {
         ticks = 600
     }
-    dbg('object', '[SNEAK] roll %s (skill=%d), working=%s, next in %d ticks', passed ? 'PASS' : 'FAIL', sneak, player.sneakWorking, ticks)
+    dbg(
+        'object',
+        '[SNEAK] roll %s (skill=%d), working=%s, next in %d ticks',
+        passed ? 'PASS' : 'FAIL',
+        sneak,
+        player.sneakWorking,
+        ticks,
+    )
 
     Scripting.timeEventList.push({
         obj: player,
         ticks,
         userdata: 'sneak',
-        fn: () => { if ((player as any).isSneaking) scheduleSneakEvent(player) },
+        fn: () => {
+            if ((player as any).isSneaking) scheduleSneakEvent(player)
+        },
         leaveMap: () => sneakClear(player),
     })
 }
@@ -420,7 +482,13 @@ export interface StealAttemptResult {
     caught: boolean
 }
 
-export function performSteal(thief: Critter, target: Critter, item: Obj, stealCount: number, isPlanting = false): StealAttemptResult {
+export function performSteal(
+    thief: Critter,
+    target: Critter,
+    item: Obj,
+    stealCount: number,
+    isPlanting = false,
+): StealAttemptResult {
     let stealModifier = -stealCount + 1
 
     const hasPickpocket = thief.isPlayer && (thief.hasPerk?.('Pickpocket') ?? false)
@@ -459,11 +527,17 @@ export function performSteal(thief: Critter, target: Critter, item: Obj, stealCo
         caught = rollIsSuccess(randomRoll(catchChance, 0).roll)
     }
 
-    dbg('skills', `[skill:Steal] item=%s stealCount=%d stealChance=%d%% caught=%s`,
-        item.name ?? item.pid, stealCount, stealChance, caught)
+    dbg(
+        'skills',
+        `[skill:Steal] item=%s stealCount=%d stealChance=%d%% caught=%s`,
+        item.name ?? item.pid,
+        stealCount,
+        stealChance,
+        caught,
+    )
 
     // 570 / 572: You're caught stealing / planting the %s. 571 / 573: You steal / plant the %s.
-    const msgId = caught ? (isPlanting ? 572 : 570) : (isPlanting ? 573 : 571)
+    const msgId = caught ? (isPlanting ? 572 : 570) : isPlanting ? 573 : 571
     if (thief.isPlayer) uiLog(skillMsg(msgId).replace('%s', item.name ?? ''))
 
     return { success: !caught, caught }

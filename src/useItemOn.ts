@@ -90,7 +90,11 @@ export function usePendingItemOn(target: Obj | null): void {
     }
 
     // actions.cc _action_use_an_item_on_object — walk next to the target first.
-    if (target === player || Config.engine.doInfiniteUse === true || hexDistance(player.position, target.position) <= 1) {
+    if (
+        target === player ||
+        Config.engine.doInfiniteUse === true ||
+        hexDistance(player.position, target.position) <= 1
+    ) {
         act()
         return
     }
@@ -100,7 +104,10 @@ export function usePendingItemOn(target: Obj | null): void {
     for (const n of hexNeighbors(target.position)) {
         if (map.recalcPath(player.position, n).length > 0) {
             const d = hexDistance(player.position, n)
-            if (d < best) { best = d; dest = n }
+            if (d < best) {
+                best = d
+                dest = n
+            }
         }
     }
     if (!dest) {
@@ -109,13 +116,26 @@ export function usePendingItemOn(target: Obj | null): void {
     }
     if (globalState.inCombat) {
         const moveAP = player.AP?.getAvailableMoveAP() ?? 0
-        if (!player.walkTo(dest, Config.engine.doAlwaysRun, () => { player.clearAnim(); act() }, moveAP)) {
+        if (
+            !player.walkTo(
+                dest,
+                Config.engine.doAlwaysRun,
+                () => {
+                    player.clearAnim()
+                    act()
+                },
+                moveAP,
+            )
+        ) {
             uiLog(getMessage('misc', 2000) ?? 'You cannot get there.') // CE actions.cc _is_next_to
             return
         }
         player.AP?.subtractMoveAP(player.path.path.length - 1)
     } else {
-        player.walkTo(dest, Config.engine.doAlwaysRun, () => { player.clearAnim(); act() })
+        player.walkTo(dest, Config.engine.doAlwaysRun, () => {
+            player.clearAnim()
+            act()
+        })
     }
 }
 
@@ -127,7 +147,10 @@ function removeOne(user: Critter, item: Obj): void {
         return
     }
     const u = user as any
-    if (item.amount > 1) { item.amount--; return }
+    if (item.amount > 1) {
+        item.amount--
+        return
+    }
     // CE _obj_use_item_on: itemRemove + itemReplace — the hand takes an identical item
     if (u.leftHand === item) refillHand(user, 'leftHand', item)
     else if (u.rightHand === item) refillHand(user, 'rightHand', item)
@@ -151,10 +174,26 @@ function protinstUseItemOn(user: Critter, target: Obj, item: Obj): number {
     let criticalChanceModifier = 0
     let skill: 'First Aid' | 'Doctor' | null = null
     switch (item.pid) {
-        case PROTO_ID_DOCTORS_BAG: messageId = 900; criticalChanceModifier = 20; skill = 'Doctor'; break
-        case PROTO_ID_FIRST_AID_KIT: messageId = 901; criticalChanceModifier = 20; skill = 'First Aid'; break
-        case PROTO_ID_PARAMEDICS_BAG: messageId = 910; criticalChanceModifier = 40; skill = 'Doctor'; break
-        case PROTO_ID_FIELD_MEDIC_FIRST_AID_KIT: messageId = 911; criticalChanceModifier = 40; skill = 'First Aid'; break
+        case PROTO_ID_DOCTORS_BAG:
+            messageId = 900
+            criticalChanceModifier = 20
+            skill = 'Doctor'
+            break
+        case PROTO_ID_FIRST_AID_KIT:
+            messageId = 901
+            criticalChanceModifier = 20
+            skill = 'First Aid'
+            break
+        case PROTO_ID_PARAMEDICS_BAG:
+            messageId = 910
+            criticalChanceModifier = 40
+            skill = 'Doctor'
+            break
+        case PROTO_ID_FIELD_MEDIC_FIRST_AID_KIT:
+            messageId = 911
+            criticalChanceModifier = 40
+            skill = 'First Aid'
+            break
     }
 
     if (skill === null) {
@@ -197,7 +236,7 @@ function defaultUseItem(user: Critter, target: Obj, item: Obj): number {
         }
         const critter = target as Critter
         if (critter.dead) {
-            uiLog(getProtoMsg(583 + getRandomInt(0, 3)) ?? 'That won\'t work on the dead.')
+            uiLog(getProtoMsg(583 + getRandomInt(0, 3)) ?? "That won't work on the dead.")
             return -1
         }
         const rc = useDrug(item, critter) ? 1 : -1
@@ -220,7 +259,7 @@ function defaultUseItem(user: Critter, target: Obj, item: Obj): number {
     return -1
 }
 
-const PROTO_ID_CAR = 0x20003F1
+const PROTO_ID_CAR = 0x20003f1
 const PROTO_ID_CAR_TRUNK = 455
 const PROTO_ID_SMALL_ENERGY_CELL = 38
 const PROTO_ID_MICRO_FUSION_CELL = 39
@@ -229,11 +268,12 @@ const PROTO_ID_MICRO_FUSION_CELL = 39
 // Fusion Cell 40000, scaled by the charge left (wmCarFillGas); proto.msg 595. A full tank
 // gives 596 and keeps the cell (SFALL fix). -1: not a power cell.
 function usePowerOnCar(item: Obj): number {
-    const density = item.pid === PROTO_ID_SMALL_ENERGY_CELL ? 16000 : item.pid === PROTO_ID_MICRO_FUSION_CELL ? 40000 : 0
+    const density =
+        item.pid === PROTO_ID_SMALL_ENERGY_CELL ? 16000 : item.pid === PROTO_ID_MICRO_FUSION_CELL ? 40000 : 0
     if (density === 0) return -1
     if (Worldmap.getCarFuel() < Worldmap.CAR_FUEL_MAX) {
         const capacity = Math.max(1, ammoGetCapacity(item))
-        Worldmap.addCarFuel(Math.trunc(ammoGetQuantity(item) * density / capacity))
+        Worldmap.addCarFuel(Math.trunc((ammoGetQuantity(item) * density) / capacity))
         uiLog(getProtoMsg(595) ?? 'You charge the car with more power.')
         return 1
     }

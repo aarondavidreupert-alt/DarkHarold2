@@ -34,9 +34,11 @@ export function registerEggCommands(): void {
     //                            within eggRadius, no wall transparency
     // setEggAlpha(0.3)         — set the outer/flat alpha (0=invisible, 1=opaque, default 0.4)
     // setEggRadius(6)          — set max hex distance for egg effect (default 8)
-    (window as any).setEggMode = (mode: 'alpha' | 'dh2-egg' | 'ce-egg' | 'bbox' | 'beta') => {
+    ;(window as any).setEggMode = (mode: 'alpha' | 'dh2-egg' | 'ce-egg' | 'bbox' | 'beta') => {
         if (mode !== 'alpha' && mode !== 'dh2-egg' && mode !== 'ce-egg' && mode !== 'bbox' && mode !== 'beta') {
-            console.log("Usage: setEggMode('alpha'), setEggMode('dh2-egg'), setEggMode('ce-egg'), setEggMode('bbox'), or setEggMode('beta')")
+            console.log(
+                "Usage: setEggMode('alpha'), setEggMode('dh2-egg'), setEggMode('ce-egg'), setEggMode('bbox'), or setEggMode('beta')",
+            )
             return
         }
         Config.ui.eggMode = mode
@@ -52,7 +54,9 @@ export function registerEggCommands(): void {
     // over your own tile. Default on. Set false for CE-exact behavior.
     ;(window as any).setRoofPeek = (on: boolean) => {
         Config.ui.roofPeek = on !== false
-        console.log(`[Roof] peek-behind = ${Config.ui.roofPeek} (${Config.ui.roofPeek ? 'reveal character behind buildings' : 'CE-exact: only hide roof over own tile'})`)
+        console.log(
+            `[Roof] peek-behind = ${Config.ui.roofPeek} (${Config.ui.roofPeek ? 'reveal character behind buildings' : 'CE-exact: only hide roof over own tile'})`,
+        )
     }
     ;(window as any).setEggRadius = (r: number) => {
         Config.ui.eggRadius = Math.max(1, r)
@@ -84,11 +88,14 @@ export function registerEggCommands(): void {
             uEggMode: !!r.uEggMode,
             uEggCenter: !!r.uEggCenter,
             uEggSize: !!r.uEggSize,
-            playerPosition: globalState.player ? { x: globalState.player.position.x, y: globalState.player.position.y } : null,
+            playerPosition: globalState.player
+                ? { x: globalState.player.position.x, y: globalState.player.position.y }
+                : null,
             cameraPosition: globalState.cameraPosition,
             zoom: globalState.cameraZoom,
-            wallExtendedFlagsSample: `${wallsWithFlags}/${wallsSampled} sampled walls have nonzero extendedFlags`
-                + (wallsSampled > 0 && wallsWithFlags === 0 ? ' — STALE proMap cache? Try clearAssetCache()' : ''),
+            wallExtendedFlagsSample:
+                `${wallsWithFlags}/${wallsSampled} sampled walls have nonzero extendedFlags` +
+                (wallsSampled > 0 && wallsWithFlags === 0 ? ' — STALE proMap cache? Try clearAssetCache()' : ''),
         })
     }
 
@@ -100,14 +107,16 @@ export function registerEggCommands(): void {
     // Example: wall pos=21718 extFlags=0x2000 fOD=false fDO=true rOD=false rDO=true → egg=true ceLiteral=false bbox=false (DIFF)
     ;(window as any).eggDebug = () => {
         const player = globalState.player
-        if (!player) { console.log('[EggDebug] no player'); return }
+        if (!player) {
+            console.log('[EggDebug] no player')
+            return
+        }
         const radius = Config.ui.eggRadius ?? 8
         const playerPos = player.position.y * 200 + player.position.x
         console.log(`[EggDebug] player pos=${playerPos} (radius=${radius}, mode=${Config.ui.eggMode})`)
         const objs = globalState.gMap?.getObjects() ?? []
-        const nearby = objs.filter(o =>
-            (o.type === 'wall' || o.type === 'scenery') &&
-            hexDistance(player.position, o.position) <= radius
+        const nearby = objs.filter(
+            (o) => (o.type === 'wall' || o.type === 'scenery') && hexDistance(player.position, o.position) <= radius,
         )
         if (nearby.length === 0) {
             console.log('[EggDebug] no wall/scenery within radius')
@@ -123,8 +132,10 @@ export function registerEggCommands(): void {
             const ceEgg = isCEOccludingWallLiteral(obj, player)
             const bbox = isBBoxOccludingWall(obj, player)
             const pos = obj.position.y * 200 + obj.position.x
-            const diff = (dh2Egg !== ceEgg || dh2Egg !== bbox) ? ' (DIFF)' : ''
-            console.log(`[EggDebug] ${obj.type} pos=${pos} extFlags=0x${extFlags.toString(16)} fOD=${fOD} fDO=${fDO} rOD=${rOD} rDO=${rDO} → dh2Egg=${dh2Egg} ceEgg=${ceEgg} bbox=${bbox}${diff}`)
+            const diff = dh2Egg !== ceEgg || dh2Egg !== bbox ? ' (DIFF)' : ''
+            console.log(
+                `[EggDebug] ${obj.type} pos=${pos} extFlags=0x${extFlags.toString(16)} fOD=${fOD} fDO=${fDO} rOD=${rOD} rDO=${rDO} → dh2Egg=${dh2Egg} ceEgg=${ceEgg} bbox=${bbox}${diff}`,
+            )
         }
         console.log(`[EggDebug] ${nearby.length} objects checked`)
     }
@@ -132,7 +143,10 @@ export function registerEggCommands(): void {
     // inspectPos(tileNum) — dump every object at a map position with all flag fields.
     // Example: inspectPos(22925)
     ;(window as any).inspectPos = (tileNum: number) => {
-        if (!globalState.gMap) { console.log('[inspectPos] no map loaded'); return }
+        if (!globalState.gMap) {
+            console.log('[inspectPos] no map loaded')
+            return
+        }
         const x = tileNum % 200
         const y = Math.floor(tileNum / 200)
         const objs = globalState.gMap.objectsAtPosition({ x, y })

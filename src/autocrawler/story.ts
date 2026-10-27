@@ -39,14 +39,47 @@ import { activeBarter } from '../ui_barter.js'
 import { uiElevatorDone } from '../ui_elevator.js'
 import { uiLogCount } from '../ui_hud.js'
 import { uiCloseWorldMap } from '../ui_worldmap.js'
-import { critterDisplayName, getOptionElements, getReplyText, listTalkableNPCs, movePlayerAdjacent, setLastReport } from './shared.js'
+import {
+    critterDisplayName,
+    getOptionElements,
+    getReplyText,
+    listTalkableNPCs,
+    movePlayerAdjacent,
+    setLastReport,
+} from './shared.js'
 
 /** Main-quest order (Arroyo → Klamath → the Den → Modoc → Vault City → Gecko → Broken Hills → New Reno →
  *  Redding → NCR → Vaults 13/15 → San Francisco → Navarro). */
 export const STORY_MAPS = [
-    'arvillag', 'klamall', 'kladwtwn', 'klatrap', 'denbus1', 'denbus2', 'denres1', 'modmain', 'modinn',
-    'vctyctyd', 'vctycocl', 'vctydwtn', 'gecksetl', 'broken1', 'broken2', 'newr1', 'newr2', 'newr3', 'newr4',
-    'reddown', 'redment', 'ncr1', 'ncr2', 'ncr3', 'ncr4', 'v13ent', 'v15ent', 'sfchina', 'navarro',
+    'arvillag',
+    'klamall',
+    'kladwtwn',
+    'klatrap',
+    'denbus1',
+    'denbus2',
+    'denres1',
+    'modmain',
+    'modinn',
+    'vctyctyd',
+    'vctycocl',
+    'vctydwtn',
+    'gecksetl',
+    'broken1',
+    'broken2',
+    'newr1',
+    'newr2',
+    'newr3',
+    'newr4',
+    'reddown',
+    'redment',
+    'ncr1',
+    'ncr2',
+    'ncr3',
+    'ncr4',
+    'v13ent',
+    'v15ent',
+    'sfchina',
+    'navarro',
 ]
 
 const MAX_PATHS_PER_NPC = 24
@@ -91,7 +124,15 @@ export interface StoryReport {
     backend: string
     timestamp: number
     maps: StoryMapResult[]
-    summary: { maps: number; steps: number; compared: number; differing: number; unstable: number; backendDifferences: number; inconclusive: number }
+    summary: {
+        maps: number
+        steps: number
+        compared: number
+        differing: number
+        unstable: number
+        backendDifferences: number
+        inconclusive: number
+    }
 }
 
 // ─── State capture ────────────────────────────────────────────────────────────
@@ -155,7 +196,8 @@ function capture(): Snapshot {
     }
     const mapScript = (map?.name ?? '').toLowerCase()
     const inv: Snapshot['inv'] = {}
-    for (const item of player?.inventory ?? []) inv[String(item.pid)] = (inv[String(item.pid)] ?? 0) + (item.amount ?? 1)
+    for (const item of player?.inventory ?? [])
+        inv[String(item.pid)] = (inv[String(item.pid)] ?? 0) + (item.amount ?? 1)
     return {
         map: map?.name ?? '',
         gvars: { ...Scripting.getGlobalVars() },
@@ -241,14 +283,18 @@ function callers(): string {
 function logSince(from: number): string {
     const items = document.querySelectorAll<HTMLElement>('#displayLog li')
     const out: string[] = []
-    for (const li of Array.from(items)) if (Number(li.dataset.seq) >= from) out.push((li.textContent ?? '').trim().slice(0, 80))
+    for (const li of Array.from(items))
+        if (Number(li.dataset.seq) >= from) out.push((li.textContent ?? '').trim().slice(0, 80))
     return out.length ? ` log=[${out.join(' | ')}]` : ''
 }
 
 function inventoryOf(o: any): string {
     const inv: { [pid: string]: number } = {}
     for (const item of o?.inventory ?? []) inv[String(item.pid)] = (inv[String(item.pid)] ?? 0) + (item.amount ?? 1)
-    return Object.keys(inv).sort((a, b) => Number(a) - Number(b)).map((p) => `${p}x${inv[p]}`).join(',')
+    return Object.keys(inv)
+        .sort((a, b) => Number(a) - Number(b))
+        .map((p) => `${p}x${inv[p]}`)
+        .join(',')
 }
 
 const PID_BOTTLE_CAPS = 41
@@ -262,7 +308,9 @@ function barterTrade(): string {
     const b = activeBarter
     if (!b) return ' buy=no-screen'
     const unit = (o: any) => o.stackCost(1)
-    const wares = b.merchantInventory().filter((o: any) => o.pid !== PID_BOTTLE_CAPS && unit(o) > 0)
+    const wares = b
+        .merchantInventory()
+        .filter((o: any) => o.pid !== PID_BOTTLE_CAPS && unit(o) > 0)
         .sort((x: any, y: any) => unit(x) - unit(y) || x.pid - y.pid)
     if (wares.length === 0) return ' buy=nothing'
     const item: any = wares[0]
@@ -355,7 +403,8 @@ async function step(key: string, label: string, action: () => void, subject?: an
     setVMFatalHook(null)
     window.removeEventListener('error', onError)
     if (hidden.length) error += ` [${hidden.join(' ; ')}]`
-    const line = `${label} ${dialogueView()} {${diff(before, capture())}} rng:${scriptDraws}${logSince(logStart)}${error}` +
+    const line =
+        `${label} ${dialogueView()} {${diff(before, capture())}} rng:${scriptDraws}${logSince(logStart)}${error}` +
         (draws.length ? ` draws=[${draws.join(' ; ')}]` : '')
     return line
 }
@@ -373,7 +422,14 @@ async function crawlNpc(npc: Critter, mapName: string, trace: string[], opts: Re
         if (globalState.gMap?.name !== mapName) break
         runs++
         movePlayerAdjacent(npc)
-        trace.push(await step(`${id}:${path.join('.')}:talk`, `${id} [${path.join('.')}] talk`, () => Scripting.talk(npc._script!, npc), npc))
+        trace.push(
+            await step(
+                `${id}:${path.join('.')}:talk`,
+                `${id} [${path.join('.')}] talk`,
+                () => Scripting.talk(npc._script!, npc),
+                npc,
+            ),
+        )
         steps++
         let depth = 0
         for (; depth < path.length && globalState.uiMode === UIMode.dialogue; depth++) {
@@ -389,7 +445,14 @@ async function crawlNpc(npc: Critter, mapName: string, trace: string[], opts: Re
                 const n = getOptionElements().length
                 for (let k = 0; k < n; k++) frontier.push([...path, k])
             }
-            trace.push(await step(`${id}:${path.join('.')}:end`, `${id} [${path.join('.')}] end`, () => Scripting.dialogueEnd(), npc))
+            trace.push(
+                await step(
+                    `${id}:${path.join('.')}:end`,
+                    `${id} [${path.join('.')}] end`,
+                    () => Scripting.dialogueEnd(),
+                    npc,
+                ),
+            )
             steps++
         }
     }
@@ -416,12 +479,15 @@ async function crawlObjects(mapName: string, trace: string[]): Promise<number> {
         const isCritter = obj instanceof Critter
         const id = `${mapName}/${s.scriptName ?? '?'}#${label(obj)}`
         const actions: [string, () => void][] = []
-        if (typeof s.description_p_proc === 'function') actions.push(['examine', () => Scripting.description(obj, player)])
+        if (typeof s.description_p_proc === 'function')
+            actions.push(['examine', () => Scripting.description(obj, player)])
         if (typeof s.look_at_p_proc === 'function') actions.push(['look', () => Scripting.lookAt(obj, player)])
         if (!isCritter && typeof s.use_p_proc === 'function') actions.push(['use', () => Scripting.use(obj, player)])
-        if (obj.type === 'item' && typeof s.pickup_p_proc === 'function') actions.push(['pickup', () => Scripting.pickup(obj, player)])
+        if (obj.type === 'item' && typeof s.pickup_p_proc === 'function')
+            actions.push(['pickup', () => Scripting.pickup(obj, player)])
         if (typeof s.use_skill_on_p_proc === 'function') {
-            for (const skill of OBJECT_SKILLS) actions.push([`skill${skill}`, () => Scripting.useSkillOn(player, skill, obj)])
+            for (const skill of OBJECT_SKILLS)
+                actions.push([`skill${skill}`, () => Scripting.useSkillOn(player, skill, obj)])
         }
         for (const [what, action] of actions) {
             if (globalState.gMap?.name !== mapName) return steps
@@ -460,10 +526,12 @@ async function crawlTime(mapName: string, trace: string[]): Promise<number> {
             const dt = TIME_STEPS[k]
             pinnedClock = clock
             const id = `${mapName}/time${k}`
-            trace.push(await step(`${id}:advance`, `${id} +${dt} ticks`, () => {
-                GameTime.advanceTicks(dt) // fires the due timed events and midnight
-                globalState.gMap?.updateMap()
-            }))
+            trace.push(
+                await step(`${id}:advance`, `${id} +${dt} ticks`, () => {
+                    GameTime.advanceTicks(dt) // fires the due timed events and midnight
+                    globalState.gMap?.updateMap()
+                }),
+            )
             steps++
             clock += dt
             pinnedClock = clock
@@ -472,12 +540,15 @@ async function crawlTime(mapName: string, trace: string[]): Promise<number> {
                 steps++
             }
             const critters = (globalState.gMap?.getObjects() ?? []).filter(
-                (o): o is Critter => o instanceof Critter && !!o._script && !o.dead && !(o as any).isPlayer)
+                (o): o is Critter => o instanceof Critter && !!o._script && !o.dead && !(o as any).isPlayer,
+            )
             for (const c of critters) {
                 if (globalState.gMap?.name !== mapName) return steps
                 if (c.dead || !c._script || typeof c._script.critter_p_proc !== 'function') continue
                 const cid = `${id}/${c._script.scriptName ?? '?'}#${label(c)}`
-                trace.push(await step(`${cid}:heartbeat`, `${cid} heartbeat`, () => Scripting.updateCritter(c._script!, c), c))
+                trace.push(
+                    await step(`${cid}:heartbeat`, `${cid} heartbeat`, () => Scripting.updateCritter(c._script!, c), c),
+                )
                 steps++
                 if (globalState.uiMode === UIMode.dialogue) {
                     trace.push(await step(`${cid}:heartbeat:end`, `${cid} end`, () => Scripting.dialogueEnd(), c))
@@ -583,7 +654,10 @@ export async function runStoryCrawler(options: StoryOptions = {}): Promise<Story
     const backend = Config.scripting.backend
     const other = backend === 'vm' ? 'lua' : 'vm'
     const report: StoryReport = {
-        type: 'story', backend, timestamp: Date.now(), maps: [],
+        type: 'story',
+        backend,
+        timestamp: Date.now(),
+        maps: [],
         summary: { maps: 0, steps: 0, compared: 0, differing: 0, unstable: 0, backendDifferences: 0, inconclusive: 0 },
     }
     const prev = { ...Config.scripting.debugLogShowType }
@@ -627,8 +701,10 @@ export async function runStoryCrawler(options: StoryOptions = {}): Promise<Story
             // loading is asynchronous, so counts may vary by a few
             const loadRng = randomDraws - loadDraws
             const npcs = listTalkableNPCs()
-            const trace: string[] = [`map ${mapName} player ${JSON.stringify(start.stats)} xp:${start.xp} caps:${start.caps}`,
-                `npcs ${npcs.map((n) => `${n._script?.scriptName}#${label(n)}`).join(' ')}`]
+            const trace: string[] = [
+                `map ${mapName} player ${JSON.stringify(start.stats)} xp:${start.xp} caps:${start.caps}`,
+                `npcs ${npcs.map((n) => `${n._script?.scriptName}#${label(n)}`).join(' ')}`,
+            ]
             let steps = 0
             for (const npc of npcs) {
                 console.log(`[AutoCrawler] story ${mapName}: ${critterDisplayName(npc)} (${npc._script?.scriptName})`)
@@ -680,9 +756,17 @@ export async function runStoryCrawler(options: StoryOptions = {}): Promise<Story
             report.maps.push(result)
             report.summary.maps++
             report.summary.steps += steps
-            console.log(`[AutoCrawler] story ${mapName}: ${npcs.length} NPCs, ${steps} steps` +
-                (result.comparedWith ? (result.firstDiff ? `, differs from ${other} at line ${result.firstDiff.line} (${result.verdict})` : `, same as ${other}`) : '') +
-                (result.repeatDiff ? `, differs from the previous ${backend} run at line ${result.repeatDiff.line}` : ''))
+            console.log(
+                `[AutoCrawler] story ${mapName}: ${npcs.length} NPCs, ${steps} steps` +
+                    (result.comparedWith
+                        ? result.firstDiff
+                            ? `, differs from ${other} at line ${result.firstDiff.line} (${result.verdict})`
+                            : `, same as ${other}`
+                        : '') +
+                    (result.repeatDiff
+                        ? `, differs from the previous ${backend} run at line ${result.repeatDiff.line}`
+                        : ''),
+            )
             setLastReport(report)
         }
     } finally {
@@ -691,8 +775,10 @@ export async function runStoryCrawler(options: StoryOptions = {}): Promise<Story
         Object.assign(Config.scripting.debugLogShowType, prev)
     }
     setLastReport(report)
-    console.log(`[AutoCrawler] story: ${report.summary.maps} maps, ${report.summary.steps} steps, ` +
-        `${report.summary.compared} compared, ${report.summary.differing} differing ` +
-        `(${report.summary.backendDifferences} backend differences, ${report.summary.inconclusive} inconclusive), ${report.summary.unstable} unstable`)
+    console.log(
+        `[AutoCrawler] story: ${report.summary.maps} maps, ${report.summary.steps} steps, ` +
+            `${report.summary.compared} compared, ${report.summary.differing} differing ` +
+            `(${report.summary.backendDifferences} backend differences, ${report.summary.inconclusive} inconclusive), ${report.summary.unstable} unstable`,
+    )
     return report
 }

@@ -40,13 +40,21 @@ interface PartyMemberLevelDesc {
     options: { [iniKey: string]: Set<string> }
 }
 
-const PARTY_OPTION_KEYS = ['disposition', 'area_attack_mode', 'run_away_mode', 'best_weapon', 'distance', 'attack_who', 'chem_use']
+const PARTY_OPTION_KEYS = [
+    'disposition',
+    'area_attack_mode',
+    'run_away_mode',
+    'best_weapon',
+    'distance',
+    'attack_who',
+    'chem_use',
+]
 
 // CE ref: party_member.cc:61 PartyMemberLevelUpInfo
 export interface PartyMemberLevelUpInfo {
-    level: number        // party member level
-    numLevelUps: number  // PC level-ups observed with this member in the party
-    isEarly: number      // last level-up came early via the probability roll
+    level: number // party member level
+    numLevelUps: number // PC level-ups observed with this member in the party
+    isEarly: number // last level-up came early via the probability roll
 }
 
 const PARTY_MEMBER_MAX_LEVEL = 6 // CE party_member.cc:45 (SFALL fix: was 5)
@@ -62,16 +70,28 @@ function loadPartyDescs(): PartyMemberLevelDesc[] {
             const m = section.match(/^Party Member (\d+)$/)
             if (!m) continue
             const sec = ini[section]
-            const levelPids = String(sec.level_pids ?? '-1').split(',').map((x: string) => parseInt(x.trim(), 10))
-                .filter((x: number) => !isNaN(x) && x !== -1).slice(0, PARTY_MEMBER_MAX_LEVEL)
+            const levelPids = String(sec.level_pids ?? '-1')
+                .split(',')
+                .map((x: string) => parseInt(x.trim(), 10))
+                .filter((x: number) => !isNaN(x) && x !== -1)
+                .slice(0, PARTY_MEMBER_MAX_LEVEL)
             partyDescs.push({
                 index: parseInt(m[1], 10),
                 pid: parseInt(sec.party_member_pid, 10),
                 levelMinimum: parseInt(sec.level_minimum ?? '0', 10) || 0,
                 levelUpEvery: parseInt(sec.level_up_every ?? '0', 10) || 0,
                 levelPids,
-                options: Object.fromEntries(PARTY_OPTION_KEYS.map((k) => [k,
-                    new Set(String(sec[k] ?? '').split(',').map((x: string) => x.trim()).filter((x: string) => x))])),
+                options: Object.fromEntries(
+                    PARTY_OPTION_KEYS.map((k) => [
+                        k,
+                        new Set(
+                            String(sec[k] ?? '')
+                                .split(',')
+                                .map((x: string) => x.trim())
+                                .filter((x: string) => x),
+                        ),
+                    ]),
+                ),
             })
         }
     } catch (e) {
@@ -143,7 +163,7 @@ export class Party {
                 if (levelMod === 0) info.isEarly = 0
                 continue
             }
-            if (levelMod !== 0 && getRandomInt(0, 100) > Math.trunc(100 * levelMod / desc.levelUpEvery)) continue
+            if (levelMod !== 0 && getRandomInt(0, 100) > Math.trunc((100 * levelMod) / desc.levelUpEvery)) continue
 
             info.level++
             if (levelMod !== 0) info.isEarly = 1
@@ -155,7 +175,12 @@ export class Party {
             if (fmt) uiLog(fmt.replace('%s', name))
             const individual = getMessage('misc', 9000 + 10 * desc.index + info.level - 1)
             if (individual) {
-                addFloatMessage({ msg: individual.replace('%s', name), obj, startTime: window.performance.now(), color: 'white' })
+                addFloatMessage({
+                    msg: individual.replace('%s', name),
+                    obj,
+                    startTime: window.performance.now(),
+                    color: 'white',
+                })
             }
             dbg('party', `${name} reached party level ${info.level}`)
         }
@@ -264,8 +289,11 @@ export function setCompanionDisposition(critter: Critter, disposition: Dispositi
     // A named preset uses its authored values as-is; the Custom settings stay for a later switch
     // back (CE aiSet* writes them into the CUSTOM packet itself, which aiSave keeps). The AI
     // applies them only while the custom packet is in use (customOverridesFor).
-    if (critter.ai) critter.ai.packet = disposition === 'custom' && critter.customAiOverrides
-        ? { ...newPacket, ...critter.customAiOverrides } : newPacket
+    if (critter.ai)
+        critter.ai.packet =
+            disposition === 'custom' && critter.customAiOverrides
+                ? { ...newPacket, ...critter.customAiOverrides }
+                : newPacket
 
     return true
 }
@@ -283,7 +311,7 @@ export type CustomAiCategory = 'areaAttackMode' | 'runAwayMode' | 'bestWeapon' |
 export function setCompanionCustomSetting<K extends CustomAiCategory>(
     critter: Critter,
     category: K,
-    value: AiPacket[K]
+    value: AiPacket[K],
 ): boolean {
     let packet = critter.ai?.packet ?? getAiPacket(critter.aiNum)
     if (packet.disposition !== 'custom') {

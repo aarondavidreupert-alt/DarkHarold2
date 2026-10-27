@@ -70,7 +70,9 @@ export function makeDraggable($el: HTMLElement, data: string, endCallback?: () =
 // (up to 9 levels deep); the dude's own inventory when none is open
 const openContainers: Obj[] = []
 export function inventoryList(): Obj[] {
-    return openContainers.length > 0 ? openContainers[openContainers.length - 1].inventory : globalState.player.inventory
+    return openContainers.length > 0
+        ? openContainers[openContainers.length - 1].inventory
+        : globalState.player.inventory
 }
 export function currentContainer(): Obj | null {
     return openContainers[openContainers.length - 1] ?? null
@@ -152,7 +154,8 @@ export async function uiMoveSlot(data: string, target: string) {
                 return
             }
             // CE inventory.cc _switch_hand: ammo on a weapon it can't load isn't swapped in
-            if (obj.subtype === 'ammo' && playerUnsafe[target].subtype === 'weapon' && playerUnsafe[target].pid !== 383) return
+            if (obj.subtype === 'ammo' && playerUnsafe[target].subtype === 'weapon' && playerUnsafe[target].pid !== 383)
+                return
         }
 
         if (obj.amount > 1) {
@@ -176,11 +179,24 @@ export async function uiMoveSlot(data: string, target: string) {
         // CE inventory.cc:2440 — the armor slot accepts only armor, from any source (and a
         // swap may not put the other item there either)
         if (target === 'armor' && playerUnsafe[data]?.subtype !== 'armor') return
-        if (data === 'armor' && target !== 'inventory' && playerUnsafe[target] && playerUnsafe[target].subtype !== 'armor') return
-        if (inventoryMoveHookCancels(target, playerUnsafe[data], target === 'inventory' ? null : playerUnsafe[target])) return
+        if (
+            data === 'armor' &&
+            target !== 'inventory' &&
+            playerUnsafe[target] &&
+            playerUnsafe[target].subtype !== 'armor'
+        )
+            return
+        if (inventoryMoveHookCancels(target, playerUnsafe[data], target === 'inventory' ? null : playerUnsafe[target]))
+            return
         // CE _drop_into_container: an open bag takes it only within its capacity (itemAttemptAdd)
         const bag = currentContainer()
-        if (target === 'inventory' && bag && playerUnsafe[data] && !bag.canCarry(playerUnsafe[data], playerUnsafe[data].amount ?? 1)) return
+        if (
+            target === 'inventory' &&
+            bag &&
+            playerUnsafe[data] &&
+            !bag.canCarry(playerUnsafe[data], playerUnsafe[data].amount ?? 1)
+        )
+            return
         obj = playerUnsafe[data]
         playerUnsafe[data] = null // remove object from slot
     }
@@ -210,9 +226,10 @@ export async function uiMoveSlot(data: string, target: string) {
     if (target === 'armor' || data === 'armor') {
         armorPerkSwap(globalState.player!, oldArmor, playerUnsafe.armor ?? null)
         if (target === 'armor' && obj) {
-            const fid: number = globalState.player.gender === 'female'
-                ? (obj as any).pro?.extra?.femaleFID
-                : (obj as any).pro?.extra?.maleFID
+            const fid: number =
+                globalState.player.gender === 'female'
+                    ? (obj as any).pro?.extra?.femaleFID
+                    : (obj as any).pro?.extra?.maleFID
             let armorSound = 'ltharmor'
             if (fid) {
                 try {
@@ -231,10 +248,7 @@ export async function uiMoveSlot(data: string, target: string) {
 
     // CE ref: item.cc:353 itemAdd() stealthBoyTurnOn / item.cc:449 stealthBoyTurnOff —
     // recompute stealthActive whenever a hand slot changes (equip, unequip, or swap).
-    if (
-        target === 'leftHand' || target === 'rightHand' ||
-        data === 'leftHand' || data === 'rightHand'
-    ) {
+    if (target === 'leftHand' || target === 'rightHand' || data === 'leftHand' || data === 'rightHand') {
         refreshStealthState(globalState.player as unknown as Critter)
         updateHandFlareLight(globalState.player as unknown as Critter) // inventory.cc _invenWieldFunc: a lit flare in hand
     }
@@ -247,10 +261,7 @@ export async function uiMoveSlot(data: string, target: string) {
 export function applyArmorArt(armor: Obj | null) {
     const playerAny = globalState.player as any
     if (armor?.pro?.extra) {
-        const fid: number =
-            globalState.player.gender === 'female'
-                ? armor.pro.extra.femaleFID
-                : armor.pro.extra.maleFID
+        const fid: number = globalState.player.gender === 'female' ? armor.pro.extra.femaleFID : armor.pro.extra.maleFID
         if (fid && fid !== 0) {
             try {
                 const armorArt = lookupArt(fid)

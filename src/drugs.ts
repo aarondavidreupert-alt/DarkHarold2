@@ -23,7 +23,12 @@ import { uiLog, updateIndicatorBar } from './ui_hud.js'
 import { Events } from './events.js'
 import { critterKill } from './critter/lifecycle.js'
 import { critterAdjustRadiation } from './radiation.js'
-import { STAT_CURRENT_HIT_POINTS, STAT_CURRENT_POISON_LEVEL, STAT_CURRENT_RADIATION_LEVEL, STAT_NAME_BY_ID } from './statIds.js'
+import {
+    STAT_CURRENT_HIT_POINTS,
+    STAT_CURRENT_POISON_LEVEL,
+    STAT_CURRENT_RADIATION_LEVEL,
+    STAT_NAME_BY_ID,
+} from './statIds.js'
 import { getMessage, getRandomInt } from './util.js'
 
 const PROTO_ID_JET = 259
@@ -34,29 +39,29 @@ const BODY_TYPE_ROBOTIC = 2
 
 // CE item.cc:144 gDrugDescriptions — { drugPid, gvar, max concurrent doses (0 = unlimited) }
 const DRUG_DESCRIPTIONS: { pid: number; gvar: number; maxDoses: number }[] = [
-    { pid: 106, gvar: 21, maxDoses: 0 },  // Nuka-Cola       GVAR_NUKA_COLA_ADDICT
-    { pid: 87, gvar: 22, maxDoses: 4 },   // Buffout         GVAR_BUFF_OUT_ADDICT
-    { pid: 53, gvar: 23, maxDoses: 4 },   // Mentats         GVAR_MENTATS_ADDICT
-    { pid: 110, gvar: 24, maxDoses: 4 },  // Psycho          GVAR_PSYCHO_ADDICT
-    { pid: 48, gvar: 25, maxDoses: 0 },   // Rad-Away        GVAR_RADAWAY_ADDICT
-    { pid: 124, gvar: 26, maxDoses: 0 },  // Beer            GVAR_ALCOHOL_ADDICT
-    { pid: 125, gvar: 26, maxDoses: 0 },  // Booze           GVAR_ALCOHOL_ADDICT
+    { pid: 106, gvar: 21, maxDoses: 0 }, // Nuka-Cola       GVAR_NUKA_COLA_ADDICT
+    { pid: 87, gvar: 22, maxDoses: 4 }, // Buffout         GVAR_BUFF_OUT_ADDICT
+    { pid: 53, gvar: 23, maxDoses: 4 }, // Mentats         GVAR_MENTATS_ADDICT
+    { pid: 110, gvar: 24, maxDoses: 4 }, // Psycho          GVAR_PSYCHO_ADDICT
+    { pid: 48, gvar: 25, maxDoses: 0 }, // Rad-Away        GVAR_RADAWAY_ADDICT
+    { pid: 124, gvar: 26, maxDoses: 0 }, // Beer            GVAR_ALCOHOL_ADDICT
+    { pid: 125, gvar: 26, maxDoses: 0 }, // Booze           GVAR_ALCOHOL_ADDICT
     { pid: PROTO_ID_JET, gvar: 296, maxDoses: 4 }, // Jet     GVAR_ADDICT_JET
     { pid: 304, gvar: 295, maxDoses: 0 }, // Tragic cards    GVAR_ADDICT_TRAGIC
 ]
 
 // CE perk.cc gPerkDescriptions for the withdrawal perks: { stat, statModifier, primary-stat deltas[7] }.
 const WITHDRAWAL_PERKS: { [perk: number]: { stat: number; mod: number; special: number[] } } = {
-    53: { stat: -1, mod: 0, special: [0, 0, 0, 0, 0, 0, 0] },     // Nuka-Cola
-    54: { stat: -1, mod: 0, special: [-2, 0, -2, 0, 0, -3, 0] },  // Buffout
-    55: { stat: -1, mod: 0, special: [0, 0, 0, 0, -3, -2, 0] },   // Mentats
-    56: { stat: -1, mod: 0, special: [0, 0, 0, 0, -2, 0, 0] },    // Psycho
-    57: { stat: 31, mod: -20, special: [0, 0, 0, 0, 0, 0, 0] },   // Rad-Away (DR Radiation -20)
-    70: { stat: 8, mod: -1, special: [-1, -1, 0, 0, 0, 0, 0] },   // Jet (AP -1)
-    71: { stat: -1, mod: 0, special: [0, -2, 0, 0, -1, 0, -1] },  // Tragic cards
+    53: { stat: -1, mod: 0, special: [0, 0, 0, 0, 0, 0, 0] }, // Nuka-Cola
+    54: { stat: -1, mod: 0, special: [-2, 0, -2, 0, 0, -3, 0] }, // Buffout
+    55: { stat: -1, mod: 0, special: [0, 0, 0, 0, -3, -2, 0] }, // Mentats
+    56: { stat: -1, mod: 0, special: [0, 0, 0, 0, -2, 0, 0] }, // Psycho
+    57: { stat: 31, mod: -20, special: [0, 0, 0, 0, 0, 0, 0] }, // Rad-Away (DR Radiation -20)
+    70: { stat: 8, mod: -1, special: [-1, -1, 0, 0, 0, 0, 0] }, // Jet (AP -1)
+    71: { stat: -1, mod: 0, special: [0, -2, 0, 0, -1, 0, -1] }, // Tragic cards
 }
 
-const DRUG_TAG = 'drug:'             // `drug:<pid>:<s0>,<s1>,<s2>:<m0>,<m1>,<m2>`
+const DRUG_TAG = 'drug:' // `drug:<pid>:<s0>,<s1>,<s2>:<m0>,<m1>,<m2>`
 const WITHDRAWAL_TAG = 'withdrawal:' // `withdrawal:<start 1|0>:<pid>:<perk>`
 
 function itemMsg(id: number): string | null {
@@ -137,7 +142,8 @@ function performDrugEffect(critter: Critter, stats: number[], mods: number[], is
     let statsChanged = false
     let start = 0
     let firstStatIsMinimum = false
-    if (stats[0] === -2) { // stat0 == -2: amount0..amount1 is a random range for stat1
+    if (stats[0] === -2) {
+        // stat0 == -2: amount0..amount1 is a random range for stat1
         start = 1
         firstStatIsMinimum = true
     }
@@ -208,8 +214,17 @@ function drugEffectAllowed(critter: Critter, pid: number): boolean {
 function scheduleDrugEvent(critter: Critter, ticks: number, pid: number, stats: number[], mods: number[]): void {
     const userdata = `${DRUG_TAG}${pid}:${stats.join(',')}:${mods.join(',')}`
     // CE item.cc _item_d_clear: leaving the map wears the drug off now, except on the party
-    Scripting.timeEventList.push({ obj: critter, ticks, userdata, fn: () => drugEffectEventProcess(critter, stats, mods),
-        leaveMap: () => { if (isPartyMember(critter)) return false; drugEffectEventProcess(critter, stats, mods); return true } })
+    Scripting.timeEventList.push({
+        obj: critter,
+        ticks,
+        userdata,
+        fn: () => drugEffectEventProcess(critter, stats, mods),
+        leaveMap: () => {
+            if (isPartyMember(critter)) return false
+            drugEffectEventProcess(critter, stats, mods)
+            return true
+        },
+    })
 }
 
 // CE item.cc:2598 _insert_drug_effect — duration in game minutes.
@@ -229,8 +244,17 @@ function drugEffectEventProcess(critter: Critter, stats: number[], mods: number[
 function scheduleWithdrawal(critter: Critter, ticks: number, isStart: boolean, pid: number, perk: number): void {
     const userdata = `${WITHDRAWAL_TAG}${isStart ? 1 : 0}:${pid}:${perk}`
     // CE item.cc _item_wd_clear: off the party a running withdrawal ends when leaving the map
-    Scripting.timeEventList.push({ obj: critter, ticks, userdata, fn: () => withdrawalEventProcess(critter, isStart, pid, perk),
-        leaveMap: () => { if (isPartyMember(critter)) return false; if (!isStart) performWithdrawalEnd(critter, perk); return true } })
+    Scripting.timeEventList.push({
+        obj: critter,
+        ticks,
+        userdata,
+        fn: () => withdrawalEventProcess(critter, isStart, pid, perk),
+        leaveMap: () => {
+            if (isPartyMember(critter)) return false
+            if (!isStart) performWithdrawalEnd(critter, perk)
+            return true
+        },
+    })
 }
 
 // CE item.cc:2917 _insert_withdrawal — duration in game minutes.
@@ -329,7 +353,11 @@ export function useDrug(item: Obj, user: Critter): boolean {
         // drop the open-ended Jet withdrawal event
         for (const e of Scripting.timeEventList) {
             const ev = e.obj === user ? parseWithdrawal(e.userdata) : null
-            if (ev && ev.perk === PERK_JET_ADDICTION) { e.userdata = 'withdrawal-cancelled'; e.fn = () => {}; e.ticks = 1 }
+            if (ev && ev.perk === PERK_JET_ADDICTION) {
+                e.userdata = 'withdrawal-cancelled'
+                e.fn = () => {}
+                e.ticks = 1
+            }
         }
         if (isDude(user)) dudeClearAddiction(PROTO_ID_JET)
         return true // SFALL fix kept by CE: the antidote is consumed

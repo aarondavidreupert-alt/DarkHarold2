@@ -26,6 +26,6 @@ export const regionHitChanceDecTable: { [region: string]: number } = {
     leftArm: 30,
     rightArm: 30,
     head: 40,
-    eyes: 60,   // CE combat.cc hit_location_penalty_default: HIT_LOCATION_EYES -60
-    groin: 30,  // CE: HIT_LOCATION_GROIN -30
+    eyes: 60, // CE combat.cc hit_location_penalty_default: HIT_LOCATION_EYES -60
+    groin: 30, // CE: HIT_LOCATION_GROIN -30
 }

@@ -20,13 +20,7 @@ import { IDBCache } from './idbcache.js'
 import { initGame } from './init.js'
 import { dbg, dbgWarn } from './logger.js'
 import { initLuaRuntime } from './lua/luaRuntime.js'
-import {
-    clampCameraPosition,
-    ceMapScroll,
-    setScreenSize,
-    ZOOM_MAX,
-    ZOOM_MIN,
-} from './renderer.js'
+import { clampCameraPosition, ceMapScroll, setScreenSize, ZOOM_MAX, ZOOM_MIN } from './renderer.js'
 import { initLogScrollZones, UIMode } from './ui.js'
 import { objUseItemOn } from './useItemOn.js'
 import { initModAssets, mergeModJSON, overrideStylesheets } from './modAssets.js'
@@ -83,7 +77,7 @@ window.onload = async function () {
             vertex: await vertex.text(),
             fragmentFont: await fragmentFont.text(),
         },
-        await Promise.all([0, 1, 2, 3, 5].map((i) => fonUnpack(`data/font${i}.fon`)))
+        await Promise.all([0, 1, 2, 3, 5].map((i) => fonUnpack(`data/font${i}.fon`))),
     )
 
     globalState.renderer.init()
@@ -234,7 +228,7 @@ window.onload = async function () {
                     r.invalidateFloorFBO()
                 }
             },
-            { passive: false }
+            { passive: false },
         )
     }
 
@@ -269,7 +263,10 @@ window.onload = async function () {
     // data/scripts/obj_dude.lua, the player's script) runs the VM instead of asking
     // for a missing .lua before every .int.
     if (Config.scripting.backend === 'lua') {
-        const decompiled = await fetch('data/scripts/obj_dude.lua', { method: 'HEAD' }).then((r) => r.ok, () => false)
+        const decompiled = await fetch('data/scripts/obj_dude.lua', { method: 'HEAD' }).then(
+            (r) => r.ok,
+            () => false,
+        )
         if (!decompiled) {
             dbgWarn('lua', 'no decompiled scripts (run the decompile_scripts pipeline stage); running the .int scripts')
             Config.scripting.backend = 'vm'
@@ -294,7 +291,11 @@ window.onload = async function () {
         } catch (_) {
             pixelFont = false
         }
-        if (!pixelFont) dbgWarn('load', 'art/fonts/font1_aaf.woff did not load (run the export_fonts pipeline stage); using the browser font')
+        if (!pixelFont)
+            dbgWarn(
+                'load',
+                'art/fonts/font1_aaf.woff did not load (run the export_fonts pipeline stage); using the browser font',
+            )
     }
     document.documentElement.classList.toggle('dh2-pixel-font', pixelFont)
 

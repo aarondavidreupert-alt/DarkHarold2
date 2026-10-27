@@ -18,7 +18,7 @@ import { PerkDef, PERKS, SPECIAL } from './perks.data.js'
  */
 export function getValidPerks(player: Player): PerkDef[] {
     // perk.msg not loaded: the perks.data.ts minimums
-    if (perkNameById(0) === null) return PERKS.filter(perk => legacyCanAdd(player, perk))
+    if (perkNameById(0) === null) return PERKS.filter((perk) => legacyCanAdd(player, perk))
     const out: PerkDef[] = []
     for (let id = 0; id < PERK_COUNT; id++) {
         if (!perkCanAdd(player, id)) continue
@@ -33,7 +33,7 @@ export function getValidPerks(player: Player): PerkDef[] {
 export function perkDefById(id: number): PerkDef | null {
     const name = perkNameById(id)
     if (!name) return null
-    const known = PERKS.find(p => p.name.toLowerCase() === name.toLowerCase())
+    const known = PERKS.find((p) => p.name.toLowerCase() === name.toLowerCase())
     if (known) return known
     const frm: string | undefined = (getFileJSON('lut/lst/art_skilldex.json') as string[] | null)?.[CE_PERK_REQS[id][6]]
     return {
@@ -118,7 +118,7 @@ export function getPerkRank(player: Player, perkName: string): number {
  * FO2-CE ref: perk.cc perk_add().
  */
 export function applyPerk(player: Player, perkName: string): void {
-    const def = PERKS.find(p => p.name === perkName) ?? perkDefById(perkIdByName(perkName))
+    const def = PERKS.find((p) => p.name === perkName) ?? perkDefById(perkIdByName(perkName))
     if (!def) throw new Error(`applyPerk: unknown perk '${perkName}'`)
 
     const rank = getPerkRank(player, perkName)

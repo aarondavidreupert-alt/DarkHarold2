@@ -28,8 +28,16 @@ function loadSplash(index: number): { canvas: HTMLCanvasElement; next: number } 
     let n = index
     for (let tries = 0; tries < SPLASH_COUNT; tries++) {
         let dv: DataView | null = null
-        try { dv = getFileBinarySync(`data/art/splash/splash${n}.rix`) } catch { dv = null }
-        if (dv && dv.byteLength > 778 && String.fromCharCode(dv.getUint8(0), dv.getUint8(1), dv.getUint8(2), dv.getUint8(3)) === 'RIX3') {
+        try {
+            dv = getFileBinarySync(`data/art/splash/splash${n}.rix`)
+        } catch {
+            dv = null
+        }
+        if (
+            dv &&
+            dv.byteLength > 778 &&
+            String.fromCharCode(dv.getUint8(0), dv.getUint8(1), dv.getUint8(2), dv.getUint8(3)) === 'RIX3'
+        ) {
             const w = dv.getInt16(4, true)
             const h = dv.getInt16(6, true)
             const canvas = document.createElement('canvas')
@@ -63,7 +71,8 @@ export function waitForSplashClick(): Promise<void> {
     if (active || !overlay) return Promise.resolve()
     const label = document.createElement('div')
     label.textContent = '[click to play]'
-    label.style.cssText = 'position:absolute;left:0;bottom:24px;width:100%;text-align:center;color:#fcfcfc;font:12px monospace;text-shadow:1px 1px 0 #000;'
+    label.style.cssText =
+        'position:absolute;left:0;bottom:24px;width:100%;text-align:center;color:#fcfcfc;font:12px monospace;text-shadow:1px 1px 0 #000;'
     overlay.appendChild(label)
     overlay.style.cursor = 'pointer'
     return new Promise((resolve) => {
@@ -90,15 +99,26 @@ export function hideSplash(): void {
 /** Shows the splash while the game loads. */
 export function showSplash(): void {
     let index = 0
-    try { index = Math.max(0, parseInt(localStorage.getItem(STORAGE_KEY) ?? '0', 10) || 0) % SPLASH_COUNT } catch { /* private mode */ }
+    try {
+        index = Math.max(0, parseInt(localStorage.getItem(STORAGE_KEY) ?? '0', 10) || 0) % SPLASH_COUNT
+    } catch {
+        /* private mode */
+    }
     const splash = loadSplash(index)
     if (!splash) return
-    try { localStorage.setItem(STORAGE_KEY, String(splash.next % SPLASH_COUNT)) } catch { /* private mode */ }
+    try {
+        localStorage.setItem(STORAGE_KEY, String(splash.next % SPLASH_COUNT))
+    } catch {
+        /* private mode */
+    }
     overlay = document.createElement('div')
-    overlay.style.cssText = 'position:fixed;left:0;top:0;width:100%;height:100%;background:#000;z-index:5000;display:flex;align-items:center;justify-content:center;'
+    overlay.style.cssText =
+        'position:fixed;left:0;top:0;width:100%;height:100%;background:#000;z-index:5000;display:flex;align-items:center;justify-content:center;'
     splash.canvas.style.cssText = 'opacity:0;transition:opacity 700ms linear;image-rendering:pixelated;'
     overlay.appendChild(splash.canvas)
     document.body.appendChild(overlay)
     // paletteFadeTo from black (CE's fade takes about 700 ms)
-    requestAnimationFrame(() => { splash.canvas.style.opacity = '1' })
+    requestAnimationFrame(() => {
+        splash.canvas.style.opacity = '1'
+    })
 }

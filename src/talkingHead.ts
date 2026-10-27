@@ -58,15 +58,27 @@ const HEAD2 = 'vfngfbnfvppp'
 
 // CE game_dialog.cc:320 _head_phoneme_lookup[PHONEME_COUNT]
 const HEAD_PHONEME_LOOKUP = [
-    0, 3, 1, 1, 3, 1, 1, 1, 7, 8, 7, 3, 1, 8, 1, 7, 7, 6, 6, 2, 2,
-    2, 2, 4, 4, 5, 5, 2, 2, 2, 2, 2, 6, 2, 2, 5, 8, 2, 2, 2, 2, 8,
+    0, 3, 1, 1, 3, 1, 1, 1, 7, 8, 7, 3, 1, 8, 1, 7, 7, 6, 6, 2, 2, 2, 2, 4, 4, 5, 5, 2, 2, 2, 2, 2, 6, 2, 2, 5, 8, 2, 2,
+    2, 2, 8,
 ]
 
 const HEAD_W = 388
 const HEAD_H = 200
 
-interface HeadArt { key: string; numFrames: number; fps: number; frames: { sx: number; sy: number; w: number; h: number; x: number }[]; dirX: number; dirY: number }
-interface Lips { phonemes: number[]; markers: { marker: number; position: number }[]; totalBytes: number; audio: HTMLAudioElement }
+interface HeadArt {
+    key: string
+    numFrames: number
+    fps: number
+    frames: { sx: number; sy: number; w: number; h: number; x: number }[]
+    dirX: number
+    dirY: number
+}
+interface Lips {
+    phonemes: number[]
+    markers: { marker: number; position: number }[]
+    totalBytes: number
+    audio: HTMLAudioElement
+}
 
 let canvas: HTMLCanvasElement | null = null
 let headIndex = -1
@@ -191,23 +203,30 @@ function setupFidget(reaction: number): void {
 // CE game_dialog.cc:2585 _gdPlayTransition (after gameDialogWaitForFidgetToComplete)
 function playTransition(anim: number): Promise<void> {
     const prev = busyTransition
-    busyTransition = prev.then(() => new Promise<void>((resolve) => {
-        const finishFidget = fidgetArt
-        const steps: [HeadArt, number][] = []
-        if (finishFidget) for (let f = fidgetFrame; f < finishFidget.numFrames; f++) steps.push([finishFidget, f])
-        fidgetArt = null
-        const art = loadHeadArt(headArtKey(anim))
-        if (art) for (let f = 0; f < art.numFrames; f++) steps.push([art, f])
-        const delay = 1000 / (art?.fps ?? 10)
-        let i = 0
-        const step = () => {
-            if (i >= steps.length || !canvas) { resolve(); return }
-            const [a, f] = steps[i++]
-            render(a, f)
-            setTimeout(step, delay)
-        }
-        step()
-    }))
+    busyTransition = prev.then(
+        () =>
+            new Promise<void>((resolve) => {
+                const finishFidget = fidgetArt
+                const steps: [HeadArt, number][] = []
+                if (finishFidget)
+                    for (let f = fidgetFrame; f < finishFidget.numFrames; f++) steps.push([finishFidget, f])
+                fidgetArt = null
+                const art = loadHeadArt(headArtKey(anim))
+                if (art) for (let f = 0; f < art.numFrames; f++) steps.push([art, f])
+                const delay = 1000 / (art?.fps ?? 10)
+                let i = 0
+                const step = () => {
+                    if (i >= steps.length || !canvas) {
+                        resolve()
+                        return
+                    }
+                    const [a, f] = steps[i++]
+                    render(a, f)
+                    setTimeout(step, delay)
+                }
+                step()
+            }),
+    )
     return busyTransition
 }
 
@@ -217,13 +236,19 @@ export function talkToCritterReacts(a1: number): void {
     secondsSinceLastInput = 0
     const v3 = a1 + 50
     if (v3 === GAME_DIALOG_REACTION_GOOD) {
-        if (fidgetReaction === FIDGET_GOOD) void playTransition(HEAD_ANIMATION_VERY_GOOD_REACTION).then(() => setupFidget(FIDGET_GOOD))
-        else if (fidgetReaction === FIDGET_NEUTRAL) void playTransition(HEAD_ANIMATION_NEUTRAL_TO_GOOD).then(() => setupFidget(FIDGET_GOOD))
-        else if (fidgetReaction === FIDGET_BAD) void playTransition(HEAD_ANIMATION_BAD_TO_NEUTRAL).then(() => setupFidget(FIDGET_NEUTRAL))
+        if (fidgetReaction === FIDGET_GOOD)
+            void playTransition(HEAD_ANIMATION_VERY_GOOD_REACTION).then(() => setupFidget(FIDGET_GOOD))
+        else if (fidgetReaction === FIDGET_NEUTRAL)
+            void playTransition(HEAD_ANIMATION_NEUTRAL_TO_GOOD).then(() => setupFidget(FIDGET_GOOD))
+        else if (fidgetReaction === FIDGET_BAD)
+            void playTransition(HEAD_ANIMATION_BAD_TO_NEUTRAL).then(() => setupFidget(FIDGET_NEUTRAL))
     } else if (v3 === GAME_DIALOG_REACTION_BAD) {
-        if (fidgetReaction === FIDGET_GOOD) void playTransition(HEAD_ANIMATION_GOOD_TO_NEUTRAL).then(() => setupFidget(FIDGET_NEUTRAL))
-        else if (fidgetReaction === FIDGET_NEUTRAL) void playTransition(HEAD_ANIMATION_NEUTRAL_TO_BAD).then(() => setupFidget(FIDGET_BAD))
-        else if (fidgetReaction === FIDGET_BAD) void playTransition(HEAD_ANIMATION_VERY_BAD_REACTION).then(() => setupFidget(FIDGET_BAD))
+        if (fidgetReaction === FIDGET_GOOD)
+            void playTransition(HEAD_ANIMATION_GOOD_TO_NEUTRAL).then(() => setupFidget(FIDGET_NEUTRAL))
+        else if (fidgetReaction === FIDGET_NEUTRAL)
+            void playTransition(HEAD_ANIMATION_NEUTRAL_TO_BAD).then(() => setupFidget(FIDGET_BAD))
+        else if (fidgetReaction === FIDGET_BAD)
+            void playTransition(HEAD_ANIMATION_VERY_BAD_REACTION).then(() => setupFidget(FIDGET_BAD))
     }
 }
 
@@ -292,7 +317,9 @@ export function startLips(audioName: string | null): void {
     const ae = globalState.audioEngine as any
     // CE lipsStart: soundSetVolume(sound, speechVolume * 0.69)
     l.audio.volume = Math.max(0, Math.min(1, (ae?.speechVolume ?? 1) * (ae?.masterVolume ?? 1) * 0.69))
-    l.audio.play().catch(() => { /* autoplay blocked: the head still animates */ })
+    l.audio.play().catch(() => {
+        /* autoplay blocked: the head still animates */
+    })
     dbg('dialogue', `[Lips] start ${headName}/${audioName}`)
 }
 
@@ -372,7 +399,14 @@ function ensureCanvas(): HTMLCanvasElement | null {
         // CE: head view occupies (126,14)-(514,214) of the 640x480 dialogue window,
         // seen through the frame's TV hole — so below #dialogueFrame (and the
         // hilight1/hilight2 overlays above it).
-        Object.assign(c.style, { position: 'absolute', left: '126px', top: '14px', width: HEAD_W + 'px', height: HEAD_H + 'px', pointerEvents: 'none' })
+        Object.assign(c.style, {
+            position: 'absolute',
+            left: '126px',
+            top: '14px',
+            width: HEAD_W + 'px',
+            height: HEAD_H + 'px',
+            pointerEvents: 'none',
+        })
         container.insertBefore(c, container.firstChild) // first child = bottom layer, under #dialogueFrame
     }
     c.style.display = 'block'

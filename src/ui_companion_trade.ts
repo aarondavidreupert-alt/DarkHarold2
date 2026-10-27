@@ -38,7 +38,17 @@ import { relinkTradedHands, tradeHeldAside } from './inventoryWield.js'
 import { Critter, cloneItem, Obj } from './object.js'
 import { UIMode } from './ui_panels.js'
 import { getVisibleDialoguePanel, uiSetDialogueReply, uiSwapDialoguePanel } from './ui_dialogue.js'
-import { drawBagView, examineToLog, itemMenuActions, makeDropTarget, makeDraggable, MAX_OPEN_BAGS, showItemMenu, unloadWeapon, itemCountLabel } from './ui_inventory.js'
+import {
+    drawBagView,
+    examineToLog,
+    itemMenuActions,
+    makeDropTarget,
+    makeDraggable,
+    MAX_OPEN_BAGS,
+    showItemMenu,
+    unloadWeapon,
+    itemCountLabel,
+} from './ui_inventory.js'
 import { appendItemSlot, $id, clearEl, makeEl } from './ui_dom.js'
 import { uiGetAmount, uiSwapItem } from './ui_barter/swap.js'
 import { renderBarterPortrait, startBarterPortraitAnimation, stopBarterPortraitAnimation } from './ui_barter/screen.js'
@@ -88,8 +98,9 @@ export function uiCompanionTrade(companion: Critter): void {
     // CE _container_enter in the trade window: each side's open bags (in the working copies)
     const playerBags: Obj[] = []
     const companionBags: Obj[] = []
-    const playerList = () => playerBags.length ? playerBags[playerBags.length - 1].inventory : workingPlayerInventory
-    const companionList = () => companionBags.length ? companionBags[companionBags.length - 1].inventory : workingCompanionInventory
+    const playerList = () => (playerBags.length ? playerBags[playerBags.length - 1].inventory : workingPlayerInventory)
+    const companionList = () =>
+        companionBags.length ? companionBags[companionBags.length - 1].inventory : workingCompanionInventory
 
     // Scroll offsets — CE ref: inventory.cc _ptable_offset/_target_pud
     // (outer inventories, scroll buttons at inventory.cc:1086-1225) and the
@@ -160,7 +171,13 @@ export function uiCompanionTrade(companion: Critter): void {
             const img = makeEl('img', {
                 src: inventoryImage ? inventoryImage + '.png' : '',
                 attrs: { title: obj.name },
-                style: { maxWidth: '100%', maxHeight: '60px', objectFit: 'contain', display: 'inline-block', verticalAlign: 'middle' },
+                style: {
+                    maxWidth: '100%',
+                    maxHeight: '60px',
+                    objectFit: 'contain',
+                    display: 'inline-block',
+                    verticalAlign: 'middle',
+                },
             })
             appendItemSlot($el, img, itemCountLabel(obj))
             // drag-data index is the index into the underlying array (`i`),
@@ -173,12 +190,14 @@ export function uiCompanionTrade(companion: Critter): void {
             img.oncontextmenu = (e: MouseEvent) => {
                 e.preventDefault()
                 const inList = who === 'p' || who === 'm'
-                const actions = itemMenuActions(obj, false, who === 'p' || who === 'l')
-                    .filter((a) => a !== 'drop' && (a !== 'use' || (inList && obj.subtype === 'container')))
+                const actions = itemMenuActions(obj, false, who === 'p' || who === 'l').filter(
+                    (a) => a !== 'drop' && (a !== 'use' || (inList && obj.subtype === 'container')),
+                )
                 showItemMenu(e, actions, (action) => {
                     const bags = who === 'p' ? playerBags : companionBags
-                    if (action === 'use') { if (bags.length < MAX_OPEN_BAGS) bags.push(obj) }
-                    else if (action === 'look') examineToLog(obj)
+                    if (action === 'use') {
+                        if (bags.length < MAX_OPEN_BAGS) bags.push(obj)
+                    } else if (action === 'look') examineToLog(obj)
                     else if (action === 'unload') unloadWeapon(obj, (ammo) => objects.push(ammo))
                     redraw()
                 })
@@ -215,7 +234,12 @@ export function uiCompanionTrade(companion: Critter): void {
 
         const amount = obj.amount > 1 ? await uiGetAmount(obj) : 1
         // back into an open bag: CE _drop_into_container's room check (inventry.msg 26)
-        const toBag = where === 'leftInv' ? playerBags[playerBags.length - 1] : where === 'rightInv' ? companionBags[companionBags.length - 1] : undefined
+        const toBag =
+            where === 'leftInv'
+                ? playerBags[playerBags.length - 1]
+                : where === 'rightInv'
+                  ? companionBags[companionBags.length - 1]
+                  : undefined
         if (amount > 0 && toBag && !toBag.canCarry(obj, amount)) {
             uiSetDialogueReply(getMessage('inventry', 26) ?? 'There is no space left for that item.')
             return
@@ -225,10 +249,18 @@ export function uiCompanionTrade(companion: Critter): void {
         redraw()
     }
 
-    makeDropTarget($id('barterBoxLeft'), (data: string) => { uiMove(data, 'left') })
-    makeDropTarget($id('barterBoxRight'), (data: string) => { uiMove(data, 'right') })
-    makeDropTarget($id('barterBoxInventoryLeft'), (data: string) => { uiMove(data, 'leftInv') })
-    makeDropTarget($id('barterBoxInventoryRight'), (data: string) => { uiMove(data, 'rightInv') })
+    makeDropTarget($id('barterBoxLeft'), (data: string) => {
+        uiMove(data, 'left')
+    })
+    makeDropTarget($id('barterBoxRight'), (data: string) => {
+        uiMove(data, 'right')
+    })
+    makeDropTarget($id('barterBoxInventoryLeft'), (data: string) => {
+        uiMove(data, 'leftInv')
+    })
+    makeDropTarget($id('barterBoxInventoryRight'), (data: string) => {
+        uiMove(data, 'rightInv')
+    })
 
     $id('barterTalkButton').onclick = uiEndCompanionTrade
     $id('barterOfferButton').onclick = offer
@@ -281,10 +313,28 @@ export function uiCompanionTrade(companion: Critter): void {
         drawInventory($id('barterBoxInventoryLeft'), 'p', playerList(), playerInvScroll)
         drawInventory($id('barterBoxInventoryRight'), 'm', companionList(), companionInvScroll)
         // CE _display_body: the open bag in the side's body view
-        drawBagView($id('barterBox'), 'barterBoxPlayerBag', { left: 29, top: 45, width: 40, height: 67 }, playerBags,
-            () => { playerInvScroll = 0; redraw() }, $id('barterBoxPlayerPortrait'))
-        drawBagView($id('barterBox'), 'barterBoxMerchantBag', { left: 574, top: 45, width: 40, height: 67 }, companionBags,
-            () => { companionInvScroll = 0; redraw() }, $id('barterBoxMerchantPortrait'))
+        drawBagView(
+            $id('barterBox'),
+            'barterBoxPlayerBag',
+            { left: 29, top: 45, width: 40, height: 67 },
+            playerBags,
+            () => {
+                playerInvScroll = 0
+                redraw()
+            },
+            $id('barterBoxPlayerPortrait'),
+        )
+        drawBagView(
+            $id('barterBox'),
+            'barterBoxMerchantBag',
+            { left: 574, top: 45, width: 40, height: 67 },
+            companionBags,
+            () => {
+                companionInvScroll = 0
+                redraw()
+            },
+            $id('barterBoxMerchantPortrait'),
+        )
         drawInventory($id('barterBoxLeft'), 'l', playerBarterTable, playerOfferScroll)
         drawInventory($id('barterBoxRight'), 'r', companionBarterTable, companionOfferScroll)
 

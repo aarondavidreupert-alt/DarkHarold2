@@ -42,7 +42,7 @@ export function scriptHand(c: Critter): Hand {
 export function invenWield(c: Critter, item: Obj, hand: Hand, animate = false): void {
     const a = c as any
     if (item.subtype === 'armor') {
-        const old = c.isPlayer ? a.armor ?? null : c.getEquippedArmor?.() ?? null
+        const old = c.isPlayer ? (a.armor ?? null) : (c.getEquippedArmor?.() ?? null)
         if (c.isPlayer) {
             const i = c.inventory.indexOf(item)
             if (i !== -1) c.inventory.splice(i, 1)
@@ -68,7 +68,9 @@ export function invenWield(c: Critter, item: Obj, hand: Hand, animate = false): 
     } else {
         if (isReal(old)) old.flags = (old.flags ?? 0) & ~OBJECT_IN_ANY_HAND
         if (!c.inventory.includes(item)) c.inventory.push(item)
-        item.flags = ((item.flags ?? 0) & ~OBJECT_IN_ANY_HAND) | (hand === 'rightHand' ? OBJECT_IN_RIGHT_HAND : OBJECT_IN_LEFT_HAND)
+        item.flags =
+            ((item.flags ?? 0) & ~OBJECT_IN_ANY_HAND) |
+            (hand === 'rightHand' ? OBJECT_IN_RIGHT_HAND : OBJECT_IN_LEFT_HAND)
     }
     const wasDrawn = hand === scriptHand(c) && critterWeaponCode(c) > 0
     a[hand] = item
@@ -99,18 +101,28 @@ export function invenWieldAnimated(c: Critter, item: Obj, hand: Hand, done: () =
     const takeOut = () => {
         if (critterWeaponCode(c) > 0 && c.hasAnimation('weapon-draw')) {
             playCharAnimSfx(c, ANIM.takeOut, critterWeaponCode(c))
-            c.staticAnimation('weapon-draw', () => { c.clearAnim(); done() })
+            c.staticAnimation('weapon-draw', () => {
+                c.clearAnim()
+                done()
+            })
         } else {
             done()
         }
     }
     if (critterWeaponCode(c) > 0 && c.hasAnimation('weapon-holster')) {
         playCharAnimSfx(c, ANIM.putAway)
-        c.staticAnimation('weapon-holster', () => { c.clearAnim(); invenWield(c, item, hand); takeOut() })
+        c.staticAnimation('weapon-holster', () => {
+            c.clearAnim()
+            invenWield(c, item, hand)
+            takeOut()
+        })
         return true
     }
     invenWield(c, item, hand)
-    if (critterWeaponCode(c) > 0 && c.hasAnimation('weapon-draw')) { takeOut(); return true }
+    if (critterWeaponCode(c) > 0 && c.hasAnimation('weapon-draw')) {
+        takeOut()
+        return true
+    }
     return false
 }
 
@@ -123,8 +135,14 @@ export function invenUnwield(c: Critter, hand: Hand, animate = false): void {
     const a = c as any
     const item = a[hand]
     if (!isReal(item)) return
-    const holster = animate && hand === scriptHand(c) && mapShowing() && !c.inAnim() && !c.dead
-        && critterWeaponCode(c) > 0 && c.hasAnimation('weapon-holster')
+    const holster =
+        animate &&
+        hand === scriptHand(c) &&
+        mapShowing() &&
+        !c.inAnim() &&
+        !c.dead &&
+        critterWeaponCode(c) > 0 &&
+        c.hasAnimation('weapon-holster')
     if (holster) {
         playCharAnimSfx(c, ANIM.putAway)
         c.staticAnimation('weapon-holster', () => c.clearAnim())
@@ -280,7 +298,10 @@ export function tradeHeldAside(c: Critter, isPartyMember: boolean): Obj[] {
 // the hand / worn flags of the items the dude received (his slots live outside the list).
 export function relinkTradedHands(c: Critter, player: Critter): void {
     const a = c as any
-    for (const [hand, flag] of [['leftHand', OBJECT_IN_LEFT_HAND], ['rightHand', OBJECT_IN_RIGHT_HAND]] as [Hand, number][]) {
+    for (const [hand, flag] of [
+        ['leftHand', OBJECT_IN_LEFT_HAND],
+        ['rightHand', OBJECT_IN_RIGHT_HAND],
+    ] as [Hand, number][]) {
         const held = c.inventory.find((it) => ((it.flags ?? 0) & flag) !== 0)
         if (held) a[hand] = held
         else if (isReal(a[hand]) && !c.inventory.includes(a[hand])) a[hand] = (c.constructor as any).makeFist?.()

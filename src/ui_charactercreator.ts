@@ -37,7 +37,7 @@ export function showCharacterCreator(): void {
         () => {
             globalState.uiMode = UIMode.none
             onBack?.()
-        }
+        },
     )
 }
 

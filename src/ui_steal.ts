@@ -30,7 +30,16 @@ import { Critter, itemIsHidden, Obj } from './object.js'
 import { UIMode } from './ui_panels.js'
 import { uiGetAmount, uiSwapItem } from './ui_barter.js'
 import { uiLog } from './ui_hud.js'
-import { examineToLog, itemMenuActions, makeDropTarget, makeDraggable, MAX_OPEN_BAGS, showItemMenu, unloadWeapon, itemCountLabel } from './ui_inventory.js'
+import {
+    examineToLog,
+    itemMenuActions,
+    makeDropTarget,
+    makeDraggable,
+    MAX_OPEN_BAGS,
+    showItemMenu,
+    unloadWeapon,
+    itemCountLabel,
+} from './ui_inventory.js'
 import { appendItemSlot, $id, clearEl, showv, hidev, off, makeEl } from './ui_dom.js'
 import { performSteal } from './skillUse.js'
 import { Scripting } from './scripting.js'
@@ -60,8 +69,8 @@ export function uiSteal(thief: Critter, target: Critter): void {
     // CE _container_enter: each side's open bags (the steal window is a loot window)
     const thiefBags: Obj[] = []
     const targetBags: Obj[] = []
-    const thiefList = () => thiefBags.length ? thiefBags[thiefBags.length - 1].inventory : thief.inventory
-    const targetList = () => targetBags.length ? targetBags[targetBags.length - 1].inventory : target.inventory
+    const thiefList = () => (thiefBags.length ? thiefBags[thiefBags.length - 1].inventory : thief.inventory)
+    const targetList = () => (targetBags.length ? targetBags[targetBags.length - 1].inventory : target.inventory)
 
     function drawInventory($el: HTMLElement, who: 'l' | 'r', objects: Obj[]) {
         clearEl($el)
@@ -76,7 +85,13 @@ export function uiSteal(thief: Critter, target: Critter): void {
             const img = makeEl('img', {
                 src: inventoryImage + '.png',
                 attrs: { title: objects[i].name },
-                style: { maxWidth: '100%', maxHeight: '60px', objectFit: 'contain', display: 'inline-block', verticalAlign: 'middle' },
+                style: {
+                    maxWidth: '100%',
+                    maxHeight: '60px',
+                    objectFit: 'contain',
+                    display: 'inline-block',
+                    verticalAlign: 'middle',
+                },
             })
             appendItemSlot($el, img, itemCountLabel(objects[i]))
             makeDraggable(img, who + i)
@@ -88,12 +103,16 @@ export function uiSteal(thief: Critter, target: Critter): void {
                 showItemMenu(e, itemMenuActions(item, false, ownerIsDude), (action) => {
                     const bags = ownerIsDude ? thiefBags : targetBags
                     const owner: Obj = bags[bags.length - 1] ?? (ownerIsDude ? thief : target)
-                    if (action === 'use' && item.subtype === 'container') { if (bags.length < MAX_OPEN_BAGS) bags.push(item) }
-                    else if (action === 'look') examineToLog(item)
+                    if (action === 'use' && item.subtype === 'container') {
+                        if (bags.length < MAX_OPEN_BAGS) bags.push(item)
+                    } else if (action === 'look') examineToLog(item)
                     else if (action === 'unload') unloadWeapon(item, (ammo) => owner.addInventoryItem(ammo, 1))
                     else if (action === 'drop') {
                         const list = thiefList()
-                        if (list !== thief.inventory) { list.splice(list.indexOf(item), 1); thief.inventory.push(item) }
+                        if (list !== thief.inventory) {
+                            list.splice(list.indexOf(item), 1)
+                            thief.inventory.push(item)
+                        }
                         item.drop(thief)
                     }
                     drawSteal()
@@ -153,7 +172,11 @@ export function uiSteal(thief: Critter, target: Critter): void {
                 // CE ref: inventory.cc:4492-4499 — fires the target's own
                 // pickup_p_proc(self=target, source=thief); the NPC's script
                 // decides the in-fiction reaction (dialogue, hostility, etc.)
-                try { Scripting.pickup(target, thief) } catch (e) { dbg('script', 'uiSteal: pickup_p_proc error: %o', e) }
+                try {
+                    Scripting.pickup(target, thief)
+                } catch (e) {
+                    dbg('script', 'uiSteal: pickup_p_proc error: %o', e)
+                }
             }
             endSteal()
             return

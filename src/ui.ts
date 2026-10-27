@@ -31,14 +31,7 @@ import { initInventory } from './ui_inventory.js'
 import { showCharacterScreen, closeCharacterScreen, getCharacterWindow } from './ui_character.js'
 import { initLoot } from './ui_loot.js'
 import { initCalledShot } from './ui_calledshot.js'
-import {
-    drawHP,
-    drawAC,
-    drawAP,
-    uiDrawWeapon,
-    uiEndCombatAnimationDone,
-    attackButtonDisabled,
-} from './ui_hud.js'
+import { drawHP, drawAC, drawAP, uiDrawWeapon, uiEndCombatAnimationDone, attackButtonDisabled } from './ui_hud.js'
 import {
     initUiContainer,
     closeAllPanels,
@@ -74,14 +67,7 @@ export {
     uiHideCombatHover,
     initLogScrollZones,
 } from './ui_hud.js'
-export {
-    UIMode,
-    closeAllPanels,
-    isInventoryOpen,
-    isCharacterOpen,
-    isSkilldexOpen,
-    isOptionsOpen,
-} from './ui_panels.js'
+export { UIMode, closeAllPanels, isInventoryOpen, isCharacterOpen, isSkilldexOpen, isOptionsOpen } from './ui_panels.js'
 export { showInventory as uiInventoryScreen } from './ui_inventory.js'
 export { showCharacterScreen, closeCharacterScreen, getCharacterWindow } from './ui_character.js'
 export { uiStartDialogue, uiEndDialogue, uiSetDialogueReply, uiAddDialogueOption } from './ui_dialogue.js'
@@ -121,8 +107,8 @@ function uiInit() {
     initCalledShot()
 
     // DH2: the remaining windows can be dragged too (fallout2.cfg [dh2] drag_*)
-    makePanelDraggable($id('lootBox'), 'loot')                // loot, steal
-    makePanelDraggable($id('dialogueContainer'), 'dialogue')  // dialogue, barter, companion screens
+    makePanelDraggable($id('lootBox'), 'loot') // loot, steal
+    makePanelDraggable($id('dialogueContainer'), 'dialogue') // dialogue, barter, companion screens
     makePanelDraggable($id('elevatorBox'), 'elevator')
     makePanelDraggable($id('calledShotBox'), 'calledShot')
     makePanelDraggable($id('moveMultBox'), 'moveItems')
@@ -131,7 +117,10 @@ function uiInit() {
     if (chrBtn) {
         chrBtn.onclick = () => {
             // Toggle: pressing while open closes it.
-            if (isCharacterOpen()) { closeCharacterScreen(); return }
+            if (isCharacterOpen()) {
+                closeCharacterScreen()
+                return
+            }
             closeAllPanels()
             showCharacterScreen()
         }
@@ -143,8 +132,12 @@ function uiInit() {
     const barSounds = (id: string, press: string, release: string) => {
         const el = document.getElementById(id)
         if (!el) return
-        el.addEventListener('mousedown', (e) => { if (e.button === 0) globalState.audioEngine?.playSfxByName?.(press) })
-        el.addEventListener('mouseup', (e) => { if (e.button === 0) globalState.audioEngine?.playSfxByName?.(release) })
+        el.addEventListener('mousedown', (e) => {
+            if (e.button === 0) globalState.audioEngine?.playSfxByName?.(press)
+        })
+        el.addEventListener('mouseup', (e) => {
+            if (e.button === 0) globalState.audioEngine?.playSfxByName?.(release)
+        })
     }
     for (const id of ['optionsButton', 'skilldexButton', 'mapButton', 'pipBoyButton', 'chrButton', 'handSwapButton']) {
         barSounds(id, 'ib2p1xx1', 'ib2lu1x1')
@@ -152,13 +145,19 @@ function uiInit() {
     barSounds('attackButtonContainer', 'ib3p1xx1', 'ib3lu1x1')
 
     document.getElementById('pipBoyButton')!.onclick = () => {
-        if (isPipBoyOpen()) { closePipBoy(); return }
+        if (isPipBoyOpen()) {
+            closePipBoy()
+            return
+        }
         closeAllPanels()
         openPipBoy()
     }
 
     document.getElementById('mapButton')!.onclick = () => {
-        if (isAutomapOpen()) { closeAutomap(); return }
+        if (isAutomapOpen()) {
+            closeAutomap()
+            return
+        }
         closeAllPanels()
         openAutomap()
     }
@@ -215,7 +214,10 @@ export function initUI() {
     // calledShot digit divs + cancel button live in ui_calledshot.ts → initCalledShot()
 
     $id('optionsButton').onclick = () => {
-        if (isOptionsOpen()) { closeOptionsMenu(); return }
+        if (isOptionsOpen()) {
+            closeOptionsMenu()
+            return
+        }
         closeAllPanels()
         showOptionsMenu()
     }
@@ -248,7 +250,8 @@ export function initUI() {
             if (ap && ap.getAvailableCombatAP() < reloadAP) return
             if (reloadWeapon(wep)) {
                 const soundID = (wep as any).pro?.extra?.soundID
-                if (typeof soundID === 'number') globalState.audioEngine?.playWeaponSfx(String.fromCharCode(soundID), 'reload')
+                if (typeof soundID === 'number')
+                    globalState.audioEngine?.playWeaponSfx(String.fromCharCode(soundID), 'reload')
                 if (ap) {
                     ap.subtractCombatAP(reloadAP)
                     drawAP(ap.getAvailableCombatAP(), ap.getTotalMaxAP(), ap.move)
@@ -323,7 +326,10 @@ export function initUI() {
     $id('skilldexButton').onclick = () => {
         // Toggle: pressing while open closes it; otherwise close any other
         // open panel first and open skilldex.
-        if (isSkilldexOpen()) { closeSkilldex(); return }
+        if (isSkilldexOpen()) {
+            closeSkilldex()
+            return
+        }
         closeAllPanels()
         showSkilldex()
     }

@@ -29,8 +29,4 @@ export {
 
 export { flushAutomapSave, resetAutomap, serializeAutomap, restoreAutomap, SavedAutomap } from './automap/storage.js'
 
-export {
-    RenderOptions,
-    renderAutomapCanvas,
-    drawAutomapInto,
-} from './automap/render.js'
+export { RenderOptions, renderAutomapCanvas, drawAutomapInto } from './automap/render.js'

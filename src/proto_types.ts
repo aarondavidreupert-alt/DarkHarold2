@@ -159,12 +159,7 @@ export interface OtherItemProtoExtra extends ItemProtoExtraBase {
 }
 
 export type ItemProtoExtra =
-    | WeaponProtoExtra
-    | AmmoProtoExtra
-    | ArmorProtoExtra
-    | DrugProtoExtra
-    | MiscItemProtoExtra
-    | OtherItemProtoExtra
+    WeaponProtoExtra | AmmoProtoExtra | ArmorProtoExtra | DrugProtoExtra | MiscItemProtoExtra | OtherItemProtoExtra
 
 // --- Critter extra -------------------------------------------------------
 
@@ -286,11 +281,7 @@ export interface GenericSceneryExtra extends SceneryProtoExtraBase {
 }
 
 export type SceneryProtoExtra =
-    | DoorSceneryExtra
-    | StairsSceneryExtra
-    | ElevatorSceneryExtra
-    | LadderSceneryExtra
-    | GenericSceneryExtra
+    DoorSceneryExtra | StairsSceneryExtra | ElevatorSceneryExtra | LadderSceneryExtra | GenericSceneryExtra
 
 // --- Wall / Tile / Misc extra -----------------------------------------------
 
@@ -317,12 +308,7 @@ export interface MiscProtoExtra {
 // --- Top-level Proto ---------------------------------------------------------
 
 export type ProtoExtra =
-    | ItemProtoExtra
-    | CritterProtoExtra
-    | SceneryProtoExtra
-    | WallProtoExtra
-    | TileProtoExtra
-    | MiscProtoExtra
+    ItemProtoExtra | CritterProtoExtra | SceneryProtoExtra | WallProtoExtra | TileProtoExtra | MiscProtoExtra
 
 // CE ref: proto.cc:1663 protoRead() — the true common prefix across every
 // proto type is only pid/messageId(textID)/fid(frmPID+frmType); flags/

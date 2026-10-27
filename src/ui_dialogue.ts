@@ -81,7 +81,8 @@ export function getDialogueSpeaker(): Critter | undefined {
     return dialogueSpeaker
 }
 Events.on('partyChanged', () => {
-    if (dialogueSpeaker && $id('dialogueBox').style.visibility === 'visible') setupDialogueActionButtons(dialogueSpeaker)
+    if (dialogueSpeaker && $id('dialogueBox').style.visibility === 'visible')
+        setupDialogueActionButtons(dialogueSpeaker)
 })
 
 function setupDialogueActionButtons(target: Critter | undefined): void {
@@ -211,7 +212,10 @@ export function uiEndDialogue() {
     // dude's if he moved meanwhile
     if (dialogueReturn) {
         const p = globalState.player
-        const moved = p && dialogueReturn.dudeTile && (p.position.x !== dialogueReturn.dudeTile.x || p.position.y !== dialogueReturn.dudeTile.y)
+        const moved =
+            p &&
+            dialogueReturn.dudeTile &&
+            (p.position.x !== dialogueReturn.dudeTile.x || p.position.y !== dialogueReturn.dudeTile.y)
         tileScrollTo(moved ? p.position : dialogueReturn.center) // _tile_scroll_to(…, 2)
         dialogueReturn = null
     }
@@ -292,7 +296,14 @@ export function getVisibleDialoguePanel(): HTMLElement | null {
 // (_colorTable[992]), the one under the mouse yellow (32747). With the Empathy perk the
 // option's reaction shows: good blue (31) / hovered magenta (31775), bad red (31744) /
 // hovered light red (32074), neutral as usual.
-const OPTION_COLOR = { normal: '#00F800', hover: '#F8F858', good: '#0000F8', goodHover: '#F800F8', bad: '#F80000', badHover: '#F85050' }
+const OPTION_COLOR = {
+    normal: '#00F800',
+    hover: '#F8F858',
+    good: '#0000F8',
+    goodHover: '#F800F8',
+    bad: '#F80000',
+    badHover: '#F85050',
+}
 
 // CE game_dialog.cc _gdProcess keys: 1-9 pick option n (0 ignored, sfall fix), B the
 // Barter button
@@ -327,11 +338,25 @@ export function uiAddDialogueOption(msg: string, optionID: number, reaction = 50
     item.textContent = `\u2022 ${msg}` // CE "%c %s" with '\x95' (cp1252 bullet)
     item.style.cursor = 'pointer'
     const empathy = !!globalState.player?.hasPerk?.('Empathy')
-    const normal = empathy && reaction === 49 ? OPTION_COLOR.good : empathy && reaction === 51 ? OPTION_COLOR.bad : OPTION_COLOR.normal
-    const hover = empathy && reaction === 49 ? OPTION_COLOR.goodHover : empathy && reaction === 51 ? OPTION_COLOR.badHover : OPTION_COLOR.hover
+    const normal =
+        empathy && reaction === 49
+            ? OPTION_COLOR.good
+            : empathy && reaction === 51
+              ? OPTION_COLOR.bad
+              : OPTION_COLOR.normal
+    const hover =
+        empathy && reaction === 49
+            ? OPTION_COLOR.goodHover
+            : empathy && reaction === 51
+              ? OPTION_COLOR.badHover
+              : OPTION_COLOR.hover
     item.style.color = normal
-    item.onmouseenter = () => { item.style.color = hover }
-    item.onmouseleave = () => { item.style.color = normal }
+    item.onmouseenter = () => {
+        item.style.color = hover
+    }
+    item.onmouseleave = () => {
+        item.style.color = normal
+    }
     item.onclick = () => Scripting.dialogueReply(optionID)
     $id('dialogueBoxTextArea').appendChild(item)
 }

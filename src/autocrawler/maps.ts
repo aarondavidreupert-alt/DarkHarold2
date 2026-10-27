@@ -7,12 +7,7 @@ import { eventLogClear } from '../logger.js'
 import { Scripting } from '../scripting.js'
 import { UIMode } from '../ui.js'
 import { buildReport, printSummary } from './report.js'
-import {
-    COMBAT_ACTIVE_TIMEOUT_MS,
-    MAP_LOAD_TIMEOUT_MS,
-    setLastReport,
-    waitFor,
-} from './shared.js'
+import { COMBAT_ACTIVE_TIMEOUT_MS, MAP_LOAD_TIMEOUT_MS, setLastReport, waitFor } from './shared.js'
 import type { CrawlerReport, MapResult } from './types.js'
 
 // Fetch the maps/ directory listing and return all base map names.
@@ -46,8 +41,12 @@ async function crawlOneMap(mapName: string): Promise<MapResult> {
         await waitFor(() => !isCombatActive(), COMBAT_ACTIVE_TIMEOUT_MS)
     }
     if (globalState.uiMode !== UIMode.none) {
-        try { Scripting.dialogueEnd() } catch { /* ignore */ }
-        await new Promise<void>(r => setTimeout(r, 0))
+        try {
+            Scripting.dialogueEnd()
+        } catch {
+            /* ignore */
+        }
+        await new Promise<void>((r) => setTimeout(r, 0))
     }
 
     // Clear event log so this map's entries don't bleed into the previous map's
@@ -120,24 +119,29 @@ export async function runMapCrawler(): Promise<CrawlerReport | null> {
         try {
             r = await crawlOneMap(mapName)
         } catch (e) {
-            r = { map: mapName, status: 'exception', durationMs: 0, error: String(e),
-                  stack: e instanceof Error ? e.stack : undefined }
+            r = {
+                map: mapName,
+                status: 'exception',
+                durationMs: 0,
+                error: String(e),
+                stack: e instanceof Error ? e.stack : undefined,
+            }
         }
         results.push(r)
         // Attach failures at the top of every incremental snapshot so
         // downloadReport() during a crawl also produces a navigable file.
         const partial = buildReport('maps', '*', results)
-        partial.failures = results.filter(r2 => r2.status !== 'ok')
+        partial.failures = results.filter((r2) => r2.status !== 'ok')
         setLastReport(partial)
         console.log(
             `[AutoCrawler] ${tag} ${mapName} → ${r.status} (${Math.round(r.durationMs)}ms)` +
-            (r.error ? ': ' + r.error : '')
+                (r.error ? ': ' + r.error : ''),
         )
-        await new Promise<void>(r2 => setTimeout(r2, 20))
+        await new Promise<void>((r2) => setTimeout(r2, 20))
     }
 
     const report = buildReport('maps', '*', results)
-    report.failures = results.filter(r => r.status !== 'ok')
+    report.failures = results.filter((r) => r.status !== 'ok')
     printSummary(report)
     setLastReport(report)
     const s = report.summary

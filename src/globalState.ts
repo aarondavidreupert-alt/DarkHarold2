@@ -48,11 +48,11 @@ interface FloatMessage {
     msg: string
     obj: Obj
     startTime: number
-    color: string           // CSS hex (floatText.ts FLOAT_MSG_COLOR) or an old colour name
+    color: string // CSS hex (floatText.ts FLOAT_MSG_COLOR) or an old colour name
     outline?: string | null // outline colour; default black, null = none
-    font?: 101 | 103        // CE interface font (default 101)
-    tile?: Point | null     // CE textObject->tile: the owner's tile when it was added
-    lines?: number          // CE linesCount (after word wrap) — for the display time
+    font?: 101 | 103 // CE interface font (default 101)
+    tile?: Point | null // CE textObject->tile: the owner's tile when it was added
+    lines?: number // CE linesCount (after word wrap) — for the display time
 }
 
 const globalState = {

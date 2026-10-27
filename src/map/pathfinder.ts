@@ -45,7 +45,13 @@ function idist(x1: number, y1: number, x2: number, y2: number): number {
     return dx + dy - Math.trunc(dm / 2)
 }
 
-interface PathNode { tile: number; from: number; rotation: number; estimate: number; cost: number }
+interface PathNode {
+    tile: number
+    from: number
+    rotation: number
+    estimate: number
+    cost: number
+}
 
 // The blocking object per tile (CE _obj_blocking_at: OBJECT_MULTIHEX objects also
 // block the six hexes around them), and the goo tiles. `shoot`: CE
@@ -55,7 +61,11 @@ interface PathNode { tile: number; from: number; rotation: number; estimate: num
 // walking test without critters (CE _obj_ai_blocking_at lets the first critter through
 // and remembers it as _moveBlockObj; the caller finds it on the path).
 export type PathBlockMode = boolean | 'sight' | 'ai'
-function blockingMap(mover: Obj | null, elevation: number, shoot: PathBlockMode = false): { block: Map<number, Obj>; goo: Set<number> } {
+function blockingMap(
+    mover: Obj | null,
+    elevation: number,
+    shoot: PathBlockMode = false,
+): { block: Map<number, Obj>; goo: Set<number> } {
     const block = new Map<number, Obj>()
     const goo = new Set<number>()
     const W = HEX_GRID_SIZE
@@ -67,8 +77,14 @@ function blockingMap(mover: Obj | null, elevation: number, shoot: PathBlockMode 
         if (pid !== undefined && pid >= FIRST_RADIOACTIVE_GOO_PID && pid <= LAST_RADIOACTIVE_GOO_PID) goo.add(y * W + x)
         if (shoot === 'sight') {
             const flags = ((o as any).flags ?? 0) >>> 0
-            if ((o.type === 'scenery' || o.type === 'wall') && (flags & 0x01) === 0 && (o as any).visible !== false
-                && (flags & 0x20000000) === 0 && !block.has(y * W + x)) block.set(y * W + x, o)
+            if (
+                (o.type === 'scenery' || o.type === 'wall') &&
+                (flags & 0x01) === 0 &&
+                (o as any).visible !== false &&
+                (flags & 0x20000000) === 0 &&
+                !block.has(y * W + x)
+            )
+                block.set(y * W + x, o)
             continue
         }
         if (shoot === 'ai' && o.type === 'critter') continue
@@ -81,14 +97,16 @@ function blockingMap(mover: Obj | null, elevation: number, shoot: PathBlockMode 
             if (!noBlock && (flags & 0x800) !== 0) {
                 for (let r = 0; r < 6; r++) {
                     const n = hexInDirection(o.position, r)
-                    if (n.x >= 0 && n.x < W && n.y >= 0 && n.y < W && !block.has(n.y * W + n.x)) block.set(n.y * W + n.x, o)
+                    if (n.x >= 0 && n.x < W && n.y >= 0 && n.y < W && !block.has(n.y * W + n.x))
+                        block.set(n.y * W + n.x, o)
                 }
             }
             continue
         }
         if (!o.blocks()) continue
         if (!block.has(y * W + x)) block.set(y * W + x, o)
-        if ((((o as any).flags ?? 0) & 0x800) !== 0) { // OBJECT_MULTIHEX
+        if ((((o as any).flags ?? 0) & 0x800) !== 0) {
+            // OBJECT_MULTIHEX
             for (let r = 0; r < 6; r++) {
                 const n = hexInDirection(o.position, r)
                 if (n.x >= 0 && n.x < W && n.y >= 0 && n.y < W && !block.has(n.y * W + n.x)) block.set(n.y * W + n.x, o)
@@ -101,7 +119,13 @@ function blockingMap(mover: Obj | null, elevation: number, shoot: PathBlockMode 
 // Returns the rotations from `from` to `to` (empty: no path). `goalMustBeFree` is CE's
 // a5: the goal tile itself must not be blocked; `shoot` checks with
 // _obj_shoot_blocking_at (CE's blocking-function argument), 'sight' _obj_sight_blocking_at.
-export function pathfinderFindPath(mover: Obj | null, from: Point, to: Point, goalMustBeFree: boolean, shoot: PathBlockMode = false): number[] {
+export function pathfinderFindPath(
+    mover: Obj | null,
+    from: Point,
+    to: Point,
+    goalMustBeFree: boolean,
+    shoot: PathBlockMode = false,
+): number[] {
     const W = HEX_GRID_SIZE
     const fromTile = from.y * W + from.x
     const toTile = to.y * W + to.x
@@ -114,8 +138,10 @@ export function pathfinderFindPath(mover: Obj | null, from: Point, to: Point, go
     // inside the black map border to a hex outside it (walkBorderBounds), so
     // neither the player nor an NPC walks into the black. A mover already outside can
     // still walk; scripts' move_to doesn't path.
-    const border = (!shoot || shoot === 'ai') && Config.ui.walkLimitToBorder && elevation === globalState.gMap?.currentElevation
-        ? walkBorderBounds() : null
+    const border =
+        (!shoot || shoot === 'ai') && Config.ui.walkLimitToBorder && elevation === globalState.gMap?.currentElevation
+            ? walkBorderBounds()
+            : null
     const inside = (x: number, y: number): boolean => {
         if (!border) return true
         const s = hexToScreen(x, y)
@@ -134,7 +160,13 @@ export function pathfinderFindPath(mover: Obj | null, from: Point, to: Point, go
     const fromScreen = hexToScreen(from.x, from.y)
     const open: PathNode[] = []
     for (let i = 0; i < MAX_NODES; i++) open.push({ tile: -1, from: -1, rotation: 0, estimate: 0, cost: 0 })
-    open[0] = { tile: fromTile, from: -1, rotation: 0, estimate: idist(fromScreen.x, fromScreen.y, toScreen.x, toScreen.y), cost: 0 }
+    open[0] = {
+        tile: fromTile,
+        from: -1,
+        rotation: 0,
+        estimate: idist(fromScreen.x, fromScreen.y, toScreen.x, toScreen.y),
+        cost: 0,
+    }
     const closed: PathNode[] = []
     let openCount = 1
     let temp: PathNode = open[0]
@@ -203,7 +235,13 @@ export function pathfinderFindPath(mover: Obj | null, from: Point, to: Point, go
 }
 
 // The path as hexes, start included (DH2's path format).
-export function pathfinderFindPathPoints(mover: Obj | null, from: Point, to: Point, goalMustBeFree: boolean, mode: PathBlockMode = false): number[][] {
+export function pathfinderFindPathPoints(
+    mover: Obj | null,
+    from: Point,
+    to: Point,
+    goalMustBeFree: boolean,
+    mode: PathBlockMode = false,
+): number[][] {
     if (from.x === to.x && from.y === to.y) return [[from.x, from.y]]
     const rotations = pathfinderFindPath(mover, from, to, goalMustBeFree, mode)
     if (rotations.length === 0) return []

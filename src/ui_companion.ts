@@ -74,7 +74,14 @@ const ACTION_BTN_SIZE = 14
 
 // Customization category buttons — x=95/96, FRM dims 109x28.
 // CE ref: game_dialog.cc:446-452 (_custom_button_info).
-const CUSTOM_BUTTONS: { y: number; x: number; category: CustomAiCategory; frmUp: string; frmDn: string; label: string }[] = [
+const CUSTOM_BUTTONS: {
+    y: number
+    x: number
+    category: CustomAiCategory
+    frmUp: string
+    frmDn: string
+    label: string
+}[] = [
     { y: 9, x: 95, category: 'areaAttackMode', frmUp: 'burstup', frmDn: 'burstdn', label: 'Burst safety' },
     { y: 38, x: 96, category: 'runAwayMode', frmUp: 'runup', frmDn: 'rundn', label: 'Run away at' },
     { y: 68, x: 96, category: 'bestWeapon', frmUp: 'weapup', frmDn: 'weapdn', label: 'Preferred weapon' },
@@ -87,8 +94,12 @@ const CUSTOM_BUTTONS: { y: number; x: number; category: CustomAiCategory; frmUp:
 // message text reproduced from game/custom.msg via the CE source comments.
 // party.txt key of each Custom category
 const CUSTOM_INI_KEY: { [K in CustomAiCategory]: string } = {
-    areaAttackMode: 'area_attack_mode', runAwayMode: 'run_away_mode', bestWeapon: 'best_weapon',
-    distance: 'distance', attackWho: 'attack_who', chemUse: 'chem_use',
+    areaAttackMode: 'area_attack_mode',
+    runAwayMode: 'run_away_mode',
+    bestWeapon: 'best_weapon',
+    distance: 'distance',
+    attackWho: 'attack_who',
+    chemUse: 'chem_use',
 }
 
 const CUSTOM_OPTIONS: { [K in CustomAiCategory]: { value: AiPacket[K]; label: string }[] } = {
@@ -155,17 +166,25 @@ function setActiveEscapeClose(close: (() => void) | null): void {
     activeEscapeClose = close
     if (escapeListenerInstalled) return
     escapeListenerInstalled = true
-    document.addEventListener('keydown', (e: KeyboardEvent) => {
-        // the screen's own keys (CE partyMemberControlWindowHandleEvents: W best weapon,
-        // A best armor, D trade; the customise screen: Return like Esc)
-        const action = activeScreenKeys?.[e.key.length === 1 ? e.key.toLowerCase() : e.key]
-        if (action && globalState.uiMode === UIMode.companionControl) { e.preventDefault(); action(); return }
-        if (e.key !== 'Escape' || !activeEscapeClose) return
-        e.preventDefault()
-        const fn = activeEscapeClose
-        activeEscapeClose = null
-        fn!()
-    }, true)
+    document.addEventListener(
+        'keydown',
+        (e: KeyboardEvent) => {
+            // the screen's own keys (CE partyMemberControlWindowHandleEvents: W best weapon,
+            // A best armor, D trade; the customise screen: Return like Esc)
+            const action = activeScreenKeys?.[e.key.length === 1 ? e.key.toLowerCase() : e.key]
+            if (action && globalState.uiMode === UIMode.companionControl) {
+                e.preventDefault()
+                action()
+                return
+            }
+            if (e.key !== 'Escape' || !activeEscapeClose) return
+            e.preventDefault()
+            const fn = activeEscapeClose
+            activeEscapeClose = null
+            fn!()
+        },
+        true,
+    )
 }
 let activeScreenKeys: { [key: string]: () => void } | null = null
 
@@ -204,10 +223,16 @@ function makePanel(bgImage: string, w: number, h: number): HTMLDivElement {
 
 /** A graphic button with up/down image states, optionally a third disabled state. */
 function makeGraphicButton(
-    x: number, y: number, w: number, h: number,
-    upImg: string, downImg: string, disabledImg: string | null,
-    pressed: boolean, disabled: boolean,
-    onClick?: () => void
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    upImg: string,
+    downImg: string,
+    disabledImg: string | null,
+    pressed: boolean,
+    disabled: boolean,
+    onClick?: () => void,
 ): HTMLDivElement {
     const el = document.createElement('div')
     const img = disabled && disabledImg ? disabledImg : pressed ? downImg : upImg
@@ -266,7 +291,7 @@ function useBestWeapon(companion: Critter): boolean {
 // is PID 0x10000A1, wear _ai_search_inven_armor (OBJECT_WORN, armor perk swap);
 // the update message shows either way.
 function useBestArmor(companion: Critter): void {
-    if (companion.pid !== 0x10000A1) {
+    if (companion.pid !== 0x10000a1) {
         const armor = Combat.aiSearchInvenArmor(companion)
         if (armor) {
             const old = companion.getEquippedArmor()
@@ -293,16 +318,28 @@ function makeActionButton(x: number, y: number, onClick: () => void): HTMLDivEle
         imageRendering: 'pixelated',
         cursor: 'pointer',
     })
-    el.addEventListener('mousedown', () => { el.style.backgroundImage = "url('" + assetUrl('art/intrface/di_rdbt1.png') + "')" })
-    el.addEventListener('mouseup', () => { el.style.backgroundImage = "url('" + assetUrl('art/intrface/di_rdbt2.png') + "')" })
-    el.addEventListener('mouseleave', () => { el.style.backgroundImage = "url('" + assetUrl('art/intrface/di_rdbt2.png') + "')" })
+    el.addEventListener('mousedown', () => {
+        el.style.backgroundImage = "url('" + assetUrl('art/intrface/di_rdbt1.png') + "')"
+    })
+    el.addEventListener('mouseup', () => {
+        el.style.backgroundImage = "url('" + assetUrl('art/intrface/di_rdbt2.png') + "')"
+    })
+    el.addEventListener('mouseleave', () => {
+        el.style.backgroundImage = "url('" + assetUrl('art/intrface/di_rdbt2.png') + "')"
+    })
     el.addEventListener('click', onClick)
     return el
 }
 
 function makeLabel(x: number, y: number, text: string, color = '#c8b466'): HTMLDivElement {
     const wrap = document.createElement('div')
-    Object.assign(wrap.style, { position: 'absolute', left: x + 'px', top: y + 'px', pointerEvents: 'none', lineHeight: '0' })
+    Object.assign(wrap.style, {
+        position: 'absolute',
+        left: x + 'px',
+        top: y + 'px',
+        pointerEvents: 'none',
+        lineHeight: '0',
+    })
     new FoText(font1, text, color).appendTo(wrap)
     return wrap
 }
@@ -313,7 +350,13 @@ function makeStandingPreview(critter: Critter): HTMLCanvasElement {
     const canvas = document.createElement('canvas')
     canvas.width = 70
     canvas.height = 98
-    Object.assign(canvas.style, { position: 'absolute', left: '8px', top: '84px', imageRendering: 'pixelated', pointerEvents: 'none' })
+    Object.assign(canvas.style, {
+        position: 'absolute',
+        left: '8px',
+        top: '84px',
+        imageRendering: 'pixelated',
+        pointerEvents: 'none',
+    })
     const art = (critter as any).getAnimation?.('idle') ?? critter.art
     const info = art ? globalState.imageInfo?.[art] : undefined
     if (!info) return canvas
@@ -322,12 +365,27 @@ function makeStandingPreview(critter: Critter): HTMLCanvasElement {
     if (!frame) return canvas
     const { sx, sy } = frameCell(info, direction, 0)
     const draw = (img: HTMLImageElement) => {
-        canvas.getContext('2d')?.drawImage(img, sx, sy, frame.w, frame.h,
-            39 - 8 - Math.trunc(frame.w / 2), 132 - 84 - Math.trunc(frame.h / 2), frame.w, frame.h)
+        canvas
+            .getContext('2d')
+            ?.drawImage(
+                img,
+                sx,
+                sy,
+                frame.w,
+                frame.h,
+                39 - 8 - Math.trunc(frame.w / 2),
+                132 - 84 - Math.trunc(frame.h / 2),
+                frame.w,
+                frame.h,
+            )
     }
     const cached = globalState.images?.[art] as HTMLImageElement | undefined
     if (cached?.complete) draw(cached)
-    else { const img = new Image(); img.onload = () => draw(img); img.src = assetUrl(art + '.png') }
+    else {
+        const img = new Image()
+        img.onload = () => draw(img)
+        img.src = assetUrl(art + '.png')
+    }
     return canvas
 }
 
@@ -383,8 +441,15 @@ export function uiCompanionControl(companion: Critter): void {
         panel.appendChild(makeLabel(112, 49, armor?.name ?? none, GREEN))
         panel.appendChild(makeStandingPreview(companion))
         panel.appendChild(makeLabel(240, 96, `${companion.getStat('HP')}/${companion.getStat('Max HP')}`, GREEN))
-        let bestSkill = 0, bestValue = 0 // CE partyMemberGetBestSkill
-        SKILL_NAMES.forEach((name, i) => { const v = companion.getSkill(name); if (v > bestValue) { bestValue = v; bestSkill = i } })
+        let bestSkill = 0,
+            bestValue = 0 // CE partyMemberGetBestSkill
+        SKILL_NAMES.forEach((name, i) => {
+            const v = companion.getSkill(name)
+            if (v > bestValue) {
+                bestValue = v
+                bestSkill = i
+            }
+        })
         panel.appendChild(makeLabel(240, 113, getMessage('skill', 100 + bestSkill) ?? SKILL_NAMES[bestSkill], GREEN))
         const weight = companion.getInventoryWeight()
         const carry = companion.getStat('Carry')
@@ -398,48 +463,63 @@ export function uiCompanionControl(companion: Critter): void {
 
         // Action buttons — CE ref: game_dialog.cc:3388-3418.
         panel.appendChild(makeActionButton(593, 41, close))
-        panel.appendChild(makeActionButton(593, 97, () => {
-            // CE ref: game_dialog.cc:3757-3762 — Trade transitions straight
-            // from Control to the barter window, no intermediate return to
-            // dialogue (the barter window itself always exits back to Talk —
-            // _barter_end_to_talk_to, game_dialog.cc:3178-3186 — not back to
-            // Control, even though it was entered from here).
-            if (!canBarter(companion)) return
-            activeEscapeClose = null
-            uiCompanionTrade(companion)
-        }))
-        panel.appendChild(makeActionButton(236, 15, () => {
-            if (useBestWeapon(companion)) redraw()
-        }))
-        panel.appendChild(makeActionButton(235, 46, () => {
-            useBestArmor(companion)
-            redraw()
-        }))
+        panel.appendChild(
+            makeActionButton(593, 97, () => {
+                // CE ref: game_dialog.cc:3757-3762 — Trade transitions straight
+                // from Control to the barter window, no intermediate return to
+                // dialogue (the barter window itself always exits back to Talk —
+                // _barter_end_to_talk_to, game_dialog.cc:3178-3186 — not back to
+                // Control, even though it was entered from here).
+                if (!canBarter(companion)) return
+                activeEscapeClose = null
+                uiCompanionTrade(companion)
+            }),
+        )
+        panel.appendChild(
+            makeActionButton(236, 15, () => {
+                if (useBestWeapon(companion)) redraw()
+            }),
+        )
+        panel.appendChild(
+            makeActionButton(235, 46, () => {
+                useBestArmor(companion)
+                redraw()
+            }),
+        )
 
         // Disposition buttons.
         for (const btn of DISPOSITION_BUTTONS) {
             // CE partyMemberControlWindowInit: a disposition party.txt doesn't list is disabled
-            const supported = packet.disposition === btn.disposition
-                || (partyMemberSupports(companion, 'disposition', btn.disposition)
-                    && (btn.disposition === 'custom' || !!findSiblingPreview(companion, btn.disposition)))
-            panel.appendChild(makeGraphicButton(
-                DISPOSITION_BTN_X, btn.y, DISPOSITION_BTN_W, DISPOSITION_BTN_H,
-                btn.frmBase + 'up', btn.frmBase + 'dn', btn.frmBase + 'off',
-                packet.disposition === btn.disposition, !supported,
-                () => {
-                    if (btn.disposition === 'custom') {
-                        setCompanionDisposition(companion, 'custom')
-                        // CE ref: game_dialog.cc:3730-3734 — Custom transitions
-                        // straight from Control to Customize, no return to
-                        // dialogue in between (Customize's own exit returns to
-                        // Control — game_dialog.cc:3968-3971).
-                        uiCompanionCustomize(companion)
-                        return
-                    }
-                    setCompanionDisposition(companion, btn.disposition)
-                    redraw()
-                }
-            ))
+            const supported =
+                packet.disposition === btn.disposition ||
+                (partyMemberSupports(companion, 'disposition', btn.disposition) &&
+                    (btn.disposition === 'custom' || !!findSiblingPreview(companion, btn.disposition)))
+            panel.appendChild(
+                makeGraphicButton(
+                    DISPOSITION_BTN_X,
+                    btn.y,
+                    DISPOSITION_BTN_W,
+                    DISPOSITION_BTN_H,
+                    btn.frmBase + 'up',
+                    btn.frmBase + 'dn',
+                    btn.frmBase + 'off',
+                    packet.disposition === btn.disposition,
+                    !supported,
+                    () => {
+                        if (btn.disposition === 'custom') {
+                            setCompanionDisposition(companion, 'custom')
+                            // CE ref: game_dialog.cc:3730-3734 — Custom transitions
+                            // straight from Control to Customize, no return to
+                            // dialogue in between (Customize's own exit returns to
+                            // Control — game_dialog.cc:3968-3971).
+                            uiCompanionCustomize(companion)
+                            return
+                        }
+                        setCompanionDisposition(companion, btn.disposition)
+                        redraw()
+                    },
+                ),
+            )
         }
     }
 
@@ -447,9 +527,19 @@ export function uiCompanionControl(companion: Critter): void {
     uiSwapDialoguePanel(getVisibleDialoguePanel(), panel)
     setActiveEscapeClose(close)
     activeScreenKeys = {
-        w: () => { if (useBestWeapon(companion)) redraw() },
-        a: () => { useBestArmor(companion); redraw() },
-        d: () => { if (!canBarter(companion)) return; activeEscapeClose = null; activeScreenKeys = null; uiCompanionTrade(companion) },
+        w: () => {
+            if (useBestWeapon(companion)) redraw()
+        },
+        a: () => {
+            useBestArmor(companion)
+            redraw()
+        },
+        d: () => {
+            if (!canBarter(companion)) return
+            activeEscapeClose = null
+            activeScreenKeys = null
+            uiCompanionTrade(companion)
+        },
     }
 }
 
@@ -490,19 +580,38 @@ export function uiCompanionCustomize(companion: Critter): void {
         // y 20 / 48 / 78 / 108 / 137 / 166 (font 101, colour 992); an area attack mode the
         // list doesn't have is "Not Applicable." (99)
         const VALUE_Y: { [K in CustomAiCategory]: number } = {
-            areaAttackMode: 20, runAwayMode: 48, bestWeapon: 78, distance: 108, attackWho: 137, chemUse: 166,
+            areaAttackMode: 20,
+            runAwayMode: 48,
+            bestWeapon: 78,
+            distance: 108,
+            attackWho: 137,
+            chemUse: 166,
         }
         for (const btn of CUSTOM_BUTTONS) {
-            panel.appendChild(makeGraphicButton(
-                btn.x, btn.y, DISPOSITION_BTN_W, DISPOSITION_BTN_H,
-                btn.frmUp, btn.frmDn, null,
-                false, false,
-                () => uiCustomCategoryPicker(companion, btn.category, btn.label, () => { redraw() })
-            ))
-            const value = btn.category === 'runAwayMode'
-                ? aiGetRunAwayMode(packet, companion.getStat('Max HP'))
-                : (packet as any)[btn.category]
-            const opt = (CUSTOM_OPTIONS[btn.category] as { value: unknown; label: string }[]).find((o) => o.value === value)
+            panel.appendChild(
+                makeGraphicButton(
+                    btn.x,
+                    btn.y,
+                    DISPOSITION_BTN_W,
+                    DISPOSITION_BTN_H,
+                    btn.frmUp,
+                    btn.frmDn,
+                    null,
+                    false,
+                    false,
+                    () =>
+                        uiCustomCategoryPicker(companion, btn.category, btn.label, () => {
+                            redraw()
+                        }),
+                ),
+            )
+            const value =
+                btn.category === 'runAwayMode'
+                    ? aiGetRunAwayMode(packet, companion.getStat('Max HP'))
+                    : (packet as any)[btn.category]
+            const opt = (CUSTOM_OPTIONS[btn.category] as { value: unknown; label: string }[]).find(
+                (o) => o.value === value,
+            )
             const text = opt ? opt.label : (getMessage('custom', 99) ?? 'Not Applicable.')
             panel.appendChild(makeLabel(232, VALUE_Y[btn.category], text, '#3cf800')) // CE _colorTable[992]
         }
@@ -514,7 +623,12 @@ export function uiCompanionCustomize(companion: Critter): void {
     redraw()
     uiSwapDialoguePanel(getVisibleDialoguePanel(), panel)
     setActiveEscapeClose(close)
-    activeScreenKeys = { Enter: () => { activeScreenKeys = null; close() } } // CE: Return like Esc
+    activeScreenKeys = {
+        Enter: () => {
+            activeScreenKeys = null
+            close()
+        },
+    } // CE: Return like Esc
 }
 
 // ── Per-category value picker (cussel.png) ───────────────────────────────────
@@ -531,10 +645,11 @@ function uiCustomCategoryPicker(
     companion: Critter,
     category: CustomAiCategory,
     title: string,
-    onDone: () => void
+    onDone: () => void,
 ): void {
     const overlay = makeOverlay()
-    const W = 444, H = 206
+    const W = 444,
+        H = 206
     const panel = makePanel('cussel', W, H)
 
     // Suspend the shared Customize-screen Escape handler while this modal is
@@ -553,7 +668,7 @@ function uiCustomCategoryPicker(
 
     const options = CUSTOM_OPTIONS[category] as { value: AiPacket[typeof category]; label: string }[]
     const list = document.createElement('div')
-    Object.assign(list.style, { position: 'absolute', left: '20px', top: '40px', width: (W - 40) + 'px' })
+    Object.assign(list.style, { position: 'absolute', left: '20px', top: '40px', width: W - 40 + 'px' })
     for (const opt of options) {
         // CE _gdCustomSelect: values party.txt doesn't list are greyed and refused
         const allowed = partyMemberSupports(companion, CUSTOM_INI_KEY[category], String(opt.value))
@@ -561,9 +676,16 @@ function uiCustomCategoryPicker(
         Object.assign(row.style, { cursor: allowed ? 'pointer' : 'default', padding: '4px 0' })
         const text = new FoText(font3, opt.label, allowed ? '#c8b466' : '#606060')
         text.appendTo(row)
-        if (!allowed) { list.appendChild(row); continue }
-        row.addEventListener('mouseenter', () => { text.color = '#fcfc7c' })
-        row.addEventListener('mouseleave', () => { text.color = '#c8b466' })
+        if (!allowed) {
+            list.appendChild(row)
+            continue
+        }
+        row.addEventListener('mouseenter', () => {
+            text.color = '#fcfc7c'
+        })
+        row.addEventListener('mouseleave', () => {
+            text.color = '#c8b466'
+        })
         row.addEventListener('click', () => {
             setCompanionCustomSetting(companion, category, opt.value)
             close()
@@ -573,7 +695,11 @@ function uiCustomCategoryPicker(
     panel.appendChild(list)
 
     const keyHandler = (e: KeyboardEvent): void => {
-        if (e.key === 'Escape') { e.preventDefault(); close(); document.removeEventListener('keydown', keyHandler, true) }
+        if (e.key === 'Escape') {
+            e.preventDefault()
+            close()
+            document.removeEventListener('keydown', keyHandler, true)
+        }
     }
     document.addEventListener('keydown', keyHandler, true)
 

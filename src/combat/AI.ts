@@ -33,12 +33,14 @@ export class AI {
         // (only while the custom packet is in use — a named disposition keeps them for later)
         const custom = base.disposition === 'custom' ? combatant.customAiOverrides : null
         this.packet = custom
-            ? { ...base, ...custom,
-                // a Custom best_weapon choice is an explicit setting (not CE's unset -1)
-                ...(custom.bestWeapon !== undefined ? { bestWeaponUnset: false } : {}) }
+            ? {
+                  ...base,
+                  ...custom,
+                  // a Custom best_weapon choice is an explicit setting (not CE's unset -1)
+                  ...(custom.bestWeapon !== undefined ? { bestWeaponUnset: false } : {}),
+              }
             : base
     }
 }
 
 // ── AI helpers ────────────────────────────────────────────────────────────────
-

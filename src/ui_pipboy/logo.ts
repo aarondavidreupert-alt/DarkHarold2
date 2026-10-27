@@ -34,7 +34,14 @@ const LOGO_H = 141
 
 // gHolidayDescriptions: month, day, pipboy.msg id
 const HOLIDAYS: [number, number, number][] = [
-    [1, 1, 100], [2, 14, 101], [4, 1, 102], [7, 4, 104], [10, 6, 103], [10, 31, 105], [11, 28, 106], [12, 25, 107],
+    [1, 1, 100],
+    [2, 14, 101],
+    [4, 1, 102],
+    [7, 4, 104],
+    [10, 6, 103],
+    [10, 31, 105],
+    [11, 28, 106],
+    [12, 25, 107],
 ]
 
 export function renderLogoScreen(screen: HTMLElement): void {
@@ -67,7 +74,13 @@ const RAND_MAX = 32767
 const BOMB = 65 // bomb1 is 65 × 65
 const IDLE_TIMEOUT = 120000
 
-interface Bomb { x: number; y: number; speed: number; acc: number; active: boolean }
+interface Bomb {
+    x: number
+    y: number
+    speed: number
+    acc: number
+    active: boolean
+}
 
 // Watches the Pip-Boy for input and runs the screensaver after two idle minutes. Returns
 // the function that stops watching (the Pip-Boy closed).
@@ -76,7 +89,10 @@ export function watchPipboyIdle(container: HTMLElement): () => void {
     let saver: { stop: () => void } | null = null
     const activity = () => {
         last = performance.now()
-        if (saver) { saver.stop(); saver = null }
+        if (saver) {
+            saver.stop()
+            saver = null
+        }
     }
     window.addEventListener('mousemove', activity, true)
     window.addEventListener('mousedown', activity, true)
@@ -110,10 +126,16 @@ function runScreensaver(container: HTMLElement): { stop: () => void } {
         if (randomBetween(0, RAND_MAX) < 3047.3311) {
             const b = bombs.find((x) => !x.active)
             if (b) {
-                const span = (350 - Math.trunc(BOMB / 4)) + (406 - Math.trunc(BOMB / 4))
-                const v = Math.trunc(randomBetween(0, RAND_MAX) / RAND_MAX * span)
+                const span = 350 - Math.trunc(BOMB / 4) + (406 - Math.trunc(BOMB / 4))
+                const v = Math.trunc((randomBetween(0, RAND_MAX) / RAND_MAX) * span)
                 const edge = VIEW_H - Math.trunc(BOMB / 4)
-                if (edge >= v) { b.x = 602; b.y = v + 48 } else { b.x = v - edge + VIEW_X + Math.trunc(BOMB / 4); b.y = VIEW_Y - BOMB + 2 }
+                if (edge >= v) {
+                    b.x = 602
+                    b.y = v + 48
+                } else {
+                    b.x = v - edge + VIEW_X + Math.trunc(BOMB / 4)
+                    b.y = VIEW_Y - BOMB + 2
+                }
                 b.active = true
                 b.speed = randomBetween(0, RAND_MAX) * (2.75 / RAND_MAX) + 0.15
                 b.acc = 0
@@ -125,10 +147,12 @@ function runScreensaver(container: HTMLElement): { stop: () => void } {
         }
         for (const b of bombs) {
             if (!b.active) continue
-            if (b.x >= VIEW_X) { if (b.x + BOMB >= 604 && 604 - b.x < 1) b.active = false }
-            else if (VIEW_X - b.x >= BOMB) b.active = false
-            if (b.y >= VIEW_Y) { if (b.y + BOMB >= 452 && 452 - b.y < 1) b.active = false }
-            else if (b.y + BOMB < VIEW_Y) b.active = false
+            if (b.x >= VIEW_X) {
+                if (b.x + BOMB >= 604 && 604 - b.x < 1) b.active = false
+            } else if (VIEW_X - b.x >= BOMB) b.active = false
+            if (b.y >= VIEW_Y) {
+                if (b.y + BOMB >= 452 && 452 - b.y < 1) b.active = false
+            } else if (b.y + BOMB < VIEW_Y) b.active = false
             if (b.active && draw && sprite.complete) {
                 ctx.save()
                 ctx.beginPath()
@@ -138,11 +162,20 @@ function runScreensaver(container: HTMLElement): { stop: () => void } {
                 ctx.restore()
             }
             b.acc += b.speed
-            if (b.acc >= 1) { b.x = Math.trunc(b.x - b.acc); b.y = Math.trunc(b.y + b.acc); b.acc = 0 }
+            if (b.acc >= 1) {
+                b.x = Math.trunc(b.x - b.acc)
+                b.y = Math.trunc(b.y + b.acc)
+                b.acc = 0
+            }
         }
     }
     // CE runs the first 50 steps without drawing or waiting, then one step every 50 ms
     for (let i = 0; i < 50; i++) step(false)
     const timer = setInterval(() => step(true), 50)
-    return { stop: () => { clearInterval(timer); canvas.remove() } }
+    return {
+        stop: () => {
+            clearInterval(timer)
+            canvas.remove()
+        },
+    }
 }

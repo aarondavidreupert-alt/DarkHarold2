@@ -45,16 +45,23 @@ const LIST_X = 55
 const LIST_Y = 87
 const LIST_W = 230
 const LIST_H = 353
-const SLOT_H = 34          // lineHeight + 2 * lineHeight + 4
+const SLOT_H = 34 // lineHeight + 2 * lineHeight + 4
 const VISIBLE_SLOTS = 10
-const MIN_SLOTS = 10       // CE's ten slots ([dh2] save_slots=ce)
-const DH2_MIN_SLOTS = 20   // DH2: always more than a screenful, so the list scrolls
+const MIN_SLOTS = 10 // CE's ten slots ([dh2] save_slots=ce)
+const DH2_MIN_SLOTS = 20 // DH2: always more than a screenful, so the list scrolls
 
 function lsg(id: number, fallback: string): string {
     return getMessage('lsgame', id) ?? fallback
 }
 
-function addText(parent: HTMLElement, text: string, x: number, y: number, font = font1, color: string = CE_COLOR.green): FoText {
+function addText(
+    parent: HTMLElement,
+    text: string,
+    x: number,
+    y: number,
+    font = font1,
+    color: string = CE_COLOR.green,
+): FoText {
     const t = new FoText(font, text, color)
     Object.assign(t.elem.style, { position: 'absolute', left: x + 'px', top: y + 'px', pointerEvents: 'none' })
     parent.appendChild(t.elem)
@@ -65,13 +72,21 @@ function addText(parent: HTMLElement, text: string, x: number, y: number, font =
 // and mapGetName (map.msg 200 + 3 * map + elevation), e.g. "Arroyo Village".
 function mapLine(s: SaveGame): string {
     if (!globalState.mapAreas) {
-        try { globalState.mapAreas = loadAreas() } catch (_) { /* no areas */ }
+        try {
+            globalState.mapAreas = loadAreas()
+        } catch (_) {
+            /* no areas */
+        }
     }
     let areaId = -1
-    try { areaId = (globalState.mapAreas ? areaContainingMap(s.currentMap)?.id : undefined) ?? -1 } catch (_) { /* unknown */ }
+    try {
+        areaId = (globalState.mapAreas ? areaContainingMap(s.currentMap)?.id : undefined) ?? -1
+    } catch (_) {
+        /* unknown */
+    }
     const index = mapIndexOf(s.currentMap)
-    const city = areaId >= 0 ? getMessage('map', 1500 + areaId) ?? '' : ''
-    const map = index >= 0 ? getMessage('map', index * 3 + (s.currentElevation ?? 0) + 200) ?? '' : ''
+    const city = areaId >= 0 ? (getMessage('map', 1500 + areaId) ?? '') : ''
+    const map = index >= 0 ? (getMessage('map', index * 3 + (s.currentElevation ?? 0) + 200) ?? '') : ''
     return `${city} ${map}`.trim() || s.currentMap
 }
 
@@ -80,7 +95,10 @@ function wrap(text: string, width: number): string[] {
     let line = ''
     for (const word of text.split(' ')) {
         const t = line ? line + ' ' + word : word
-        if (line && font1.measureText(t) > width) { lines.push(line); line = word } else line = t
+        if (line && font1.measureText(t) > width) {
+            lines.push(line)
+            line = word
+        } else line = t
     }
     if (line) lines.push(line)
     return lines
@@ -124,13 +142,30 @@ export function uiSaveLoad(isSave: boolean, quick = false, onCancel: (() => void
     const cover = new Widget('art/intrface/lscover.png', { x: 340, y: 39, w: 275, h: 173 })
     const win = new WindowFrame('art/intrface/lsgame.png', { x: 80, y: 20 }, 640, 480)
         .add(cover)
-        .add(new SmallButton(391, 349).onClick(() => { void confirm() }))
+        .add(
+            new SmallButton(391, 349).onClick(() => {
+                void confirm()
+            }),
+        )
         .add(new SmallButton(495, 349).onClick(cancel))
-        .add(new Widget('art/intrface/uparwoff.png', { x: 35, y: 58, w: 11, h: 14 }).mouseDownBG('art/intrface/uparwon.png').onClick(() => move(-1)))
-        .add(new Widget('art/intrface/dnarwoff.png', { x: 35, y: 72, w: 11, h: 14 }).mouseDownBG('art/intrface/dnarwon.png').onClick(() => move(1)))
+        .add(
+            new Widget('art/intrface/uparwoff.png', { x: 35, y: 58, w: 11, h: 14 })
+                .mouseDownBG('art/intrface/uparwon.png')
+                .onClick(() => move(-1)),
+        )
+        .add(
+            new Widget('art/intrface/dnarwoff.png', { x: 35, y: 72, w: 11, h: 14 })
+                .mouseDownBG('art/intrface/dnarwon.png')
+                .onClick(() => move(1)),
+        )
         .show()
     // DH2's DELETE button; [dh2] save_slots=ce has none (CE loadsave.cc)
-    if (Config.ui.saveSlots !== 'ce') win.add(new SmallButton(391, 323).onClick(() => { void remove() }))
+    if (Config.ui.saveSlots !== 'ce')
+        win.add(
+            new SmallButton(391, 323).onClick(() => {
+                void remove()
+            }),
+        )
     const el = win.elem
     makePanelDraggable(el, 'saveLoad')
 
@@ -145,8 +180,13 @@ export function uiSaveLoad(isSave: boolean, quick = false, onCancel: (() => void
     // at (366, 58) over the lscover art; with nothing to show the cover stays.
     const preview = document.createElement('img')
     Object.assign(preview.style, {
-        position: 'absolute', left: '366px', top: '58px', width: '223px', height: '132px',
-        display: 'none', pointerEvents: 'none',
+        position: 'absolute',
+        left: '366px',
+        top: '58px',
+        width: '223px',
+        height: '132px',
+        display: 'none',
+        pointerEvents: 'none',
     })
     el.appendChild(preview)
 
@@ -155,12 +195,27 @@ export function uiSaveLoad(isSave: boolean, quick = false, onCancel: (() => void
     el.appendChild(info)
 
     const list = document.createElement('div')
-    Object.assign(list.style, { position: 'absolute', left: LIST_X + 'px', top: LIST_Y + 'px', width: LIST_W + 'px', height: LIST_H + 'px', overflow: 'hidden', cursor: 'pointer' })
+    Object.assign(list.style, {
+        position: 'absolute',
+        left: LIST_X + 'px',
+        top: LIST_Y + 'px',
+        width: LIST_W + 'px',
+        height: LIST_H + 'px',
+        overflow: 'hidden',
+        cursor: 'pointer',
+    })
     el.appendChild(list)
 
     // Scroll bar (DH2): a thin track just right of the list, thumb in the list green.
     const track = document.createElement('div')
-    Object.assign(track.style, { position: 'absolute', left: (LIST_X + LIST_W + 1) + 'px', top: LIST_Y + 'px', width: '4px', height: LIST_H + 'px', background: CE_COLOR.dimGreen })
+    Object.assign(track.style, {
+        position: 'absolute',
+        left: LIST_X + LIST_W + 1 + 'px',
+        top: LIST_Y + 'px',
+        width: '4px',
+        height: LIST_H + 'px',
+        background: CE_COLOR.dimGreen,
+    })
     const thumb = document.createElement('div')
     Object.assign(thumb.style, { position: 'absolute', left: '0', width: '4px', background: CE_COLOR.green })
     track.appendChild(thumb)
@@ -174,7 +229,8 @@ export function uiSaveLoad(isSave: boolean, quick = false, onCancel: (() => void
 
     function rebuildSlots(): void {
         slots = [...saves]
-        if (Config.ui.saveSlots === 'ce') slots = slots.slice(0, MIN_SLOTS) // [dh2] save_slots=ce
+        if (Config.ui.saveSlots === 'ce')
+            slots = slots.slice(0, MIN_SLOTS) // [dh2] save_slots=ce
         else if (isSave || slots.length === 0) slots.push(null)
         const min = Config.ui.saveSlots === 'ce' ? MIN_SLOTS : DH2_MIN_SLOTS
         while (slots.length < min) slots.push(null)
@@ -193,8 +249,8 @@ export function uiSaveLoad(isSave: boolean, quick = false, onCancel: (() => void
         }
         const max = Math.max(1, slots.length)
         const visible = Math.min(VISIBLE_SLOTS, slots.length)
-        thumb.style.height = Math.max(8, Math.round(LIST_H * visible / max)) + 'px'
-        thumb.style.top = Math.round(LIST_H * top / max) + 'px'
+        thumb.style.height = Math.max(8, Math.round((LIST_H * visible) / max)) + 'px'
+        thumb.style.top = Math.round((LIST_H * top) / max) + 'px'
         track.style.display = slots.length > VISIBLE_SLOTS ? 'block' : 'none'
     }
 
@@ -205,24 +261,38 @@ export function uiSaveLoad(isSave: boolean, quick = false, onCancel: (() => void
         if (!s) {
             addText(info, lsg(114, 'Empty.'), 404, 262)
             const snap = isSave ? getSaveSnapshot() : undefined // CE: an empty slot previews the current snapshot
-            if (snap) { preview.src = snap; preview.style.display = 'block' } else preview.style.display = 'none'
+            if (snap) {
+                preview.src = snap
+                preview.style.display = 'block'
+            } else preview.style.display = 'none'
             return
         }
         const lh = font1.lineHeight
         addText(info, s.playerState?.name ?? '', 396, 254)
         const d = GameTime.getDate(s.gameTickTime ?? 0)
         const month = lsg(117 + d.month, 'JAN')
-        addText(info, `${String(d.day).padStart(2, '0')} ${month} ${String(d.year).padStart(4, '0')}   ${String(100 * d.hours + d.minutes).padStart(4, '0')}`, 397, 256 + lh)
+        addText(
+            info,
+            `${String(d.day).padStart(2, '0')} ${month} ${String(d.year).padStart(4, '0')}   ${String(100 * d.hours + d.minutes).padStart(4, '0')}`,
+            397,
+            256 + lh,
+        )
         let y = 256 + 2 * lh + 3
         for (const line of wrap(mapLine(s), 164)) {
             addText(info, line, 399, y)
             y += lh + 2
         }
-        if (s.screenshot) { preview.src = s.screenshot; preview.style.display = 'block' } else preview.style.display = 'none'
+        if (s.screenshot) {
+            preview.src = s.screenshot
+            preview.style.display = 'block'
+        } else preview.style.display = 'none'
     }
 
     function redraw(): void {
-        if (!font1.isLoaded()) { font1.onLoad(redraw); return }
+        if (!font1.isLoaded()) {
+            font1.onLoad(redraw)
+            return
+        }
         drawList()
         drawInfo()
     }
@@ -244,7 +314,9 @@ export function uiSaveLoad(isSave: boolean, quick = false, onCancel: (() => void
         if (i >= slots.length) return
         select(i)
     })
-    list.addEventListener('dblclick', () => { void confirm() })
+    list.addEventListener('dblclick', () => {
+        void confirm()
+    })
     const onWheel = (e: WheelEvent) => {
         e.preventDefault()
         const maxTop = Math.max(0, slots.length - VISIBLE_SLOTS)
@@ -257,7 +329,7 @@ export function uiSaveLoad(isSave: boolean, quick = false, onCancel: (() => void
     track.addEventListener('wheel', onWheel, { passive: false })
     track.addEventListener('mousedown', (e) => {
         const y = e.clientY - track.getBoundingClientRect().top
-        select(Math.floor(slots.length * y / LIST_H))
+        select(Math.floor((slots.length * y) / LIST_H))
     })
 
     let firstList = true
@@ -288,7 +360,11 @@ export function uiSaveLoad(isSave: boolean, quick = false, onCancel: (() => void
     async function confirm(): Promise<void> {
         if (busy) return
         busy = true
-        try { await confirmSlot() } finally { busy = false }
+        try {
+            await confirmSlot()
+        } finally {
+            busy = false
+        }
     }
 
     async function confirmSlot(): Promise<void> {
@@ -301,13 +377,21 @@ export function uiSaveLoad(isSave: boolean, quick = false, onCancel: (() => void
             if (name === null) return
             dbg('saveload', `[UI] Saving slot ${cursor + 1} (save #${s?.id ?? 'new'}).`)
             save(name, s?.id ?? undefined, (id) => {
-                if (quick) { quickDone = true; quickId = id; quickName = name }
+                if (quick) {
+                    quickDone = true
+                    quickId = id
+                    quickName = name
+                }
                 close()
             })
         } else {
             if (!s || s.id === undefined) return
             dbg('saveload', `[UI] Loading save #${s.id}.`)
-            if (quick) { quickDone = true; quickId = s.id; quickName = s.name }
+            if (quick) {
+                quickDone = true
+                quickId = s.id
+                quickName = s.name
+            }
             load(s.id)
             close()
         }
@@ -319,7 +403,9 @@ export function uiSaveLoad(isSave: boolean, quick = false, onCancel: (() => void
         busy = true
         try {
             if (await showConfirm(`Delete "${s.name}"?`)) deleteSave(s.id, refresh)
-        } finally { busy = false }
+        } finally {
+            busy = false
+        }
     }
 
     // CE keys: Up/Down (and the arrow buttons) move the cursor, Return confirms,
@@ -328,19 +414,40 @@ export function uiSaveLoad(isSave: boolean, quick = false, onCancel: (() => void
         if (!win.showing || busy || globalState.uiMode !== UIMode.saveLoad) return
         const handled = (() => {
             switch (e.key) {
-                case 'ArrowUp': move(-1); return true
-                case 'ArrowDown': move(1); return true
-                case 'PageUp': move(-VISIBLE_SLOTS); return true
-                case 'PageDown': move(VISIBLE_SLOTS); return true
-                case 'Home': select(0); return true
-                case 'End': select(slots.length - 1); return true
-                case 'Enter': void confirm(); return true
-                case 'Escape': cancel(); return true
-                case 'Delete': void remove(); return true
+                case 'ArrowUp':
+                    move(-1)
+                    return true
+                case 'ArrowDown':
+                    move(1)
+                    return true
+                case 'PageUp':
+                    move(-VISIBLE_SLOTS)
+                    return true
+                case 'PageDown':
+                    move(VISIBLE_SLOTS)
+                    return true
+                case 'Home':
+                    select(0)
+                    return true
+                case 'End':
+                    select(slots.length - 1)
+                    return true
+                case 'Enter':
+                    void confirm()
+                    return true
+                case 'Escape':
+                    cancel()
+                    return true
+                case 'Delete':
+                    void remove()
+                    return true
             }
             return false
         })()
-        if (handled) { e.preventDefault(); e.stopPropagation() }
+        if (handled) {
+            e.preventDefault()
+            e.stopPropagation()
+        }
     }
     document.addEventListener('keydown', onKey, true)
 

@@ -27,9 +27,9 @@ import { getActiveQuests, getUnknownActiveGvars } from '../../questLog.js'
 import { getHolodiskDefs, type HolodiskDef } from '../../questData.js'
 import { CONTENT_H, CONTENT_W, TEXT_STYLE, clearScreen, makeContentArea } from '../shell.js'
 
-const GREEN = '#3cf800'      // _colorTable[992]
-const HIGHLIGHT = '#fcfc7c'  // _colorTable[32747]
-const DONE = '#42982A'       // _colorTable[8804]
+const GREEN = '#3cf800' // _colorTable[992]
+const HIGHLIGHT = '#fcfc7c' // _colorTable[32747]
+const DONE = '#42982A' // _colorTable[8804]
 const LINE_H = 12
 const PIPBOY_HOLODISK_LINES_MAX = 35
 
@@ -44,16 +44,26 @@ function setPageKeys(fn: ((e: KeyboardEvent) => void) | null): void {
     if (fn) window.addEventListener('keydown', fn, true)
 }
 
-function textLine(text: string, opts: { color?: string; underline?: boolean; strike?: boolean; align?: string; onClick?: () => void } = {}): HTMLDivElement {
+function textLine(
+    text: string,
+    opts: { color?: string; underline?: boolean; strike?: boolean; align?: string; onClick?: () => void } = {},
+): HTMLDivElement {
     const el = document.createElement('div')
-    el.style.cssText = TEXT_STYLE + `font-size: 11px; line-height: ${LINE_H}px; min-height: ${LINE_H}px; white-space: pre-wrap;` +
+    el.style.cssText =
+        TEXT_STYLE +
+        `font-size: 11px; line-height: ${LINE_H}px; min-height: ${LINE_H}px; white-space: pre-wrap;` +
         `color: ${opts.color ?? GREEN}; text-align: ${opts.align ?? 'left'};` +
-        (opts.underline ? 'text-decoration: underline;' : '') + (opts.strike ? 'text-decoration: line-through;' : '')
+        (opts.underline ? 'text-decoration: underline;' : '') +
+        (opts.strike ? 'text-decoration: line-through;' : '')
     el.textContent = text
     if (opts.onClick) {
         el.style.cursor = 'pointer'
-        el.onmouseenter = () => { el.style.color = HIGHLIGHT }
-        el.onmouseleave = () => { el.style.color = opts.color ?? GREEN }
+        el.onmouseenter = () => {
+            el.style.color = HIGHLIGHT
+        }
+        el.onmouseleave = () => {
+            el.style.color = opts.color ?? GREEN
+        }
         el.onclick = opts.onClick
     }
     return el
@@ -67,7 +77,8 @@ function knownHolodisks(): HolodiskDef[] {
 function questLocations(): { locationId: number; name: string }[] {
     const out: { locationId: number; name: string }[] = []
     for (const q of getActiveQuests()) {
-        if (out.length === 0 || out[out.length - 1].locationId !== q.locationId) out.push({ locationId: q.locationId, name: q.location })
+        if (out.length === 0 || out[out.length - 1].locationId !== q.locationId)
+            out.push({ locationId: q.locationId, name: q.location })
     }
     return out
 }
@@ -95,7 +106,14 @@ export function renderStatusTab(screen: HTMLDivElement): void {
     left.appendChild(textLine(''))
     if (locations.length === 0) left.appendChild(textLine(msg(203, 'No quests')))
     for (const loc of locations) {
-        left.appendChild(textLine(loc.name, { onClick: () => { click(); renderQuestList(screen, loc.locationId) } }))
+        left.appendChild(
+            textLine(loc.name, {
+                onClick: () => {
+                    click()
+                    renderQuestList(screen, loc.locationId)
+                },
+            }),
+        )
         left.appendChild(textLine(''))
     }
 
@@ -103,7 +121,14 @@ export function renderStatusTab(screen: HTMLDivElement): void {
         right.appendChild(textLine(msg(211, 'DATA'), { underline: true, align: 'center' }))
         right.appendChild(textLine(''))
         for (const disk of disks) {
-            right.appendChild(textLine(msg(disk.name, `Holodisk ${disk.gvar}`), { onClick: () => { click(); renderHolodisk(screen, disk, 0) } }))
+            right.appendChild(
+                textLine(msg(disk.name, `Holodisk ${disk.gvar}`), {
+                    onClick: () => {
+                        click()
+                        renderHolodisk(screen, disk, 0)
+                    },
+                }),
+            )
             right.appendChild(textLine(''))
         }
     }
@@ -121,7 +146,13 @@ export function renderStatusTab(screen: HTMLDivElement): void {
 }
 
 function backButton(screen: HTMLDivElement, label: string, onClick: () => void, align = 'left'): HTMLDivElement {
-    return textLine(label, { align, onClick: () => { click(); onClick() } })
+    return textLine(label, {
+        align,
+        onClick: () => {
+            click()
+            onClick()
+        },
+    })
 }
 
 function footer(...items: HTMLDivElement[]): HTMLDivElement {
@@ -182,13 +213,22 @@ function renderHolodisk(screen: HTMLDivElement, disk: HolodiskDef, page: number)
 
     const next = () => renderHolodisk(screen, disk, page + 1)
     const prev = () => renderHolodisk(screen, disk, page - 1)
-    content.appendChild(footer(
-        backButton(screen, msg(201, 'BACK'), prev, 'center'),
-        backButton(screen, page >= lastPage ? msg(214, 'DONE') : msg(200, 'MORE'), next, 'center'),
-    ))
+    content.appendChild(
+        footer(
+            backButton(screen, msg(201, 'BACK'), prev, 'center'),
+            backButton(screen, page >= lastPage ? msg(214, 'DONE') : msg(200, 'MORE'), next, 'center'),
+        ),
+    )
     setPageKeys((e) => {
-        if (e.key === 'PageDown' && page < lastPage) { e.stopImmediatePropagation(); click(); next() }
-        else if (e.key === 'PageUp') { e.stopImmediatePropagation(); click(); prev() }
+        if (e.key === 'PageDown' && page < lastPage) {
+            e.stopImmediatePropagation()
+            click()
+            next()
+        } else if (e.key === 'PageUp') {
+            e.stopImmediatePropagation()
+            click()
+            prev()
+        }
     })
 }
 

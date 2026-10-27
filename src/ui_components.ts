@@ -33,7 +33,7 @@ export class WindowFrame {
         public position: Point,
         public width: number,
         public height: number,
-        children?: Widget[]
+        children?: Widget[],
     ) {
         this.elem = document.createElement('div')
 
@@ -100,7 +100,12 @@ export class SmallButton extends Widget {
 }
 
 export class Label extends Widget {
-    constructor(x: number, y: number, text: string, public textColor: string = 'yellow') {
+    constructor(
+        x: number,
+        y: number,
+        text: string,
+        public textColor: string = 'yellow',
+    ) {
         super(null, { x, y, w: 'auto', h: 'auto' })
         this.setText(text)
         this.elem.style.color = this.textColor
@@ -130,7 +135,7 @@ export class List extends Widget {
         bbox: CSSBoundingBox,
         items?: ListItem[],
         public textColor: string = '#00FF00',
-        public selectedTextColor: string = '#FCFC7C'
+        public selectedTextColor: string = '#FCFC7C',
     ) {
         super(null, bbox)
         this.elem.style.color = this.textColor

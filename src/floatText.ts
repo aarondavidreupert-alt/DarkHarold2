@@ -50,26 +50,33 @@ export function resetFloatMessages(): void {
 // color.pal entries of the _colorTable values.
 export const FLOAT_MSG_COLOR: { [type: number]: string } = {
     [-2]: '#fc0000', // WARNING (font 103) — 31744
-    0: '#fcfc7c',    // NORMAL — 32747
-    1: '#545454',    // BLACK — 10570
-    2: '#fc0000',    // RED — 31744
-    3: '#3cf800',    // GREEN — 992
-    4: '#30588c',    // BLUE — 31
-    5: '#545454',    // PURPLE — 10570
-    6: '#a0a0a0',    // NEAR_WHITE — 21140
-    7: '#fc4848',    // LIGHT_RED — 32074
-    8: '#fcfc7c',    // YELLOW — 32747
-    9: '#fcfcfc',    // WHITE — 32767
-    10: '#545454',   // GREY — 10570
-    11: '#3c3c3c',   // DARK_GREY — 8456
-    12: '#747474',   // LIGHT_GREY — 15855
+    0: '#fcfc7c', // NORMAL — 32747
+    1: '#545454', // BLACK — 10570
+    2: '#fc0000', // RED — 31744
+    3: '#3cf800', // GREEN — 992
+    4: '#30588c', // BLUE — 31
+    5: '#545454', // PURPLE — 10570
+    6: '#a0a0a0', // NEAR_WHITE — 21140
+    7: '#fc4848', // LIGHT_RED — 32074
+    8: '#fcfc7c', // YELLOW — 32747
+    9: '#fcfcfc', // WHITE — 32767
+    10: '#545454', // GREY — 10570
+    11: '#3c3c3c', // DARK_GREY — 8456
+    12: '#747474', // LIGHT_GREY — 15855
 }
 export const FLOAT_OUTLINE_BLACK = '#000000' // _colorTable[0]
 
 // Old DH2 colour names still passed by some callers.
 const NAMED: { [name: string]: string } = {
-    white: '#fcfcfc', yellow: '#fcfc7c', red: '#fc0000', green: '#3cf800', blue: '#30588c',
-    black: '#545454', purple: '#545454', 'dark gray': '#3c3c3c', 'light gray': '#747474',
+    white: '#fcfcfc',
+    yellow: '#fcfc7c',
+    red: '#fc0000',
+    green: '#3cf800',
+    blue: '#30588c',
+    black: '#545454',
+    purple: '#545454',
+    'dark gray': '#3c3c3c',
+    'light gray': '#747474',
 }
 
 interface FloatSpec {
@@ -140,9 +147,9 @@ function buildCanvas(spec: FloatSpec, fm?: any): HTMLCanvasElement | null {
     for (let i = 0; i < d.length; i += 4) {
         const a = d[i + 3]
         if (a === 0) continue
-        d[i] = Math.round(d[i] * a / 255)
-        d[i + 1] = Math.round(d[i + 1] * a / 255)
-        d[i + 2] = Math.round(d[i + 2] * a / 255)
+        d[i] = Math.round((d[i] * a) / 255)
+        d[i + 1] = Math.round((d[i + 1] * a) / 255)
+        d[i + 2] = Math.round((d[i + 2] * a) / 255)
         d[i + 3] = 255
     }
     // draw.cc bufferOutline: the pixel before and after every horizontal and vertical run.
@@ -153,21 +160,26 @@ function buildCanvas(spec: FloatSpec, fm?: any): HTMLCanvasElement | null {
         const mark = new Uint8Array(w * h)
         for (let y = 0; y < h; y++) {
             for (let x = 0; x < w; x++) {
-                const f = filled[y * w + x], prev = x > 0 ? filled[y * w + x - 1] : 0
+                const f = filled[y * w + x],
+                    prev = x > 0 ? filled[y * w + x - 1] : 0
                 if (f && !prev && x > 0) mark[y * w + x - 1] = 1
                 else if (!f && prev) mark[y * w + x] = 1
             }
         }
         for (let x = 0; x < w; x++) {
             for (let y = 0; y < h; y++) {
-                const f = filled[y * w + x], prev = y > 0 ? filled[(y - 1) * w + x] : 0
+                const f = filled[y * w + x],
+                    prev = y > 0 ? filled[(y - 1) * w + x] : 0
                 if (f && !prev && y > 0) mark[(y - 1) * w + x] = 1
                 else if (!f && prev) mark[y * w + x] = 1
             }
         }
         for (let p = 0; p < w * h; p++) {
             if (mark[p] && !filled[p]) {
-                d[p * 4] = or; d[p * 4 + 1] = og; d[p * 4 + 2] = ob; d[p * 4 + 3] = 255
+                d[p * 4] = or
+                d[p * 4 + 1] = og
+                d[p * 4 + 2] = ob
+                d[p * 4 + 3] = 255
             }
         }
     }
@@ -184,7 +196,15 @@ function ensureLayer(): HTMLDivElement {
     if (layer) return layer
     layer = document.createElement('div')
     layer.id = 'floatTextLayer'
-    Object.assign(layer.style, { position: 'absolute', left: '0', top: '0', width: '100%', height: '100%', pointerEvents: 'none', overflow: 'hidden' })
+    Object.assign(layer.style, {
+        position: 'absolute',
+        left: '0',
+        top: '0',
+        width: '100%',
+        height: '100%',
+        pointerEvents: 'none',
+        overflow: 'hidden',
+    })
     font1.onLoad(() => {})
     font3.onLoad(() => {})
     const cnv = document.getElementById('cnv')
@@ -195,20 +215,38 @@ function ensureLayer(): HTMLDivElement {
 // CE textObjectFindPlacement: centred 60 px above the tile, else shifted left / right,
 // beside it, or on it — the first spot inside the window; the offset from the tile is
 // kept. (tx, ty) is the tile's screen position, z the zoom of the world offsets.
-function findPlacement(w: number, h: number, tx: number, ty: number, unbounded: boolean, z: number, viewW: number, viewH: number): Point {
+function findPlacement(
+    w: number,
+    h: number,
+    tx: number,
+    ty: number,
+    unbounded: boolean,
+    z: number,
+    viewW: number,
+    viewH: number,
+): Point {
     const fits = (x: number, y: number) => x >= 0 && x + w - 1 < viewW && y >= 0 && y + h - 1 < viewH
     let x = tx + 16 * z - Math.trunc(w / 2)
     let y = ty
     if (!unbounded) y -= h + 60 * z
     const tries: [number, number][] = []
     tries.push([x, y])
-    x -= Math.trunc(w / 2); tries.push([x, y])
-    x += w; tries.push([x, y])
-    x = tx - 16 * z - w; y = ty - 16 * z - h; tries.push([x, y])
-    x += w + 64 * z; tries.push([x, y])
-    x = tx + 16 * z - Math.trunc(w / 2); y = ty; tries.push([x, y])
-    x -= Math.trunc(w / 2); tries.push([x, y])
-    x += w; tries.push([x, y])
+    x -= Math.trunc(w / 2)
+    tries.push([x, y])
+    x += w
+    tries.push([x, y])
+    x = tx - 16 * z - w
+    y = ty - 16 * z - h
+    tries.push([x, y])
+    x += w + 64 * z
+    tries.push([x, y])
+    x = tx + 16 * z - Math.trunc(w / 2)
+    y = ty
+    tries.push([x, y])
+    x -= Math.trunc(w / 2)
+    tries.push([x, y])
+    x += w
+    tries.push([x, y])
     for (const [px, py] of tries) if (fits(px, py)) return { x: px - tx, y: py - ty }
     return { x: tx + 16 * z - Math.trunc(w / 2) - tx, y: -(h + 60 * z) }
 }
@@ -223,7 +261,15 @@ export function updateFloatText(tileScreen: (tile: Point) => Point, z: number, v
         const tile: Point = fm.tile ?? globalState.centerTile
         const ts = tileScreen(tile)
         if (!c) {
-            const built = buildCanvas({ msg: fm.msg, color: fm.color ?? FLOAT_MSG_COLOR[0], outline: fm.outline === undefined ? FLOAT_OUTLINE_BLACK : fm.outline, font: fm.font }, fm)
+            const built = buildCanvas(
+                {
+                    msg: fm.msg,
+                    color: fm.color ?? FLOAT_MSG_COLOR[0],
+                    outline: fm.outline === undefined ? FLOAT_OUTLINE_BLACK : fm.outline,
+                    font: fm.font,
+                },
+                fm,
+            )
             if (!built) continue
             c = built
             canvases.set(fm, c)

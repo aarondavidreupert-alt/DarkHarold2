@@ -46,9 +46,7 @@ async function crawlOneCritter(critter: Critter): Promise<CombatCritterResult> {
 
     // Snapshot hostile flags — include the target critter so its original value
     // is restored in finally even if it was naturally hostile before the crawl.
-    const hostileSnapshots: Array<{ c: Critter; was: boolean }> = [
-        { c: critter, was: critter.hostile },
-    ]
+    const hostileSnapshots: Array<{ c: Critter; was: boolean }> = [{ c: critter, was: critter.hostile }]
     for (const obj of globalState.gMap!.getObjects()) {
         if (obj instanceof Critter && !obj.isPlayer && obj !== critter) {
             hostileSnapshots.push({ c: obj, was: obj.hostile })
@@ -65,7 +63,7 @@ async function crawlOneCritter(critter: Critter): Promise<CombatCritterResult> {
         // Wait for any previous forceEnd() to fully settle.
         // forceEnd() defers combatActive=false via Promise.resolve().then(), so we
         // need at least one microtask tick here.
-        if (!await waitFor(() => !isCombatActive(), COMBAT_ACTIVE_TIMEOUT_MS)) {
+        if (!(await waitFor(() => !isCombatActive(), COMBAT_ACTIVE_TIMEOUT_MS))) {
             result.status = 'stuck-combat-active'
             result.durationMs = performance.now() - t0
             return result
@@ -88,14 +86,18 @@ async function crawlOneCritter(critter: Critter): Promise<CombatCritterResult> {
             // Combat.start may have set combatActive before throwing; clean up so
             // the next crawl doesn't immediately get stuck-combat-active.
             if (isCombatActive()) {
-                try { globalState.combat?.forceEnd() } catch { /* ignore */ }
+                try {
+                    globalState.combat?.forceEnd()
+                } catch {
+                    /* ignore */
+                }
                 await waitFor(() => !isCombatActive(), COMBAT_ACTIVE_TIMEOUT_MS)
             }
             result.durationMs = performance.now() - t0
             return result
         }
 
-        if (!await waitFor(() => globalState.inCombat === true, COMBAT_ACTIVE_TIMEOUT_MS)) {
+        if (!(await waitFor(() => globalState.inCombat === true, COMBAT_ACTIVE_TIMEOUT_MS))) {
             result.status = 'stuck-no-combat'
             result.durationMs = performance.now() - t0
             return result
@@ -103,14 +105,16 @@ async function crawlOneCritter(critter: Critter): Promise<CombatCritterResult> {
 
         // With forceTurn = critter, the NPC acts first. Wait for the player's first turn.
         const gotPlayerTurn = await waitFor(
-            () => (globalState.combat?.inPlayerTurn === true) || !globalState.inCombat,
-            PLAYER_TURN_TIMEOUT_MS
+            () => globalState.combat?.inPlayerTurn === true || !globalState.inCombat,
+            PLAYER_TURN_TIMEOUT_MS,
         )
         if (!gotPlayerTurn) {
             result.status = 'stuck-player-turn-timeout'
             const _ptActive = (globalState.combat as any)?.combatants?.[(globalState.combat as any)?.whoseTurn]
             if (_ptActive) {
-                console.warn(`[AutoCrawler] stuck-player-turn-timeout: active uid=${_ptActive.uid} name="${_ptActive.name}" inAnim=${_ptActive.inAnim?.()}`)
+                console.warn(
+                    `[AutoCrawler] stuck-player-turn-timeout: active uid=${_ptActive.uid} name="${_ptActive.name}" inAnim=${_ptActive.inAnim?.()}`,
+                )
             }
             if (globalState.combat) globalState.combat.forceEnd()
             await waitFor(() => !isCombatActive(), COMBAT_ACTIVE_TIMEOUT_MS)
@@ -142,14 +146,16 @@ async function crawlOneCritter(critter: Critter): Promise<CombatCritterResult> {
         // Wait for AI turns to complete and the player's next turn to start,
         // or for combat to end naturally (all enemies dead / fled).
         const aiDone = await waitFor(
-            () => (globalState.combat?.inPlayerTurn === true) || !globalState.inCombat,
-            AI_TURN_TIMEOUT_MS
+            () => globalState.combat?.inPlayerTurn === true || !globalState.inCombat,
+            AI_TURN_TIMEOUT_MS,
         )
         if (!aiDone) {
             result.status = 'stuck-ai-turn-timeout'
             const _aiActive = (globalState.combat as any)?.combatants?.[(globalState.combat as any)?.whoseTurn]
             if (_aiActive) {
-                console.warn(`[AutoCrawler] stuck-ai-turn-timeout: active uid=${_aiActive.uid} name="${_aiActive.name}" inAnim=${_aiActive.inAnim?.()}`)
+                console.warn(
+                    `[AutoCrawler] stuck-ai-turn-timeout: active uid=${_aiActive.uid} name="${_aiActive.name}" inAnim=${_aiActive.inAnim?.()}`,
+                )
             }
         } else if (globalState.inCombat) {
             result.turnsObserved++
@@ -157,14 +163,18 @@ async function crawlOneCritter(critter: Critter): Promise<CombatCritterResult> {
 
         // Check for AI recursion bail-outs in the entries added during this encounter.
         const newEntries = globalState.eventLog.slice(logLenBefore)
-        result.aiBailout = newEntries.some(e => (e as any).action === 'ai-bailout')
+        result.aiBailout = newEntries.some((e) => (e as any).action === 'ai-bailout')
         if (result.aiBailout) {
             result.notes = (result.notes ? result.notes + '; ' : '') + 'AI recursion bail-out detected'
         }
 
         // Force-end combat regardless of state.
         if (globalState.inCombat) {
-            try { globalState.combat!.forceEnd() } catch { /* ignore */ }
+            try {
+                globalState.combat!.forceEnd()
+            } catch {
+                /* ignore */
+            }
             await waitFor(() => !isCombatActive(), COMBAT_ACTIVE_TIMEOUT_MS)
         }
 
@@ -190,7 +200,7 @@ export async function runCombatCrawler(mapName?: string): Promise<CrawlerReport 
     if (mapName) {
         console.log(`[AutoCrawler] Loading map: ${mapName}`)
         globalState.gMap.loadMap(mapName)
-        if (!await waitFor(() => !globalState.isLoading, 30000)) {
+        if (!(await waitFor(() => !globalState.isLoading, 30000))) {
             console.error('[AutoCrawler] Map load timed out — aborting')
             return null
         }
@@ -214,10 +224,10 @@ export async function runCombatCrawler(mapName?: string): Promise<CrawlerReport 
             setLastReport(buildReport('combat', mapLabel, results))
             console.log(
                 `[AutoCrawler]     → status=${r.status}  turns=${r.turnsObserved}` +
-                `  bailout=${r.aiBailout}  ${r.durationMs.toFixed(0)}ms` +
-                (r.notes ? `  (${r.notes})` : '')
+                    `  bailout=${r.aiBailout}  ${r.durationMs.toFixed(0)}ms` +
+                    (r.notes ? `  (${r.notes})` : ''),
             )
-            await new Promise<void>(r2 => setTimeout(r2, 20))
+            await new Promise<void>((r2) => setTimeout(r2, 20))
         }
     } finally {
         Config.scripting.debugLogShowType.combat = prevCombat

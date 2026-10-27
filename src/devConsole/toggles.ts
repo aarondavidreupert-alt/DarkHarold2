@@ -24,7 +24,7 @@ import { Worldmap } from '../worldmap.js'
 // Moved out of main.ts (window.onload).
 
 export function registerToggleCommands(): void {
-    (window as any).toggleFloorLighting = () => {
+    ;(window as any).toggleFloorLighting = () => {
         Config.engine.doFloorLighting = !Config.engine.doFloorLighting
         dbg('map', '[Lighting] floor lighting:', Config.engine.doFloorLighting)
     }
@@ -39,7 +39,9 @@ export function registerToggleCommands(): void {
     // setWalkModel('ce' | 'dh2' | 'smooth') — walk/run movement model (Config.engine.walkModel)
     ;(window as any).setWalkModel = (model: 'ce' | 'dh2' | 'smooth') => {
         if (model !== 'ce' && model !== 'dh2' && model !== 'smooth') {
-            console.log("[Walk] use 'ce' (CE _object_move, default), 'dh2' (old DarkFO chunks) or 'smooth' (ce + frame blend)")
+            console.log(
+                "[Walk] use 'ce' (CE _object_move, default), 'dh2' (old DarkFO chunks) or 'smooth' (ce + frame blend)",
+            )
             return
         }
         Config.engine.walkModel = model
@@ -59,7 +61,10 @@ export function registerToggleCommands(): void {
 
     // setDevKeys(true) — enable the DH2 developer hotkeys (h teleport, q/e elevation, ...)
     // Console: the debug readouts and the fps counter (fallout2.cfg [dh2] debug_overlay / fps_overlay)
-    ;(window as any).setDebugOverlay = (on: boolean) => { Config.ui.showDebugOverlay = !!on; console.log(`[DH2] debug overlay ${on ? 'on' : 'off'}`) }
+    ;(window as any).setDebugOverlay = (on: boolean) => {
+        Config.ui.showDebugOverlay = !!on
+        console.log(`[DH2] debug overlay ${on ? 'on' : 'off'}`)
+    }
     ;(window as any).setFpsOverlay = (on: boolean) => {
         Config.ui.showFPS = !!on
         if (globalState.$fpsOverlay) globalState.$fpsOverlay.style.display = on ? '' : 'none'
@@ -77,12 +82,17 @@ export function registerToggleCommands(): void {
     // encounters). revealWorldmap(false) reveals without instant travel;
     // setInstantTravel(false) switches it off again.
     ;(window as any).revealWorldmap = (instant: boolean = true) => {
-        if (globalState.inCombat) { console.warn('[DH2] revealWorldmap: not in combat'); return }
-        uiWorldMap()              // loads the areas
+        if (globalState.inCombat) {
+            console.warn('[DH2] revealWorldmap: not in combat')
+            return
+        }
+        uiWorldMap() // loads the areas
         Worldmap.revealAll()
         Worldmap.setInstantTravel(instant !== false)
-        uiWorldMap()              // rebuilds the town list with every area
-        console.log(`[DH2] worldmap revealed${instant !== false ? ', instant travel on (setInstantTravel(false) to stop)' : ''}`)
+        uiWorldMap() // rebuilds the town list with every area
+        console.log(
+            `[DH2] worldmap revealed${instant !== false ? ', instant travel on (setInstantTravel(false) to stop)' : ''}`,
+        )
     }
     ;(window as any).setInstantTravel = (on: boolean) => {
         Worldmap.setInstantTravel(!!on)
@@ -98,7 +108,9 @@ export function registerToggleCommands(): void {
     // For this session only; the permanent setting is fallout2.cfg [dh2] day_night_cycle.
     ;(window as any).setDayNightCycle = (on: boolean) => {
         Config.engine.dayNightCycle = on !== false
-        console.log(`[Lighting] day/night cycle = ${Config.engine.dayNightCycle} (${Config.engine.dayNightCycle ? 'DH2 curve' : 'CE scripts only'})`)
+        console.log(
+            `[Lighting] day/night cycle = ${Config.engine.dayNightCycle} (${Config.engine.dayNightCycle ? 'DH2 curve' : 'CE scripts only'})`,
+        )
     }
 }
 
@@ -107,7 +119,7 @@ export function registerCacheAndOutlineCommands(): void {
     // loads skip the network fetch. Each entry carries the file's Last-Modified +
     // size (fileStamp), so a pipeline re-run refreshes it on the next load; this
     // drops the cache by hand (then reload), e.g. when a server sends no stamp.
-    (window as any).clearAssetCache = () => {
+    ;(window as any).clearAssetCache = () => {
         IDBCache.nuke()
         console.log('[Cache] IndexedDB asset cache cleared — reload the page to re-fetch proMap/imageMap from disk.')
     }

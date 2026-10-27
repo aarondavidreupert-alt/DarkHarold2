@@ -93,16 +93,24 @@ function buildPrefsPanel(): HTMLElement {
     // `splitFirstWord`: CE preferences.cc:599 _UpdateThing — a primary preference's
     // value label is aligned by its full width, then drawn as the first word and,
     // one line (fontGetLineHeight) lower at the same x, the rest.
-    function label(renderer: FontRenderer, text: string, anchorX: number, y: number, align: 'left' | 'center' | 'right' = 'left', splitFirstWord = false): void {
+    function label(
+        renderer: FontRenderer,
+        text: string,
+        anchorX: number,
+        y: number,
+        align: 'left' | 'center' | 'right' = 'left',
+        splitFirstWord = false,
+    ): void {
         const space = text.indexOf(' ')
         if (splitFirstWord && space !== -1) {
             renderer.onLoad(() => {
                 const w = renderer.measureText(text)
-                const x = align === 'right'  ? anchorX - w
-                        : align === 'center' ? anchorX - Math.floor(w / 2)
-                        : anchorX
+                const x = align === 'right' ? anchorX - w : align === 'center' ? anchorX - Math.floor(w / 2) : anchorX
                 const lineH = renderer.lineHeight || 10
-                for (const [part, py] of [[text.slice(0, space), y], [text.slice(space + 1), y + lineH]] as [string, number][]) {
+                for (const [part, py] of [
+                    [text.slice(0, space), y],
+                    [text.slice(space + 1), y + lineH],
+                ] as [string, number][]) {
                     const ft = new FoText(renderer, part, '#907824')
                     Object.assign(ft.elem.style, { position: 'absolute', left: x + 'px', top: py + 'px' })
                     labelsContainer.appendChild(ft.elem)
@@ -117,9 +125,7 @@ function buildPrefsPanel(): HTMLElement {
         // FoText queues its redraw onLoad first; this callback fires after, so ft.width is set.
         renderer.onLoad(() => {
             const w = ft.width
-            const x = align === 'right'  ? anchorX - w
-                    : align === 'center' ? anchorX - Math.floor(w / 2)
-                    : anchorX
+            const x = align === 'right' ? anchorX - w : align === 'center' ? anchorX - Math.floor(w / 2) : anchorX
             Object.assign(ft.elem.style, { position: 'absolute', left: x + 'px', top: y + 'px' })
             labelsContainer.appendChild(ft.elem)
         })
@@ -149,9 +155,14 @@ function buildPrefsPanel(): HTMLElement {
             cursor: 'pointer',
         })
         abs(el, x, y, 46, 47)
-        const refresh = (): void => { el.style.backgroundPosition = `0px ${-getFrame() * 47}px` }
+        const refresh = (): void => {
+            el.style.backgroundPosition = `0px ${-getFrame() * 47}px`
+        }
         refresh()
-        el.addEventListener('click', () => { cycle(); refresh() })
+        el.addEventListener('click', () => {
+            cycle()
+            refresh()
+        })
         refreshFns.push(refresh)
     }
 
@@ -167,9 +178,14 @@ function buildPrefsPanel(): HTMLElement {
             cursor: 'pointer',
         })
         abs(el, x, y, 22, 25)
-        const refresh = (): void => { el.style.backgroundPosition = `0px ${-getFrame() * 25}px` }
+        const refresh = (): void => {
+            el.style.backgroundPosition = `0px ${-getFrame() * 25}px`
+        }
         refresh()
-        el.addEventListener('click', () => { toggle(); refresh() })
+        el.addEventListener('click', () => {
+            toggle()
+            refresh()
+        })
         refreshFns.push(refresh)
     }
 
@@ -211,7 +227,7 @@ function buildPrefsPanel(): HTMLElement {
         Object.assign(rangeEl.style, {
             position: 'absolute',
             left: '384px',
-            top: (knobY - 12) + 'px',
+            top: knobY - 12 + 'px',
             width: '240px',
             height: '24px',
             opacity: '0',
@@ -234,12 +250,19 @@ function buildPrefsPanel(): HTMLElement {
 
     /** Standard slider where x = (v-min)*219/(max-min)+384. */
     function stdSlider(
-        knobY: number, min: number, max: number,
-        getValue: () => number, setValue: (v: number) => void,
+        knobY: number,
+        min: number,
+        max: number,
+        getValue: () => number,
+        setValue: (v: number) => void,
     ): void {
         rangeSlider(
-            knobY, getValue, setValue, min, max,
-            (v: number) => Math.round((v - min) * 219 / (max - min)) + 384,
+            knobY,
+            getValue,
+            setValue,
+            min,
+            max,
+            (v: number) => Math.round(((v - min) * 219) / (max - min)) + 384,
             (v: number) => Math.round(v),
             (n: number) => Math.max(min, Math.min(max, n)),
         )
@@ -252,9 +275,14 @@ function buildPrefsPanel(): HTMLElement {
         const el = document.createElement('img') as HTMLImageElement
         abs(el as unknown as HTMLElement, x, y, 18, 18)
         el.style.cursor = 'pointer'
-        const refresh = (): void => { el.src = assetUrl(getValue() ? 'art/intrface/prfxin.png' : 'art/intrface/prfxout.png') }
+        const refresh = (): void => {
+            el.src = assetUrl(getValue() ? 'art/intrface/prfxin.png' : 'art/intrface/prfxout.png')
+        }
         refresh()
-        el.addEventListener('click', () => { setValue(!getValue()); refresh() })
+        el.addEventListener('click', () => {
+            setValue(!getValue())
+            refresh()
+        })
         refreshFns.push(refresh)
     }
 
@@ -269,9 +297,16 @@ function buildPrefsPanel(): HTMLElement {
             cursor: 'pointer',
         })
         abs(el, x, y, 15, 16)
-        el.addEventListener('mousedown', () => { el.style.backgroundImage = "url('" + assetUrl('art/intrface/lilreddn.png') + "')" })
-        el.addEventListener('mouseup', () => { el.style.backgroundImage = "url('" + assetUrl('art/intrface/lilredup.png') + "')"; onClick() })
-        el.addEventListener('mouseleave', () => { el.style.backgroundImage = "url('" + assetUrl('art/intrface/lilredup.png') + "')" })
+        el.addEventListener('mousedown', () => {
+            el.style.backgroundImage = "url('" + assetUrl('art/intrface/lilreddn.png') + "')"
+        })
+        el.addEventListener('mouseup', () => {
+            el.style.backgroundImage = "url('" + assetUrl('art/intrface/lilredup.png') + "')"
+            onClick()
+        })
+        el.addEventListener('mouseleave', () => {
+            el.style.backgroundImage = "url('" + assetUrl('art/intrface/lilredup.png') + "')"
+        })
     }
 
     // ── Local state for prefs not yet in Config ───────────────────────────────
@@ -281,7 +316,8 @@ function buildPrefsPanel(): HTMLElement {
 
     // Game Difficulty: knobY=71, CE 0=Easy/1=Normal/2=Hard → Config 75/100/125.
     // FO2-CE ref: preferences.cc game_difficulty — affects skill checks, barter, worldmap encounters.
-    const gameDiffFrame = (): number => Config.combat.gameDifficultyModifier === 75 ? 0 : Config.combat.gameDifficultyModifier === 100 ? 1 : 2
+    const gameDiffFrame = (): number =>
+        Config.combat.gameDifficultyModifier === 75 ? 0 : Config.combat.gameDifficultyModifier === 100 ? 1 : 2
     primaryKnob(76, 71, gameDiffFrame, () => {
         const next = (gameDiffFrame() + 1) % 3
         Config.combat.gameDifficultyModifier = next === 0 ? 75 : next === 1 ? 100 : 125
@@ -289,16 +325,21 @@ function buildPrefsPanel(): HTMLElement {
 
     // Combat Difficulty: knobY=149, CE 0=Easy/1=Normal/2=Hard → Config 75/100/125.
     // FO2-CE ref: preferences.cc combat_difficulty — affects combat damage scaling only.
-    const combDiffFrame = (): number => Config.combat.difficultyModifier === 75 ? 0 : Config.combat.difficultyModifier === 100 ? 1 : 2
+    const combDiffFrame = (): number =>
+        Config.combat.difficultyModifier === 75 ? 0 : Config.combat.difficultyModifier === 100 ? 1 : 2
     primaryKnob(76, 149, combDiffFrame, () => {
         const next = (combDiffFrame() + 1) % 3
         Config.combat.difficultyModifier = next === 0 ? 75 : next === 1 ? 100 : 125
     })
 
     // Violence Level: knobY=226, CE 0=None/1=Min/2=Normal/3=Max.
-    primaryKnob(76, 226,
+    primaryKnob(
+        76,
+        226,
         () => Config.combat.violenceLevel,
-        () => { Config.combat.violenceLevel = ((Config.combat.violenceLevel + 1) % 4) as 0 | 1 | 2 | 3 },
+        () => {
+            Config.combat.violenceLevel = ((Config.combat.violenceLevel + 1) % 4) as 0 | 1 | 2 | 3
+        },
     )
 
     // Target Highlight: knobY=309, CE 0=off/1=targeting-only/2=all-enemies.
@@ -309,50 +350,97 @@ function buildPrefsPanel(): HTMLElement {
         if (v === 'targeting-only') return 1
         return 2
     }
-    primaryKnob(76, 309, thFrame, () => { Config.ui.targetHighlight = thOrder[(thFrame() + 1) % 3] })
+    primaryKnob(76, 309, thFrame, () => {
+        Config.ui.targetHighlight = thOrder[(thFrame() + 1) % 3]
+    })
 
     // Combat Looks: knobY=387, 2-way. CE ref: game_mouse.cc:745.
-    primaryKnob(76, 387, () => Config.ui.combatLooks ? 1 : 0, () => { Config.ui.combatLooks = !Config.ui.combatLooks })
+    primaryKnob(
+        76,
+        387,
+        () => (Config.ui.combatLooks ? 1 : 0),
+        () => {
+            Config.ui.combatLooks = !Config.ui.combatLooks
+        },
+    )
 
     // ── Secondary knobs (prflknbs.png) ───────────────────────────────────────
     // CE ref: gPreferenceDescriptions[] — knobX=299 for all, varying knobY.
 
     // Combat Messages: knobY=74.
     // CE display is inverted (value^1): brief(1)→frame 0 off, verbose(0)→frame 1 on.
-    secondaryKnob(299, 74,
-        () => Config.ui.combatMessages === 'brief' ? 0 : 1,
-        () => { Config.ui.combatMessages = Config.ui.combatMessages === 'brief' ? 'verbose' : 'brief' },
+    secondaryKnob(
+        299,
+        74,
+        () => (Config.ui.combatMessages === 'brief' ? 0 : 1),
+        () => {
+            Config.ui.combatMessages = Config.ui.combatMessages === 'brief' ? 'verbose' : 'brief'
+        },
     )
 
     // Combat Taunts: knobY=141. CE ref: combat_ai.cc:3308 _combatai_msg.
-    secondaryKnob(299, 141, () => Config.ui.combatTaunts ? 1 : 0, () => { Config.ui.combatTaunts = !Config.ui.combatTaunts })
+    secondaryKnob(
+        299,
+        141,
+        () => (Config.ui.combatTaunts ? 1 : 0),
+        () => {
+            Config.ui.combatTaunts = !Config.ui.combatTaunts
+        },
+    )
 
     // Language Filter: knobY=207. CE ref: preferences.cc PREF_LANGUAGE_FILTER.
-    secondaryKnob(299, 207, () => Config.ui.languageFilter ? 1 : 0, () => { Config.ui.languageFilter = !Config.ui.languageFilter })
+    secondaryKnob(
+        299,
+        207,
+        () => (Config.ui.languageFilter ? 1 : 0),
+        () => {
+            Config.ui.languageFilter = !Config.ui.languageFilter
+        },
+    )
 
     // Running: knobY=271.
-    secondaryKnob(299, 271,
-        () => Config.engine.doAlwaysRun ? 1 : 0,
-        () => { Config.engine.doAlwaysRun = !Config.engine.doAlwaysRun },
+    secondaryKnob(
+        299,
+        271,
+        () => (Config.engine.doAlwaysRun ? 1 : 0),
+        () => {
+            Config.engine.doAlwaysRun = !Config.engine.doAlwaysRun
+        },
     )
 
     // Subtitles: knobY=338.
-    secondaryKnob(299, 338,
-        () => Config.ui.subtitles ? 1 : 0,
-        () => { Config.ui.subtitles = !Config.ui.subtitles },
+    secondaryKnob(
+        299,
+        338,
+        () => (Config.ui.subtitles ? 1 : 0),
+        () => {
+            Config.ui.subtitles = !Config.ui.subtitles
+        },
     )
 
     // Item Highlight: knobY=404.
-    secondaryKnob(299, 404,
-        () => Config.ui.itemHighlight ? 1 : 0,
-        () => { Config.ui.itemHighlight = !Config.ui.itemHighlight },
+    secondaryKnob(
+        299,
+        404,
+        () => (Config.ui.itemHighlight ? 1 : 0),
+        () => {
+            Config.ui.itemHighlight = !Config.ui.itemHighlight
+        },
     )
 
     // ── Range sliders ─────────────────────────────────────────────────────────
     // CE ref: preferences.cc _UpdateThing — all track at x=384, width=219.
 
     // Combat Speed: knobY=50, CE 0–50.
-    stdSlider(50, 0, 50, () => Config.combat.combatSpeed, v => { Config.combat.combatSpeed = v })
+    stdSlider(
+        50,
+        0,
+        50,
+        () => Config.combat.combatSpeed,
+        (v) => {
+            Config.combat.combatSpeed = v
+        },
+    )
 
     // Text Base Delay: knobY=125, CE 1.0–6.0.
     // CE formula: x = (6.0 - delay) * 43.8 + 384  (inverted — high delay → knob left).
@@ -360,36 +448,79 @@ function buildPrefsPanel(): HTMLElement {
     rangeSlider(
         125,
         () => Config.ui.textBaseDelay,
-        v => { Config.ui.textBaseDelay = v; Config.ui.textLineDelay = undefined },
-        10, 60,
+        (v) => {
+            Config.ui.textBaseDelay = v
+            Config.ui.textLineDelay = undefined
+        },
+        10,
+        60,
         (v: number) => Math.round((6.0 - v) * 43.8) + 384,
         (v: number) => Math.round((6.0 - v) * 10 + 10),
         (n: number) => Math.max(1.0, Math.min(6.0, (70 - n) / 10)),
     )
 
     // Volumes: CE 0–32767, DH2 stored as 0–100 percent.
-    stdSlider(196, 0, 100, () => getVolumeValue('master'), v => { globalState.audioEngine.setVolume('master', v) })
-    stdSlider(247, 0, 100, () => getVolumeValue('music'),  v => { globalState.audioEngine.setVolume('music',  v) })
-    stdSlider(298, 0, 100, () => getVolumeValue('sfx'),    v => { globalState.audioEngine.setVolume('sfx',    v) })
-    stdSlider(349, 0, 100, () => getVolumeValue('speech'), v => { globalState.audioEngine.setVolume('speech', v) })
+    stdSlider(
+        196,
+        0,
+        100,
+        () => getVolumeValue('master'),
+        (v) => {
+            globalState.audioEngine.setVolume('master', v)
+        },
+    )
+    stdSlider(
+        247,
+        0,
+        100,
+        () => getVolumeValue('music'),
+        (v) => {
+            globalState.audioEngine.setVolume('music', v)
+        },
+    )
+    stdSlider(
+        298,
+        0,
+        100,
+        () => getVolumeValue('sfx'),
+        (v) => {
+            globalState.audioEngine.setVolume('sfx', v)
+        },
+    )
+    stdSlider(
+        349,
+        0,
+        100,
+        () => getVolumeValue('speech'),
+        (v) => {
+            globalState.audioEngine.setVolume('speech', v)
+        },
+    )
 
     // Brightness: knobY=400, CE 1.0–1.18 — applied live (colorSetBrightness).
     rangeSlider(
         400,
         () => Config.ui.brightness,
-        v => { Config.ui.brightness = v; applyBrightness() },
-        0, 100,
+        (v) => {
+            Config.ui.brightness = v
+            applyBrightness()
+        },
+        0,
+        100,
         (v: number) => Math.round((v - 1.0) * (219 / 0.18)) + 384,
         (v: number) => Math.round((v - 1.0) * (100 / 0.18)),
-        (n: number) => 1.0 + Math.max(0, Math.min(0.18, n * 0.18 / 100)),
+        (n: number) => 1.0 + Math.max(0, Math.min(0.18, (n * 0.18) / 100)),
     )
 
     // Mouse Sensitivity: knobY=451, CE 1.0–2.5 (stored only — the browser owns the pointer).
     rangeSlider(
         451,
         () => Config.ui.mouseSensitivity,
-        v => { Config.ui.mouseSensitivity = v },
-        0, 150,
+        (v) => {
+            Config.ui.mouseSensitivity = v
+        },
+        0,
+        150,
         (v: number) => Math.round((v - 1.0) * (219 / 1.5)) + 384,
         (v: number) => Math.round((v - 1.0) * 100),
         (n: number) => 1.0 + Math.max(0, Math.min(1.5, n / 100)),
@@ -397,7 +528,14 @@ function buildPrefsPanel(): HTMLElement {
 
     // ── Checkbox: Affect Player Speed ─────────────────────────────────────────
     // CE ref: preferences.cc _plyrspdbid at x=383, y=68.
-    checkboxBtn(383, 68, () => Config.engine.playerSpeedup, v => { Config.engine.playerSpeedup = v })
+    checkboxBtn(
+        383,
+        68,
+        () => Config.engine.playerSpeedup,
+        (v) => {
+            Config.engine.playerSpeedup = v
+        },
+    )
 
     // ── Buttons ───────────────────────────────────────────────────────────────
     // CE ref: preferences.cc preferencesWindowInit() — DEFAULT x=23, DONE x=148, CANCEL x=263, all y=450.
@@ -422,9 +560,10 @@ function buildPrefsPanel(): HTMLElement {
         Config.ui.brightness = 1.0
         Config.ui.mouseSensitivity = 1.0
         // CE: the four volumes back to 22281 of 32767
-        for (const v of ['master', 'music', 'sfx', 'speech'] as const) globalState.audioEngine.setVolume(v, Math.round(22281 * 100 / 32767))
+        for (const v of ['master', 'music', 'sfx', 'speech'] as const)
+            globalState.audioEngine.setVolume(v, Math.round((22281 * 100) / 32767))
         applyBrightness()
-        refreshFns.forEach(f => f())
+        refreshFns.forEach((f) => f())
     })
 
     // DONE — persist and close.
@@ -453,39 +592,39 @@ function buildPrefsPanel(): HTMLElement {
 
     // Primary section names: fontSetCurrent(103)→font3; centred at x=99; row1Ytab[].
     // CE ref: preferences.cc lines 1023-1028. Msg IDs 101-105.
-    label(font3, 'GAME DIFFICULTY',   99, 48,  'center')
+    label(font3, 'GAME DIFFICULTY', 99, 48, 'center')
     label(font3, 'COMBAT DIFFICULTY', 99, 125, 'center')
-    label(font3, 'VIOLENCE LEVEL',    99, 203, 'center')
-    label(font3, 'TARGET HIGHLIGHT',  99, 286, 'center')
-    label(font3, 'COMBAT LOOKS',      99, 363, 'center')
+    label(font3, 'VIOLENCE LEVEL', 99, 203, 'center')
+    label(font3, 'TARGET HIGHLIGHT', 99, 286, 'center')
+    label(font3, 'COMBAT LOOKS', 99, 363, 'center')
 
     // Secondary section names: fontSetCurrent(103)→font3; left at x=206; row2Ytab[].
     // CE ref: preferences.cc lines 1030-1033. Msg IDs 106-111.
     label(font3, 'COMBAT MESSAGES', 206, 49)
-    label(font3, 'COMBAT TAUNTS',   206, 116)
+    label(font3, 'COMBAT TAUNTS', 206, 116)
     label(font3, 'LANGUAGE FILTER', 206, 181)
-    label(font3, 'RUNNING',         206, 247)
-    label(font3, 'SUBTITLES',       206, 313)
-    label(font3, 'ITEM HIGHLIGHT',  206, 380)
+    label(font3, 'RUNNING', 206, 247)
+    label(font3, 'SUBTITLES', 206, 313)
+    label(font3, 'ITEM HIGHLIGHT', 206, 380)
 
     // Range section names: fontSetCurrent(103)→font3; left at x=384; row3Ytab[].
     // CE ref: preferences.cc lines 1035-1038. Msg IDs 112-119.
-    label(font3, 'COMBAT SPEED',         384, 19)
-    label(font3, 'TEXT DELAY',           384, 94)
-    label(font3, 'MASTER AUDIO VOLUME',  384, 165)
-    label(font3, 'MUSIC/MOVIE VOLUME',   384, 216)
+    label(font3, 'COMBAT SPEED', 384, 19)
+    label(font3, 'TEXT DELAY', 384, 94)
+    label(font3, 'MASTER AUDIO VOLUME', 384, 165)
+    label(font3, 'MUSIC/MOVIE VOLUME', 384, 216)
     label(font3, 'SOUND EFFECTS VOLUME', 384, 268)
-    label(font3, 'SPEECH VOLUME',        384, 319)
-    label(font3, 'BRIGHTNESS LEVEL',     384, 369)
-    label(font3, 'MOUSE SENSITIVITY',    384, 420)
+    label(font3, 'SPEECH VOLUME', 384, 319)
+    label(font3, 'BRIGHTNESS LEVEL', 384, 369)
+    label(font3, 'MOUSE SENSITIVITY', 384, 420)
 
     // Button labels: active font after _UpdateThing loop is 101→font1.
     // CE ref: preferences.cc lines 1040-1050. Msg #120 DEFAULT, #4 DONE, #121 CANCEL.
     // Buttons (lilredup) at y=450; text at y=449 (1 px above button top).
     // Text is to the RIGHT of its red-dot button (decorative bullet + label layout).
-    label(font1, 'DEFAULT', 43,  449)
-    label(font1, 'DONE',    169, 449)
-    label(font1, 'CANCEL',  283, 449)
+    label(font1, 'DEFAULT', 43, 449)
+    label(font1, 'DONE', 169, 449)
+    label(font1, 'CANCEL', 283, 449)
 
     // "Affect player speed": fontSetCurrent(101)→font1; CE buffer offset y=72, x=405. Msg #122.
     label(font1, 'Affect player speed', 405, 72)
@@ -497,29 +636,29 @@ function buildPrefsPanel(): HTMLElement {
     // Alignment per index: 0=right-at-(knobX+2), 1=centre-at-(knobX+25), 2/3=left-at-(knobX+46).
 
     // Game Difficulty (knobX=76, knobY=71). Msg: 203=Easy, 204=Normal, 205=Hard.
-    label(font1, 'Easy',   78,  81, 'right')
+    label(font1, 'Easy', 78, 81, 'right')
     label(font1, 'Normal', 101, 67, 'center')
-    label(font1, 'Hard',   122, 81)
+    label(font1, 'Hard', 122, 81)
 
     // Combat Difficulty (knobX=76, knobY=149). Msg: 206=Wimpy, 204=Normal, 208=Rough.
-    label(font1, 'Wimpy',  78,  159, 'right')
+    label(font1, 'Wimpy', 78, 159, 'right')
     label(font1, 'Normal', 101, 145, 'center')
-    label(font1, 'Rough',  122, 159)
+    label(font1, 'Rough', 122, 159)
 
     // Violence Level (knobX=76, knobY=226). Msg: 214=None, 215=Minimal, 204=Normal, 216=Maximum Blood.
-    label(font1, 'None',          78,  236, 'right')
-    label(font1, 'Minimal',       101, 222, 'center')
-    label(font1, 'Normal',        122, 236)
+    label(font1, 'None', 78, 236, 'right')
+    label(font1, 'Minimal', 101, 222, 'center')
+    label(font1, 'Normal', 122, 236)
     label(font1, 'Maximum Blood', 122, 257, 'left', true)
 
     // Target Highlight (knobX=76, knobY=309). Msg: 202=Off, 201=On, 213=Targeting Only.
-    label(font1, 'Off',           78,  319, 'right')
-    label(font1, 'On',            101, 305, 'center')
-    label(font1, 'Targeting Only',122, 319, 'left', true)
+    label(font1, 'Off', 78, 319, 'right')
+    label(font1, 'On', 101, 305, 'center')
+    label(font1, 'Targeting Only', 122, 319, 'left', true)
 
     // Combat Looks (knobX=76, knobY=387, valuesCount=2). Msg: 202=Off, 201=On.
-    label(font1, 'Off', 78,  397, 'right')
-    label(font1, 'On',  101, 383, 'center')
+    label(font1, 'Off', 78, 397, 'right')
+    label(font1, 'On', 101, 383, 'center')
 
     // ── Secondary knob value labels (font 101 → font1) ───────────────────────
     // CE ref: _UpdateThing() for SECONDARY prefs.
@@ -528,15 +667,15 @@ function buildPrefsPanel(): HTMLElement {
 
     // Combat Messages (knobY=74). Msg: 211=Verbose, 212=Brief.
     label(font1, 'Verbose', 303, 69, 'right')
-    label(font1, 'Brief',   320, 69)
+    label(font1, 'Brief', 320, 69)
 
     // Combat Taunts (knobY=141). Msg: 202=Off, 201=On.
     label(font1, 'Off', 303, 136, 'right')
-    label(font1, 'On',  320, 136)
+    label(font1, 'On', 320, 136)
 
     // Language Filter (knobY=207). Msg: 202=Off, 201=On.
     label(font1, 'Off', 303, 202, 'right')
-    label(font1, 'On',  320, 202)
+    label(font1, 'On', 320, 202)
 
     // Running (knobY=271). Msg: 209=Normal, 219=Always.
     label(font1, 'Normal', 303, 266, 'right')
@@ -544,11 +683,11 @@ function buildPrefsPanel(): HTMLElement {
 
     // Subtitles (knobY=338). Msg: 202=Off, 201=On.
     label(font1, 'Off', 303, 333, 'right')
-    label(font1, 'On',  320, 333)
+    label(font1, 'On', 320, 333)
 
     // Item Highlight (knobY=404). Msg: 202=Off, 201=On.
     label(font1, 'Off', 303, 399, 'right')
-    label(font1, 'On',  320, 399)
+    label(font1, 'On', 320, 399)
 
     // ── Range slider value labels (font 101 → font1) ─────────────────────────
     // CE ref: _UpdateThing() for RANGE prefs. Labels at y = knobY - 12.
@@ -563,45 +702,45 @@ function buildPrefsPanel(): HTMLElement {
     // All widths measured from font1_aaf.json using fontCore measureText logic.
 
     // Combat Speed (knobY=50, 2-way). Msg: 207=Normal(38), 210=Fastest(48).
-    label(font1, 'Normal',  384, 38)
-    label(font1, 'Fastest', 576, 38)  // 624-48
+    label(font1, 'Normal', 384, 38)
+    label(font1, 'Fastest', 576, 38) // 624-48
 
     // Text Delay (knobY=125, 3-way). Msg: 217=Slow(25), 209=Normal(38), 218=Faster(40).
-    label(font1, 'Slow',   384, 113)
-    label(font1, 'Normal', 483, 113)  // 504-19-2  (⌊38/2⌋=19)
-    label(font1, 'Faster', 584, 113)  // 624-40
+    label(font1, 'Slow', 384, 113)
+    label(font1, 'Normal', 483, 113) // 504-19-2  (⌊38/2⌋=19)
+    label(font1, 'Faster', 584, 113) // 624-40
 
     // Master Audio Volume (knobY=196, 4-way). Msg: 202=Off(19), 221=Quiet(31), 209=Normal(38), 222=Loud(27).
-    label(font1, 'Off',    384, 184)
-    label(font1, 'Quiet',  451, 184)  // 444+15-8  (⌊31/2⌋=15)
-    label(font1, 'Normal', 522, 184)  // 564-38-4
-    label(font1, 'Loud',   597, 184)  // 624-27
+    label(font1, 'Off', 384, 184)
+    label(font1, 'Quiet', 451, 184) // 444+15-8  (⌊31/2⌋=15)
+    label(font1, 'Normal', 522, 184) // 564-38-4
+    label(font1, 'Loud', 597, 184) // 624-27
 
     // Music/Movie Volume (knobY=247, 4-way). Same labels.
-    label(font1, 'Off',    384, 235)
-    label(font1, 'Quiet',  451, 235)
+    label(font1, 'Off', 384, 235)
+    label(font1, 'Quiet', 451, 235)
     label(font1, 'Normal', 522, 235)
-    label(font1, 'Loud',   597, 235)
+    label(font1, 'Loud', 597, 235)
 
     // Sound Effects Volume (knobY=298, 4-way). Same labels.
-    label(font1, 'Off',    384, 286)
-    label(font1, 'Quiet',  451, 286)
+    label(font1, 'Off', 384, 286)
+    label(font1, 'Quiet', 451, 286)
     label(font1, 'Normal', 522, 286)
-    label(font1, 'Loud',   597, 286)
+    label(font1, 'Loud', 597, 286)
 
     // Speech Volume (knobY=349, 4-way). Same labels.
-    label(font1, 'Off',    384, 337)
-    label(font1, 'Quiet',  451, 337)
+    label(font1, 'Off', 384, 337)
+    label(font1, 'Quiet', 451, 337)
     label(font1, 'Normal', 522, 337)
-    label(font1, 'Loud',   597, 337)
+    label(font1, 'Loud', 597, 337)
 
     // Brightness Level (knobY=400, 2-way). Msg: 207=Normal(38), 223=Brighter(50).
-    label(font1, 'Normal',   384, 388)
-    label(font1, 'Brighter', 574, 388)  // 624-50
+    label(font1, 'Normal', 384, 388)
+    label(font1, 'Brighter', 574, 388) // 624-50
 
     // Mouse Sensitivity (knobY=451, 2-way). Msg: 207=Normal(38), 218=Faster(40).
     label(font1, 'Normal', 384, 439)
-    label(font1, 'Faster', 584, 439)  // 624-40
+    label(font1, 'Faster', 584, 439) // 624-40
 
     return panel
 }
@@ -611,13 +750,21 @@ function buildPrefsPanel(): HTMLElement {
 let prefsRestore: (() => void) | null = null
 function snapshotPrefs(): () => void {
     const combat = {
-        gameDifficultyModifier: Config.combat.gameDifficultyModifier, difficultyModifier: Config.combat.difficultyModifier,
-        violenceLevel: Config.combat.violenceLevel, combatSpeed: Config.combat.combatSpeed,
+        gameDifficultyModifier: Config.combat.gameDifficultyModifier,
+        difficultyModifier: Config.combat.difficultyModifier,
+        violenceLevel: Config.combat.violenceLevel,
+        combatSpeed: Config.combat.combatSpeed,
     }
     const ui = {
-        targetHighlight: Config.ui.targetHighlight, combatLooks: Config.ui.combatLooks, combatMessages: Config.ui.combatMessages,
-        combatTaunts: Config.ui.combatTaunts, languageFilter: Config.ui.languageFilter, subtitles: Config.ui.subtitles,
-        itemHighlight: Config.ui.itemHighlight, textBaseDelay: Config.ui.textBaseDelay, brightness: Config.ui.brightness,
+        targetHighlight: Config.ui.targetHighlight,
+        combatLooks: Config.ui.combatLooks,
+        combatMessages: Config.ui.combatMessages,
+        combatTaunts: Config.ui.combatTaunts,
+        languageFilter: Config.ui.languageFilter,
+        subtitles: Config.ui.subtitles,
+        itemHighlight: Config.ui.itemHighlight,
+        textBaseDelay: Config.ui.textBaseDelay,
+        brightness: Config.ui.brightness,
         mouseSensitivity: Config.ui.mouseSensitivity,
     }
     const engine = { doAlwaysRun: Config.engine.doAlwaysRun, playerSpeedup: Config.engine.playerSpeedup }
@@ -691,23 +838,40 @@ export function initOptionsMenu(): void {
             y: Math.trunc((Config.ui.screenHeight - OPTIONS_BG_H) / 2) - 60,
         },
         OPTIONS_BG_W,
-        OPTIONS_BG_H
+        OPTIONS_BG_H,
     )
 
     const handlers: (() => void)[] = [
         // CE options.cc: the menu stays behind lsgSaveGame / lsgLoadGame and closes only when
         // a game was saved / loaded (rc 1) — cancelling comes back to it
-        () => { optionsWindow.close(); uiSaveLoad(true, false, () => showOptionsMenu()) },   // 500 SAVE GAME
-        () => { optionsWindow.close(); uiSaveLoad(false, false, () => showOptionsMenu()) },  // 501 LOAD GAME
-        () => { openPrefsPanel() },                           // 502 PREFERENCES
-        () => { void quitConfirmation() },                    // 503 EXIT GAME
-        () => { optionsWindow.close() },                      // 504 DONE
+        () => {
+            optionsWindow.close()
+            uiSaveLoad(true, false, () => showOptionsMenu())
+        }, // 500 SAVE GAME
+        () => {
+            optionsWindow.close()
+            uiSaveLoad(false, false, () => showOptionsMenu())
+        }, // 501 LOAD GAME
+        () => {
+            openPrefsPanel()
+        }, // 502 PREFERENCES
+        () => {
+            void quitConfirmation()
+        }, // 503 EXIT GAME
+        () => {
+            optionsWindow.close()
+        }, // 504 DONE
     ]
     const fallback = ['SAVE GAME', 'LOAD GAME', 'PREFERENCES', 'EXIT GAME', 'DONE']
     new Image().src = assetUrl('art/intrface/opbtnon.png') // preload the pressed state (no blank first press)
 
     handlers.forEach((handler, i) => {
-        const btnWidget = new Widget('art/intrface/opbtnoff.png', { x: 13, y: 17 + i * (OPTIONS_BTN_H + 3), w: OPTIONS_BTN_W, h: OPTIONS_BTN_H })
+        const btnWidget = new Widget('art/intrface/opbtnoff.png', {
+            x: 13,
+            y: 17 + i * (OPTIONS_BTN_H + 3),
+            w: OPTIONS_BTN_W,
+            h: OPTIONS_BTN_H,
+        })
             .mouseDownBG('art/intrface/opbtnon.png')
             .css({ cursor: 'pointer' })
             .onClick(handler)
@@ -718,12 +882,21 @@ export function initOptionsMenu(): void {
         font3.onLoad(() => {
             const x = Math.max(0, Math.trunc((OPTIONS_BTN_W - font3.measureText(text)) / 2))
             const y = Math.trunc((OPTIONS_BTN_H - font3.lineHeight) / 2) + 1
-            Object.assign(label.elem.style, { position: 'absolute', left: x + 'px', top: y + 'px', pointerEvents: 'none' })
+            Object.assign(label.elem.style, {
+                position: 'absolute',
+                left: x + 'px',
+                top: y + 'px',
+                pointerEvents: 'none',
+            })
             btnWidget.elem.appendChild(label.elem)
         })
-        btnWidget.elem.addEventListener('mousedown', () => { label.color = CE_COLOR.labelPressed })
+        btnWidget.elem.addEventListener('mousedown', () => {
+            label.color = CE_COLOR.labelPressed
+        })
         for (const ev of ['mouseup', 'mouseleave']) {
-            btnWidget.elem.addEventListener(ev, () => { label.color = CE_COLOR.label })
+            btnWidget.elem.addEventListener(ev, () => {
+                label.color = CE_COLOR.label
+            })
         }
     })
 
@@ -737,8 +910,12 @@ export function initOptionsMenu(): void {
     makePanelDraggable(optionsWindow.elem, 'options')
     // CE showOptions runs its own input loop: the map is frozen and no game key reaches
     // gameHandleKey while the window is open
-    optionsWindow.onShow = () => { globalState.uiMode = UIMode.options }
-    optionsWindow.onClose = () => { if (globalState.uiMode === UIMode.options) globalState.uiMode = UIMode.none }
+    optionsWindow.onShow = () => {
+        globalState.uiMode = UIMode.options
+    }
+    optionsWindow.onClose = () => {
+        if (globalState.uiMode === UIMode.options) globalState.uiMode = UIMode.none
+    }
 
     const optionsKeyHandler = (e: KeyboardEvent) => {
         if (!optionsWindow.showing) return

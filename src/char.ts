@@ -16,11 +16,17 @@ limitations under the License.
 */
 
 import {
-    skillDependencies, skillImprovementCost, statDependencies,
-    SKILL_MAX_VALUE, DEFAULT_TAGGED_SKILLS, MAX_TAGGED_SKILLS,
-    perkGetSkillModifier, traitGetSkillModifier, skillGetGameDifficultyModifier,
-} from "./skills.js";
-import { clamp } from "./util.js";
+    skillDependencies,
+    skillImprovementCost,
+    statDependencies,
+    SKILL_MAX_VALUE,
+    DEFAULT_TAGGED_SKILLS,
+    MAX_TAGGED_SKILLS,
+    perkGetSkillModifier,
+    traitGetSkillModifier,
+    skillGetGameDifficultyModifier,
+} from './skills.js'
+import { clamp } from './util.js'
 
 // Character Stats and Skills
 
@@ -28,38 +34,34 @@ import { clamp } from "./util.js";
 
 // FO2-CE ref: skill.cc skillGetValue() — player-only modifiers are passed via options
 export interface SkillCalcOptions {
-    isPlayer?: boolean;
-    perks?: string[];
-    traits?: string[];
-    hasTagPerk?: boolean; // Tag! perk: allows 4th tagged skill (no +20 bonus on that slot)
-    lightIntensity?: number; // objectGetLightIntensity(gDude), for Ghost's Sneak bonus
+    isPlayer?: boolean
+    perks?: string[]
+    traits?: string[]
+    hasTagPerk?: boolean // Tag! perk: allows 4th tagged skill (no +20 bonus on that slot)
+    lightIntensity?: number // objectGetLightIntensity(gDude), for Ghost's Sneak bonus
 }
 
 export class SkillSet {
-    baseSkills: { [name: string]: number } = {};
-    tagged: string[] = [];
-    skillPoints: number = 0;
-    hasTagPerk: boolean = false; // Tag! perk acquired
+    baseSkills: { [name: string]: number } = {}
+    tagged: string[] = []
+    skillPoints: number = 0
+    hasTagPerk: boolean = false // Tag! perk acquired
     // baseSkills of a proto critter include CE's defaultValue (fromPro); saves from
     // before 2026-10-24 stored the raw proto points (Critter.fromMapObject migrates them).
-    protoDefaults: boolean = false;
+    protoDefaults: boolean = false
 
     constructor(baseSkills?: { [name: string]: number }, tagged?: string[], skillPoints?: number) {
         // Copy construct a SkillSet
-        if(baseSkills) this.baseSkills = baseSkills;
-        if(tagged) this.tagged = tagged;
-        if(skillPoints) this.skillPoints = skillPoints;
+        if (baseSkills) this.baseSkills = baseSkills
+        if (tagged) this.tagged = tagged
+        if (skillPoints) this.skillPoints = skillPoints
     }
 
     clone(): SkillSet {
         // FO2-CE ref: deep copy so character screen edits don't mutate the original
-        const c = new SkillSet(
-            Object.assign({}, this.baseSkills),
-            this.tagged.slice(),
-            this.skillPoints,
-        );
-        c.hasTagPerk = this.hasTagPerk;
-        return c;
+        const c = new SkillSet(Object.assign({}, this.baseSkills), this.tagged.slice(), this.skillPoints)
+        c.hasTagPerk = this.hasTagPerk
+        return c
     }
 
     static fromPro(skills: any): SkillSet {
@@ -68,30 +70,28 @@ export class SkillSet {
             skills = { ...skills, 'Melee Weapons': skills['Melee'] }
             delete skills['Melee']
         }
-        const s = new SkillSet(SkillSet.withProtoDefaults(skills ?? {}));
-        s.protoDefaults = true;
-        return s;
+        const s = new SkillSet(SkillSet.withProtoDefaults(skills ?? {}))
+        s.protoDefaults = true
+        return s
     }
 
     // FO2-CE ref: skill.cc skillGetValue — defaultValue + the proto's raw points. DH2
     // stores the sum in baseSkills, as it does for the dude, so get() treats both alike.
     static withProtoDefaults(raw: { [name: string]: number }): { [name: string]: number } {
-        const out: { [name: string]: number } = {};
-        for (const skill in skillDependencies)
-            out[skill] = skillDependencies[skill].startValue + (raw[skill] ?? 0);
-        return out;
+        const out: { [name: string]: number } = {}
+        for (const skill in skillDependencies) out[skill] = skillDependencies[skill].startValue + (raw[skill] ?? 0)
+        return out
     }
 
     // FO2-CE ref: skill.cc skillGetBaseValue() — raw invested points from proto
     // In DarkHarold2, baseSkills stores startValue + invested (startValue is baked in on first inc).
     // getBase returns the raw stored value, falling back to startValue if nothing invested yet.
     getBase(skill: string): number {
-        const skillDep = skillDependencies[skill];
+        const skillDep = skillDependencies[skill]
 
-        if(!skillDep)
-            throw Error(`No dependencies for skill '${skill}'`);
+        if (!skillDep) throw Error(`No dependencies for skill '${skill}'`)
 
-        return this.baseSkills[skill] !== undefined ? this.baseSkills[skill] : skillDep.startValue;
+        return this.baseSkills[skill] !== undefined ? this.baseSkills[skill] : skillDep.startValue
     }
 
     // FO2-CE ref: skill.cc skillGetValue()
@@ -105,102 +105,99 @@ export class SkillSet {
     // Effective = base + statBonus  (for non-tagged)
     // Effective = startValue + 2*invested + 20 + statBonus  (for tagged)
     get(skill: string, stats: StatSet, options?: SkillCalcOptions): number {
-        const base = this.getBase(skill);
-        const skillDep = skillDependencies[skill];
+        const base = this.getBase(skill)
+        const skillDep = skillDependencies[skill]
 
-        if(!skillDep)
-            throw Error(`No dependencies for skill '${skill}'`);
+        if (!skillDep) throw Error(`No dependencies for skill '${skill}'`)
 
-        const isPlayer = options?.isPlayer ?? false;
+        const isPlayer = options?.isPlayer ?? false
 
         // Stat bonus: sum of stat * multiplier for each dependency
-        let statBonus = 0;
-        for(const dep of skillDep.dependencies) {
-            if(dep.statType)
-                statBonus += Math.floor(stats.get(dep.statType) * dep.multiplier);
+        let statBonus = 0
+        for (const dep of skillDep.dependencies) {
+            if (dep.statType) statBonus += Math.floor(stats.get(dep.statType) * dep.multiplier)
         }
 
         // investedPoints = raw base minus the startValue default
-        const invested = base - skillDep.startValue;
-        let value = skillDep.startValue + statBonus + invested;
+        const invested = base - skillDep.startValue
+        let value = skillDep.startValue + statBonus + invested
 
         // FO2-CE ref: skill.cc — tagged bonus only for player (critter == gDude)
-        if(isPlayer && this.isTagged(skill)) {
+        if (isPlayer && this.isTagged(skill)) {
             // Double the invested points
-            value += invested;
+            value += invested
             // +20 bonus, unless this is the Tag! perk's 4th slot
-            const isTagPerk4thSlot = (options?.hasTagPerk || this.hasTagPerk)
-                && this.tagged.length >= 4
-                && this.tagged[3] === skill;
-            if(!isTagPerk4thSlot) {
-                value += 20;
+            const isTagPerk4thSlot =
+                (options?.hasTagPerk || this.hasTagPerk) && this.tagged.length >= 4 && this.tagged[3] === skill
+            if (!isTagPerk4thSlot) {
+                value += 20
             }
         }
 
         // Player-only modifiers: traits, perks, game difficulty
-        if(isPlayer) {
-            if(options?.traits && options.traits.length > 0) {
-                value += traitGetSkillModifier(options.traits, skill);
+        if (isPlayer) {
+            if (options?.traits && options.traits.length > 0) {
+                value += traitGetSkillModifier(options.traits, skill)
             }
-            if(options?.perks && options.perks.length > 0) {
-                value += perkGetSkillModifier(options.perks, skill, options.lightIntensity);
+            if (options?.perks && options.perks.length > 0) {
+                value += perkGetSkillModifier(options.perks, skill, options.lightIntensity)
             }
-            value += skillGetGameDifficultyModifier(skill);
+            value += skillGetGameDifficultyModifier(skill)
         }
 
         // FO2-CE ref: skill.cc — cap at 300
-        if(value > SKILL_MAX_VALUE) {
-            value = SKILL_MAX_VALUE;
+        if (value > SKILL_MAX_VALUE) {
+            value = SKILL_MAX_VALUE
         }
 
-        return value;
+        return value
     }
 
     setBase(skill: string, skillValue: number) {
-        this.baseSkills[skill] = skillValue;
+        this.baseSkills[skill] = skillValue
     }
 
     // FO2-CE ref: skill.cc skillAdd() — cost based on *effective* skill value
     incBase(skill: string, stats: StatSet, options?: SkillCalcOptions, useSkillPoints: boolean = true): boolean {
-        const effectiveValue = this.get(skill, stats, options);
+        const effectiveValue = this.get(skill, stats, options)
 
         // FO2-CE ref: skill.cc — cannot increment past SKILL_MAX_VALUE
-        if(effectiveValue >= SKILL_MAX_VALUE) {
-            return false;
+        if (effectiveValue >= SKILL_MAX_VALUE) {
+            return false
         }
 
-        if(useSkillPoints) {
-            const cost = skillImprovementCost(effectiveValue);
+        if (useSkillPoints) {
+            const cost = skillImprovementCost(effectiveValue)
 
-            if(this.skillPoints < cost) {
-                return false;
+            if (this.skillPoints < cost) {
+                return false
             }
 
-            this.skillPoints -= cost;
+            this.skillPoints -= cost
         }
 
-        const base = this.getBase(skill);
-        this.setBase(skill, base + 1);
-        return true;
+        const base = this.getBase(skill)
+        this.setBase(skill, base + 1)
+        return true
     }
 
     // FO2-CE ref: skill.cc skillSub() — refund based on effective value *after* decrement
     decBase(skill: string, stats: StatSet, options?: SkillCalcOptions, useSkillPoints: boolean = true) {
-        const base = this.getBase(skill);
-        const skillDep = skillDependencies[skill];
+        const base = this.getBase(skill)
+        const skillDep = skillDependencies[skill]
 
         // Cannot decrement below startValue (no invested points left)
-        if(base <= skillDep.startValue) {
-            return;
+        if (base <= skillDep.startValue) {
+            return
         }
 
-        this.setBase(skill, base - 1);
+        this.setBase(skill, base - 1)
 
-        if(useSkillPoints) {
+        if (useSkillPoints) {
             // Refund: cost of the new (lower) effective value
-            const newEffective = this.get(skill, stats, options);
-            const cost = skillImprovementCost(newEffective);
-            this.skillPoints += cost;
+            const newEffective = this.get(skill, stats, options)
+            const cost = skillImprovementCost(newEffective)
+            this.skillPoints += cost
         }
     }
 
@@ -220,124 +217,119 @@ export class SkillSet {
     }
 
     isTagged(skill: string): boolean {
-        return this.tagged.indexOf(skill) !== -1;
+        return this.tagged.indexOf(skill) !== -1
     }
 
     // FO2-CE ref: skill_defs.h — DEFAULT_TAGGED_SKILLS = 3, MAX_TAGGED_SKILLS = 4 (via Tag! perk)
     getMaxTaggedSkills(): number {
-        return this.hasTagPerk ? MAX_TAGGED_SKILLS : DEFAULT_TAGGED_SKILLS;
+        return this.hasTagPerk ? MAX_TAGGED_SKILLS : DEFAULT_TAGGED_SKILLS
     }
 
     tag(skill: string): boolean {
-        if(this.isTagged(skill)) return false;
-        if(this.tagged.length >= this.getMaxTaggedSkills()) return false;
-        this.tagged.push(skill);
-        return true;
+        if (this.isTagged(skill)) return false
+        if (this.tagged.length >= this.getMaxTaggedSkills()) return false
+        this.tagged.push(skill)
+        return true
     }
 
     untag(skill: string) {
-        if(this.isTagged(skill))
-            this.tagged.splice(this.tagged.indexOf(skill), 1);
+        if (this.isTagged(skill)) this.tagged.splice(this.tagged.indexOf(skill), 1)
     }
 }
 
 export class StatSet {
-    baseStats: { [name: string]: number } = {};
+    baseStats: { [name: string]: number } = {}
     // CE critter proto d.stat_bonus (critterSetBonusStat): added to the stat. Drugs,
     // radiation and perk effects land here, as do sfall's set_critter_extra_stat /
     // set_pc_extra_stat (0x815B, 0x815F). A proto's own bonus is already in baseStats
     // (fromPro). Saves from before 2026-10-24 have drug / perk deltas in the base.
-    bonusStats: { [name: string]: number } = {};
-    useBonuses: boolean;
+    bonusStats: { [name: string]: number } = {}
+    useBonuses: boolean
 
-    constructor(baseStats?: { [name: string]: number }, useBonuses: boolean=true) {
+    constructor(baseStats?: { [name: string]: number }, useBonuses: boolean = true) {
         // Copy construct a StatSet
-        if(baseStats) this.baseStats = baseStats;
-        this.useBonuses = useBonuses;
+        if (baseStats) this.baseStats = baseStats
+        this.useBonuses = useBonuses
     }
 
     clone(): StatSet {
-        const c = new StatSet(Object.assign({}, this.baseStats), this.useBonuses);
-        c.bonusStats = Object.assign({}, this.bonusStats);
-        return c;
+        const c = new StatSet(Object.assign({}, this.baseStats), this.useBonuses)
+        c.bonusStats = Object.assign({}, this.bonusStats)
+        return c
     }
 
     static fromPro(pro: any): StatSet {
+        const { baseStats, bonusStats } = pro.extra
 
-        const { baseStats, bonusStats } = pro.extra;
+        const stats = Object.assign({}, baseStats)
 
-        const stats = Object.assign({}, baseStats);
-
-        for(const stat in stats) {
-            if(bonusStats[stat] !== undefined)
-                stats[stat] += bonusStats[stat];
+        for (const stat in stats) {
+            if (bonusStats[stat] !== undefined) stats[stat] += bonusStats[stat]
         }
 
         // TODO: armor, appears to be hardwired into the proto?
 
         // Define Max HP = HP if it does not exist
-        if(stats["Max HP"] === undefined && stats["HP"] !== undefined)
-            stats["Max HP"] = stats["HP"];
+        if (stats['Max HP'] === undefined && stats['HP'] !== undefined) stats['Max HP'] = stats['HP']
 
         // Define HP = Max HP if it does not exist
-        if(stats["HP"] === undefined && stats["Max HP"] !== undefined)
-            stats["HP"] = stats["Max HP"];
+        if (stats['HP'] === undefined && stats['Max HP'] !== undefined) stats['HP'] = stats['Max HP']
 
-        return new StatSet(stats, false);
+        return new StatSet(stats, false)
     }
 
     getBase(stat: string): number {
-        const statDep = statDependencies[stat];
+        const statDep = statDependencies[stat]
 
-        if(!statDep)
-            throw Error(`No dependencies for stat '${stat}'`);
+        if (!statDep) throw Error(`No dependencies for stat '${stat}'`)
 
         // `??`, not `||`: a stored 0 is a value (HP 0 = dead), not "unset".
-        return this.baseStats[stat] ?? statDep.defaultValue;
+        return this.baseStats[stat] ?? statDep.defaultValue
     }
 
     get(stat: string): number {
-        const base = this.getBase(stat);
+        const base = this.getBase(stat)
 
-        const statDep = statDependencies[stat];
+        const statDep = statDependencies[stat]
 
-        if(!statDep)
-            throw Error(`No dependencies for stat '${stat}'`);
+        if (!statDep) throw Error(`No dependencies for stat '${stat}'`)
 
-        let statValue = base + (this.bonusStats[stat] ?? 0);
-        if(this.useBonuses) {
-            let derived = 0;
-            for(const dep of statDep.dependencies) {
-                if(dep.statType)
-                    derived += Math.floor((dep.baseOnly ? this.getBase(dep.statType) : this.get(dep.statType)) * dep.multiplier);
+        let statValue = base + (this.bonusStats[stat] ?? 0)
+        if (this.useBonuses) {
+            let derived = 0
+            for (const dep of statDep.dependencies) {
+                if (dep.statType)
+                    derived += Math.floor(
+                        (dep.baseOnly ? this.getBase(dep.statType) : this.get(dep.statType)) * dep.multiplier,
+                    )
             }
-            if(statDep.derivedMin !== undefined) derived = Math.max(statDep.derivedMin, derived);
-            statValue += derived;
+            if (statDep.derivedMin !== undefined) derived = Math.max(statDep.derivedMin, derived)
+            statValue += derived
         }
 
-        return clamp(statDep.min, statDep.max, statValue);
+        return clamp(statDep.min, statDep.max, statValue)
     }
 
     setBase(stat: string, statValue: number) {
-        this.baseStats[stat] = statValue;
+        this.baseStats[stat] = statValue
     }
 
     modifyBase(stat: string, change: number) {
-        this.setBase(stat, this.getBase(stat) + change);
+        this.setBase(stat, this.getBase(stat) + change)
     }
 
     getBonus(stat: string): number {
-        return this.bonusStats[stat] ?? 0;
+        return this.bonusStats[stat] ?? 0
     }
 
     // CE critterSetBonusStat(critter, stat, critterGetBonusStat + delta)
     modifyBonus(stat: string, change: number) {
-        this.setBonus(stat, this.getBonus(stat) + change);
+        this.setBonus(stat, this.getBonus(stat) + change)
     }
 
     setBonus(stat: string, value: number) {
-        if (value === 0) delete this.bonusStats[stat];
-        else this.bonusStats[stat] = value;
+        if (value === 0) delete this.bonusStats[stat]
+        else this.bonusStats[stat] = value
     }
 
     serialize() {

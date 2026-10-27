@@ -32,15 +32,7 @@ import {
 } from './renderer.js'
 import { objLookAt } from './examine.js'
 import { Scripting } from './scripting.js'
-import {
-    drawAP,
-    uiContextMenu,
-    uiHideContextMenu,
-    uiLog,
-    uiLoot,
-    UIMode,
-    uiWorldMap,
-} from './ui.js'
+import { drawAP, uiContextMenu, uiHideContextMenu, uiLog, uiLoot, UIMode, uiWorldMap } from './ui.js'
 import { getProtoMsg } from './util.js'
 import { Config } from './config.js'
 import { currentUnarmed, unarmedAPCost } from './unarmed.js'
@@ -101,7 +93,7 @@ function buildTileInspectorReport(mouseHex: Point): string {
         sources.forEach((s, i) => {
             lines.push(
                 `  [${i}] type=${s.o.type} pid=${hex32(s.o.pid)}  ` +
-                    `radius=${s.o.lightRadius}  intensity=${s.o.lightIntensity}  dist=${s.dist}`
+                    `radius=${s.o.lightRadius}  intensity=${s.o.lightIntensity}  dist=${s.dist}`,
             )
         })
     }
@@ -112,8 +104,7 @@ function buildTileInspectorReport(mouseHex: Point): string {
     // kept in its own section to avoid implying it affects tile intensity.
     lines.push('--- OCCLUSION ---')
     const eggRadius = Config.ui.eggRadius ?? 8
-    const insideEgg =
-        globalState.player != null && hexDistance(globalState.player.position, mouseHex) <= eggRadius
+    const insideEgg = globalState.player != null && hexDistance(globalState.player.position, mouseHex) <= eggRadius
     lines.push(`Inside egg (radius ${eggRadius}):  ${insideEgg ? 'yes' : 'no'}`)
     lines.push('')
 
@@ -157,27 +148,52 @@ function closeWindowKey(e: KeyboardEvent): boolean {
     const k = e.key.length === 1 ? e.key.toLowerCase() : e.key
     switch (globalState.uiMode) {
         case UIMode.pipBoy: // pipboy.cc pipboyOpen: Esc, Return, P, Z
-            if (k === 'Escape' || k === 'Enter' || k === 'p' || k === 'z') { closePipBoy(); return true }
+            if (k === 'Escape' || k === 'Enter' || k === 'p' || k === 'z') {
+                closePipBoy()
+                return true
+            }
             return false
         case UIMode.elevator: // elevator.cc elevatorSelectLevel: Esc, the floor labels
             return elevatorKey(e)
         case UIMode.loot: // inventory.cc inventoryOpenLooting / Stealing: Esc, A
             return lootKey(e)
         case UIMode.inventory: // inventory.cc inventoryOpen: Esc, I
-            if (k === 'Escape' || k === 'i') { closeInventory(); return true }
+            if (k === 'Escape' || k === 'i') {
+                closeInventory()
+                return true
+            }
             return false
         case UIMode.automap: // automap.cc automapShow: Tab, Esc, A close; H / L detail; S scanner
-            if (k === 'Escape' || k === 'Tab' || k === 'a') { closeAutomap(); return true }
-            if (k === 'h' || k === 'l' || k === 's') { automapKey(e); return true }
+            if (k === 'Escape' || k === 'Tab' || k === 'a') {
+                closeAutomap()
+                return true
+            }
+            if (k === 'h' || k === 'l' || k === 's') {
+                automapKey(e)
+                return true
+            }
             return false
     }
     return false
 }
 
 const DEV_CONTROLS = new Set([
-    'elevationDown', 'elevationUp', 'showRoof', 'showFloor', 'showObjects', 'showWalls',
-    'talkTo', 'inspect', 'moveTo', 'runTo', 'attack', 'playerToTargetRaycast',
-    'showTargetInventory', 'use', 'kill', 'worldmap',
+    'elevationDown',
+    'elevationUp',
+    'showRoof',
+    'showFloor',
+    'showObjects',
+    'showWalls',
+    'talkTo',
+    'inspect',
+    'moveTo',
+    'runTo',
+    'attack',
+    'playerToTargetRaycast',
+    'showTargetInventory',
+    'use',
+    'kill',
+    'worldmap',
 ])
 
 function isKey(k: string, control: keyof typeof Config.controls): boolean {
@@ -226,15 +242,19 @@ function scheduleHexCursorAP(): void {
         const hex = hexFromScreen(world.x, world.y)
         const path = gMap.recalcPath(player.position, hex, undefined, player)
         const distance = Math.max(0, path.length - 1)
-        if (distance === 0) { globalState.hexCursorText = { text: 'X', color: '#fc0000' }; return }
+        if (distance === 0) {
+            globalState.hexCursorText = { text: 'X', color: '#fc0000' }
+            return
+        }
         if (!globalState.inCombat || !player.AP) return
         let cost = distance
         if (player.crippledLeftLeg && player.crippledRightLeg) cost *= 8
         else if (player.crippledLeftLeg || player.crippledRightLeg) cost *= 4
         const required = Math.max(0, cost - player.AP.move)
-        globalState.hexCursorText = required <= player.AP.getAvailableCombatAP()
-            ? { text: String(required), color: '#fcfcfc' }
-            : { text: 'X', color: '#fc0000' }
+        globalState.hexCursorText =
+            required <= player.AP.getAvailableCombatAP()
+                ? { text: String(required), color: '#fcfcfc' }
+                : { text: 'X', color: '#fc0000' }
     }, 250)
 }
 
@@ -252,7 +272,8 @@ function cycleMouseMode(): void {
         // combat, and in combat while the active item isn't a weapon.
         const player = globalState.player as any
         const activeItem = player?.[player?.activeHand ?? 'leftHand'] as Obj | undefined
-        const skipCrosshair = !globalState.inCombat || (activeItem !== undefined && activeItem !== null && !objectIsWeapon(activeItem))
+        const skipCrosshair =
+            !globalState.inCombat || (activeItem !== undefined && activeItem !== null && !objectIsWeapon(activeItem))
         globalState.cursorMode = skipCrosshair ? 'move' : 'attack'
         globalState.showLookCursor = false
         if (globalState.commandModeTimer !== null) {
@@ -275,19 +296,30 @@ function cycleMouseMode(): void {
 export function installInputHandlers(): void {
     // CE game.cc gameHandleKey — the game keys on the map (src/hotkeys.ts); the open
     // window's own close keys (CE runs each window's input loop).
-    window.addEventListener('keydown', (e: KeyboardEvent) => {
-        const t = e.target as HTMLElement | null
-        if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
-        if (globalState.isLoading || globalState.isInitializing || globalState.gameUIDisabled) return
-        if (Config.engine.devKeys && devKeyBound(e.key)) return
-        const mode = globalState.uiMode
-        if (closeWindowKey(e)) { e.preventDefault(); return }
-        // ESC cancels skill targeting (heart's own check compared 'Escape' with its lower-case
-        // 'escape' and never fired)
-        if (mode === UIMode.useSkill && e.key === 'Escape') { cancelSkillTargeting(); e.preventDefault(); return }
-        if (mode !== UIMode.none && mode !== UIMode.useSkill) return
-        if (gameHandleKey(e, cycleMouseMode)) e.preventDefault()
-    }, true)
+    window.addEventListener(
+        'keydown',
+        (e: KeyboardEvent) => {
+            const t = e.target as HTMLElement | null
+            if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
+            if (globalState.isLoading || globalState.isInitializing || globalState.gameUIDisabled) return
+            if (Config.engine.devKeys && devKeyBound(e.key)) return
+            const mode = globalState.uiMode
+            if (closeWindowKey(e)) {
+                e.preventDefault()
+                return
+            }
+            // ESC cancels skill targeting (heart's own check compared 'Escape' with its lower-case
+            // 'escape' and never fired)
+            if (mode === UIMode.useSkill && e.key === 'Escape') {
+                cancelSkillTargeting()
+                e.preventDefault()
+                return
+            }
+            if (mode !== UIMode.none && mode !== UIMode.useSkill) return
+            if (gameHandleKey(e, cycleMouseMode)) e.preventDefault()
+        },
+        true,
+    )
 
     // CE game_dialog.cc / gameMoviePlay / the message boxes run their own modal input loop:
     // the map gets no clicks meanwhile. DH2's dialogue window leaves map visible around it,
@@ -407,15 +439,13 @@ export function installInputHandlers(): void {
         // Scroll interrupts any mode; HUD/move only apply when not in command/attack
         const SCROLL_PAD = Config.ui.scrollPadding
         const anyScroll =
-            y <= SCROLL_PAD ||
-            y >= SCREEN_HEIGHT - SCROLL_PAD ||
-            x <= SCROLL_PAD ||
-            x >= SCREEN_WIDTH - SCROLL_PAD
+            y <= SCROLL_PAD || y >= SCREEN_HEIGHT - SCROLL_PAD || x <= SCROLL_PAD || x >= SCREEN_WIDTH - SCROLL_PAD
 
         // The HUD shows a CSS cursor (the canvas cursor is under it): mirror the scroll
         // direction onto #bar so ui.css swaps in the matching scroll arrow there.
-        const scrollDir = (y >= SCREEN_HEIGHT - SCROLL_PAD ? 's' : y <= SCROLL_PAD ? 'n' : '')
-            + (x >= SCREEN_WIDTH - SCROLL_PAD ? 'e' : x <= SCROLL_PAD ? 'w' : '')
+        const scrollDir =
+            (y >= SCREEN_HEIGHT - SCROLL_PAD ? 's' : y <= SCROLL_PAD ? 'n' : '') +
+            (x >= SCREEN_WIDTH - SCROLL_PAD ? 'e' : x <= SCROLL_PAD ? 'w' : '')
         const $bar = document.getElementById('bar')
         if ($bar && ($bar.dataset.scroll ?? '') !== scrollDir) $bar.dataset.scroll = scrollDir
 
@@ -427,22 +457,27 @@ export function installInputHandlers(): void {
         } else if (globalState.cursorMode === 'scroll') {
             // leaving scroll zone — restore whatever was active before (move, command, attack, …)
             globalState.cursorMode = globalState.preScrollCursorMode
-        } else if (globalState.cursorMode !== 'command' && globalState.cursorMode !== 'attack' && globalState.cursorMode !== 'useSkill' && globalState.cursorMode !== 'useItem') {
+        } else if (
+            globalState.cursorMode !== 'command' &&
+            globalState.cursorMode !== 'attack' &&
+            globalState.cursorMode !== 'useSkill' &&
+            globalState.cursorMode !== 'useItem'
+        ) {
             // move / interface: re-evaluate based on HUD / dialogue position
             const barEl = document.getElementById('bar')
             const barRect = barEl?.getBoundingClientRect()
             const inHUD =
-                barRect != null &&
-                x >= barRect.left && x <= barRect.right &&
-                y >= barRect.top && y <= barRect.bottom
+                barRect != null && x >= barRect.left && x <= barRect.right && y >= barRect.top && y <= barRect.bottom
 
             const dialogueEl = document.getElementById('dialogueContainer')
             const dialogueRect = dialogueEl?.getBoundingClientRect()
             const inDialogueArea =
                 dialogueEl?.style.visibility === 'visible' &&
                 dialogueRect !== undefined &&
-                x >= dialogueRect.left && x <= dialogueRect.right &&
-                y >= dialogueRect.top && y <= dialogueRect.bottom
+                x >= dialogueRect.left &&
+                x <= dialogueRect.right &&
+                y >= dialogueRect.top &&
+                y <= dialogueRect.bottom
 
             if (inHUD || inDialogueArea) {
                 globalState.cursorMode = 'interface'
@@ -471,15 +506,21 @@ export function installInputHandlers(): void {
         const kz = getZoom()
         const mouseHex = hexFromScreen(
             mousePos[0] / kz + globalState.cameraPosition.x,
-            mousePos[1] / kz + globalState.cameraPosition.y
+            mousePos[1] / kz + globalState.cameraPosition.y,
         )
 
         // Keep keyboard pan speed consistent on-screen regardless of zoom
         // (see the mouse-edge scroll block in heart.update for the same trick).
         const kbStep = 15 / kz
         // [dh2] scroll_mode=ce: CE gameHandleKey's arrows → mapScroll (32 × 24 px steps)
-        if (Config.ui.scrollMode === 'ce' && (isKey(k, 'cameraDown') || isKey(k, 'cameraRight') || isKey(k, 'cameraLeft') || isKey(k, 'cameraUp'))) {
-            ceMapScroll(isKey(k, 'cameraRight') ? 1 : isKey(k, 'cameraLeft') ? -1 : 0, isKey(k, 'cameraDown') ? 1 : isKey(k, 'cameraUp') ? -1 : 0)
+        if (
+            Config.ui.scrollMode === 'ce' &&
+            (isKey(k, 'cameraDown') || isKey(k, 'cameraRight') || isKey(k, 'cameraLeft') || isKey(k, 'cameraUp'))
+        ) {
+            ceMapScroll(
+                isKey(k, 'cameraRight') ? 1 : isKey(k, 'cameraLeft') ? -1 : 0,
+                isKey(k, 'cameraDown') ? 1 : isKey(k, 'cameraUp') ? -1 : 0,
+            )
         } else if (isKey(k, 'cameraDown')) {
             globalState.cameraPosition.y += kbStep
             clampCameraPosition()
@@ -570,9 +611,10 @@ export function installInputHandlers(): void {
 
             const kbWeapon = globalState.player.equippedWeapon
             const kbP = globalState.player
-            const kbAPCost = kbWeapon === null
-                ? unarmedAPCost(kbP, currentUnarmed(kbP).mode, false)
-                : kbWeapon.weapon!.getAttackAPCost(kbP, undefined, kbWeapon.weapon!.isCalled())
+            const kbAPCost =
+                kbWeapon === null
+                    ? unarmedAPCost(kbP, currentUnarmed(kbP).mode, false)
+                    : kbWeapon.weapon!.getAttackAPCost(kbP, undefined, kbWeapon.weapon!.isCalled())
 
             if (globalState.player.AP.getAvailableCombatAP() < kbAPCost) {
                 uiLog(getProtoMsg(700))
@@ -586,7 +628,11 @@ export function installInputHandlers(): void {
                     !globalState.combat.combatants[i].dead
                 ) {
                     globalState.player.AP.subtractCombatAP(kbAPCost)
-                    drawAP(globalState.player.AP.getAvailableCombatAP(), globalState.player.AP.getTotalMaxAP(), globalState.player.AP.move)
+                    drawAP(
+                        globalState.player.AP.getAvailableCombatAP(),
+                        globalState.player.AP.getTotalMaxAP(),
+                        globalState.player.AP.move,
+                    )
                     dbg('combat', '[Combat] attack key pressed')
                     globalState.combat.attack(globalState.player, globalState.combat.combatants[i])
                     break
@@ -627,7 +673,8 @@ export function installInputHandlers(): void {
             }
         }
 
-        if (Config.engine.devKeys && k === 'h') { // dev: teleport to the mouse hex
+        if (Config.engine.devKeys && k === 'h') {
+            // dev: teleport to the mouse hex
             globalState.player.move(mouseHex)
         }
 
@@ -641,7 +688,6 @@ export function installInputHandlers(): void {
         if (isKey(k, 'worldmap')) {
             uiWorldMap()
         }
-
     }
 
     heart.keyup = (k: string) => {

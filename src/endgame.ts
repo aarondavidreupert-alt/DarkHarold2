@@ -27,19 +27,32 @@ import { Scripting } from './scripting.js'
 import globalState from './globalState.js'
 import { getFileJSON, getMessage } from './util.js'
 import { dbg, dbgWarn } from './logger.js'
-import { createOverlay, removeOverlay, showDeathScreen, showStaticSlide, showPanningSlide, showCredits } from './endgame/slideRender.js'
+import {
+    createOverlay,
+    removeOverlay,
+    showDeathScreen,
+    showStaticSlide,
+    showPanningSlide,
+    showCredits,
+} from './endgame/slideRender.js'
 import { getDeathEndingFileName, setupDeathEnding, DEATH_REASON_DEATH } from './endgame/deathEndings.js'
 
-export { EndgameDeathEnding, DEATH_REASON_DEATH, DEATH_REASON_TIMEOUT, setupDeathEnding, getDeathEndingFileName } from './endgame/deathEndings.js'
+export {
+    EndgameDeathEnding,
+    DEATH_REASON_DEATH,
+    DEATH_REASON_TIMEOUT,
+    setupDeathEnding,
+    getDeathEndingFileName,
+} from './endgame/deathEndings.js'
 
 // CE: endgame.h EndgameEnding struct
 interface EndgameEnding {
     gvar: number
     value: number
     artNum: number
-    imagePath: string | null  // pre-baked by tools/convertEndgame.py
+    imagePath: string | null // pre-baked by tools/convertEndgame.py
     voiceOverBaseName: string
-    direction: number          // 1 = left→right, -1 = right→left
+    direction: number // 1 = left→right, -1 = right→left
 }
 
 // CE art_num 327 = the wide panning background (endgame.cc:221, 316)
@@ -97,7 +110,7 @@ export async function playMovie(): Promise<void> {
     // CE: soundLoad/speechPlay("akiss.acm") before 3-second delay
     const music = globalState.audioEngine.playSound('music/akiss')
 
-    await new Promise(r => setTimeout(r, 3000))
+    await new Promise((r) => setTimeout(r, 3000))
 
     const overlay = createOverlay()
     await showCredits(overlay)
@@ -134,9 +147,7 @@ export function dudeDeathScene(): void {
 
 export async function playDeathEnding(): Promise<void> {
     const selected = getDeathEndingFileName()
-    const baseName = selected.startsWith('narrator/')
-        ? selected.slice('narrator/'.length)
-        : selected
+    const baseName = selected.startsWith('narrator/') ? selected.slice('narrator/'.length) : selected
     const overlay = createOverlay()
     // CE ref: main.cc:390 showDeath — DEATH.FRM (interface art #309) with the text block
     await showDeathScreen(baseName, overlay)

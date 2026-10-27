@@ -105,7 +105,11 @@ function nowMs(): number {
 
 // CE Procedure.flags / time / conditionOffset for call_at / call_when (opDelayedCall,
 // opConditionalCall); the VMs with one pending, for vmDoEvents
-interface ProcEvent { flags: number; time: number; conditionOffset: number }
+interface ProcEvent {
+    flags: number
+    time: number
+    conditionOffset: number
+}
 const eventVMs = new Set<ScriptVM>()
 
 /** CE interpreter.cc _doEvents (from _updatePrograms, every game loop): a conditional
@@ -114,7 +118,10 @@ const eventVMs = new Set<ScriptVM>()
 export function vmDoEvents(): void {
     const now = nowMs()
     for (const vm of [...eventVMs]) {
-        if (vm.dead) { eventVMs.delete(vm); continue }
+        if (vm.dead) {
+            eventVMs.delete(vm)
+            continue
+        }
         for (const [index, ev] of [...vm.procEvents]) {
             if ((ev.flags & PROC_CONDITIONAL) !== 0) {
                 const cond = vm.evalAt(ev.conditionOffset)
@@ -231,25 +238,33 @@ export const opMap: { [opcode: number]: (this: ScriptVM) => void } = {
     // return address. DH2 makes that call through ScriptVM.call, which takes the value.
     0x8022: function () {
         popFlags(this)
-        this.popAddr(); this.popAddr(); this.popAddr()
+        this.popAddr()
+        this.popAddr()
+        this.popAddr()
         returnTo(this, this.popAddr(), false)
     }, // CE opPopFlagsReturnExtern
     0x8023: function () {
         popFlags(this)
-        this.popAddr(); this.popAddr(); this.popAddr()
+        this.popAddr()
+        this.popAddr()
+        this.popAddr()
         returnTo(this, this.popAddr(), true)
     }, // CE opPopFlagsExitExtern
     0x8024: function () {
         const value = this.popRaw()
         popFlags(this)
-        this.popAddr(); this.popAddr(); this.popAddr()
+        this.popAddr()
+        this.popAddr()
+        this.popAddr()
         returnTo(this, this.popAddr(), false)
         this.push(value)
     }, // CE opPopFlagsReturnValExtern
     0x8026: function () {
         const value = this.popRaw()
         popFlags(this)
-        this.popAddr(); this.popAddr(); this.popAddr()
+        this.popAddr()
+        this.popAddr()
+        this.popAddr()
         returnTo(this, this.popAddr(), true)
         this.push(value)
     }, // CE opPopFlagsReturnValExitExtern
@@ -278,12 +293,15 @@ export const opMap: { [opcode: number]: (this: ScriptVM) => void } = {
         // _executeProcedure's loop, so the game stands still meanwhile (capped at 10 s)
         const ms = Math.min(10000, Math.max(0, this.pop()))
         const end = nowMs() + ms
-        while (nowMs() < end) { /* CE _checkWait */ }
+        while (nowMs() < end) {
+            /* CE _checkWait */
+        }
     },
     0x8048: function () {
         // CE opCancel
         const index = this.pop()
-        if (index >= this.intfile.proceduresTable.length) throw new VMFatalError('Invalid procedure offset given to cancel')
+        if (index >= this.intfile.proceduresTable.length)
+            throw new VMFatalError('Invalid procedure offset given to cancel')
         this.procEvents.delete(index)
     },
     0x8049: function () {
@@ -448,7 +466,8 @@ export const opMap: { [opcode: number]: (this: ScriptVM) => void } = {
         const proc = this.intfile.proceduresTable[procIdx]
         dbg('script', 'CHECK ARGS: argc=%d procIdx=%d, proc=%o', argc, procIdx, proc)
         // CE opCheckProcedureArgumentCount → programFatalError
-        if (argc !== proc.argc) throw new VMFatalError(`Wrong number of args to procedure ${proc.name}: expected ${proc.argc}, got ${argc}`)
+        if (argc !== proc.argc)
+            throw new VMFatalError(`Wrong number of args to procedure ${proc.name}: expected ${proc.argc}, got ${argc}`)
     },
 
     //,0x806B: function() { console.log("DISPLAY: %s", this.pop()) }
@@ -481,7 +500,7 @@ export const opMap: { [opcode: number]: (this: ScriptVM) => void } = {
                     //,0x8017 // op_export_proc (TODO: verify)
                     //,0x8005: // op_call (TODO: verify, might need more operands)
                 ],
-                nextOpcode
+                nextOpcode,
             )
         ) {
             // fetch an identifier
@@ -547,10 +566,12 @@ export const opMap: { [opcode: number]: (this: ScriptVM) => void } = {
         // overflows gives a float; a pointer adds only to a string, else nothing is pushed
         const rhs = this.popRaw()
         const lhs = this.popRaw()
-        const l = vmType(lhs), r = vmType(rhs)
+        const l = vmType(lhs),
+            r = vmType(rhs)
         if (l === 'string' || (r === 'string' && l !== 'ptr')) this.push(String(asText(lhs)) + String(asText(rhs)))
-        else if (l === 'ptr') { if (r === 'string') this.push(String(lhs) + rhs) }
-        else if (r === 'ptr') return
+        else if (l === 'ptr') {
+            if (r === 'string') this.push(String(lhs) + rhs)
+        } else if (r === 'ptr') return
         else if (l === 'float' || r === 'float') this.push(vmFloat(unbox(lhs) + unbox(rhs)))
         else {
             const sum = intOf(lhs) + intOf(rhs)
@@ -564,7 +585,8 @@ export const opMap: { [opcode: number]: (this: ScriptVM) => void } = {
         const lhs = this.popRaw()
         const l = vmType(lhs)
         if (l === 'float') this.push(vmFloat(unbox(lhs) - (isVMFloat(rhs) ? unbox(rhs) : intOf(rhs))))
-        else if (l === 'int') this.push(isVMFloat(rhs) ? vmFloat(intOf(lhs) - unbox(rhs)) : (intOf(lhs) - intOf(rhs)) | 0)
+        else if (l === 'int')
+            this.push(isVMFloat(rhs) ? vmFloat(intOf(lhs) - unbox(rhs)) : (intOf(lhs) - intOf(rhs)) | 0)
     },
     0x803b: function () {
         // CE opMultiply, as opSubtract (int * int wraps)
@@ -572,7 +594,8 @@ export const opMap: { [opcode: number]: (this: ScriptVM) => void } = {
         const lhs = this.popRaw()
         const l = vmType(lhs)
         if (l === 'float') this.push(vmFloat(unbox(lhs) * (isVMFloat(rhs) ? unbox(rhs) : intOf(rhs))))
-        else if (l === 'int') this.push(isVMFloat(rhs) ? vmFloat(intOf(lhs) * unbox(rhs)) : Math.imul(intOf(lhs), intOf(rhs)))
+        else if (l === 'int')
+            this.push(isVMFloat(rhs) ? vmFloat(intOf(lhs) * unbox(rhs)) : Math.imul(intOf(lhs), intOf(rhs)))
     },
     0x803d: function () {
         // CE opModulo: a float on either side is fatal, a non-int left side pushes nothing
@@ -601,9 +624,14 @@ export const opMap: { [opcode: number]: (this: ScriptVM) => void } = {
     },
     // op_power (0x8263, `^`): an int for two ints, else a float
     0x8263: function () {
-        const exp = this.popRaw(), base = this.popRaw()
+        const exp = this.popRaw(),
+            base = this.popRaw()
         const r = Math.fround(Math.pow(Number(unbox(base)) || 0, Number(unbox(exp)) || 0))
-        this.push(!isVMFloat(base) && !isVMFloat(exp) && typeof base === 'number' && typeof exp === 'number' ? Math.trunc(r) | 0 : vmFloat(r))
+        this.push(
+            !isVMFloat(base) && !isVMFloat(exp) && typeof base === 'number' && typeof exp === 'number'
+                ? Math.trunc(r) | 0
+                : vmFloat(r),
+        )
     },
     // opRound (0x8267): to the nearest int, halves away from zero
     0x8267: function () {
@@ -615,9 +643,13 @@ export const opMap: { [opcode: number]: (this: ScriptVM) => void } = {
     },
     // op_div (0x827F): unsigned for two ints, a float division with a float; 0 on division by 0
     0x827f: function () {
-        const divisor = this.popRaw(), dividend = this.popRaw()
+        const divisor = this.popRaw(),
+            dividend = this.popRaw()
         const d = Number(unbox(divisor)) || 0
-        if ((d | 0) === 0 && !isVMFloat(divisor)) { this.push(0); return }
+        if ((d | 0) === 0 && !isVMFloat(divisor)) {
+            this.push(0)
+            return
+        }
         if (isVMFloat(dividend) || isVMFloat(divisor)) this.push(vmFloat((Number(unbox(dividend)) || 0) / d))
         else this.push(Math.trunc((Number(dividend) >>> 0) / (d >>> 0)) | 0)
     },
@@ -627,7 +659,10 @@ export const opMap: { [opcode: number]: (this: ScriptVM) => void } = {
         divide.call(this)
     },
 }
-const divide = arith((x, y) => x / y, (r) => r | 0)
+const divide = arith(
+    (x, y) => x / y,
+    (r) => r | 0,
+)
 
 // a procedure halted in gsay_end / gsay_message (ScriptVM.suspended)
 interface Suspended {
@@ -706,8 +741,14 @@ export class ScriptVM {
             // CE _executeProcedure: an imported procedure runs in the program that exported
             // it (externalProcedureGetProgram), and only without arguments
             const ext = externalProcedures.get(procName.toLowerCase())
-            if (!ext || ext.vm.dead) { dbgWarn('script', `External procedure ${procName} not found`); return 0 }
-            if (ext.argc !== 0) { dbgWarn('script', 'External procedure cannot take arguments in interrupt context'); return 0 }
+            if (!ext || ext.vm.dead) {
+                dbgWarn('script', `External procedure ${procName} not found`)
+                return 0
+            }
+            if (ext.argc !== 0) {
+                dbgWarn('script', 'External procedure cannot take arguments in interrupt context')
+                return 0
+            }
             return ext.vm.call(ext.name)
         }
         const dataDepth = this.dataStack.length
@@ -717,7 +758,14 @@ export class ScriptVM {
         // back into it. CE _executeProcedure saves and restores the interpreter's
         // position around the nested run; so does this, or the outer procedure
         // would stop at the nested one's end (halted) or go on at its pc.
-        const outer = { pc: this.pc, offset: this.script.offset, halted: this.halted, aborted: this.aborted, stopped: this.stopped, dvarBase: this.dvarBase }
+        const outer = {
+            pc: this.pc,
+            offset: this.script.offset,
+            halted: this.halted,
+            aborted: this.aborted,
+            stopped: this.stopped,
+            dvarBase: this.dvarBase,
+        }
         try {
             // CE interpreter.cc _executeProcedure → _setupCallWithReturnVal: the
             // program's flags, checkWaitFunc and windowId (0, null, 0 for a game
@@ -757,8 +805,11 @@ export class ScriptVM {
                 // the dialogue inside gsay_end, game_dialog.cc gameDialogEnter, so
                 // there every nested run ends before the outer one continues.)
                 this.suspended.push({
-                    data: dataDepth, ret: retDepth, dvarBase: this.dvarBase,
-                    dataFrame: this.dataStack.splice(dataDepth), retFrame: this.retStack.splice(retDepth),
+                    data: dataDepth,
+                    ret: retDepth,
+                    dvarBase: this.dvarBase,
+                    dataFrame: this.dataStack.splice(dataDepth),
+                    retFrame: this.retStack.splice(retDepth),
                 })
                 return 0
             }
@@ -785,7 +836,14 @@ export class ScriptVM {
     // onlyOne: continue just the innermost suspended procedure (a gsay_message [Done]
     // returns into it, CE _gdialogSayMessage); the others keep waiting.
     resume(onlyOne = false): void {
-        const outer = { pc: this.pc, offset: this.script.offset, halted: this.halted, aborted: this.aborted, stopped: this.stopped, dvarBase: this.dvarBase }
+        const outer = {
+            pc: this.pc,
+            offset: this.script.offset,
+            halted: this.halted,
+            aborted: this.aborted,
+            stopped: this.stopped,
+            dvarBase: this.dvarBase,
+        }
         try {
             while (this.suspended.length > 0) {
                 const s = this.suspended.pop()!
@@ -846,7 +904,9 @@ export class ScriptVM {
                 dbg('script', 'disassembly:')
                 dbg('script', transpile(this.intfile, this.script))
             }
-            throw new VMFatalError(`Undefined opcode ${opcode.toString(16)} (pc=${this.pc.toString(16)}) in ${this.intfile.name}`)
+            throw new VMFatalError(
+                `Undefined opcode ${opcode.toString(16)} (pc=${this.pc.toString(16)}) in ${this.intfile.name}`,
+            )
         }
 
         // CE programReturnStackPushValue has the same 0x1000 limit; the opcodes
@@ -862,7 +922,14 @@ export class ScriptVM {
     /** Run the code at `offset` to its exit and give the value it leaves (CE _doEvents
      *  on a call_when condition), the VM's state kept; undefined on a fatal error. */
     evalAt(offset: number): any {
-        const outer = { pc: this.pc, offset: this.script.offset, halted: this.halted, aborted: this.aborted, stopped: this.stopped, dvarBase: this.dvarBase }
+        const outer = {
+            pc: this.pc,
+            offset: this.script.offset,
+            halted: this.halted,
+            aborted: this.aborted,
+            stopped: this.stopped,
+            dvarBase: this.dvarBase,
+        }
         const dataDepth = this.dataStack.length
         const retDepth = this.retStack.length
         try {

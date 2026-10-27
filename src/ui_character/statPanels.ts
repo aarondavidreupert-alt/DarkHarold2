@@ -35,8 +35,13 @@ const LOWER_Y = 179
 
 // editor.msg id → fallback text, in CE drawing order.
 const CONDITIONS: [number, string][] = [
-    [312, 'Poisoned'], [313, 'Radiated'], [314, 'Eye Damage'], [315, 'Crippled Right Arm'],
-    [316, 'Crippled Left Arm'], [317, 'Crippled Right Leg'], [318, 'Crippled Left Leg'],
+    [312, 'Poisoned'],
+    [313, 'Radiated'],
+    [314, 'Eye Damage'],
+    [315, 'Crippled Right Arm'],
+    [316, 'Crippled Left Arm'],
+    [317, 'Crippled Right Leg'],
+    [318, 'Crippled Left Leg'],
 ]
 
 // [editor.msg id, fallback, DH2 stat, value suffix] — characterEditorDrawDerivedStats order.
@@ -55,9 +60,16 @@ const DERIVED: [number, string, string, string][] = [
 
 // Long DH2 names the info cards are keyed by (descriptions.ts).
 const DERIVED_INFO_KEY: { [stat: string]: string } = {
-    'AC': 'Armor Class', 'AP': 'Action Points', 'Carry': 'Carry Weight', 'Melee': 'Melee Damage',
-    'DR Normal': 'Damage Resistance', 'DR Poison': 'Poison Resistance', 'DR Radiation': 'Radiation Resistance',
-    'Sequence': 'Sequence', 'Healing Rate': 'Healing Rate', 'Critical Chance': 'Critical Chance',
+    AC: 'Armor Class',
+    AP: 'Action Points',
+    Carry: 'Carry Weight',
+    Melee: 'Melee Damage',
+    'DR Normal': 'Damage Resistance',
+    'DR Poison': 'Poison Resistance',
+    'DR Radiation': 'Radiation Resistance',
+    Sequence: 'Sequence',
+    'Healing Rate': 'Healing Rate',
+    'Critical Chance': 'Critical Chance',
 }
 
 function msg(id: number, fallback: string): string {
@@ -68,7 +80,12 @@ function text(parent: HTMLElement, s: string, x: number, y: number, color: strin
     const el = document.createElement('div')
     el.textContent = s
     Object.assign(el.style, {
-        position: 'absolute', left: x + 'px', top: y + 'px', color, whiteSpace: 'pre', lineHeight: ROW_H + 'px',
+        position: 'absolute',
+        left: x + 'px',
+        top: y + 'px',
+        color,
+        whiteSpace: 'pre',
+        lineHeight: ROW_H + 'px',
         cursor: onClick ? 'pointer' : 'default',
     })
     if (onClick) el.onclick = onClick
@@ -91,8 +108,9 @@ export function renderStatPanels(layer: HTMLElement, input: StatPanelsInput): vo
     text(layer, `${input.hp}/${input.maxHp}`, HP_VALUE_X, y, CE_COLOR.green)
     CONDITIONS.forEach(([id, fallback], i) => {
         y += ROW_H
-        text(layer, msg(id, fallback), LABEL_X, y, input.conditions[i] ? CE_COLOR.green : CE_COLOR.dimGreen,
-            () => input.onInfo(fallback, 'condition'))
+        text(layer, msg(id, fallback), LABEL_X, y, input.conditions[i] ? CE_COLOR.green : CE_COLOR.dimGreen, () =>
+            input.onInfo(fallback, 'condition'),
+        )
     })
 
     y = LOWER_Y

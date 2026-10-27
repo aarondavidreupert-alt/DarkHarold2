@@ -28,10 +28,27 @@ import { WindowFrame, SmallButton, Label } from '../ui_components.js'
 import { makePanelDraggable } from '../ui_drag.js'
 import { StatSet, SkillSet, SkillCalcOptions } from '../char.js'
 import {
-    SPECIAL_NAMES, SPECIAL_TEXTS, SKILL_TEXTS, DERIVED_TEXTS, CONDITION_TEXTS, TRAIT_TEXTS,
-    skillTitle, skillSubtitle, derivedTitle, conditionTitle, traitTitle,
-    SPECIAL_IMG, SKILL_IMG, DERIVED_IMG, CONDITION_IMG, TRAIT_IMG,
-    statComment, STATS, SKILLS, TRAITS, EDITOR_CARDS,
+    SPECIAL_NAMES,
+    SPECIAL_TEXTS,
+    SKILL_TEXTS,
+    DERIVED_TEXTS,
+    CONDITION_TEXTS,
+    TRAIT_TEXTS,
+    skillTitle,
+    skillSubtitle,
+    derivedTitle,
+    conditionTitle,
+    traitTitle,
+    SPECIAL_IMG,
+    SKILL_IMG,
+    DERIVED_IMG,
+    CONDITION_IMG,
+    TRAIT_IMG,
+    statComment,
+    STATS,
+    SKILLS,
+    TRAITS,
+    EDITOR_CARDS,
 } from './descriptions.js'
 import { editorRefuse, renderCardTitle, setCharacterWindow } from './viewer.js'
 import { skillDependencies } from '../skills.js'
@@ -67,7 +84,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
     const newSkillSet = new SkillSet()
 
     // Creation-mode state
-    let pool = 5                                   // bonus SPECIAL points to allocate
+    let pool = 5 // bonus SPECIAL points to allocate
     const selectedTraits: string[] = []
     let playerName = 'none'
     let playerAge = 25
@@ -86,9 +103,10 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
     // SkillCalcOptions — traits array updated live so skill list reflects Good Natured etc.
     const skillOpts: SkillCalcOptions = { isPlayer: true, perks: [], traits: selectedTraits }
     // CE trait.cc traitGetStatModifier: the traits' SPECIAL bonus
-    const traitSpecialMod = (stat: string): number => (selectedTraits.includes('Gifted') ? 1 : 0)
-        + (stat === 'STR' && selectedTraits.includes('Bruiser') ? 2 : 0)
-        + (stat === 'AGI' && selectedTraits.includes('Small Frame') ? 1 : 0)
+    const traitSpecialMod = (stat: string): number =>
+        (selectedTraits.includes('Gifted') ? 1 : 0) +
+        (stat === 'STR' && selectedTraits.includes('Bruiser') ? 2 : 0) +
+        (stat === 'AGI' && selectedTraits.includes('Small Frame') ? 1 : 0)
 
     // ── Skill point pool bignum (not used in creation — tags only) ────────────
     const skillPointBignumW = new Widget(null, { x: 523, y: 228, w: 28, h: 28 })
@@ -98,13 +116,16 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
     // ── Panel 2: HP display (conditions all inactive for new character) ────────
     // Both status boxes are drawn in one window-origin layer at CE coordinates
     // (statPanels.ts); panel3 stays empty.
-    const panel2 = new Widget(null, { x: 0, y: 0, w: 'auto', h: 'auto' })
-        .css({ fontSize: '0.69em', whiteSpace: 'pre' })
+    const panel2 = new Widget(null, { x: 0, y: 0, w: 'auto', h: 'auto' }).css({ fontSize: '0.69em', whiteSpace: 'pre' })
     const panel2El = panel2.elem
 
     // ── Panel 3: derived stats ────────────────────────────────────────────────
-    const panel3 = new Widget(null, { x: 196, y: 176, w: 'auto', h: 'auto' })
-        .css({ fontSize: '0.69em', color: '#3cf800', whiteSpace: 'pre', lineHeight: '1.2' })
+    const panel3 = new Widget(null, { x: 196, y: 176, w: 'auto', h: 'auto' }).css({
+        fontSize: '0.69em',
+        color: '#3cf800',
+        whiteSpace: 'pre',
+        lineHeight: '1.2',
+    })
     const panel3El = panel3.elem
 
     // ── Skill rows container (replaces List widget) ───────────────────────────
@@ -129,7 +150,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
             y: Config.ui.screenHeight - 99 - 480,
         },
         640,
-        480
+        480,
     )
         // CE characterEditorShow (creation): OPTIONS at (345, 454), editor.msg 101 at x 363
         .add(optionsBtn)
@@ -138,7 +159,11 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
         .add(makeFontLabel(455 + 18, 454, 'DONE', font3).css({ pointerEvents: 'none' }))
         .add(cancelBtn)
         .add(makeFontLabel(552 + 18, 454, 'CANCEL', font3).css({ pointerEvents: 'none' }))
-        .add(makeFontLabel(380, 5, 'Skills', font3).css({ cursor: 'pointer' }).onClick(() => creatorCard('skills')))
+        .add(
+            makeFontLabel(380, 5, 'Skills', font3)
+                .css({ cursor: 'pointer' })
+                .onClick(() => creatorCard('skills')),
+        )
         .add(panel2)
         .add(panel3)
         .add(skillPointBignumW)
@@ -160,8 +185,12 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
         visibility: 'hidden',
         cursor: 'grab',
     })
-    cardImgEl.onload = () => { cardImgEl.style.visibility = 'visible' }
-    cardImgEl.onerror = () => { cardImgEl.style.visibility = 'hidden' }
+    cardImgEl.onload = () => {
+        cardImgEl.style.visibility = 'visible'
+    }
+    cardImgEl.onerror = () => {
+        cardImgEl.style.visibility = 'hidden'
+    }
     characterWindow.elem.appendChild(cardImgEl)
 
     const cardTitleEl = document.createElement('div')
@@ -211,7 +240,8 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
     cardBodyEl.appendChild(cardDescEl)
 
     const showInfoCard = (title: string, desc: string, imgPath?: string, subtitle?: string): void => {
-        if (cardTitleEl.firstChild && cardTitleEl.firstChild !== cardDividerEl) cardTitleEl.removeChild(cardTitleEl.firstChild)
+        if (cardTitleEl.firstChild && cardTitleEl.firstChild !== cardDividerEl)
+            cardTitleEl.removeChild(cardTitleEl.firstChild)
         cardTitleEl.insertBefore(renderCardTitle(title, subtitle), cardDividerEl)
         cardDescEl.textContent = desc
         if (imgPath) {
@@ -278,9 +308,16 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
 
     // ── SPECIAL ± buttons (stplsoff/stplson · stnegoff/stnegon) ─────────────
     const wireEbut = (btn: HTMLElement, imgOff: string, imgOn: string, onPress: () => void) => {
-        btn.onmousedown  = () => { btn.style.backgroundImage = `url('${assetUrl(imgOn)}')`;  onPress() }
-        btn.onmouseup    = () => { btn.style.backgroundImage = `url('${assetUrl(imgOff)}')` }
-        btn.onmouseleave = () => { btn.style.backgroundImage = `url('${assetUrl(imgOff)}')` }
+        btn.onmousedown = () => {
+            btn.style.backgroundImage = `url('${assetUrl(imgOn)}')`
+            onPress()
+        }
+        btn.onmouseup = () => {
+            btn.style.backgroundImage = `url('${assetUrl(imgOff)}')`
+        }
+        btn.onmouseleave = () => {
+            btn.style.backgroundImage = `url('${assetUrl(imgOff)}')`
+        }
     }
 
     let si = 0
@@ -354,17 +391,29 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
         closePopup()
 
         let applyFn: () => void = () => {}
-        const confirmAndClose = () => { applyFn(); onConfirm(); closePopup() }
+        const confirmAndClose = () => {
+            applyFn()
+            onConfirm()
+            closePopup()
+        }
 
         const overlay = document.createElement('div')
         overlay.id = 'creator-popup-overlay'
         Object.assign(overlay.style, {
-            position: 'fixed', zIndex: '2000',
-            left: '0', top: '0', width: '100%', height: '100%',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            position: 'fixed',
+            zIndex: '2000',
+            left: '0',
+            top: '0',
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
             backgroundColor: 'rgba(0,0,0,0.6)',
         })
-        overlay.onclick = (e) => { if (e.target === overlay) closePopup() }
+        overlay.onclick = (e) => {
+            if (e.target === overlay) closePopup()
+        }
 
         const box = document.createElement('div')
         Object.assign(box.style, {
@@ -385,9 +434,12 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
 
         const contentEl = document.createElement('div')
         Object.assign(contentEl.style, {
-            display: 'flex', alignItems: 'center',
-            justifyContent: 'center', gap: '4px',
-            flex: '1', width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '4px',
+            flex: '1',
+            width: '100%',
         })
         box.appendChild(contentEl)
 
@@ -395,35 +447,54 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
         const doneRow = document.createElement('div')
         Object.assign(doneRow.style, {
             position: 'relative',
-            left: '-13px', top: '-1px',
-            display: 'flex', alignItems: 'center',
-            justifyContent: 'flex-end', width: '100%', gap: '4px',
+            left: '-13px',
+            top: '-1px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            width: '100%',
+            gap: '4px',
         })
 
         const doneBoxEl = document.createElement('div')
         Object.assign(doneBoxEl.style, {
-            position: 'absolute', left: '18px', top: '-3px',
-            width: '108px', height: '24px',
+            position: 'absolute',
+            left: '18px',
+            top: '-3px',
+            width: '108px',
+            height: '24px',
             backgroundImage: "url('" + assetUrl('art/intrface/donebox.png') + "')",
-            backgroundRepeat: 'no-repeat', backgroundSize: '108px 24px',
-            pointerEvents: 'none', zIndex: '0',
+            backgroundRepeat: 'no-repeat',
+            backgroundSize: '108px 24px',
+            pointerEvents: 'none',
+            zIndex: '0',
         })
         doneRow.appendChild(doneBoxEl)
 
         const doneLblEl = document.createElement('div')
         Object.assign(doneLblEl.style, { pointerEvents: 'none', zIndex: '1', position: 'relative' })
-        font3.onLoad(() => { doneLblEl.appendChild(font3.renderText('DONE')) })
+        font3.onLoad(() => {
+            doneLblEl.appendChild(font3.renderText('DONE'))
+        })
 
         const doneBtn = document.createElement('div')
         Object.assign(doneBtn.style, {
-            width: '15px', height: '16px',
+            width: '15px',
+            height: '16px',
             backgroundImage: "url('" + assetUrl('art/intrface/lilredup.png') + "')",
-            backgroundRepeat: 'no-repeat', backgroundSize: '15px 16px',
-            cursor: 'pointer', zIndex: '1', position: 'relative',
+            backgroundRepeat: 'no-repeat',
+            backgroundSize: '15px 16px',
+            cursor: 'pointer',
+            zIndex: '1',
+            position: 'relative',
         })
-        doneBtn.onmousedown  = () => { doneBtn.style.backgroundImage = "url('" + assetUrl('art/intrface/lilreddn.png') + "')" }
-        doneBtn.onmouseup    = doneBtn.onmouseleave = () => { doneBtn.style.backgroundImage = "url('" + assetUrl('art/intrface/lilredup.png') + "')" }
-        doneBtn.onclick      = () => confirmAndClose()
+        doneBtn.onmousedown = () => {
+            doneBtn.style.backgroundImage = "url('" + assetUrl('art/intrface/lilreddn.png') + "')"
+        }
+        doneBtn.onmouseup = doneBtn.onmouseleave = () => {
+            doneBtn.style.backgroundImage = "url('" + assetUrl('art/intrface/lilredup.png') + "')"
+        }
+        doneBtn.onclick = () => confirmAndClose()
 
         doneRow.appendChild(doneLblEl)
         doneRow.appendChild(doneBtn)
@@ -434,10 +505,13 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
             const nameBoxBg = document.createElement('div')
             Object.assign(nameBoxBg.style, {
                 position: 'absolute',
-                width: '111px', height: '20px',
+                width: '111px',
+                height: '20px',
                 backgroundImage: "url('" + assetUrl('art/intrface/namebox.png') + "')",
-                backgroundRepeat: 'no-repeat', backgroundSize: '111px 20px',
-                pointerEvents: 'none', zIndex: '1',
+                backgroundRepeat: 'no-repeat',
+                backgroundSize: '111px 20px',
+                pointerEvents: 'none',
+                zIndex: '1',
             })
             contentEl.style.position = 'relative'
             contentEl.appendChild(nameBoxBg)
@@ -451,25 +525,31 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
                 if (kept !== inp.value) inp.value = kept
             })
             Object.assign(inp.style, {
-                position: 'relative', zIndex: '2',
-                fontSize: '0.9em', color: '#907824',
-                background: 'transparent', border: 'none',
+                position: 'relative',
+                zIndex: '2',
+                fontSize: '0.9em',
+                color: '#907824',
+                background: 'transparent',
+                border: 'none',
                 borderBottom: '1px solid #806814',
-                fontFamily: 'monospace', outline: 'none',
-                width: '110px', textAlign: 'center',
+                fontFamily: 'monospace',
+                outline: 'none',
+                width: '110px',
+                textAlign: 'center',
             })
             inp.addEventListener('keydown', (e) => {
                 e.stopPropagation()
                 if (e.key === 'Enter') confirmAndClose()
                 if (e.key === 'Escape') closePopup()
             })
-            inp.addEventListener('keyup',    (e) => e.stopPropagation())
+            inp.addEventListener('keyup', (e) => e.stopPropagation())
             inp.addEventListener('keypress', (e) => e.stopPropagation())
 
-            applyFn = () => { playerName = inp.value.trim() || playerName }
+            applyFn = () => {
+                playerName = inp.value.trim() || playerName
+            }
             contentEl.appendChild(inp)
             setTimeout(() => inp.focus(), 0)
-
         } else if (type === 'age') {
             let popupAge = playerAge
             const bignumEl = document.createElement('div')
@@ -482,17 +562,27 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
             const makeArrow = (upSrc: string, dnSrc: string, delta: number) => {
                 const btn = document.createElement('div')
                 Object.assign(btn.style, {
-                    width: '20px', height: '18px',
+                    width: '20px',
+                    height: '18px',
                     backgroundImage: `url('${assetUrl(`art/intrface/${upSrc}`)}')`,
-                    backgroundRepeat: 'no-repeat', backgroundSize: '20px 18px',
+                    backgroundRepeat: 'no-repeat',
+                    backgroundSize: '20px 18px',
                     cursor: 'pointer',
-                    position: 'relative', zIndex: '3',
+                    position: 'relative',
+                    zIndex: '3',
                 })
-                btn.onmousedown = () => { btn.style.backgroundImage = `url('${assetUrl(`art/intrface/${dnSrc}`)}')` }
-                btn.onmouseup = btn.onmouseleave = () => { btn.style.backgroundImage = `url('${assetUrl(`art/intrface/${upSrc}`)}')` }
+                btn.onmousedown = () => {
+                    btn.style.backgroundImage = `url('${assetUrl(`art/intrface/${dnSrc}`)}')`
+                }
+                btn.onmouseup = btn.onmouseleave = () => {
+                    btn.style.backgroundImage = `url('${assetUrl(`art/intrface/${upSrc}`)}')`
+                }
                 btn.onclick = () => {
                     const next = popupAge + delta
-                    if (next >= 16 && next <= 35) { popupAge = next; refreshBignum() }
+                    if (next >= 16 && next <= 35) {
+                        popupAge = next
+                        refreshBignum()
+                    }
                 }
                 return btn
             }
@@ -502,21 +592,26 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
             const ageBoxBg = document.createElement('div')
             Object.assign(ageBoxBg.style, {
                 backgroundImage: "url('" + assetUrl('art/intrface/agebox.png') + "')",
-                backgroundRepeat: 'no-repeat', backgroundSize: 'contain',
-                pointerEvents: 'none', zIndex: '1',
+                backgroundRepeat: 'no-repeat',
+                backgroundSize: 'contain',
+                pointerEvents: 'none',
+                zIndex: '1',
                 position: 'absolute',
-                width: '124px', height: '29px',
+                width: '124px',
+                height: '29px',
             })
             contentEl.style.position = 'relative'
             contentEl.style.gap = '17px'
             contentEl.appendChild(ageBoxBg)
 
-            applyFn = () => { playerAge = popupAge }
+            applyFn = () => {
+                playerAge = popupAge
+            }
             contentEl.appendChild(makeArrow('slu.png', 'sld.png', -1))
             contentEl.appendChild(bignumEl)
             contentEl.appendChild(makeArrow('sru.png', 'srd.png', +1))
-
-        } else { // sex
+        } else {
+            // sex
             const malEl = document.createElement('div')
             const femEl = document.createElement('div')
 
@@ -526,24 +621,38 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
             }
 
             Object.assign(malEl.style, {
-                width: '45px', height: '43px',
+                width: '45px',
+                height: '43px',
                 backgroundImage: `url('${assetUrl(`art/intrface/male${playerSex === 'Male' ? 'on' : 'off'}.png`)}')`,
-                backgroundRepeat: 'no-repeat', cursor: 'pointer',
+                backgroundRepeat: 'no-repeat',
+                cursor: 'pointer',
             })
-            malEl.onclick = () => { playerSex = 'Male'; updateSexDisplay(); refreshSexBtns() }
+            malEl.onclick = () => {
+                playerSex = 'Male'
+                updateSexDisplay()
+                refreshSexBtns()
+            }
 
             Object.assign(femEl.style, {
-                width: '45px', height: '43px',
+                width: '45px',
+                height: '43px',
                 backgroundImage: `url('${assetUrl(`art/intrface/fem${playerSex === 'Female' ? 'on' : 'off'}.png`)}')`,
-                backgroundRepeat: 'no-repeat', cursor: 'pointer',
+                backgroundRepeat: 'no-repeat',
+                cursor: 'pointer',
             })
-            femEl.onclick = () => { playerSex = 'Female'; updateSexDisplay(); refreshSexBtns() }
+            femEl.onclick = () => {
+                playerSex = 'Female'
+                updateSexDisplay()
+                refreshSexBtns()
+            }
 
             contentEl.appendChild(malEl)
             contentEl.appendChild(femEl)
         }
 
-        popupEscHandler = (e: KeyboardEvent) => { if (e.key === 'Escape') closePopup() }
+        popupEscHandler = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') closePopup()
+        }
         document.addEventListener('keydown', popupEscHandler)
         overlay.appendChild(box)
         document.body.appendChild(overlay)
@@ -552,19 +661,31 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
     // ── Name button + font4 label ─────────────────────────────────────────────
     const nameBtn = document.createElement('div')
     Object.assign(nameBtn.style, {
-        position: 'absolute', left: '11px', top: '0px',
-        width: '145px', height: '35px',
+        position: 'absolute',
+        left: '11px',
+        top: '0px',
+        width: '145px',
+        height: '35px',
         backgroundImage: "url('" + assetUrl('art/intrface/nameoff.png') + "')",
-        backgroundRepeat: 'no-repeat', backgroundSize: 'contain',
-        cursor: 'pointer', zIndex: '1',
+        backgroundRepeat: 'no-repeat',
+        backgroundSize: 'contain',
+        cursor: 'pointer',
+        zIndex: '1',
     })
-    nameBtn.onmousedown  = () => { nameBtn.style.backgroundImage = "url('" + assetUrl('art/intrface/nameon.png') + "')" }
-    nameBtn.onmouseup    = nameBtn.onmouseleave = () => { nameBtn.style.backgroundImage = "url('" + assetUrl('art/intrface/nameoff.png') + "')" }
+    nameBtn.onmousedown = () => {
+        nameBtn.style.backgroundImage = "url('" + assetUrl('art/intrface/nameon.png') + "')"
+    }
+    nameBtn.onmouseup = nameBtn.onmouseleave = () => {
+        nameBtn.style.backgroundImage = "url('" + assetUrl('art/intrface/nameoff.png') + "')"
+    }
 
     const nameLabelEl = document.createElement('div')
     Object.assign(nameLabelEl.style, {
-        position: 'absolute', left: '33px', top: '6px',
-        pointerEvents: 'none', zIndex: '2',
+        position: 'absolute',
+        left: '33px',
+        top: '6px',
+        pointerEvents: 'none',
+        zIndex: '2',
     })
 
     const updateNameDisplay = () => {
@@ -580,19 +701,31 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
     // ── Age button + font4 label ──────────────────────────────────────────────
     const ageBtn = document.createElement('div')
     Object.assign(ageBtn.style, {
-        position: 'absolute', left: '156px', top: '0px',
-        width: '81px', height: '35px',
+        position: 'absolute',
+        left: '156px',
+        top: '0px',
+        width: '81px',
+        height: '35px',
         backgroundImage: "url('" + assetUrl('art/intrface/ageoff.png') + "')",
-        backgroundRepeat: 'no-repeat', backgroundSize: 'contain',
-        cursor: 'pointer', zIndex: '1',
+        backgroundRepeat: 'no-repeat',
+        backgroundSize: 'contain',
+        cursor: 'pointer',
+        zIndex: '1',
     })
-    ageBtn.onmousedown  = () => { ageBtn.style.backgroundImage = "url('" + assetUrl('art/intrface/ageon.png') + "')" }
-    ageBtn.onmouseup    = ageBtn.onmouseleave = () => { ageBtn.style.backgroundImage = "url('" + assetUrl('art/intrface/ageoff.png') + "')" }
+    ageBtn.onmousedown = () => {
+        ageBtn.style.backgroundImage = "url('" + assetUrl('art/intrface/ageon.png') + "')"
+    }
+    ageBtn.onmouseup = ageBtn.onmouseleave = () => {
+        ageBtn.style.backgroundImage = "url('" + assetUrl('art/intrface/ageoff.png') + "')"
+    }
 
     const ageLabelEl = document.createElement('div')
     Object.assign(ageLabelEl.style, {
-        position: 'absolute', left: '184px', top: '6px',
-        pointerEvents: 'none', zIndex: '2',
+        position: 'absolute',
+        left: '184px',
+        top: '6px',
+        pointerEvents: 'none',
+        zIndex: '2',
     })
 
     const updateAgeDisplay = () => {
@@ -608,19 +741,31 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
     // ── Sex button + font4 label ──────────────────────────────────────────────
     const sexBtn = document.createElement('div')
     Object.assign(sexBtn.style, {
-        position: 'absolute', left: '237px', top: '0px',
-        width: '80px', height: '35px',
+        position: 'absolute',
+        left: '237px',
+        top: '0px',
+        width: '80px',
+        height: '35px',
         backgroundImage: "url('" + assetUrl('art/intrface/sexoff.png') + "')",
-        backgroundRepeat: 'no-repeat', backgroundSize: 'contain',
-        cursor: 'pointer', zIndex: '1',
+        backgroundRepeat: 'no-repeat',
+        backgroundSize: 'contain',
+        cursor: 'pointer',
+        zIndex: '1',
     })
-    sexBtn.onmousedown  = () => { sexBtn.style.backgroundImage = "url('" + assetUrl('art/intrface/sexon.png') + "')" }
-    sexBtn.onmouseup    = sexBtn.onmouseleave = () => { sexBtn.style.backgroundImage = "url('" + assetUrl('art/intrface/sexoff.png') + "')" }
+    sexBtn.onmousedown = () => {
+        sexBtn.style.backgroundImage = "url('" + assetUrl('art/intrface/sexon.png') + "')"
+    }
+    sexBtn.onmouseup = sexBtn.onmouseleave = () => {
+        sexBtn.style.backgroundImage = "url('" + assetUrl('art/intrface/sexoff.png') + "')"
+    }
 
     const sexLabelEl = document.createElement('div')
     Object.assign(sexLabelEl.style, {
-        position: 'absolute', left: '248px', top: '6px',
-        pointerEvents: 'none', zIndex: '2',
+        position: 'absolute',
+        left: '248px',
+        top: '6px',
+        pointerEvents: 'none',
+        zIndex: '2',
     })
 
     const updateSexDisplay = () => {
@@ -641,9 +786,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
     const refreshTraitPanel = () => {
         for (let i = 0; i < TRAITS.length; i++) {
             const selected = selectedTraits.includes(TRAITS[i])
-            traitToggleImgs[i].src = assetUrl(selected
-                ? 'art/intrface/tgsklon.png'
-                : 'art/intrface/tgskloff.png')
+            traitToggleImgs[i].src = assetUrl(selected ? 'art/intrface/tgsklon.png' : 'art/intrface/tgskloff.png')
             traitRowEls[i].style.color = selected ? '#a0a0a0' : '#3cf800' // CE 21140 picked / 992
         }
     }
@@ -755,9 +898,13 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
 
     // ── Render helpers ────────────────────────────────────────────────────────
     const CONDITION_LABELS = [
-        'Poisoned', 'Radiated', 'Eye Damage',
-        'Crippled Right Arm', 'Crippled Left Arm',
-        'Crippled Right Leg', 'Crippled Left Leg',
+        'Poisoned',
+        'Radiated',
+        'Eye Damage',
+        'Crippled Right Arm',
+        'Crippled Left Arm',
+        'Crippled Right Leg',
+        'Crippled Left Leg',
     ]
 
     // CE critterGetBaseStatWithTraitModifier / critterGetStat: the creation screen's derived
@@ -765,7 +912,8 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
     // Small Frame) and the trait effects of Player.getStat (AP, carry, sequence, …)
     const creatorView = (): StatSet => {
         const special = newStatSet.clone()
-        for (const st of STATS) special.setBase(st, Math.max(1, Math.min(10, special.getBase(st) + traitSpecialMod(st))))
+        for (const st of STATS)
+            special.setBase(st, Math.max(1, Math.min(10, special.getBase(st) + traitSpecialMod(st))))
         const dude: any = Object.create(Object.getPrototypeOf(globalState.player))
         Object.assign(dude, { stats: special, traits: selectedTraits, perks: [], inventory: [], injuryFlags: 0 })
         const view = special.clone()
@@ -780,9 +928,10 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
             maxHp: view.get('Max HP'),
             conditions: [false, false, false, false, false, false, false],
             stats: view,
-            onInfo: (label, kind) => kind === 'condition'
-                ? showInfoCard(conditionTitle(label), CONDITION_TEXTS[label] ?? label, CONDITION_IMG[label])
-                : showInfoCard(derivedTitle(label), DERIVED_TEXTS[label] ?? label, DERIVED_IMG[label]),
+            onInfo: (label, kind) =>
+                kind === 'condition'
+                    ? showInfoCard(conditionTitle(label), CONDITION_TEXTS[label] ?? label, CONDITION_IMG[label])
+                    : showInfoCard(derivedTitle(label), DERIVED_TEXTS[label] ?? label, DERIVED_IMG[label]),
         })
     }
 
@@ -828,20 +977,31 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
 
             const row = document.createElement('div')
             Object.assign(row.style, {
-                display: 'flex', alignItems: 'center', gap: '3px',
-                cursor: 'pointer', color,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '3px',
+                cursor: 'pointer',
+                color,
             })
 
             const toggleBtn = document.createElement('div')
             Object.assign(toggleBtn.style, {
-                width: '17px', height: '11px',
+                width: '17px',
+                height: '11px',
                 backgroundImage: `url('${assetUrl(`art/intrface/${isTagged ? 'tgsklon' : 'tgskloff'}.png`)}')`,
-                backgroundRepeat: 'no-repeat', backgroundSize: '17px 11px',
+                backgroundRepeat: 'no-repeat',
+                backgroundSize: '17px 11px',
                 flexShrink: '0',
             })
-            toggleBtn.onmousedown  = () => { toggleBtn.style.backgroundImage = "url('" + assetUrl('art/intrface/tgsklon.png') + "')" }
-            toggleBtn.onmouseup    = () => { toggleBtn.style.backgroundImage = `url('${assetUrl(`art/intrface/${isTagged ? 'tgsklon' : 'tgskloff'}.png`)}')` }
-            toggleBtn.onmouseleave = () => { toggleBtn.style.backgroundImage = `url('${assetUrl(`art/intrface/${isTagged ? 'tgsklon' : 'tgskloff'}.png`)}')` }
+            toggleBtn.onmousedown = () => {
+                toggleBtn.style.backgroundImage = "url('" + assetUrl('art/intrface/tgsklon.png') + "')"
+            }
+            toggleBtn.onmouseup = () => {
+                toggleBtn.style.backgroundImage = `url('${assetUrl(`art/intrface/${isTagged ? 'tgsklon' : 'tgskloff'}.png`)}')`
+            }
+            toggleBtn.onmouseleave = () => {
+                toggleBtn.style.backgroundImage = `url('${assetUrl(`art/intrface/${isTagged ? 'tgsklon' : 'tgskloff'}.png`)}')`
+            }
 
             const capturedSkill = skill
             toggleBtn.onclick = (e) => {
@@ -850,7 +1010,10 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
                     newSkillSet.untag(capturedSkill)
                 } else {
                     // CE characterEditorToggleTaggedSkill: editor.msg 140 / 141
-                    if (newSkillSet.tagged.length >= newSkillSet.getMaxTaggedSkills()) { void editorRefuse(140, 141); return }
+                    if (newSkillSet.tagged.length >= newSkillSet.getMaxTaggedSkills()) {
+                        void editorRefuse(140, 141)
+                        return
+                    }
                     newSkillSet.tag(capturedSkill)
                 }
                 redrawStatsSkills()
@@ -859,8 +1022,11 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
             const nameSpan = document.createElement('span')
             nameSpan.textContent = skill
             Object.assign(nameSpan.style, {
-                flex: '1', textAlign: 'left',
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                flex: '1',
+                textAlign: 'left',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
             })
 
             const pctSpan = document.createElement('span')
@@ -872,8 +1038,12 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
             row.appendChild(pctSpan)
 
             row.onmouseenter = () => {
-                showInfoCard(skillTitle(capturedSkill), SKILL_TEXTS[capturedSkill] ?? capturedSkill, SKILL_IMG[capturedSkill],
-                    skillSubtitle(capturedSkill, skillDependencies[capturedSkill]?.startValue ?? 0))
+                showInfoCard(
+                    skillTitle(capturedSkill),
+                    SKILL_TEXTS[capturedSkill] ?? capturedSkill,
+                    SKILL_IMG[capturedSkill],
+                    skillSubtitle(capturedSkill, skillDependencies[capturedSkill]?.startValue ?? 0),
+                )
             }
 
             skillRowsEl.appendChild(row)
@@ -908,12 +1078,21 @@ ${msg(b)}`)
         }
         if (pool > 0) return refuse(118, 119)
         if (newSkillSet.tagged.length < 3) return refuse(142, 143)
-        if (STATS.some((st) => { const v = newStatSet.getBase(st) + traitSpecialMod(st); return v < 1 || v > 10 })) return refuse(157, 158)
+        if (
+            STATS.some((st) => {
+                const v = newStatSet.getBase(st) + traitSpecialMod(st)
+                return v < 1 || v > 10
+            })
+        )
+            return refuse(157, 158)
         const name = playerName.trim() || 'None'
         if (name.toLowerCase() === 'none') {
             globalState.audioEngine?.playSfxByName?.('iisxxxx1')
-            if (!(await showConfirm(`${msg(160)}
-${msg(161)}`))) return
+            if (
+                !(await showConfirm(`${msg(160)}
+${msg(161)}`))
+            )
+                return
         }
 
         player.applyCreationStats(newStatSet, newSkillSet, name, playerAge, playerSex, selectedTraits)
@@ -926,9 +1105,13 @@ ${msg(161)}`))) return
     optionsBtn.onClick(() => {
         showCreatorOptions(characterWindow.elem, {
             snapshot: () => ({
-                name: playerName, age: playerAge, sex: playerSex, characterPoints: pool,
+                name: playerName,
+                age: playerAge,
+                sex: playerSex,
+                characterPoints: pool,
                 special: Object.fromEntries(STATS.map((st) => [st, newStatSet.getBase(st)])),
-                tagged: newSkillSet.tagged.slice(), traits: selectedTraits.slice(),
+                tagged: newSkillSet.tagged.slice(),
+                traits: selectedTraits.slice(),
             }),
             reopen: (state) => {
                 characterWindow.close()
@@ -936,12 +1119,20 @@ ${msg(161)}`))) return
             },
             printable: () => {
                 const special = newStatSet.clone()
-                for (const st of STATS) special.setBase(st, Math.max(1, Math.min(10, special.getBase(st) + traitSpecialMod(st))))
+                for (const st of STATS)
+                    special.setBase(st, Math.max(1, Math.min(10, special.getBase(st) + traitSpecialMod(st))))
                 special.setBase('Age', playerAge)
                 const dude: any = Object.create(Object.getPrototypeOf(globalState.player))
                 Object.assign(dude, {
-                    stats: special, skills: newSkillSet, traits: selectedTraits.slice(), perks: [], inventory: [],
-                    isPlayer: true, injuryFlags: 0, name: playerName, gender: playerSex === 'Female' ? 'female' : 'male',
+                    stats: special,
+                    skills: newSkillSet,
+                    traits: selectedTraits.slice(),
+                    perks: [],
+                    inventory: [],
+                    isPlayer: true,
+                    injuryFlags: 0,
+                    name: playerName,
+                    gender: playerSex === 'Female' ? 'female' : 'male',
                 })
                 return dude
             },

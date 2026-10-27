@@ -34,11 +34,7 @@ const NUM_MINUS_IDX = 12
  * @param value      Integer to display (may be negative).
  * @param suffix     Optional text to append (e.g. '%').
  */
-export function setNumberDial(
-    container: HTMLElement,
-    value: number,
-    suffix?: string
-): void {
+export function setNumberDial(container: HTMLElement, value: number, suffix?: string): void {
     while (container.firstChild) container.removeChild(container.firstChild)
 
     const negative = value < 0
@@ -99,17 +95,17 @@ export function renderBignum(
     value: number,
     digits: 2 | 3,
     color: 'yellow' | 'red' = 'yellow',
-    previous?: number
+    previous?: number,
 ): HTMLElement {
     const container = document.createElement('div')
     container.style.cssText = `display: inline-flex; height: ${BIG_H}px; flex-shrink: 0;`
     const yOffset = color === 'red' ? -BIG_H : 0
-    const clamped = digits === 2
-        ? (value < 0 || value > 99 ? 99 : value)
-        : Math.max(0, Math.min(value, 999))
+    const clamped = digits === 2 ? (value < 0 || value > 99 ? 99 : value) : Math.max(0, Math.min(value, 999))
     const str = String(clamped).padStart(digits, '0')
     const cells: HTMLDivElement[] = []
-    const glyph = (div: HTMLDivElement, n: number) => { div.style.backgroundPosition = `${-(n * BIG_W)}px ${yOffset}px` }
+    const glyph = (div: HTMLDivElement, n: number) => {
+        div.style.backgroundPosition = `${-(n * BIG_W)}px ${yOffset}px`
+    }
     for (const ch of str) {
         const n = parseInt(ch)
         const div = document.createElement('div')
@@ -117,8 +113,15 @@ export function renderBignum(
         container.appendChild(div)
         cells.push(div)
     }
-    if (digits === 2 && previous !== undefined && previous !== value
-        && value >= 0 && value <= 99 && previous >= 0 && previous <= 99) {
+    if (
+        digits === 2 &&
+        previous !== undefined &&
+        previous !== value &&
+        value >= 0 &&
+        value <= 99 &&
+        previous >= 0 &&
+        previous <= 99
+    ) {
         const steps: [HTMLDivElement, number][] = []
         if (previous % 10 !== value % 10) steps.push([cells[1], value % 10])
         if (Math.trunc(previous / 10) !== Math.trunc(value / 10)) steps.push([cells[0], Math.trunc(value / 10)])

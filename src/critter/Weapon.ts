@@ -163,7 +163,10 @@ function parseAttack(weapon: WeaponObj): { first: AttackInfo; second: AttackInfo
 }
 
 // Unarmed "weapon": no item, just the proto-shaped fields the AP/range code reads.
-export interface UnarmedWeaponStub { pro: { extra: { [key: string]: any } }; pid?: undefined }
+export interface UnarmedWeaponStub {
+    pro: { extra: { [key: string]: any } }
+    pid?: undefined
+}
 
 // TODO: improve handling of melee
 export class Weapon {
@@ -248,14 +251,15 @@ export class Weapon {
         const canReload = maxAmmo > 0 && ammoGetQuantity(item) < maxAmmo
         // CE item.cc critterCanAim: the player's Fast Shot trait forbids aimed attacks.
         const player = globalState.player as any
-        const fastShot = !!player && (player.traits ?? []).includes('Fast Shot')
-            && (player.leftHand === item || player.rightHand === item)
+        const fastShot =
+            !!player &&
+            (player.traits ?? []).includes('Fast Shot') &&
+            (player.leftHand === item || player.rightHand === item)
         const modes = fastShot ? this.modes.filter((m) => m !== 'called' && m !== 'secondaryCalled') : this.modes
         const effectiveModes = canReload ? [...modes, 'reload'] : modes
 
         const idx = effectiveModes.indexOf(this.mode)
         this.mode = effectiveModes[(idx + 1) % effectiveModes.length]
-
     }
 
     isCalled(): boolean {
@@ -341,7 +345,10 @@ export class Weapon {
             const isItem = (this.weapon as any).pid !== undefined
             const modes = isItem ? ((this.weapon as any).pro?.extra?.attackMode ?? 0) : 0
             const mode = s === 2 ? (modes >> 4) & 0xf : modes & 0xf
-            const attackType = !isItem ? 'unarmed' : (['none', 'unarmed', 'unarmed', 'melee', 'melee', 'throw', 'ranged', 'ranged', 'ranged'][mode] ?? 'none')
+            const attackType = !isItem
+                ? 'unarmed'
+                : (['none', 'unarmed', 'unarmed', 'melee', 'melee', 'throw', 'ranged', 'ranged', 'ranged'][mode] ??
+                  'none')
             if (isItem && traits.includes('Fast Shot') && this.getMaximumRange(s) > 2) ap -= 1
             if ((attackType === 'melee' || attackType === 'unarmed') && critter.hasPerk('Bonus HtH Attacks')) ap -= 1
             if (attackType === 'ranged' && critter.hasPerk('Bonus Rate of Fire')) ap -= 1
@@ -417,19 +424,19 @@ export class Weapon {
                 if (attackSkin === 's') return wep === 'd' ? 'dm' : wep === 'g' ? 'gm' : 'as'
                 return wep + attackSkin
             case 'fidget':
-                return wep + 'a'  // idle IS the fidget/reload animation (Xa)
+                return wep + 'a' // idle IS the fidget/reload animation (Xa)
             case 'run':
-                return wep + 't'  // CE ref: art.cc buildFid — Xt = run-while-armed
+                return wep + 't' // CE ref: art.cc buildFid — Xt = run-while-armed
             case 'shoot': {
                 const attackSkin = this.getAttackSkin()
-                return wep + (attackSkin ?? 'j')  // CE ref: art.cc — Xj = fire-single default
+                return wep + (attackSkin ?? 'j') // CE ref: art.cc — Xj = fire-single default
             }
             case 'weapon-reload':
-                return wep + 'a'  // CE ref: art.cc — reload reuses idle FRM (Xa)
+                return wep + 'a' // CE ref: art.cc — reload reuses idle FRM (Xa)
             case 'weapon-draw':
-                return wep + 'c'  // Xc = pull out weapon, played forward
+                return wep + 'c' // Xc = pull out weapon, played forward
             case 'weapon-holster':
-                return wep + 'd'  // Xd = put away weapon, played forward
+                return wep + 'd' // Xd = put away weapon, played forward
             default:
                 return null // let something else handle it
         }

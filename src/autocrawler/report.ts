@@ -2,39 +2,30 @@
 
 import { getLastReport } from './shared.js'
 import type { StoryReport } from './story.js'
-import type {
-    CombatCritterResult,
-    CrawlerReport,
-    DialogueNpcResult,
-    MapResult,
-} from './types.js'
+import type { CombatCritterResult, CrawlerReport, DialogueNpcResult, MapResult } from './types.js'
 
 export function buildReport(
     type: 'dialogue' | 'combat' | 'maps',
     mapLabel: string,
-    results: DialogueNpcResult[] | CombatCritterResult[] | MapResult[]
+    results: DialogueNpcResult[] | CombatCritterResult[] | MapResult[],
 ): CrawlerReport {
     // Cast to a shared base so TypeScript can unify the union for counting.
     const any = results as Array<{ status: string }>
-    const ok = any.filter(r => r.status === 'ok').length
-    const exceptions = any.filter(r => r.status === 'exception' || r.status.startsWith('exception-')).length
-    const stuck = any.filter(r => r.status.startsWith('stuck')).length
+    const ok = any.filter((r) => r.status === 'ok').length
+    const exceptions = any.filter((r) => r.status === 'exception' || r.status.startsWith('exception-')).length
+    const stuck = any.filter((r) => r.status.startsWith('stuck')).length
     const combatTriggered =
         type === 'dialogue'
-            ? (results as DialogueNpcResult[]).filter(r => r.status === 'combat-triggered').length
+            ? (results as DialogueNpcResult[]).filter((r) => r.status === 'combat-triggered').length
             : undefined
     const noDialogue =
         type === 'dialogue'
-            ? (results as DialogueNpcResult[]).filter(r => r.status === 'no-dialogue').length
+            ? (results as DialogueNpcResult[]).filter((r) => r.status === 'no-dialogue').length
             : undefined
     const timeout =
-        type === 'maps'
-            ? (results as MapResult[]).filter(r => r.status === 'load-timeout').length
-            : undefined
+        type === 'maps' ? (results as MapResult[]).filter((r) => r.status === 'load-timeout').length : undefined
     const playerMissing =
-        type === 'maps'
-            ? (results as MapResult[]).filter(r => r.status === 'player-missing').length
-            : undefined
+        type === 'maps' ? (results as MapResult[]).filter((r) => r.status === 'player-missing').length : undefined
 
     return {
         map: mapLabel,
@@ -52,10 +43,10 @@ export function printSummary(report: CrawlerReport): void {
     if (s.noDialogue !== undefined) extras.push(`no-dialogue=${s.noDialogue}`)
     if (s.timeout !== undefined) extras.push(`timeout=${s.timeout}`)
     if (s.playerMissing !== undefined) extras.push(`player-missing=${s.playerMissing}`)
-    const extra = extras.map(e => `  ${e}`).join('')
+    const extra = extras.map((e) => `  ${e}`).join('')
     console.log(
         `[AutoCrawler] ── ${report.type.toUpperCase()} DONE on "${report.map}" ──\n` +
-        `  total=${s.total}  ok=${s.ok}  stuck=${s.stuck}  exceptions=${s.exceptions}${extra}`
+            `  total=${s.total}  ok=${s.ok}  stuck=${s.stuck}  exceptions=${s.exceptions}${extra}`,
     )
 }
 

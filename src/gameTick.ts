@@ -16,30 +16,33 @@ import { returnToMainMenu } from './mainMenuReturn.js'
 import { Events } from './events.js'
 import { DAM_KNOCKED_OUT } from './combat/results.js'
 import { Worldmap } from './worldmap.js'
-import { gameMoviePlay, GAME_MOVIE_FADE_IN, GAME_MOVIE_FADE_OUT, GAME_MOVIE_PAUSE_MUSIC, GAME_MOVIE_STOP_MUSIC, MOVIE_TIMEOUT } from './gameMovie.js'
+import {
+    gameMoviePlay,
+    GAME_MOVIE_FADE_IN,
+    GAME_MOVIE_FADE_OUT,
+    GAME_MOVIE_PAUSE_MUSIC,
+    GAME_MOVIE_STOP_MUSIC,
+    MOVIE_TIMEOUT,
+} from './gameMovie.js'
 import { checkRads } from './radiation.js'
 import { heart } from './heart.js'
 import { deleteAllTempArrays } from './sfallArrays.js'
 import globalState from './globalState.js'
 import { dbg } from './logger.js'
 import { Critter, objectUnjamAll } from './object.js'
-import {
-    changeCursor,
-} from './playerUse.js'
-import {
-    clampCameraPosition,
-    ceMapScroll,
-    getObjectUnderCursor,
-    SCREEN_HEIGHT,
-    SCREEN_WIDTH,
-} from './renderer.js'
+import { changeCursor } from './playerUse.js'
+import { clampCameraPosition, ceMapScroll, getObjectUnderCursor, SCREEN_HEIGHT, SCREEN_WIDTH } from './renderer.js'
 import { Scripting } from './scripting.js'
 import { uiHideCombatHover, UIMode, uiShowCombatHover } from './ui.js'
 import * as Endgame from './endgame.js'
 import * as GameTime from './gametime.js'
 import { Config } from './config.js'
 import { pollGameMode } from './sfallHooks.js'
-import { globalScriptsProcessInput, globalScriptsProcessMain, globalScriptsProcessWorldmap } from './sfallGlobalScripts.js'
+import {
+    globalScriptsProcessInput,
+    globalScriptsProcessMain,
+    globalScriptsProcessWorldmap,
+} from './sfallGlobalScripts.js'
 
 // Next gameTickTime at which map_update_p_proc should fire across all map
 // scripts. Fallout 2 schedules this via a 600-tick queue event, so we mirror
@@ -48,7 +51,9 @@ import { globalScriptsProcessInput, globalScriptsProcessMain, globalScriptsProce
 let nextMapUpdateTick = 600
 // CE map.cc mapLoad → gameTimeScheduleUpdateEvent: the next map update comes 600 ticks after
 // the map loads (a game time far past the old schedule doesn't fire it at once)
-Events.on('loadMapPost', () => { nextMapUpdateTick = globalState.gameTickTime + 600 })
+Events.on('loadMapPost', () => {
+    nextMapUpdateTick = globalState.gameTickTime + 600
+})
 // CE scripts.cc _script_chk_timed_events: map_update_p_proc also every 30 s of real time
 let lastRealTimeMapUpdate = -1
 let critterScriptCursor = -1 // CE scripts.cc _count_
@@ -216,7 +221,6 @@ export function tickGame(): void {
                 uiHideCombatHover()
             }
         }
-
     }
 
     // Expire old float messages regardless of focus state.
@@ -251,8 +255,9 @@ export function tickGame(): void {
     if (globalState.gameTickTime >= 13 * GameTime.TICKS_PER_YEAR && !gameEndingTriggered) {
         gameEndingTriggered = true
         Endgame.setupDeathEnding(Endgame.DEATH_REASON_TIMEOUT)
-        void gameMoviePlay(MOVIE_TIMEOUT, GAME_MOVIE_FADE_IN | GAME_MOVIE_FADE_OUT | GAME_MOVIE_PAUSE_MUSIC)
-            .then(() => returnToMainMenu())
+        void gameMoviePlay(MOVIE_TIMEOUT, GAME_MOVIE_FADE_IN | GAME_MOVIE_FADE_OUT | GAME_MOVIE_PAUSE_MUSIC).then(() =>
+            returnToMainMenu(),
+        )
     }
 
     if (didTick) {
@@ -264,7 +269,8 @@ export function tickGame(): void {
         // CE main.cc mainLoop: the dude dead or knocked out outside combat ends the game.
         // (Death goes through critterKill's death animation → dudeDeathScene.)
         const dude = globalState.player
-        if (dude && !globalState.inCombat && !dude.dead && ((dude.injuryFlags ?? 0) & DAM_KNOCKED_OUT) !== 0) Endgame.dudeDeathScene()
+        if (dude && !globalState.inCombat && !dude.dead && ((dude.injuryFlags ?? 0) & DAM_KNOCKED_OUT) !== 0)
+            Endgame.dudeDeathScene()
 
         // CE ref: scripts.cc:405 gameTimeEventProcess — midnight queue event.
         // Fires once per in-game day: unjams all doors and checks story-movie triggers.
@@ -319,8 +325,6 @@ export function tickGame(): void {
                 // Poison decay is now handled by a CE-faithful timed event queue in scripting.ts.
                 // CE ref: critter.cc poisonEventProcess — the event is scheduled by poison()
                 // at 10*(505-5*level) ticks, fires in the timed-event loop above.
-
-
             }
         }
 
@@ -342,8 +346,9 @@ export function tickGame(): void {
         const passes = Math.min(8, Math.floor((time - critterLoopLast) / CE_LOOP_MS))
         critterLoopLast += passes * CE_LOOP_MS
         if (passes > 0) {
-            const scripted = globalState.gMap.getObjects().filter(
-                (o) => o.type === 'critter' && o._script && !(o as Critter).dead)
+            const scripted = globalState.gMap
+                .getObjects()
+                .filter((o) => o.type === 'critter' && o._script && !(o as Critter).dead)
             for (let i = 0; i < passes && scripted.length > 0; i++) {
                 critterScriptCursor = (critterScriptCursor + 1) % scripted.length
                 const critter = scripted[critterScriptCursor] as Critter
@@ -376,7 +381,7 @@ export function tickGame(): void {
 export function scriptsCheckGameEvents(day: number): void {
     const gvars = Scripting.getGlobalVars()
     const MOVIE_AFAILED = 4
-    const ARTIMER_MOVIE_BASE = 12  // MOVIE_ARTIMER1
+    const ARTIMER_MOVIE_BASE = 12 // MOVIE_ARTIMER1
     const ARTIMER_DAYS = [90, 180, 270, 360]
 
     if (gvars[7]) {
@@ -387,8 +392,9 @@ export function scriptsCheckGameEvents(day: number): void {
         gameEndingTriggered = true
         const seen = globalState.seenMovies.has(MOVIE_AFAILED)
         dbg('map', 'ARTIMER: AFAILED — Arroyo destroyed, game over')
-        ;(seen ? Promise.resolve() : gameMoviePlay(MOVIE_AFAILED, GAME_MOVIE_FADE_IN | GAME_MOVIE_STOP_MUSIC))
-            .then(() => returnToMainMenu())
+        ;(seen ? Promise.resolve() : gameMoviePlay(MOVIE_AFAILED, GAME_MOVIE_FADE_IN | GAME_MOVIE_STOP_MUSIC)).then(
+            () => returnToMainMenu(),
+        )
         return
     }
 
@@ -399,13 +405,16 @@ export function scriptsCheckGameEvents(day: number): void {
     for (let i = 3; i >= 0; i--) {
         const crossedThreshold = day >= ARTIMER_DAYS[i]
         // CE scripts.cc:453-466: ARTIMER4 when day >= t4 || FALLOUT_2 >= 3; 1-3 need FALLOUT_2 != 3.
-        const eligible = i === 3 ? (crossedThreshold || fallout2 >= 3) : (crossedThreshold && fallout2 !== 3)
-        if (eligible) { movieIdx = i; break }
+        const eligible = i === 3 ? crossedThreshold || fallout2 >= 3 : crossedThreshold && fallout2 !== 3
+        if (eligible) {
+            movieIdx = i
+            break
+        }
     }
     if (movieIdx === -1) return
 
     const movieId = ARTIMER_MOVIE_BASE + movieIdx
-    if (globalState.seenMovies.has(movieId)) return  // already fired
+    if (globalState.seenMovies.has(movieId)) return // already fired
 
     dbg('map', `ARTIMER: ARTIMER${movieIdx + 1} triggered (day ${day})`)
     // CE: gameMoviePlay(movie, FADE_IN | FADE_OUT | PAUSE_MUSIC) — marks it seen.

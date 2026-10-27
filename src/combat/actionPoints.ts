@@ -23,7 +23,7 @@ import { Critter } from '../object.js'
 // (_combat_turn), spent before AP on movement only (animation.cc _object_move).
 export class ActionPoints {
     combat: number = 0 // Combat AP
-    move: number = 0   // free move points (Bonus Move, player only)
+    move: number = 0 // free move points (Bonus Move, player only)
     attachedCritter: Critter
 
     constructor(obj: Critter) {
@@ -62,7 +62,12 @@ export class ActionPoints {
         // CE critter.cc critterGetMovementPointCostAdjustedForCrippledLegs: x4 one leg, x8 both
         const critter = this.attachedCritter
         const hexes = value
-        const perHex = critter.crippledLeftLeg && critter.crippledRightLeg ? 8 : critter.crippledLeftLeg || critter.crippledRightLeg ? 4 : 1
+        const perHex =
+            critter.crippledLeftLeg && critter.crippledRightLeg
+                ? 8
+                : critter.crippledLeftLeg || critter.crippledRightLeg
+                  ? 4
+                  : 1
         value *= perHex
 
         if (this.combat + this.move < value) return false

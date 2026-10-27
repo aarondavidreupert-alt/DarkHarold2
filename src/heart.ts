@@ -229,7 +229,9 @@ class Heart {
         // over. The HUD bar is a DOM layer above the canvas and swallows its mouse
         // events, so track the mouse there too (otherwise the position freezes at the
         // last spot over the map and the bottom edge never scrolls).
-        document.getElementById('bar')?.addEventListener('mousemove', heart.canvas.onmousemove as (e: MouseEvent) => void)
+        document
+            .getElementById('bar')
+            ?.addEventListener('mousemove', heart.canvas.onmousemove as (e: MouseEvent) => void)
 
         /* keypressed and keyreleased are aliases to
 			 keydown and keyup, respectively. */
@@ -249,7 +251,8 @@ class Heart {
     _tick(time: number) {
         // the next frame is requested first, so an exception in one frame can't stop the loop
         window.requestAnimationFrame(heart._tick)
-        if (heart.paused) heart._lastTick = time // frozen: no frames, no catch-up on resume
+        if (heart.paused)
+            heart._lastTick = time // frozen: no frames, no catch-up on resume
         else {
             try {
                 heart._stepOnly(time)

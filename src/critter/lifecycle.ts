@@ -32,15 +32,33 @@ import { armorPerkSwap } from '../perks/cePerks.js'
 import { applyArmorArt } from '../ui_inventory/dragdrop.js'
 import { ammoGetCapacity } from '../weaponAmmo.js'
 import {
-    critterIsProne, removeKnockoutEvents, setNewResults,
-    DAM_DEAD, DAM_KNOCKED_DOWN, DAM_KNOCKED_OUT, DAM_ON_FIRE,
+    critterIsProne,
+    removeKnockoutEvents,
+    setNewResults,
+    DAM_DEAD,
+    DAM_KNOCKED_DOWN,
+    DAM_KNOCKED_OUT,
+    DAM_ON_FIRE,
 } from '../combat/results.js'
 import { ANIM, CHARACTER_SOUND_EFFECT, playCharAnimSfx } from '../sfxNames.js'
 import {
-    ANIM_BURNED_TO_NOTHING, ANIM_ELECTRIFIED_TO_NOTHING, ANIM_EXPLODED_TO_NOTHING, ANIM_FALL_BACK, ANIM_FALL_FRONT,
-    ANIM_FIRE_DANCE, MAXIMUM_BLOOD_DEATH_ANIMATIONS,
-    animName, attackerAnimation, bloodAnim, checkDeath, corpseFrame, critterHasAnim, damageTypeIndex,
-    isDeathFall, pickDeath, pickFall,
+    ANIM_BURNED_TO_NOTHING,
+    ANIM_ELECTRIFIED_TO_NOTHING,
+    ANIM_EXPLODED_TO_NOTHING,
+    ANIM_FALL_BACK,
+    ANIM_FALL_FRONT,
+    ANIM_FIRE_DANCE,
+    MAXIMUM_BLOOD_DEATH_ANIMATIONS,
+    animName,
+    attackerAnimation,
+    bloodAnim,
+    checkDeath,
+    corpseFrame,
+    critterHasAnim,
+    damageTypeIndex,
+    isDeathFall,
+    pickDeath,
+    pickFall,
 } from './deathAnim.js'
 
 // CE ref: kills.cc killsGetByType() — per-type kill counters, persisted in save
@@ -80,7 +98,7 @@ export function critterKill(
     useScript?: boolean,
     options: KillOptions = {},
     damageType?: string,
-    callback?: () => void
+    callback?: () => void,
 ) {
     // Prevent re-triggering the death sequence on an already-dying critter.
     // critterDamage (e.g. burst fire overkill) or scripts can call this twice.
@@ -94,13 +112,14 @@ export function critterKill(
     if (hidden.length) {
         obj.inventory = obj.inventory.filter((it) => !itemIsHidden(it))
         const a = obj as any
-        for (const hand of ['leftHand', 'rightHand']) if (hidden.includes(a[hand])) a[hand] = (obj.constructor as any).makeFist?.()
+        for (const hand of ['leftHand', 'rightHand'])
+            if (hidden.includes(a[hand])) a[hand] = (obj.constructor as any).makeFist?.()
     }
     obj.outline = null
     obj.critDeath = false
     // CE critter.cc critterKill: unless the proto has CRITTER_FLAT, the body stops blocking
     // (OBJECT_NO_BLOCK) and _obj_toggle_flat makes it OBJECT_FLAT — drawn first on its tile
-    if (((((obj.pro as any)?.extra?.flags ?? 0) & 0x800) === 0)) {
+    if ((((obj.pro as any)?.extra?.flags ?? 0) & 0x800) === 0) {
         obj.flags = ((obj.flags ?? 0) | 0x10 | 0x08) >>> 0
         const gm = globalState.gMap
         const level = gm?.objects?.[obj.elevation ?? gm.currentElevation]
@@ -132,8 +151,10 @@ export function critterKill(
         // CE actions.cc _show_death: electrified / exploded to nothing drops everything
         // carried (unless CRITTER_SPECIAL_DEATH or CRITTER_NO_DROP).
         const protoFlags = (obj.pro as any)?.extra?.flags ?? 0
-        if ((deathAnim === ANIM_ELECTRIFIED_TO_NOTHING || deathAnim === ANIM_EXPLODED_TO_NOTHING)
-            && (protoFlags & (CRITTER_SPECIAL_DEATH | CRITTER_NO_DROP)) === 0) {
+        if (
+            (deathAnim === ANIM_ELECTRIFIED_TO_NOTHING || deathAnim === ANIM_EXPLODED_TO_NOTHING) &&
+            (protoFlags & (CRITTER_SPECIAL_DEATH | CRITTER_NO_DROP)) === 0
+        ) {
             itemDropAll(obj)
         }
         if (callback) callback()
@@ -156,8 +177,12 @@ export function critterKill(
     }
 
     // A critter lying on the ground from a knockdown (CE _critter_is_prone).
-    const fallAnim = obj.anim === 'knockdownFront' || obj.anim === animName(ANIM_FALL_BACK) ? ANIM_FALL_BACK
-        : obj.anim === 'knockdownBack' || obj.anim === animName(ANIM_FALL_FRONT) ? ANIM_FALL_FRONT : null
+    const fallAnim =
+        obj.anim === 'knockdownFront' || obj.anim === animName(ANIM_FALL_BACK)
+            ? ANIM_FALL_BACK
+            : obj.anim === 'knockdownBack' || obj.anim === animName(ANIM_FALL_FRONT)
+              ? ANIM_FALL_FRONT
+              : null
     // Let a running knockdown finish first. (Its callback stays set after the last
     // frame, so inAnim() can't tell; compare against the frame count.)
     const whenReady = (fn: () => void) => {
@@ -186,14 +211,17 @@ export function critterKill(
     let anim = options.scriptDamage
         ? checkDeath(obj, MAXIMUM_BLOOD_DEATH_ANIMATIONS[damageTypeIndex(damageType)], 3, hitFromFront)
         : pickDeath(obj, {
-            attacker: source,
-            weapon: options.weapon !== undefined ? options.weapon : source?.equippedWeapon ?? null,
-            damage: options.damage ?? 0,
-            damageType,
-            attackerAnim: options.attackerAnim ?? attackerAnimation(source),
-            hitFromFront,
-        })
-    dbg('combat', `[death] ${obj.name}: anim ${anim} (${damageType ?? 'Normal'}, violence ${Config.combat.violenceLevel})`)
+              attacker: source,
+              weapon: options.weapon !== undefined ? options.weapon : (source?.equippedWeapon ?? null),
+              damage: options.damage ?? 0,
+              damageType,
+              attackerAnim: options.attackerAnim ?? attackerAnimation(source),
+              hitFromFront,
+          })
+    dbg(
+        'combat',
+        `[death] ${obj.name}: anim ${anim} (${damageType ?? 'Normal'}, violence ${Config.combat.violenceLevel})`,
+    )
 
     if (anim !== ANIM_FIRE_DANCE) {
         const knockback = options.knockback ?? 0
@@ -213,7 +241,7 @@ export function critterKill(
         anim = pickFall(obj, anim)
         deathAnim = anim
         const blood = isDeathFall(anim) ? bloodAnim(obj, anim) : null
-        play(anim, () => blood !== null ? play(blood, finalizeCallback) : finalizeCallback())
+        play(anim, () => (blood !== null ? play(blood, finalizeCallback) : finalizeCallback()))
         return
     }
 
@@ -249,8 +277,10 @@ function fireDanceTarget(obj: Critter): { path: Point[] } | null {
         const end = path[path.length - 1] ?? obj.position
         if (!isExitGridAt(end) && path.every((t) => !blockedTile(obj, t))) return path.length ? { path } : null
         if (distance > 0) distance--
-        else if (rotation < 6) { rotation++; distance = randomDistance }
-        else return null
+        else if (rotation < 6) {
+            rotation++
+            distance = randomDistance
+        } else return null
     }
 }
 
@@ -275,7 +305,7 @@ function isExitGridAt(t: Point): boolean {
     const objs = globalState.gMap?.objectsAtPosition(t) ?? []
     return objs.some((o: Obj) => {
         const pid = (o.pid ?? 0) >>> 0
-        return pid >= 0x5000010 && pid <= 0x5000017 && (((o.flags ?? 0) & 0x01) === 0) && o.visible !== false
+        return pid >= 0x5000010 && pid <= 0x5000017 && ((o.flags ?? 0) & 0x01) === 0 && o.visible !== false
     })
 }
 
@@ -290,8 +320,17 @@ function moveStraight(obj: Critter, anim: string, path: Point[], then: () => voi
     let index = 0
     let animDone = false
     let slideDone = path.length === 0
-    const finish = () => { if (animDone && slideDone) then() }
-    obj.staticAnimation(anim, () => { animDone = true; finish() }, true)
+    const finish = () => {
+        if (animDone && slideDone) then()
+    }
+    obj.staticAnimation(
+        anim,
+        () => {
+            animDone = true
+            finish()
+        },
+        true,
+    )
     if (slideDone) return
     const fps = globalState.imageInfo[obj.art]?.fps || 10
     let from = { ...obj.position }
@@ -300,19 +339,30 @@ function moveStraight(obj: Critter, anim: string, path: Point[], then: () => voi
     const step = () => {
         if (obj.dead && index === 0 && !globalState.gMap) return
         const to = path[index]
-        const a = hexToScreen(from.x, from.y), b = hexToScreen(to.x, to.y)
+        const a = hexToScreen(from.x, from.y),
+            b = hexToScreen(to.x, to.y)
         const frames = Math.max(1, Math.round(Math.hypot(b.x - a.x, b.y - a.y) / STRAIGHT_NODE_PIXELS))
         frame++
         const t = frame / frames
-        if (!moved && t >= 0.5) { obj.move({ ...to }, undefined, false); moved = true }
+        if (!moved && t >= 0.5) {
+            obj.move({ ...to }, undefined, false)
+            moved = true
+        }
         const at = moved ? b : a
-        ;(obj as any).slideOffset = t >= 1 ? undefined : { x: Math.round(a.x + (b.x - a.x) * t - at.x), y: Math.round(a.y + (b.y - a.y) * t - at.y) }
+        ;(obj as any).slideOffset =
+            t >= 1
+                ? undefined
+                : { x: Math.round(a.x + (b.x - a.x) * t - at.x), y: Math.round(a.y + (b.y - a.y) * t - at.y) }
         if (t >= 1) {
             from = { ...to }
             frame = 0
             moved = false
             index++
-            if (index >= path.length) { slideDone = true; finish(); return }
+            if (index >= path.length) {
+                slideDone = true
+                finish()
+                return
+            }
         }
         setTimeout(step, 1000 / fps)
     }
@@ -334,8 +384,14 @@ function actionKnockdown(obj: Critter, anim: number, maxDistance: number, rotati
     for (distance = 1; distance <= maxDistance; distance++) {
         const tile = straightHexes(obj.position, rotation, distance)
         const t = tile[tile.length - 1]
-        if (!t || tile.length < distance || blockedTile(obj, t)) { distance--; break }
-        if (isExitGridAt(t)) { distance--; break }
+        if (!t || tile.length < distance || blockedTile(obj, t)) {
+            distance--
+            break
+        }
+        if (isExitGridAt(t)) {
+            distance--
+            break
+        }
     }
     playCharAnimSfx(obj, anim, CHARACTER_SOUND_EFFECT.knockdown)
     distance--
@@ -364,14 +420,20 @@ export function itemDropAll(obj: Critter): void {
             if (self.armor) {
                 const worn = self.armor
                 self.armor = null
-                if (obj.isPlayer) { armorPerkSwap(obj, worn, null); applyArmorArt(null) }
+                if (obj.isPlayer) {
+                    armorPerkSwap(obj, worn, null)
+                    applyArmorArt(null)
+                }
             }
         } else if (item && item.pid !== undefined) self[slot] = undefined
     }
     const pieces: Obj[] = []
     for (const item of items) {
         const n = item.amount ?? 1
-        if (item.pid === 41 || n <= 1) { pieces.push(item); continue } // PROTO_ID_MONEY: one pile
+        if (item.pid === 41 || n <= 1) {
+            pieces.push(item)
+            continue
+        } // PROTO_ID_MONEY: one pile
         item.amount = 1
         pieces.push(item)
         for (let k = 1; k < n; k++) {
@@ -410,7 +472,7 @@ export function critterDamage(
     useAnim: boolean = true,
     damageType?: string,
     callback?: () => void,
-    killOptions: KillOptions = {}
+    killOptions: KillOptions = {},
 ) {
     const flags = killOptions.flags ?? 0
     // _show_damage_to_object looks at the critter before this hit's results apply.
@@ -436,10 +498,13 @@ export function critterDamage(
     }
     if (!useAnim || wasProne) return
 
-    const knockback = (((obj.pro as any)?.extra?.flags ?? 0) & CRITTER_NO_KNOCKBACK) !== 0 ? 0 : (killOptions.knockback ?? 0)
+    const knockback =
+        (((obj.pro as any)?.extra?.flags ?? 0) & CRITTER_NO_KNOCKBACK) !== 0 ? 0 : (killOptions.knockback ?? 0)
     const rotation = killOptions.knockbackRotation ?? 0
     const hitFromFront = killOptions.hitFromFront ?? isHitFromFront(obj, source)
-    const done = () => { if (callback) callback() }
+    const done = () => {
+        if (callback) callback()
+    }
 
     if ((flags & (DAM_KNOCKED_OUT | DAM_KNOCKED_DOWN)) !== 0) {
         // Knocked out / down: the fall (hit from the front → on the back), its sound,
@@ -457,15 +522,29 @@ export function critterDamage(
     }
     if ((flags & DAM_ON_FIRE) !== 0 && critterHasAnim(obj, ANIM_FIRE_DANCE)) {
         // Set on fire but alive: the fire dance, then standing again.
-        obj.staticAnimation(animName(ANIM_FIRE_DANCE), () => { obj.clearAnim(); done() }, true)
+        obj.staticAnimation(
+            animName(ANIM_FIRE_DANCE),
+            () => {
+                obj.clearAnim()
+                done()
+            },
+            true,
+        )
         return
     }
     if (knockback !== 0) {
         // Knocked back without falling over: slide with the fall, then get up.
         const fall = actionKnockdown(obj, hitFromFront ? ANIM_FALL_BACK : ANIM_FALL_FRONT, knockback, rotation, () => {
             const getUp = fall === ANIM_FALL_BACK ? 'getUpFront' : 'getUpBack'
-            if (obj.hasAnimation(getUp)) obj.staticAnimation(getUp, () => { obj.clearAnim(); done() })
-            else { obj.clearAnim(); done() }
+            if (obj.hasAnimation(getUp))
+                obj.staticAnimation(getUp, () => {
+                    obj.clearAnim()
+                    done()
+                })
+            else {
+                obj.clearAnim()
+                done()
+            }
         })
         return
     }

@@ -102,7 +102,10 @@ export function scheduleTrickle(item: Obj, owner: Critter | null, ticks = isStea
             }
         },
         // CE item.cc _item_m_turn_off_from_queue — off when leaving the map
-        leaveMap: () => { miscItemTurnOff(item, owner); return true },
+        leaveMap: () => {
+            miscItemTurnOff(item, owner)
+            return true
+        },
     })
 }
 
@@ -177,7 +180,8 @@ export function useChargedMiscItem(item: Obj, owner: Critter | null): void {
 // hand — call this any time a hand slot's contents change (equip/unequip/
 // swap/drop) or a held item's on/off state changes.
 export function refreshStealthState(critter: Critter): void {
-    const active = (isStealthBoy(critter.leftHand) && miscItemIsOn(critter.leftHand!))
-        || (isStealthBoy(critter.rightHand) && miscItemIsOn(critter.rightHand!))
+    const active =
+        (isStealthBoy(critter.leftHand) && miscItemIsOn(critter.leftHand!)) ||
+        (isStealthBoy(critter.rightHand) && miscItemIsOn(critter.rightHand!))
     critter.stealthActive = active
 }

@@ -32,12 +32,38 @@ const TRAIT_FRM_IDS = [55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 94, 6
 const ADDICTION_FRM_IDS = [142, 126, 140, 144, 145, 52, 136, 149]
 // CE gTownReputationEntries: { GVAR_TOWN_REP_*, CITY_* }
 const TOWN_REPUTATION: [number, number][] = [
-    [47, 0], [48, 2], [49, 1], [50, 4], [51, 5], [52, 3], [53, 8], [54, 6], [55, 7], [56, 13],
-    [57, 10], [59, 11], [61, 14], [63, 17], [64, 19], [65, 18], [66, 25], [294, 9], [308, 20],
+    [47, 0],
+    [48, 2],
+    [49, 1],
+    [50, 4],
+    [51, 5],
+    [52, 3],
+    [53, 8],
+    [54, 6],
+    [55, 7],
+    [56, 13],
+    [57, 10],
+    [59, 11],
+    [61, 14],
+    [63, 17],
+    [64, 19],
+    [65, 18],
+    [66, 25],
+    [294, 9],
+    [308, 20],
 ]
 
-export interface Card { frmId: number; title: string; description: string }
-export interface Line { kind: 'heading' | 'string' | 'kills'; text: string; count?: number; card: Card | null }
+export interface Card {
+    frmId: number
+    title: string
+    description: string
+}
+export interface Line {
+    kind: 'heading' | 'string' | 'kills'
+    text: string
+    count?: number
+    card: Card | null
+}
 
 const editorMsg = (id: number) => getMessage('editor', id) ?? ''
 
@@ -50,8 +76,13 @@ function skilldexArt(frmId: number): string | undefined {
 // "a, b, c, d" lines of a CE data/*.txt table (# comments)
 function readTable(path: string): number[][] {
     let text = ''
-    try { text = getFileText(path) } catch { return [] }
-    return text.split('\n')
+    try {
+        text = getFileText(path)
+    } catch {
+        return []
+    }
+    return text
+        .split('\n')
         .map((l) => l.replace(/#.*/, '').trim())
         .filter((l) => l !== '')
         .map((l) => l.split(/[\s,]+/).map((v) => parseInt(v, 10)))
@@ -65,10 +96,18 @@ function perksFolder(player: any): { lines: Line[]; fallback: Card } {
     const lines: Line[] = []
     const traits: string[] = player.traits ?? []
     if (traits.length > 0) {
-        lines.push({ kind: 'heading', text: editorMsg(156), card: { frmId: 54, title: editorMsg(146), description: editorMsg(147) } })
+        lines.push({
+            kind: 'heading',
+            text: editorMsg(156),
+            card: { frmId: 54, title: editorMsg(146), description: editorMsg(147) },
+        })
         for (const t of traits) {
             const idx = TRAITS.indexOf(t)
-            lines.push({ kind: 'string', text: t, card: { frmId: TRAIT_FRM_IDS[idx] ?? 54, title: traitTitle(t), description: TRAIT_TEXTS[t] ?? '' } })
+            lines.push({
+                kind: 'string',
+                text: t,
+                card: { frmId: TRAIT_FRM_IDS[idx] ?? 54, title: traitTitle(t), description: TRAIT_TEXTS[t] ?? '' },
+            })
         }
     }
     const ranks: [number, number][] = []
@@ -82,7 +121,8 @@ function perksFolder(player: any): { lines: Line[]; fallback: Card } {
         for (const [id, rank] of ranks) {
             const name = perkNameById(id) ?? ''
             lines.push({
-                kind: 'string', text: rank === 1 ? name : `${name} (${rank})`,
+                kind: 'string',
+                text: rank === 1 ? name : `${name} (${rank})`,
                 card: { frmId: CE_PERK_REQS[id][6], title: name, description: getMessage('perk', 1101 + id) ?? '' },
             })
         }
@@ -102,12 +142,17 @@ export function karmaFolder(): { lines: Line[]; fallback: Card } {
             const rep = genericReputation.find(([threshold]) => karma >= threshold)
             if (rep) {
                 lines.push({
-                    kind: 'string', text: `${editorMsg(125)}: ${karma} (${editorMsg(rep[1])})`,
+                    kind: 'string',
+                    text: `${editorMsg(125)}: ${karma} (${editorMsg(rep[1])})`,
                     card: { frmId: art, title: editorMsg(125), description: editorMsg(description) },
                 })
             }
         } else if (gvar(g) !== 0) {
-            lines.push({ kind: 'string', text: editorMsg(name), card: { frmId: art, title: editorMsg(name), description: editorMsg(description) } })
+            lines.push({
+                kind: 'string',
+                text: editorMsg(name),
+                card: { frmId: art, title: editorMsg(name), description: editorMsg(description) },
+            })
         }
     }
 
@@ -115,14 +160,31 @@ export function karmaFolder(): { lines: Line[]; fallback: Card } {
     for (const [g, city] of TOWN_REPUTATION) {
         if (!Worldmap.areaIsKnown(city)) continue
         if (!townHeading) {
-            lines.push({ kind: 'heading', text: editorMsg(4000), card: { frmId: 48, title: editorMsg(4000), description: editorMsg(4100) } })
+            lines.push({
+                kind: 'heading',
+                text: editorMsg(4000),
+                card: { frmId: 48, title: editorMsg(4000), description: editorMsg(4100) },
+            })
             townHeading = true
         }
         const rep = gvar(g)
-        const [frm, msg] = rep < -30 ? [150, 2006] : rep < -15 ? [153, 2005] : rep < 0 ? [153, 2004]
-            : rep === 0 ? [141, 2003] : rep < 15 ? [137, 2002] : rep < 30 ? [137, 2001] : [135, 2000]
+        const [frm, msg] =
+            rep < -30
+                ? [150, 2006]
+                : rep < -15
+                  ? [153, 2005]
+                  : rep < 0
+                    ? [153, 2004]
+                    : rep === 0
+                      ? [141, 2003]
+                      : rep < 15
+                        ? [137, 2002]
+                        : rep < 30
+                          ? [137, 2001]
+                          : [135, 2000]
         lines.push({
-            kind: 'string', text: `${getMessage('map', 1500 + city) ?? ''}: ${editorMsg(msg)}`,
+            kind: 'string',
+            text: `${getMessage('map', 1500 + city) ?? ''}: ${editorMsg(msg)}`,
             card: { frmId: frm, title: editorMsg(msg), description: editorMsg(msg + 100) },
         })
     }
@@ -131,12 +193,21 @@ export function karmaFolder(): { lines: Line[]; fallback: Card } {
     ADDICTION_KARMA_GVARS.forEach((g, index) => {
         if (gvar(g) === 0) return
         if (!addictionHeading) {
-            lines.push({ kind: 'heading', text: editorMsg(4001), card: { frmId: 53, title: editorMsg(4001), description: editorMsg(4101) } })
+            lines.push({
+                kind: 'heading',
+                text: editorMsg(4001),
+                card: { frmId: 53, title: editorMsg(4001), description: editorMsg(4101) },
+            })
             addictionHeading = true
         }
         lines.push({
-            kind: 'string', text: editorMsg(1004 + index),
-            card: { frmId: ADDICTION_FRM_IDS[index], title: editorMsg(1004 + index), description: editorMsg(1104 + index) },
+            kind: 'string',
+            text: editorMsg(1004 + index),
+            card: {
+                frmId: ADDICTION_FRM_IDS[index],
+                title: editorMsg(1004 + index),
+                description: editorMsg(1104 + index),
+            },
         })
     })
     // SFALL custom karma folder: default art 47
@@ -151,8 +222,14 @@ function killsFolder(): { lines: Line[]; fallback: Card } {
     }
     kills.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()))
     const lines: Line[] = kills.map((k) => ({
-        kind: 'kills', text: k.name, count: k.count,
-        card: { frmId: 46, title: `${k.name} ${editorMsg(126)}`, description: getMessage('proto', 1469 + k.type) ?? '' },
+        kind: 'kills',
+        text: k.name,
+        count: k.count,
+        card: {
+            frmId: 46,
+            title: `${k.name} ${editorMsg(126)}`,
+            description: getMessage('proto', 1469 + k.type) ?? '',
+        },
     }))
     return { lines, fallback: { frmId: 46, title: editorMsg(126), description: editorMsg(129) } }
 }
@@ -165,10 +242,19 @@ export interface FolderView {
 
 // Builds the folder view inside `parent` (the character window). `showCard` draws a
 // card (title, description, art path).
-export function createFolderView(parent: HTMLElement, player: any, showCard: (title: string, desc: string, img?: string) => void): FolderView {
+export function createFolderView(
+    parent: HTMLElement,
+    player: any,
+    showCard: (title: string, desc: string, img?: string) => void,
+): FolderView {
     const step = () => font1.lineHeight + 1
     const box = document.createElement('div')
-    Object.assign(box.style, { position: 'absolute', left: FOLDER_X + 'px', top: FOLDER_Y + 'px', width: FOLDER_RIGHT - FOLDER_X + 'px' })
+    Object.assign(box.style, {
+        position: 'absolute',
+        left: FOLDER_X + 'px',
+        top: FOLDER_Y + 'px',
+        width: FOLDER_RIGHT - FOLDER_X + 'px',
+    })
     parent.appendChild(box)
 
     let folder = 0
@@ -177,11 +263,16 @@ export function createFolderView(parent: HTMLElement, player: any, showCard: (ti
     let lineCount = 0
     let active = false // the card shows the folder (CE selected item 10..42)
 
-    const build = () => folder === 0 ? perksFolder(player) : folder === 1 ? karmaFolder() : killsFolder()
+    const build = () => (folder === 0 ? perksFolder(player) : folder === 1 ? karmaFolder() : killsFolder())
 
     const rule = (width: number) => {
         const r = document.createElement('div')
-        Object.assign(r.style, { width: Math.max(0, width) + 'px', height: '1px', background: GREEN, alignSelf: 'center' })
+        Object.assign(r.style, {
+            width: Math.max(0, width) + 'px',
+            height: '1px',
+            background: GREEN,
+            alignSelf: 'center',
+        })
         return r
     }
 
@@ -195,7 +286,12 @@ export function createFolderView(parent: HTMLElement, player: any, showCard: (ti
             const isSel = i === selected
             if (isSel && line.card) card = line.card
             const row = document.createElement('div')
-            Object.assign(row.style, { display: 'flex', height: step() + 'px', width: FOLDER_RIGHT - FOLDER_X + 'px', cursor: 'pointer' })
+            Object.assign(row.style, {
+                display: 'flex',
+                height: step() + 'px',
+                width: FOLDER_RIGHT - FOLDER_X + 'px',
+                cursor: 'pointer',
+            })
             const color = line.kind !== 'heading' && isSel ? YELLOW : GREEN
             if (line.kind === 'heading') {
                 // characterEditorFolderViewDrawHeading: x = (280 − (w + 4 gap)) / 2
@@ -235,8 +331,12 @@ export function createFolderView(parent: HTMLElement, player: any, showCard: (ti
         const img = document.createElement('img')
         img.src = assetUrl(off)
         Object.assign(img.style, { position: 'absolute', left: '317px', top: y + 'px', cursor: 'pointer' })
-        img.onmousedown = () => { img.src = assetUrl(on) }
-        img.onmouseup = img.onmouseleave = () => { img.src = assetUrl(off) }
+        img.onmousedown = () => {
+            img.src = assetUrl(on)
+        }
+        img.onmouseup = img.onmouseleave = () => {
+            img.src = assetUrl(off)
+        }
         img.onclick = () => {
             if (dir >= 0) {
                 if (MAX_LINES + topLine[folder] <= lineCount) {
@@ -253,7 +353,9 @@ export function createFolderView(parent: HTMLElement, player: any, showCard: (ti
         return img
     }
     const up = arrow(FOLDER_Y, 'art/intrface/uparwoff.png', 'art/intrface/uparwon.png', -1)
-    up.onload = () => { down.style.top = FOLDER_Y + 1 + up.naturalHeight + 'px' }
+    up.onload = () => {
+        down.style.top = FOLDER_Y + 1 + up.naturalHeight + 'px'
+    }
     const down = arrow(FOLDER_Y + 1 + 14, 'art/intrface/dnarwoff.png', 'art/intrface/dnarwon.png', 1)
 
     font1.onLoad(() => draw())
@@ -265,7 +367,9 @@ export function createFolderView(parent: HTMLElement, player: any, showCard: (ti
             active = true
             draw()
         },
-        refresh() { draw() },
+        refresh() {
+            draw()
+        },
         blur() {
             active = false
             selected = -1

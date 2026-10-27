@@ -16,7 +16,15 @@ limitations under the License.
 
 import { gameReset } from './gameReset.js'
 import { randomSeedPrerandom } from './random.js'
-import { gameMoviePlay, GAME_MOVIE_FADE_IN, GAME_MOVIE_STOP_MUSIC, MOVIE_CREDITS, MOVIE_ELDER, MOVIE_INTRO, MOVIE_IPLOGO } from './gameMovie.js'
+import {
+    gameMoviePlay,
+    GAME_MOVIE_FADE_IN,
+    GAME_MOVIE_STOP_MUSIC,
+    MOVIE_CREDITS,
+    MOVIE_ELDER,
+    MOVIE_INTRO,
+    MOVIE_IPLOGO,
+} from './gameMovie.js'
 import { Config } from './config.js'
 import { CriticalEffects } from './criticalEffects.js'
 import * as GameTime from './gametime.js'
@@ -72,7 +80,9 @@ export function initGame() {
     const inGameArea = (el: EventTarget | null) => el instanceof Node && (el === $cnv || ($bar?.contains(el) ?? false))
     for (const el of [$cnv, $bar]) {
         if (!el) continue
-        el.addEventListener('mouseenter', () => { globalState.gameHasFocus = true })
+        el.addEventListener('mouseenter', () => {
+            globalState.gameHasFocus = true
+        })
         el.addEventListener('mouseleave', (e) => {
             if (!inGameArea((e as MouseEvent).relatedTarget)) globalState.gameHasFocus = false
         })
@@ -113,7 +123,10 @@ export function initGame() {
     initCharacterCreator(startNewGame, showMainMenu)
     initCharacterSelector(startNewGame, showMainMenu)
     // CE main.cc main_reset_system — gameReset() before every NEW GAME.
-    initMainMenu(() => { gameReset(); showCharacterSelector() })
+    initMainMenu(() => {
+        gameReset()
+        showCharacterSelector()
+    })
 
     if (mapFromQuery !== null) {
         // Debug: map specified in URL query → skip main menu and load directly.
@@ -143,7 +156,10 @@ export function initGame() {
                 .then(() => gameMoviePlay(MOVIE_IPLOGO, GAME_MOVIE_FADE_IN))
                 .then(() => gameMoviePlay(MOVIE_INTRO, 0))
                 .then(() => gameMoviePlay(MOVIE_CREDITS, 0))
-                .then(() => { hideSplash(); showMainMenu() })
+                .then(() => {
+                    hideSplash()
+                    showMainMenu()
+                })
         }
     }
 

@@ -30,8 +30,10 @@ import { getMessage } from './util.js'
 // CE actions.cc _can_talk_to (a forced callback: it runs even when the walk failed) — still
 // 9 or more hexes away, or out of sight: misc.msg 2000 "You cannot get there." and no talk
 function canTalkTo(player: Critter, target: Obj): boolean {
-    if (hexDistance(player.position, target.position) >= 9
-        || combatIsShotBlocked(player, player.position, target.position, target).blocked) {
+    if (
+        hexDistance(player.position, target.position) >= 9 ||
+        combatIsShotBlocked(player, player.position, target.position, target).blocked
+    ) {
         uiLog(getMessage('misc', 2000) ?? 'You cannot get there.')
         return false
     }

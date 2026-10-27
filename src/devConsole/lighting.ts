@@ -17,13 +17,19 @@ import { hexDistance, hexInDirection, hexInDirectionDistance } from '../geometry
 import globalState from '../globalState.js'
 import { Lightmap } from '../lightmap.js'
 import { dbg } from '../logger.js'
-import { WebGLRenderer, setLightSourceOverlayActive, setLightOverlayMode, setLightOverlayRadiusScale, LightOverlayMode } from '../webglrenderer.js'
+import {
+    WebGLRenderer,
+    setLightSourceOverlayActive,
+    setLightOverlayMode,
+    setLightOverlayRadiusScale,
+    LightOverlayMode,
+} from '../webglrenderer.js'
 
 // DH2 console commands (no CE equivalent): lighting modes and lighting diagnostics.
 // Moved out of main.ts (window.onload). See wiki/lighting.md and wiki/alignment.md.
 
 export function registerLightingCommands(): void {
-    (window as any).setLightingMode = (mode: 'gpu' | 'cpu') => {
+    ;(window as any).setLightingMode = (mode: 'gpu' | 'cpu') => {
         Config.engine.floorLightingMode = mode
         ;(globalState.renderer as WebGLRenderer).setLightingMode(mode)
         dbg('map', '[Lighting] switched to:', mode)
@@ -73,12 +79,18 @@ export function registerLightingCommands(): void {
     ;(window as any).setObjectLightingMode = (mode: string) => {
         const valid = ['tile-y', 'foot-y', 'off', 'flat', 'foot-smooth', 'tile-smooth', 'wall-clamp']
         if (!valid.includes(mode)) {
-            console.log("Usage: setObjectLightingMode('foot-y'|'tile-y'|'wall-clamp'|'flat'|'foot-smooth'|'tile-smooth'|'off')")
+            console.log(
+                "Usage: setObjectLightingMode('foot-y'|'tile-y'|'wall-clamp'|'flat'|'foot-smooth'|'tile-smooth'|'off')",
+            )
             return
         }
         Config.engine.objectLightingMode = mode as any
-        console.log(`[Lighting] object lighting mode="${mode}"` +
-            (mode.endsWith('-smooth') ? ` (blur ${Config.engine.objectLightSmoothPx}px — setObjectLightSmooth(px) to tune)` : ''))
+        console.log(
+            `[Lighting] object lighting mode="${mode}"` +
+                (mode.endsWith('-smooth')
+                    ? ` (blur ${Config.engine.objectLightSmoothPx}px — setObjectLightSmooth(px) to tune)`
+                    : ''),
+        )
     }
 
     // setObjectLightSmooth(px) — blur kernel radius (world px) for the '*-smooth'
@@ -90,8 +102,12 @@ export function registerLightingCommands(): void {
             return
         }
         Config.engine.objectLightSmoothPx = px
-        console.log(`[Lighting] object light smooth kernel = ${px}px` +
-            (Config.engine.objectLightingMode.endsWith('-smooth') ? '' : " (set mode to 'foot-smooth' or 'tile-smooth' to see it)"))
+        console.log(
+            `[Lighting] object light smooth kernel = ${px}px` +
+                (Config.engine.objectLightingMode.endsWith('-smooth')
+                    ? ''
+                    : " (set mode to 'foot-smooth' or 'tile-smooth' to see it)"),
+        )
     }
 
     // Wall top-edge fade depth (in art texels): a wall's lit contribution fades to
@@ -105,17 +121,26 @@ export function registerLightingCommands(): void {
     //   setWallTopFade(px)      — set BOTH at once (0 disables)
     const _validFade = (px: number) => typeof px === 'number' && isFinite(px) && px >= 0
     ;(window as any).setWallTopFadeEW = (px: number) => {
-        if (!_validFade(px)) { console.log('Usage: setWallTopFadeEW(px)  — art texels; 0 to disable'); return }
+        if (!_validFade(px)) {
+            console.log('Usage: setWallTopFadeEW(px)  — art texels; 0 to disable')
+            return
+        }
         Config.engine.wallTopFadePx = px
         console.log(`[Lighting] wall top-edge fade (E-W) = ${px} texels${px === 0 ? ' (disabled)' : ''}`)
     }
     ;(window as any).setWallTopFadeNWSE = (px: number) => {
-        if (!_validFade(px)) { console.log('Usage: setWallTopFadeNWSE(px)  — art texels; 0 to disable'); return }
+        if (!_validFade(px)) {
+            console.log('Usage: setWallTopFadeNWSE(px)  — art texels; 0 to disable')
+            return
+        }
         Config.engine.wallTopFadePxNWSE = px
         console.log(`[Lighting] wall top-edge fade (NW-SE) = ${px} texels${px === 0 ? ' (disabled)' : ''}`)
     }
     ;(window as any).setWallTopFade = (px: number) => {
-        if (!_validFade(px)) { console.log('Usage: setWallTopFade(px)  — sets both E-W and NW-SE; 0 to disable'); return }
+        if (!_validFade(px)) {
+            console.log('Usage: setWallTopFade(px)  — sets both E-W and NW-SE; 0 to disable')
+            return
+        }
         Config.engine.wallTopFadePx = px
         Config.engine.wallTopFadePxNWSE = px
         console.log(`[Lighting] wall top-edge fade (both) = ${px} texels${px === 0 ? ' (disabled)' : ''}`)
@@ -137,9 +162,12 @@ export function registerLightingCommands(): void {
             return
         }
         Config.engine.playerLightSmooth = mode as any
-        console.log(`[Lighting] player light smoothing = '${mode}'` +
-            (mode !== 'ce' && Config.engine.lightPropagationMode !== 'dh2'
-                ? " (note: only active in 'dh2' propagation mode)" : ''))
+        console.log(
+            `[Lighting] player light smoothing = '${mode}'` +
+                (mode !== 'ce' && Config.engine.lightPropagationMode !== 'dh2'
+                    ? " (note: only active in 'dh2' propagation mode)"
+                    : ''),
+        )
     }
 
     // showLightSources(true/false) — persistent, camera-aware debug overlay
@@ -187,9 +215,12 @@ export function registerLightingCommands(): void {
     //   setPlayerLight(0, 0)    — no personal light
     ;(window as any).setPlayerLight = (radius: number, intensity: number) => {
         const player = globalState.player
-        if (!player) { console.log('[setPlayerLight] no player'); return }
+        if (!player) {
+            console.log('[setPlayerLight] no player')
+            return
+        }
         player.lightRadius = Math.max(0, Math.round(radius))
-        player.lightIntensity = Math.round(Math.max(0, Math.min(100, intensity)) * 65536 / 100)
+        player.lightIntensity = Math.round((Math.max(0, Math.min(100, intensity)) * 65536) / 100)
         Lightmap.rebuildLight()
         console.log(`[setPlayerLight] radius=${player.lightRadius} intensity=${player.lightIntensity} (${intensity}%)`)
     }
@@ -215,9 +246,7 @@ export function registerLightingCommands(): void {
             console.log('[setLightingBilinear] renderer not ready')
             return
         }
-        const resolved = (mode === true || mode === 'on') ? 'linear'
-            : (mode === false || mode === 'off') ? 'off'
-            : mode
+        const resolved = mode === true || mode === 'on' ? 'linear' : mode === false || mode === 'off' ? 'off' : mode
         const valid = ['off', 'linear', 'column-center', 'hex-lerp', 'bicubic']
         if (typeof resolved !== 'string' || !valid.includes(resolved)) {
             console.log("Usage: setLightingBilinear('off'|'linear'|'column-center'|'hex-lerp'|'bicubic')")
@@ -238,8 +267,13 @@ export function registerLightingCommands(): void {
     // Example: tile pos=21718 (18,108) dh2=43210 derived=39850 naive=51200 (DIFF)
     ;(window as any).lightingDebug = (radius: number = 10) => {
         const player = globalState.player
-        if (!player) { console.log('[LightingDebug] no player'); return }
-        console.log(`[LightingDebug] comparing 'dh2' vs 'derived' vs 'naive' within ${radius} hexes of player (live mode=${Config.engine.lightPropagationMode})`)
+        if (!player) {
+            console.log('[LightingDebug] no player')
+            return
+        }
+        console.log(
+            `[LightingDebug] comparing 'dh2' vs 'derived' vs 'naive' within ${radius} hexes of player (live mode=${Config.engine.lightPropagationMode})`,
+        )
         const { dh2, derived, naive } = Lightmap.compareLightingModes()
         let diffCount = 0
         let sameCount = 0
@@ -253,7 +287,9 @@ export function registerLightingCommands(): void {
                 const c = naive[tileNum]
                 if (a !== b || a !== c) {
                     diffCount++
-                    console.log(`[LightingDebug] tile pos=${tileNum} (${x},${y}) dh2=${a} derived=${b} naive=${c} (DIFF)`)
+                    console.log(
+                        `[LightingDebug] tile pos=${tileNum} (${x},${y}) dh2=${a} derived=${b} naive=${c} (DIFF)`,
+                    )
                 } else {
                     sameCount++
                 }
@@ -273,10 +309,13 @@ export function registerLightingCommands(): void {
     // Natural indentation from leading null columns: rows 0,4 → 12-char, rows 1,3 → 6-char.
     ;(window as any).lightingPlayerDebug = (rings: number = 2, output: string = 'full') => {
         const player = globalState.player
-        if (!player) { console.log('[LightingPlayerDebug] no player'); return }
+        if (!player) {
+            console.log('[LightingPlayerDebug] no player')
+            return
+        }
 
         const showList = output !== 'hex'
-        const showHex  = output !== 'list'
+        const showHex = output !== 'list'
 
         const pos = player.position
         const propMode = Config.engine.lightPropagationMode
@@ -284,7 +323,7 @@ export function registerLightingCommands(): void {
         const toTile = (p: { x: number; y: number }): number => p.y * 200 + p.x
         const tileVal = (p: { x: number; y: number }): number => {
             const t = toTile(p)
-            return (t >= 0 && t < 40000) ? Lightmap.tile_intensity[t] : 0
+            return t >= 0 && t < 40000 ? Lightmap.tile_intensity[t] : 0
         }
 
         // CE Rotation enum: 0=NE,1=E,2=SE,3=SW,4=W,5=NW
@@ -295,11 +334,14 @@ export function registerLightingCommands(): void {
         const diffStr = (p: { x: number; y: number }): string => {
             const t = toTile(p)
             if (t < 0 || t >= 40000) return ''
-            const a = dh2[t], b = derived[t], c = naive[t]
-            return (a !== b || a !== c) ? `  ← DIFF dh2=${a} derived=${b} naive=${c}` : ''
+            const a = dh2[t],
+                b = derived[t],
+                c = naive[t]
+            return a !== b || a !== c ? `  ← DIFF dh2=${a} derived=${b} naive=${c}` : ''
         }
 
-        const px = pos.x, py = pos.y
+        const px = pos.x,
+            py = pos.y
         console.log(`[LightingPlayerDebug] Player @ (${px},${py}) | mode=${propMode} | output=${output}`)
         console.log(`  player tile (${px},${py}): ${tileVal(pos)}${diffStr(pos)}`)
 
@@ -308,28 +350,29 @@ export function registerLightingCommands(): void {
         if (showList) {
             console.log('\n  Ring 1 (CE dir order 0–5):')
             n1.forEach(({ name, p }) =>
-                console.log(`    ${name.padEnd(3)}: (${p.x},${p.y}) = ${tileVal(p)}${diffStr(p)}`)
+                console.log(`    ${name.padEnd(3)}: (${p.x},${p.y}) = ${tileVal(p)}${diffStr(p)}`),
             )
         }
 
         // ── Ring 2: 6 corner (dir×2) + 6 edge (between adjacent dirs) ───────────────
         type TP = { name: string; p: { x: number; y: number } }
-        const n2corners: TP[] = rings >= 2
-            ? DIR.map((name, dir) => ({ name: name + '×2', p: hexInDirectionDistance(pos, dir, 2) }))
-            : []
+        const n2corners: TP[] =
+            rings >= 2 ? DIR.map((name, dir) => ({ name: name + '×2', p: hexInDirectionDistance(pos, dir, 2) })) : []
         const EDGE_LABELS = ['NE+E', 'E+SE', 'SE+SW', 'SW+W', 'W+NW', 'NW+NE']
-        const n2edges: TP[] = rings >= 2
-            ? EDGE_LABELS.map((name, i) => ({
-                name,
-                // From the ring-1 tile in direction i, take one more step in direction (i+1)%6.
-                p: hexInDirection(hexInDirection(pos, i), (i + 1) % 6),
-            }))
-            : []
+        const n2edges: TP[] =
+            rings >= 2
+                ? EDGE_LABELS.map((name, i) => ({
+                      name,
+                      // From the ring-1 tile in direction i, take one more step in direction (i+1)%6.
+                      p: hexInDirection(hexInDirection(pos, i), (i + 1) % 6),
+                  }))
+                : []
 
         if (rings >= 2 && showList) {
             console.log('\n  Ring 2:')
             for (let i = 0; i < 6; i++) {
-                const c = n2corners[i], e = n2edges[i]
+                const c = n2corners[i],
+                    e = n2edges[i]
                 console.log(`    ${c.name.padEnd(6)}: (${c.p.x},${c.p.y}) = ${tileVal(c.p)}${diffStr(c.p)}`)
                 console.log(`    ${e.name.padEnd(6)}: (${e.p.x},${e.p.y}) = ${tileVal(e.p)}${diffStr(e.p)}`)
             }
@@ -340,40 +383,63 @@ export function registerLightingCommands(): void {
         // ── ASCII hex grid ────────────────────────────────────────────────────────────
         // 9 columns × 5 rows. col = screenX/16+4, row = screenY/12+2.
         // Leading null columns produce natural indentation (12 chars for rows 0/4, 6 for rows 1/3).
-        const CELL = 6  // chars per cell (fits 5-digit intensity + 1 sep)
-        const GW = 9, GH = 5
+        const CELL = 6 // chars per cell (fits 5-digit intensity + 1 sep)
+        const GW = 9,
+            GH = 5
         const g: (string | null)[][] = Array.from({ length: GH }, () => Array(GW).fill(null))
 
         const place = (sx: number, sy: number, val: string) => {
-            const c = sx / 16 + 4, r = sy / 12 + 2
+            const c = sx / 16 + 4,
+                r = sy / 12 + 2
             if (r >= 0 && r < GH && c >= 0 && c < GW) g[r][c] = val
         }
 
         // Player
         place(0, 0, '@')
         // Ring-1: screen offsets from CE tile.cc _off_tile / dword_51D984
-        const R1S = [[16,-12],[32,0],[16,12],[-16,12],[-32,0],[-16,-12]] as const
+        const R1S = [
+            [16, -12],
+            [32, 0],
+            [16, 12],
+            [-16, 12],
+            [-32, 0],
+            [-16, -12],
+        ] as const
         n1.forEach(({ p }, i) => place(R1S[i][0], R1S[i][1], String(tileVal(p))))
         if (rings >= 2) {
             // Ring-2 corners (2× each direction)
-            const R2CS = [[32,-24],[64,0],[32,24],[-32,24],[-64,0],[-32,-24]] as const
+            const R2CS = [
+                [32, -24],
+                [64, 0],
+                [32, 24],
+                [-32, 24],
+                [-64, 0],
+                [-32, -24],
+            ] as const
             n2corners.forEach(({ p }, i) => place(R2CS[i][0], R2CS[i][1], String(tileVal(p))))
             // Ring-2 edges (between adjacent directions)
-            const R2ES = [[48,-12],[48,12],[0,24],[-48,12],[-48,-12],[0,-24]] as const
+            const R2ES = [
+                [48, -12],
+                [48, 12],
+                [0, 24],
+                [-48, 12],
+                [-48, -12],
+                [0, -24],
+            ] as const
             n2edges.forEach(({ p }, i) => place(R2ES[i][0], R2ES[i][1], String(tileVal(p))))
         }
 
         const ringLabel = rings >= 2 ? '2 rings' : '1 ring'
         console.log(`\n  Hex grid (${ringLabel}, offsets = CE _off_tile/dword_51D984):`)
         for (let r = 0; r < GH; r++) {
-            if (!g[r].some(x => x !== null)) continue
+            if (!g[r].some((x) => x !== null)) continue
             let line = ''
             for (let c = 0; c < GW; c++) {
                 const cell = g[r][c]
                 if (cell !== null) {
                     line += cell.padStart(CELL)
-                } else if (g[r].slice(c + 1).some(x => x !== null)) {
-                    line += ' '.repeat(CELL)  // spacer between occupied cells in same row
+                } else if (g[r].slice(c + 1).some((x) => x !== null)) {
+                    line += ' '.repeat(CELL) // spacer between occupied cells in same row
                 }
             }
             console.log('  ' + line)

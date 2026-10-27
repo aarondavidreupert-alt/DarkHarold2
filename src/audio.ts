@@ -44,7 +44,12 @@ export interface AudioEngine {
     hasSfx(stem: string): boolean
     playMusic(music: string): void
     playSound(soundName: string): HTMLAudioElement | null
-    playWeaponSfx(soundId: string, type: 'attack' | 'attack_burst' | 'impact' | 'reload' | 'empty', material?: ImpactMaterial, source?: Obj | null): void
+    playWeaponSfx(
+        soundId: string,
+        type: 'attack' | 'attack_burst' | 'impact' | 'reload' | 'empty',
+        material?: ImpactMaterial,
+        source?: Obj | null,
+    ): void
     stopMusic(): void
     pauseMusic(): void
     resumeMusic(): void
@@ -56,12 +61,18 @@ export interface AudioEngine {
 export class NullAudioEngine implements AudioEngine {
     playSfx(sfx: string): void {}
     playSfxByName(stem: string): void {}
-    hasSfx(stem: string): boolean { return false }
+    hasSfx(stem: string): boolean {
+        return false
+    }
     playMusic(music: string): void {}
     playSound(soundName: string): HTMLAudioElement | null {
         return null
     }
-    playWeaponSfx(soundId: string, type: 'attack' | 'attack_burst' | 'impact' | 'reload' | 'empty', material?: ImpactMaterial): void {}
+    playWeaponSfx(
+        soundId: string,
+        type: 'attack' | 'attack_burst' | 'impact' | 'reload' | 'empty',
+        material?: ImpactMaterial,
+    ): void {}
     stopMusic(): void {}
     pauseMusic(): void {}
     resumeMusic(): void {}
@@ -169,7 +180,11 @@ export class HTMLAudioEngine implements AudioEngine {
         // resume() here ensures source.start() doesn't fire into a suspended
         // context (which would silently drop the sound).
         if (ctx.state === 'suspended') {
-            try { await ctx.resume() } catch { /* will retry on next play */ }
+            try {
+                await ctx.resume()
+            } catch {
+                /* will retry on next play */
+            }
         }
         const node = ctx.createBufferSource()
         node.buffer = buf
@@ -193,10 +208,12 @@ export class HTMLAudioEngine implements AudioEngine {
     playSfx(sfx: string, source: Obj | null = null): void {
         if (!Config.engine.soundsEnabled) return // [sound] sounds=0
         // Fire-and-forget; errors are logged inside loadSfx / playBuffer.
-        this.loadSfx(sfx).then(buf => {
-            if (buf) return this.playBuffer(sfx, buf, source)
-            return undefined
-        }).catch(e => dbgWarn('audio', '[Audio] playSfx failed:', sfx, e))
+        this.loadSfx(sfx)
+            .then((buf) => {
+                if (buf) return this.playBuffer(sfx, buf, source)
+                return undefined
+            })
+            .catch((e) => dbgWarn('audio', '[Audio] playSfx failed:', sfx, e))
     }
 
     playMusic(music: string): void {
@@ -204,7 +221,10 @@ export class HTMLAudioEngine implements AudioEngine {
         this.lastMusic = music
         if (!Config.engine.soundsEnabled || !Config.engine.musicEnabled) return // [sound] sounds=0 / music=0
         // CE backgroundSoundSetVolume: a zero music or master volume disables the music
-        if (this.musicVolume === 0 || this.masterVolume === 0) { this.musicOffByVolume = true; return }
+        if (this.musicVolume === 0 || this.masterVolume === 0) {
+            this.musicOffByVolume = true
+            return
+        }
         this.musicAudio = this.playSound('music/' + music)
         if (this.musicAudio) {
             this.musicAudio.loop = true
@@ -228,31 +248,39 @@ export class HTMLAudioEngine implements AudioEngine {
     resumeMusic(): void {
         const el = this.pausedMusic
         this.pausedMusic = null
-        if (el && el === this.musicAudio) el.play().catch(e => dbg('audio', '[Audio] play() blocked:', e))
+        if (el && el === this.musicAudio) el.play().catch((e) => dbg('audio', '[Audio] play() blocked:', e))
     }
 
     playSound(soundName: string): HTMLAudioElement | null {
         const sound = new Audio()
-        sound.addEventListener('canplaythrough', () => {
-            dbg('audio', '[Sound]', soundName)
-            if (audioUnlocked()) {
-                sound.play().catch(e => dbg('audio', '[Audio] play() blocked:', e))
-                return
-            }
-            // Music before the first user gesture: start it on that gesture.
-            if (!sound.loop) return
-            const start = () => {
-                window.removeEventListener('pointerdown', start, true)
-                window.removeEventListener('keydown', start, true)
-                if (this.musicAudio === sound) sound.play().catch(e => dbg('audio', '[Audio] play() blocked:', e))
-            }
-            window.addEventListener('pointerdown', start, true)
-            window.addEventListener('keydown', start, true)
-        }, false)
-        sound.addEventListener('error', () => {
-            // File missing (404) or unsupported format — fail silently to avoid console spam
-            dbgWarn('audio', '[Audio] could not load:', soundName)
-        }, false)
+        sound.addEventListener(
+            'canplaythrough',
+            () => {
+                dbg('audio', '[Sound]', soundName)
+                if (audioUnlocked()) {
+                    sound.play().catch((e) => dbg('audio', '[Audio] play() blocked:', e))
+                    return
+                }
+                // Music before the first user gesture: start it on that gesture.
+                if (!sound.loop) return
+                const start = () => {
+                    window.removeEventListener('pointerdown', start, true)
+                    window.removeEventListener('keydown', start, true)
+                    if (this.musicAudio === sound) sound.play().catch((e) => dbg('audio', '[Audio] play() blocked:', e))
+                }
+                window.addEventListener('pointerdown', start, true)
+                window.addEventListener('keydown', start, true)
+            },
+            false,
+        )
+        sound.addEventListener(
+            'error',
+            () => {
+                // File missing (404) or unsupported format — fail silently to avoid console spam
+                dbgWarn('audio', '[Audio] could not load:', soundName)
+            },
+            false,
+        )
         sound.src = assetUrl('audio/' + soundName + '.wav' + AUDIO_ASSET_QUERY)
         return sound
     }
@@ -276,7 +304,12 @@ export class HTMLAudioEngine implements AudioEngine {
         this.playSfx(stem, source)
     }
 
-    playWeaponSfx(soundId: string, type: 'attack' | 'attack_burst' | 'impact' | 'reload' | 'empty', material: ImpactMaterial = 'flesh', source: Obj | null = null): void {
+    playWeaponSfx(
+        soundId: string,
+        type: 'attack' | 'attack_burst' | 'impact' | 'reload' | 'empty',
+        material: ImpactMaterial = 'flesh',
+        source: Obj | null = null,
+    ): void {
         if (!soundId) return
         const sounds = getWeaponSounds(soundId, material)
         const file = sounds[type]
@@ -286,13 +319,15 @@ export class HTMLAudioEngine implements AudioEngine {
         // without a dedicated wa<id>2xxx1 burst sample.  Rather than log a
         // 404, fall back to the single-shot attack sound.
         if (type === 'attack_burst') {
-            this.loadSfx(file).then(buf => {
-                if (buf) return this.playBuffer(file, buf, source)
-                return this.loadSfx(sounds.attack).then(fb => {
-                    if (fb) return this.playBuffer(sounds.attack, fb, source)
-                    return undefined
+            this.loadSfx(file)
+                .then((buf) => {
+                    if (buf) return this.playBuffer(file, buf, source)
+                    return this.loadSfx(sounds.attack).then((fb) => {
+                        if (fb) return this.playBuffer(sounds.attack, fb, source)
+                        return undefined
+                    })
                 })
-            }).catch(e => dbgWarn('audio', '[Audio] playWeaponSfx burst failed:', file, e))
+                .catch((e) => dbgWarn('audio', '[Audio] playWeaponSfx burst failed:', file, e))
             return
         }
 
@@ -330,7 +365,10 @@ export class HTMLAudioEngine implements AudioEngine {
             // CE gameSoundSetMasterVolume / backgroundSoundSetVolume: at 0 the music stops
             // (backgroundSoundDisable); raised again, the track starts over
             if (this.musicVolume === 0 || this.masterVolume === 0) {
-                if (this.musicAudio) { this.stopMusic(); this.musicOffByVolume = true }
+                if (this.musicAudio) {
+                    this.stopMusic()
+                    this.musicOffByVolume = true
+                }
             } else if (this.musicOffByVolume) {
                 this.musicOffByVolume = false
                 if (this.lastMusic) this.playMusic(this.lastMusic)

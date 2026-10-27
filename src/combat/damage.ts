@@ -24,15 +24,15 @@ import { Config } from '../config.js'
 
 /** One round of a damage roll, fed to the active ruleset. */
 export interface DamageCalculationContext {
-    RD: number        // the weapon's raw damage roll (weaponGetDamage)
-    bonus: number     // flat damage bonus (Bonus Ranged Damage)
-    critMult: number  // CE bonusDamageMultiplier: 2 for a normal hit, more for a critical
-    ammoX: number     // ammo damage multiplier
-    ammoY: number     // ammo damage divisor
-    ammoRM: number    // ammo DR modifier (each ruleset uses it its own way)
-    DT: number        // damage threshold after bypass / penetrate
-    DR: number        // damage resistance after bypass / Finesse, without the ammo modifier
-    CD: number        // combat difficulty damage modifier (75 / 100 / 125; 100 for the dude's team)
+    RD: number // the weapon's raw damage roll (weaponGetDamage)
+    bonus: number // flat damage bonus (Bonus Ranged Damage)
+    critMult: number // CE bonusDamageMultiplier: 2 for a normal hit, more for a critical
+    ammoX: number // ammo damage multiplier
+    ammoY: number // ammo damage divisor
+    ammoRM: number // ammo DR modifier (each ruleset uses it its own way)
+    DT: number // damage threshold after bypass / penetrate
+    DR: number // damage resistance after bypass / Finesse, without the ammo modifier
+    CD: number // combat difficulty damage modifier (75 / 100 / 125; 100 for the dude's team)
 }
 
 /** CE damageModGlovzDivRound: integer division rounding half to even. */
@@ -54,9 +54,9 @@ export function computeDamageVanilla(ctx: DamageCalculationContext): number {
     d *= ctx.critMult * ctx.ammoX
     if (ctx.ammoY !== 0) d = Math.trunc(d / ctx.ammoY)
     d = Math.trunc(d / 2)
-    d = Math.trunc(d * ctx.CD / 100)
+    d = Math.trunc((d * ctx.CD) / 100)
     d -= ctx.DT
-    if (d > 0) d -= Math.trunc(d * DR / 100)
+    if (d > 0) d -= Math.trunc((d * DR) / 100)
     return d > 0 ? d : 0
 }
 
@@ -93,7 +93,7 @@ export function computeDamageGlovz(ctx: DamageCalculationContext, tweak = false)
         else if (ammoY > 1) d += glovzDivRound(d * 10, 100)
     }
     if (tweak) d += glovzDivRound(d * ctx.critMult * 25, 100)
-    else d += Math.trunc(d * ctx.critMult / 2)
+    else d += Math.trunc((d * ctx.critMult) / 2)
     return d > 0 ? d : 0
 }
 
@@ -105,7 +105,10 @@ export function computeDamageYaam(ctx: DamageCalculationContext): number {
     let calcDT = ctx.DT - ctx.ammoRM
     let extraDR = calcDT
     if (calcDT >= 0) extraDR = 0
-    else { calcDT = 0; extraDR *= 10 }
+    else {
+        calcDT = 0
+        extraDR *= 10
+    }
     let calcDR = ctx.DR + extraDR
     if (calcDR < 0) calcDR = 0
     else if (calcDR >= 100) return 0
@@ -114,17 +117,21 @@ export function computeDamageYaam(ctx: DamageCalculationContext): number {
     d *= ctx.critMult * ctx.ammoX
     if (ctx.ammoY !== 0) d = Math.trunc(d / ctx.ammoY)
     d = Math.trunc(d / 2)
-    d = Math.trunc(d * ctx.CD / 100)
-    d -= Math.trunc(d * calcDR / 100)
+    d = Math.trunc((d * ctx.CD) / 100)
+    d -= Math.trunc((d * calcDR) / 100)
     return d > 0 ? d : 0
 }
 
 /** Dispatch to the configured damage ruleset (Config.combat.damageCalculationType). */
 export function computeDamage(ctx: DamageCalculationContext): number {
     switch (Config.combat.damageCalculationType) {
-        case 1: return computeDamageGlovz(ctx)
-        case 2: return computeDamageGlovz(ctx, true)
-        case 5: return computeDamageYaam(ctx)
-        default: return computeDamageVanilla(ctx)
+        case 1:
+            return computeDamageGlovz(ctx)
+        case 2:
+            return computeDamageGlovz(ctx, true)
+        case 5:
+            return computeDamageYaam(ctx)
+        default:
+            return computeDamageVanilla(ctx)
     }
 }

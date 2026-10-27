@@ -50,12 +50,12 @@ const enum MainMenuButton {
 }
 
 const BUTTON_DEFS: { label: string; key: string }[] = [
-    { label: 'INTRO',     key: 'i' },
-    { label: 'NEW GAME',  key: 'n' },
+    { label: 'INTRO', key: 'i' },
+    { label: 'NEW GAME', key: 'n' },
     { label: 'LOAD GAME', key: 'l' },
-    { label: 'OPTIONS',   key: 'o' },
-    { label: 'CREDITS',   key: 'c' },
-    { label: 'EXIT',      key: 'e' },
+    { label: 'OPTIONS', key: 'o' },
+    { label: 'CREDITS', key: 'c' },
+    { label: 'EXIT', key: 'e' },
 ]
 
 // Pixel offset of the 640×480 menu frame inside the viewport-filling overlay.
@@ -102,7 +102,7 @@ export function initMainMenu(newGameCb: () => void): void {
     // Build 6 buttons.
     for (let i = 0; i < BUTTON_DEFS.length; i++) {
         const { label } = BUTTON_DEFS[i]
-        const y = 19 + i * 41  // matches mainmenu.cc: 19 + index * 42 - index
+        const y = 19 + i * 41 // matches mainmenu.cc: 19 + index * 42 - index
 
         // Circular FRM indicator (26×26 hit area).
         const btn = document.createElement('div')
@@ -129,7 +129,10 @@ export function initMainMenu(newGameCb: () => void): void {
         btn.onmouseleave = () => {
             btn.style.backgroundImage = "url('" + assetUrl('art/intrface/menuup.png') + "')"
         }
-        btn.onclick = () => { menuSound('nmselec1'); handleButton(idx as MainMenuButton) }
+        btn.onclick = () => {
+            menuSound('nmselec1')
+            handleButton(idx as MainMenuButton)
+        }
         frameElem.appendChild(btn)
 
         // CE mainmenu.cc: misc.msg 9 + index in font 104, centred on x 126 at y + 1
@@ -159,7 +162,12 @@ export function initMainMenu(newGameCb: () => void): void {
     const footerRight = document.createElement('div')
     Object.assign(footerRight.style, { position: 'absolute', right: '25px', top: '460px', pointerEvents: 'none' })
     font0.onLoad(() => {
-        footerLeft.appendChild(font0.renderText(getMessage('misc', 20) ?? 'Copyright(c) 1998 Interplay Productions.  All rights reserved.', MENU_TEXT))
+        footerLeft.appendChild(
+            font0.renderText(
+                getMessage('misc', 20) ?? 'Copyright(c) 1998 Interplay Productions.  All rights reserved.',
+                MENU_TEXT,
+            ),
+        )
         footerRight.appendChild(font0.renderText('FALLOUT II 1.02', MENU_TEXT))
     })
     frameElem.appendChild(footerLeft)
@@ -172,25 +180,55 @@ export function initMainMenu(newGameCb: () => void): void {
 }
 
 let shiftHeld = false
-document.addEventListener('keydown', (e) => { if (e.key === 'Shift') shiftHeld = true })
-document.addEventListener('keyup', (e) => { if (e.key === 'Shift') shiftHeld = false })
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Shift') shiftHeld = true
+})
+document.addEventListener('keyup', (e) => {
+    if (e.key === 'Shift') shiftHeld = false
+})
 
 function handleKey(e: KeyboardEvent): void {
     if (!overlayElem || overlayElem.style.display === 'none') return
 
     // CE mainmenu.cc: + / - change the brightness; a button key sounds nmselec1
-    if (e.key === '+' || e.key === '=') { changeBrightness(1); e.preventDefault(); return }
-    if (e.key === '-' || e.key === '_') { changeBrightness(-1); e.preventDefault(); return }
+    if (e.key === '+' || e.key === '=') {
+        changeBrightness(1)
+        e.preventDefault()
+        return
+    }
+    if (e.key === '-' || e.key === '_') {
+        changeBrightness(-1)
+        e.preventDefault()
+        return
+    }
     if (['i', 'n', 'l', 'o', 'c', 'e', 'escape'].includes(e.key.toLowerCase())) menuSound('nmselec1')
 
     switch (e.key.toLowerCase()) {
-        case 'i':      handleButton(MainMenuButton.INTRO);     e.preventDefault(); break
-        case 'n':      handleButton(MainMenuButton.NEW_GAME);  e.preventDefault(); break
-        case 'l':      handleButton(MainMenuButton.LOAD_GAME); e.preventDefault(); break
-        case 'o':      handleButton(MainMenuButton.OPTIONS);   e.preventDefault(); break
-        case 'c':      handleButton(MainMenuButton.CREDITS);   e.preventDefault(); break
+        case 'i':
+            handleButton(MainMenuButton.INTRO)
+            e.preventDefault()
+            break
+        case 'n':
+            handleButton(MainMenuButton.NEW_GAME)
+            e.preventDefault()
+            break
+        case 'l':
+            handleButton(MainMenuButton.LOAD_GAME)
+            e.preventDefault()
+            break
+        case 'o':
+            handleButton(MainMenuButton.OPTIONS)
+            e.preventDefault()
+            break
+        case 'c':
+            handleButton(MainMenuButton.CREDITS)
+            e.preventDefault()
+            break
         case 'e':
-        case 'escape': handleButton(MainMenuButton.EXIT);      e.preventDefault(); break
+        case 'escape':
+            handleButton(MainMenuButton.EXIT)
+            e.preventDefault()
+            break
     }
 }
 

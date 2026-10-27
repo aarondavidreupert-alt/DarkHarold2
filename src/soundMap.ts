@@ -24,34 +24,34 @@
 /** Reference list of known weapon sound-ID characters.  Purely documentary —
  *  the mapping from id→filename is mechanical (see getWeaponSounds).  */
 export const WEAPON_SOUND_IDS: Record<string, string> = {
-    'A': '10mm_pistol',
-    'B': '14mm_pistol',
-    'C': 'desert_eagle',
-    'D': 'flamer',
-    'E': 'rocket_launcher',
-    'F': 'minigun',
-    'G': 'gatling_laser',
-    'H': 'plasma_pistol',
-    'I': 'laser_pistol',
-    'J': 'smg_10mm',
-    'K': 'hunting_rifle',
-    'L': 'minigun_alt',
-    'M': 'combat_shotgun',
-    'N': 'sniper_rifle',
-    'O': 'assault_rifle',
-    'P': 'plasma_rifle',
-    'Q': 'laser_rifle',
-    'R': 'bozar',
-    'S': 'super_sledge',
-    'T': 'spear',
-    'U': 'knife',
-    'V': 'crowbar',
-    'W': 'sledgehammer',
-    'X': 'cattle_prod',
-    'Y': 'unarmed',
-    'Z': 'throwing_knife',
+    A: '10mm_pistol',
+    B: '14mm_pistol',
+    C: 'desert_eagle',
+    D: 'flamer',
+    E: 'rocket_launcher',
+    F: 'minigun',
+    G: 'gatling_laser',
+    H: 'plasma_pistol',
+    I: 'laser_pistol',
+    J: 'smg_10mm',
+    K: 'hunting_rifle',
+    L: 'minigun_alt',
+    M: 'combat_shotgun',
+    N: 'sniper_rifle',
+    O: 'assault_rifle',
+    P: 'plasma_rifle',
+    Q: 'laser_rifle',
+    R: 'bozar',
+    S: 'super_sledge',
+    T: 'spear',
+    U: 'knife',
+    V: 'crowbar',
+    W: 'sledgehammer',
+    X: 'cattle_prod',
+    Y: 'unarmed',
+    Z: 'throwing_knife',
     '#': 'generic_placeholder',
-    '$': 'generic_placeholder_2',
+    $: 'generic_placeholder_2',
 }
 
 /** Material hit by a projectile — drives which impact sample plays. */
@@ -61,38 +61,38 @@ const MATERIAL_CODE: Record<ImpactMaterial, string> = {
     flesh: 'f',
     metal: 'm',
     stone: 's',
-    wood:  'w',
+    wood: 'w',
 }
 
 export const ACTION_SOUNDS: Record<string, string | string[]> = {
     // Doors (FO2 format: sodoors + action letter; 'o' = "not open"/try-locked)
-    'door_open':    'sodoorsa',
-    'door_close':   'sodoorsc',
-    'door_locked':  'sodoorsl',
-    'door_try':     'sodoorso',
+    door_open: 'sodoorsa',
+    door_close: 'sodoorsc',
+    door_locked: 'sodoorsl',
+    door_try: 'sodoorso',
 
     // Items
-    'item_pickup':  'ipickup1',
-    'item_drop':    'iputdown',
-    'item_use':     'icsxxxx1',
+    item_pickup: 'ipickup1',
+    item_drop: 'iputdown',
+    item_use: 'icsxxxx1',
 
     // Combat flow
-    'combat_start': 'icombat1',
-    'combat_end':   'icombat2',
+    combat_start: 'icombat1',
+    combat_end: 'icombat2',
 
     // Combat generic — 'wh#' is the placeholder weapon-sound used for generic impacts
-    'miss':         'whu1fxx1',   // unarmed flesh miss-hit (closest to a "swing-through" whoosh)
-    'hit_flesh':    'wh#1fxx1',   // generic flesh impact
-    'hit_metal':    'wh#1mxx1',   // generic metal impact
-    'critter_die':  ['hmxxxxba', 'hmxxxxbb', 'hmxxxxbd'], // human male death vocalizations
+    miss: 'whu1fxx1', // unarmed flesh miss-hit (closest to a "swing-through" whoosh)
+    hit_flesh: 'wh#1fxx1', // generic flesh impact
+    hit_metal: 'wh#1mxx1', // generic metal impact
+    critter_die: ['hmxxxxba', 'hmxxxxbb', 'hmxxxxbd'], // human male death vocalizations
 
     // UI
-    'ui_click':     'butin1',
-    'ui_open_inv':  'butin2',
-    'levelup':      'levelup',
+    ui_click: 'butin1',
+    ui_open_inv: 'butin2',
+    levelup: 'levelup',
 
     // Explosives
-    'explosion':    'explo1',
+    explosion: 'explo1',
 }
 
 export interface WeaponSounds {
@@ -113,12 +113,12 @@ export function getWeaponSounds(soundId: string, material: ImpactMaterial = 'fle
     const id = soundId.toLowerCase()
     const mat = MATERIAL_CODE[material]
     return {
-        attack:       `wa${id}1xxx1`,
-        attack_alt:   `wa${id}1xxx2`,
+        attack: `wa${id}1xxx1`,
+        attack_alt: `wa${id}1xxx2`,
         attack_burst: `wa${id}2xxx1`,
-        impact:       `wh${id}1${mat}xx1`,
-        reload:       `wr${id}1xxx1`,
-        empty:        `wo${id}1xxx1`,
+        impact: `wh${id}1${mat}xx1`,
+        reload: `wr${id}1xxx1`,
+        empty: `wo${id}1xxx1`,
     }
 }
 

@@ -30,7 +30,13 @@ import { Config } from '../config.js'
 import { dbg } from '../logger.js'
 import { Worldmap as WorldmapData, WorldmapPlayer } from './types.js'
 import { parseWorldmap } from './parser.js'
-import { cancelEncounter, EncounterRoll, resetEncounterTimer, rndEncounterOccurred, setupRandomEncounter } from './encounters.js'
+import {
+    cancelEncounter,
+    EncounterRoll,
+    resetEncounterTimer,
+    rndEncounterOccurred,
+    setupRandomEncounter,
+} from './encounters.js'
 import { drawHP } from '../ui_hud.js'
 import { assetUrl } from '../modAssets.js'
 
@@ -82,8 +88,9 @@ function loadWalkMask(name: string): Uint8Array | null {
 // authored against this exact layout. (Restored 2026-10-06; lost in b282cca.)
 export function worldPosInvalid(x: number, y: number): boolean {
     if (!worldmap) return false
-    const tileIdx = Math.floor(y / WM_TILE_HEIGHT) * WM_NUM_HORIZONTAL_TILES
-        + (Math.floor(x / WM_TILE_WIDTH) % WM_NUM_HORIZONTAL_TILES)
+    const tileIdx =
+        Math.floor(y / WM_TILE_HEIGHT) * WM_NUM_HORIZONTAL_TILES +
+        (Math.floor(x / WM_TILE_WIDTH) % WM_NUM_HORIZONTAL_TILES)
     const name = worldmap.walkMaskNames[tileIdx]
     if (!name) return false
     const mask = loadWalkMask(name)
@@ -116,8 +123,15 @@ let worldmapTimer: number = -1
 // CE wmGenData walking state — wmPartyInitWalking sets up a Bresenham line,
 // wmPartyWalkingStep advances it one pixel.
 const walk = {
-    isWalking: false, distance: 0, lineDelta: 0, mainAxisStep: 0, crossAxisStep: 0,
-    mainX: 0, mainY: 0, crossX: 0, crossY: 0,
+    isWalking: false,
+    distance: 0,
+    lineDelta: 0,
+    mainAxisStep: 0,
+    crossAxisStep: 0,
+    mainX: 0,
+    mainY: 0,
+    crossX: 0,
+    crossY: 0,
 }
 let terrainCounter = 1 // CE _terrainCounter
 // CE wmGenData.currentAreaId: the area the party is at (-1 out in the wastes) —
@@ -133,12 +147,12 @@ let _panY = 0
 // Keyboard/mouse-edge scroll state
 const _heldKeys = new Set<string>()
 let _mouseEdge = { left: false, right: false, top: false, bottom: false }
-const PAN_SPEED = 2   // px per frame for manual scroll
-const VIEW_W = 445    // #worldMapWorld viewport width  (CE WM_VIEW_WIDTH)
-const VIEW_H = 438    // #worldMapWorld viewport height (CE WM_VIEW_HEIGHT)
-const MAP_W = NUM_SQUARES_X * SQUARE_SIZE   // 1400
-const MAP_H = NUM_SQUARES_Y * SQUARE_SIZE   // 1500
-const EDGE_THRESHOLD = 20  // px from edge that triggers mouse-edge scroll
+const PAN_SPEED = 2 // px per frame for manual scroll
+const VIEW_W = 445 // #worldMapWorld viewport width  (CE WM_VIEW_WIDTH)
+const VIEW_H = 438 // #worldMapWorld viewport height (CE WM_VIEW_HEIGHT)
+const MAP_W = NUM_SQUARES_X * SQUARE_SIZE // 1400
+const MAP_H = NUM_SQUARES_Y * SQUARE_SIZE // 1500
+const EDGE_THRESHOLD = 20 // px from edge that triggers mouse-edge scroll
 
 // Console command giveCar([fuel]) (play.html#dev, src/devConsole) — test helper standing in for the quest
 // that hands over the Highwayman: sets GVAR_PLAYER_GOT_CAR (which the town map
@@ -150,7 +164,9 @@ export function giveCar(fuel: number = CAR_FUEL_MAX): void {
     setGlobalVarHook?.(GVAR_PLAYER_GOT_CAR, 1)
     const mapName = (globalState.gMap as any)?.name as string | undefined
     if (!globalState.mapAreas) {
-        try { globalState.mapAreas = loadAreas() } catch (_) {}
+        try {
+            globalState.mapAreas = loadAreas()
+        } catch (_) {}
     }
     const area = mapName && globalState.mapAreas ? areaContainingMap(mapName) : null
     if (area) {
@@ -174,7 +190,10 @@ const GVAR_NEW_RENO_SUPER_CAR = 456
 const CITY_CAR_OUT_OF_GAS = 21 // worldmap.h City enum
 let setGlobalVarHook: ((gvar: number, value: number) => void) | null = null
 let getGlobalVarHook: ((gvar: number) => number) | null = null
-export function setWorldmapGlobalVarHooks(get: (gvar: number) => number, set: (gvar: number, value: number) => void): void {
+export function setWorldmapGlobalVarHooks(
+    get: (gvar: number) => number,
+    set: (gvar: number, value: number) => void,
+): void {
     getGlobalVarHook = get
     setGlobalVarHook = set
 }
@@ -193,8 +212,8 @@ function carStepsPerTick(): number {
 // CE worldmap.cc wmCarUseGas — once per loop regardless of the step count; the
 // upgrades cut the cost (super car -90%, New Reno upgrade -10%, fuel cell regulator /2).
 function carUseGas(amount: number): void {
-    if (gvar(GVAR_NEW_RENO_SUPER_CAR) !== 0) amount -= Math.trunc(amount * 90 / 100)
-    if (gvar(GVAR_NEW_RENO_CAR_UPGRADE) !== 0) amount -= Math.trunc(amount * 10 / 100)
+    if (gvar(GVAR_NEW_RENO_SUPER_CAR) !== 0) amount -= Math.trunc((amount * 90) / 100)
+    if (gvar(GVAR_NEW_RENO_CAR_UPGRADE) !== 0) amount -= Math.trunc((amount * 10) / 100)
     if (gvar(GVAR_CAR_UPGRADE_FUEL_CELL_REGULATOR) !== 0) amount = Math.trunc(amount / 2)
     _carFuel = Math.max(0, _carFuel - amount)
     worldmapPlayer.carFuel = _carFuel
@@ -210,8 +229,8 @@ function applyPan(px: number, py: number): void {
 // wmdial.png: 1392×29 — frmpixels.py writes ALL frames horizontally with maxW stride.
 // wmdial.frm has 24 frames, each 58×29 (maxW=58). 24 × 58 = 1392px.
 // CE artGetFrameCount = 24.  Frame formula: (gameHour/100 + 12) % 24.
-const DIAL_FRAMES   = 24  // CE artGetFrameCount
-const DIAL_FRAME_W  = 58  // each frame is 58px wide in the PNG (frmpixels maxW)
+const DIAL_FRAMES = 24 // CE artGetFrameCount
+const DIAL_FRAME_W = 58 // each frame is 58px wide in the PNG (frmpixels maxW)
 
 function updateDial(): void {
     if (!$worldMapDial) return
@@ -229,8 +248,8 @@ function updateDial(): void {
 // numbers.png: 360×17, frames packed at 9px stride (same as pipboy shell.ts DIGIT_W=9).
 // Frames 0-9 = digits 0-9 (green). CE worldmap: offset = 9*digit in raw FRM data.
 // months.png: 29×179, 12 entries × 15px stride, 14px visible. Month N (0-indexed) → backgroundPositionY = -(N*15)px.
-const NUM_FRAME_W = 9    // matches pipboy DIGIT_W
-const MON_FRAME_H = 15   // row stride in months.png
+const NUM_FRAME_W = 9 // matches pipboy DIGIT_W
+const MON_FRAME_H = 15 // row stride in months.png
 
 function setDigit(id: string, digit: number): void {
     const el = document.getElementById(id)
@@ -245,8 +264,8 @@ function updateDate(): void {
     if (key === _lastDateKey) return
     _lastDateKey = key
 
-    setDigit('wmDay1',  Math.floor(d.day / 10))
-    setDigit('wmDay2',  d.day % 10)
+    setDigit('wmDay1', Math.floor(d.day / 10))
+    setDigit('wmDay2', d.day % 10)
 
     const monthEl = document.getElementById('wmMonth')
     if (monthEl) monthEl.style.backgroundPositionY = -(d.month * MON_FRAME_H) + 'px'
@@ -257,7 +276,8 @@ function updateDate(): void {
     setDigit('wmYear3', Math.floor(y / 10) % 10)
     setDigit('wmYear4', y % 10)
 
-    const h = d.hours, m = d.minutes
+    const h = d.hours,
+        m = d.minutes
     setDigit('wmTime1', Math.floor(h / 10))
     setDigit('wmTime2', h % 10)
     setDigit('wmTime3', Math.floor(m / 10))
@@ -275,12 +295,16 @@ export function getWorldmapPlayer(): WorldmapPlayer {
 // CE ref: worldmap.cc wmCarGiveToParty / wmCarUseGas / wmCarFillGas / wmCarIsOutOfGas.
 // The backing vars (_isInCar, _carFuel) survive worldmap open/close cycles;
 // worldmapPlayer shadows them while the worldmap is open.
-export function getIsInCar(): boolean { return _isInCar }
+export function getIsInCar(): boolean {
+    return _isInCar
+}
 export function setIsInCar(val: boolean): void {
     _isInCar = val
     if (worldmapPlayer) worldmapPlayer.isInCar = val
 }
-export function getCarFuel(): number { return _carFuel }
+export function getCarFuel(): number {
+    return _carFuel
+}
 export function setCarFuel(amount: number): void {
     _carFuel = Math.min(CAR_FUEL_MAX, Math.max(0, amount))
     if (worldmapPlayer) worldmapPlayer.carFuel = _carFuel
@@ -290,7 +314,10 @@ export function setCarFuel(amount: number): void {
 export function addCarFuel(amount: number): number {
     let result = 0
     if (amount + _carFuel <= CAR_FUEL_MAX) _carFuel += amount
-    else { result = CAR_FUEL_MAX - _carFuel; _carFuel = CAR_FUEL_MAX }
+    else {
+        result = CAR_FUEL_MAX - _carFuel
+        _carFuel = CAR_FUEL_MAX
+    }
     if (worldmapPlayer) worldmapPlayer.carFuel = _carFuel
     return result
 }
@@ -299,8 +326,12 @@ export function fillCarFuel(): void {
     if (worldmapPlayer) worldmapPlayer.carFuel = CAR_FUEL_MAX
 }
 // CE ref: worldmap.cc wmGenData.currentCarAreaId / wmCarCurrentArea().
-export function getCarAreaId(): number { return _currentCarAreaId }
-export function setCarAreaId(areaId: number): void { _currentCarAreaId = areaId }
+export function getCarAreaId(): number {
+    return _currentCarAreaId
+}
+export function setCarAreaId(areaId: number): void {
+    _currentCarAreaId = areaId
+}
 
 // wmcarmve.png: 1302×73 — 14 frames × 93px (art/imageMap.json), the same
 // frmpixels.py horizontal-strip packing as wmdial.png. Cycled once per
@@ -369,7 +400,9 @@ export function positionToSquare(pos: Point): Point {
 }
 
 const SQUARE_STATE_CLASS: { [state: number]: string } = {
-    [WORLDMAP_UNDISCOVERED]: 'undiscovered', [WORLDMAP_DISCOVERED]: 'discovered', [WORLDMAP_SEEN]: 'seen',
+    [WORLDMAP_UNDISCOVERED]: 'undiscovered',
+    [WORLDMAP_DISCOVERED]: 'discovered',
+    [WORLDMAP_SEEN]: 'seen',
 }
 
 // CE wmMarkSubTileOffsetVisitedFunc: a subtile becomes known (SEEN) only while still
@@ -419,7 +452,8 @@ export function markSubTileRadiusVisited(px: number, py: number, radiusOverride?
 // visited).
 export function subTileVisitedState(px: number, py: number): number {
     if (!worldmap) return 0
-    const sx = Math.floor(px / SQUARE_SIZE), sy = Math.floor(py / SQUARE_SIZE)
+    const sx = Math.floor(px / SQUARE_SIZE),
+        sy = Math.floor(py / SQUARE_SIZE)
     if (sx < 0 || sx >= NUM_SQUARES_X || sy < 0 || sy >= NUM_SQUARES_Y) return 0
     const state = worldmap.squares[sx][sy].state
     return state === WORLDMAP_DISCOVERED ? 2 : state === WORLDMAP_SEEN ? 1 : 0
@@ -429,7 +463,8 @@ export function subTileVisitedState(px: number, py: number): number {
 export function serializeSquareStates(): number[] | null {
     if (!worldmap) return null
     const out: number[] = []
-    for (let y = 0; y < NUM_SQUARES_Y; y++) for (let x = 0; x < NUM_SQUARES_X; x++) out.push(worldmap.squares[x][y].state)
+    for (let y = 0; y < NUM_SQUARES_Y; y++)
+        for (let x = 0; x < NUM_SQUARES_X; x++) out.push(worldmap.squares[x][y].state)
     return out
 }
 export function deserializeSquareStates(states: number[] | null | undefined): void {
@@ -465,20 +500,28 @@ const HOTSPOT_H = 13
 // party and the town tabs walk to (city.x + w / 2 − WM_VIEW_X).
 export function areaCenter(area: { worldPosition: Point; size: string }): Point {
     const s = AREA_CIRCLE_SIZE[area.size] ?? 0
-    return { x: area.worldPosition.x + Math.trunc(s / 2) - WM_VIEW_X, y: area.worldPosition.y + Math.trunc(s / 2) - WM_VIEW_Y }
+    return {
+        x: area.worldPosition.x + Math.trunc(s / 2) - WM_VIEW_X,
+        y: area.worldPosition.y + Math.trunc(s / 2) - WM_VIEW_Y,
+    }
 }
 
 // CE: a special encounter's / the out-of-gas area is put so the party stands at
 // worldPos + hotspot / 2 + sphere / 2 (city coordinates)
 export function areaPosAtParty(area: { size: string }, px: number, py: number): Point {
     const s = AREA_CIRCLE_SIZE[area.size] ?? 0
-    return { x: px + Math.trunc(HOTSPOT_W / 2) + Math.trunc(s / 2), y: py + Math.trunc(HOTSPOT_H / 2) + Math.trunc(s / 2) }
+    return {
+        x: px + Math.trunc(HOTSPOT_W / 2) + Math.trunc(s / 2),
+        y: py + Math.trunc(HOTSPOT_H / 2) + Math.trunc(s / 2),
+    }
 }
 
 // CE wmInterfaceDrawCircleOverlay: the name of a known area (map.msg 1500 + id), else
 // "Unknown" (worldmap.msg 1004)
 function areaLabelText(area: any): string {
-    return areaIsKnown(area.id) ? (getMessage('map', 1500 + area.id) ?? area.name) : (getMessage('worldmap', 1004) ?? 'Unknown')
+    return areaIsKnown(area.id)
+        ? (getMessage('map', 1500 + area.id) ?? area.name)
+        : (getMessage('worldmap', 1004) ?? 'Unknown')
 }
 
 // CE ref: worldmap.cc wmAreaSetPos() — moves a town-marker DOM element to match
@@ -511,8 +554,8 @@ export function refreshAreaMarkers(): void {
         // offsetHeight — this can run while the worldmap panel is still
         // display:none (first open), where both would read 0.
         const circleSize = AREA_CIRCLE_SIZE[area.size] ?? 0
-        $area.style.left = (area.worldPosition.x - WM_VIEW_X) + 'px'
-        $area.style.top = (area.worldPosition.y - WM_VIEW_Y) + 'px'
+        $area.style.left = area.worldPosition.x - WM_VIEW_X + 'px'
+        $area.style.top = area.worldPosition.y - WM_VIEW_Y + 'px'
 
         const $label = makeEl('div', {
             classes: ['areaLabel'],
@@ -550,8 +593,12 @@ export function setAreaVisitedState(areaId: number, state: number): void {
 }
 
 // CE wmGetPartyCurArea / the saved currentAreaId
-export function getCurrentAreaId(): number { return currentAreaId }
-export function setCurrentAreaId(areaId: number): void { currentAreaId = areaId }
+export function getCurrentAreaId(): number {
+    return currentAreaId
+}
+export function setCurrentAreaId(areaId: number): void {
+    currentAreaId = areaId
+}
 
 // CE wmAreaVisitedState: the visited state of a known area, else 0 (METARULE_AREA_KNOWN)
 export function areaVisitedState(areaId: number): number {
@@ -612,7 +659,10 @@ export function serializeAreaStates(): { [id: string]: SavedArea } {
     for (const key in globalState.mapAreas ?? {}) {
         const area: any = globalState.mapAreas[key]
         out[key] = {
-            state: area.state === true, visitedState: area.visitedState ?? 0, x: area.worldPosition.x, y: area.worldPosition.y,
+            state: area.state === true,
+            visitedState: area.visitedState ?? 0,
+            x: area.worldPosition.x,
+            y: area.worldPosition.y,
             entrances: area.entrances.map((e: any) => e.state === true),
         }
     }
@@ -626,7 +676,10 @@ export function deserializeAreaStates(data: { [id: string]: SavedArea } | undefi
         area.state = data[key].state
         area.visitedState = data[key].visitedState
         const ent = data[key].entrances
-        if (Array.isArray(ent)) area.entrances.forEach((e: any, i: number) => { if (i < ent.length) e.state = ent[i] })
+        if (Array.isArray(ent))
+            area.entrances.forEach((e: any, i: number) => {
+                if (i < ent.length) e.state = ent[i]
+            })
         area.worldPosition = { x: data[key].x, y: data[key].y }
         updateAreaMarkerPos(key, area.worldPosition.x, area.worldPosition.y)
     }
@@ -643,7 +696,11 @@ export function resetWorldmap(): void {
     _currentCarAreaId = -1
     currentAreaId = -1
     globalState.knownAreas = new Set()
-    try { globalState.mapAreas = loadAreas() } catch (_) { globalState.mapAreas = null }
+    try {
+        globalState.mapAreas = loadAreas()
+    } catch (_) {
+        globalState.mapAreas = null
+    }
     if (!$worldmap || !worldmap || !globalState.mapAreas) return
 
     $worldmap.querySelectorAll('[data-area-key]').forEach((el) => el.remove())
@@ -677,8 +734,8 @@ export function updateAreaMarkerPos(areaKey: string, x: number, y: number): void
     if (!$worldmap) return
     const $area = $worldmap.querySelector<HTMLElement>(`[data-area-key="${areaKey}"]`)
     if (!$area) return
-    $area.style.left = (x - WM_VIEW_X) + 'px'
-    $area.style.top  = (y - WM_VIEW_Y) + 'px'
+    $area.style.left = x - WM_VIEW_X + 'px'
+    $area.style.top = y - WM_VIEW_Y + 'px'
 }
 
 // #worldmapTarget's CSS box (ui.css) is fixed at 25x13 to fit the
@@ -754,7 +811,9 @@ export function markMapEntranceState(mapName: string, elevation: number, state: 
     for (const key of Object.keys(globalState.mapAreas)) {
         const area = globalState.mapAreas[key]
         if (!area.entrances.some(sameMap)) continue
-        const entrance = area.entrances.find((e) => sameMap(e) && (elevation === -1 || e.elevation === -1 || e.elevation === elevation))
+        const entrance = area.entrances.find(
+            (e) => sameMap(e) && (elevation === -1 || e.elevation === -1 || e.elevation === elevation),
+        )
         if (!entrance) return false
         entrance.state = state
         return true
@@ -906,7 +965,7 @@ export function init(): void {
 
     // Keyboard scroll
     document.addEventListener('keydown', _onWMKeyDown)
-    document.addEventListener('keyup',   _onWMKeyUp)
+    document.addEventListener('keyup', _onWMKeyUp)
 
     // Mouse-edge scroll — track cursor position relative to #worldMapWorld
     const $worldMapWorld = document.getElementById('worldMapWorld')
@@ -922,16 +981,20 @@ export function init(): void {
     updateCarUI()
 }
 
-function _onWMKeyDown(e: KeyboardEvent): void { _heldKeys.add(e.key) }
-function _onWMKeyUp(e: KeyboardEvent): void   { _heldKeys.delete(e.key) }
+function _onWMKeyDown(e: KeyboardEvent): void {
+    _heldKeys.add(e.key)
+}
+function _onWMKeyUp(e: KeyboardEvent): void {
+    _heldKeys.delete(e.key)
+}
 function _onWMMouseMove(e: MouseEvent): void {
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
     const mx = e.clientX - r.left
     const my = e.clientY - r.top
     _mouseEdge = {
-        left:   mx < EDGE_THRESHOLD,
-        right:  mx > VIEW_W - EDGE_THRESHOLD,
-        top:    my < EDGE_THRESHOLD,
+        left: mx < EDGE_THRESHOLD,
+        right: mx > VIEW_W - EDGE_THRESHOLD,
+        top: my < EDGE_THRESHOLD,
         bottom: my > VIEW_H - EDGE_THRESHOLD,
     }
 }
@@ -950,7 +1013,7 @@ export function stop() {
     _heldKeys.clear()
     _mouseEdge = { left: false, right: false, top: false, bottom: false }
     document.removeEventListener('keydown', _onWMKeyDown)
-    document.removeEventListener('keyup',   _onWMKeyUp)
+    document.removeEventListener('keyup', _onWMKeyUp)
     const $worldMapWorld = document.getElementById('worldMapWorld')
     if ($worldMapWorld) {
         $worldMapWorld.removeEventListener('mousemove', _onWMMouseMove)
@@ -968,8 +1031,13 @@ export function withinArea(position: Point) {
         const area = globalState.mapAreas[areaNum]
         if (area.state !== true) continue
         const s = AREA_CIRCLE_SIZE[area.size] ?? 0
-        if (vx >= area.worldPosition.x && vy >= area.worldPosition.y
-            && vx <= area.worldPosition.x + s && vy <= area.worldPosition.y + s) return area
+        if (
+            vx >= area.worldPosition.x &&
+            vy >= area.worldPosition.y &&
+            vx <= area.worldPosition.x + s &&
+            vy <= area.worldPosition.y + s
+        )
+            return area
     }
 
     return null
@@ -979,7 +1047,11 @@ export function withinArea(position: Point) {
 // to `mapName`; CE leaves area 0 when none matches.
 export function areaIdContainingMap(mapName: string): number {
     if (!globalState.mapAreas) {
-        try { globalState.mapAreas = loadAreas() } catch (_) { return 0 }
+        try {
+            globalState.mapAreas = loadAreas()
+        } catch (_) {
+            return 0
+        }
     }
     return areaContainingMap(mapName)?.id ?? 0
 }
@@ -1030,21 +1102,24 @@ function carRanOutOfGas(): void {
 // CE wmDrawCursorStopped: the location / encounter marker centred on the party (the
 // 17×17 #worldmapPlayer box centres its image)
 function placePartyMarker(): void {
-    $worldmapPlayer.style.left = (worldmapPlayer.x - 8) + 'px'
-    $worldmapPlayer.style.top = (worldmapPlayer.y - 8) + 'px'
+    $worldmapPlayer.style.left = worldmapPlayer.x - 8 + 'px'
+    $worldmapPlayer.style.top = worldmapPlayer.y - 8 + 'px'
 }
 
 // CE wmPartyInitWalking: a Bresenham line from the party to (x, y)
 // DH2 debug (console revealWorldmap / setInstantTravel, not in CE): a click on the
 // worldmap moves the party there at once — no game time, no encounters.
 let instantTravel = false
-export function setInstantTravel(on: boolean): void { instantTravel = on }
+export function setInstantTravel(on: boolean): void {
+    instantTravel = on
+}
 
 // DH2 debug (console revealWorldmap, not in CE): every subtile visited, every area
 // known and visited with all its entrances.
 export function revealAll(): void {
     if (worldmap) {
-        for (let x = 0; x < NUM_SQUARES_X; x++) for (let y = 0; y < NUM_SQUARES_Y; y++) markSquare(x, y, WORLDMAP_DISCOVERED)
+        for (let x = 0; x < NUM_SQUARES_X; x++)
+            for (let y = 0; y < NUM_SQUARES_Y; y++) markSquare(x, y, WORLDMAP_DISCOVERED)
     }
     for (const key in globalState.mapAreas ?? {}) {
         const area: any = globalState.mapAreas[key]
@@ -1092,8 +1167,14 @@ function partyInitWalking(x: number, y: number): void {
         walk.crossX = 1
         walk.crossY = 1
     }
-    if (x < px) { walk.crossX = -walk.crossX; walk.mainX = -walk.mainX }
-    if (y < py) { walk.crossY = -walk.crossY; walk.mainY = -walk.mainY }
+    if (x < px) {
+        walk.crossX = -walk.crossX
+        walk.mainX = -walk.mainX
+    }
+    if (y < py) {
+        walk.crossY = -walk.crossY
+        walk.mainY = -walk.mainY
+    }
     showv($worldmapPlayer)
     setTargetImage('art/intrface/wmaptarg.png', false)
     centerWorldmapCrosshair(x, y)
@@ -1235,7 +1316,12 @@ export function updateWorldmapPlayer() {
         if (walk.isWalking && Config.engine.doEncounters === true) {
             const square = squareAt(worldmapPlayer.x, worldmapPlayer.y)
             const roll = square
-                ? rndEncounterOccurred({ x: worldmapPlayer.x, y: worldmapPlayer.y }, withinArea(worldmapPlayer) !== null, square, _isInCar)
+                ? rndEncounterOccurred(
+                      { x: worldmapPlayer.x, y: worldmapPlayer.y },
+                      withinArea(worldmapPlayer) !== null,
+                      square,
+                      _isInCar,
+                  )
                 : null
             if (roll) {
                 placePartyMarker()
@@ -1252,10 +1338,10 @@ export function updateWorldmapPlayer() {
     if (!walk.isWalking) {
         let dx = 0
         let dy = 0
-        if (_heldKeys.has('ArrowLeft')  || _heldKeys.has('a') || _heldKeys.has('A') || _mouseEdge.left)   dx -= PAN_SPEED
-        if (_heldKeys.has('ArrowRight') || _heldKeys.has('d') || _heldKeys.has('D') || _mouseEdge.right)  dx += PAN_SPEED
-        if (_heldKeys.has('ArrowUp')    || _heldKeys.has('w') || _heldKeys.has('W') || _mouseEdge.top)    dy -= PAN_SPEED
-        if (_heldKeys.has('ArrowDown')  || _heldKeys.has('s') || _heldKeys.has('S') || _mouseEdge.bottom) dy += PAN_SPEED
+        if (_heldKeys.has('ArrowLeft') || _heldKeys.has('a') || _heldKeys.has('A') || _mouseEdge.left) dx -= PAN_SPEED
+        if (_heldKeys.has('ArrowRight') || _heldKeys.has('d') || _heldKeys.has('D') || _mouseEdge.right) dx += PAN_SPEED
+        if (_heldKeys.has('ArrowUp') || _heldKeys.has('w') || _heldKeys.has('W') || _mouseEdge.top) dy -= PAN_SPEED
+        if (_heldKeys.has('ArrowDown') || _heldKeys.has('s') || _heldKeys.has('S') || _mouseEdge.bottom) dy += PAN_SPEED
         if (dx !== 0 || dy !== 0) applyPan(_panX + dx, _panY + dy)
     }
 

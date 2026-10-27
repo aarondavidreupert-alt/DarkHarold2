@@ -57,7 +57,10 @@ export function initSkilldex(): void {
             const picked = onSkillPicked
             onSkillPicked = null
             skilldexWindow.close()
-            if (picked && !isPassiveSkill(skill)) { picked(skill); return }
+            if (picked && !isPassiveSkill(skill)) {
+                picked(skill)
+                return
+            }
 
             if (isPassiveSkill(skill)) {
                 // Passive/self skills: execute immediately, no target selection needed
@@ -83,21 +86,21 @@ export function initSkilldex(): void {
             y: Config.ui.screenHeight - 99 - 1 - 368 - 6,
         },
         185,
-        368
+        368,
     )
         // "SKILLDEX" title: skilldex.msg 100, font 103 at (55, 14), _colorTable[18979]
         .add(new FontWidget(55, 14, getMessage('skilldex', 100) ?? 'SKILLDEX', font3, CE_COLOR.label))
 
     // FO2-CE ref: skilldex.cc SkilldexSkill enum — 8 skills in order
     const skilldexSkills: [string, Skills][] = [
-        ['Sneak',     Skills.Sneak],
-        ['Lockpick',  Skills.Lockpick],
-        ['Steal',     Skills.Steal],
-        ['Traps',     Skills.Traps],
+        ['Sneak', Skills.Sneak],
+        ['Lockpick', Skills.Lockpick],
+        ['Steal', Skills.Steal],
+        ['Traps', Skills.Traps],
         ['First Aid', Skills.FirstAid],
-        ['Doctor',    Skills.Doctor],
-        ['Science',   Skills.Science],
-        ['Repair',    Skills.Repair],
+        ['Doctor', Skills.Doctor],
+        ['Science', Skills.Science],
+        ['Repair', Skills.Repair],
     ]
 
     // CE skilldex.cc skilldexWindowInit: buttons skldxoff (up, buffer index*2) / skldxon
@@ -121,11 +124,21 @@ export function initSkilldex(): void {
         font3.onLoad(() => {
             const x = Math.max(0, Math.trunc((BTN_W - font3.measureText(text)) / 2) + 1)
             const y = Math.trunc((BTN_H - font3.lineHeight) / 2) + 1
-            Object.assign(label.elem.style, { position: 'absolute', left: x + 'px', top: y + 'px', pointerEvents: 'none' })
+            Object.assign(label.elem.style, {
+                position: 'absolute',
+                left: x + 'px',
+                top: y + 'px',
+                pointerEvents: 'none',
+            })
             btn.elem.appendChild(label.elem)
         })
-        btn.elem.addEventListener('mousedown', () => { label.color = CE_COLOR.labelPressed })
-        for (const ev of ['mouseup', 'mouseleave']) btn.elem.addEventListener(ev, () => { label.color = CE_COLOR.label })
+        btn.elem.addEventListener('mousedown', () => {
+            label.color = CE_COLOR.labelPressed
+        })
+        for (const ev of ['mouseup', 'mouseleave'])
+            btn.elem.addEventListener(ev, () => {
+                label.color = CE_COLOR.label
+            })
 
         const valWidget = new Widget(null, { x: 110, y: 48 + i * 36, w: 42, h: 28 })
         skillValueElems.push(valWidget.elem)
@@ -134,9 +147,15 @@ export function initSkilldex(): void {
 
     // CANCEL: skilldex.msg 101 at (72, 337), little red button at (48, 338).
     skilldexWindow.add(
-        new SmallButton(48, 338).onClick(() => { skilldexWindow.close() })
+        new SmallButton(48, 338).onClick(() => {
+            skilldexWindow.close()
+        }),
     )
-    skilldexWindow.add(new FontWidget(72, 337, getMessage('skilldex', 101) ?? 'CANCEL', font3, CE_COLOR.label).css({ pointerEvents: 'none' }))
+    skilldexWindow.add(
+        new FontWidget(72, 337, getMessage('skilldex', 101) ?? 'CANCEL', font3, CE_COLOR.label).css({
+            pointerEvents: 'none',
+        }),
+    )
 
     Object.assign(skilldexWindow.elem.style, {
         backgroundImage: `url('${assetUrl(skilldexWindow.background + '.png')}')`,
@@ -151,7 +170,7 @@ export function initSkilldex(): void {
 
     // FO2-CE ref: skilldex.cc — update skill values when the skilldex is shown
     const origShow = skilldexWindow.show.bind(skilldexWindow)
-    skilldexWindow.show = function() {
+    skilldexWindow.show = function () {
         const result = origShow()
         // Update displayed skill values from current player stats
         const player = globalState.player
@@ -187,8 +206,12 @@ export function initSkilldex(): void {
     document.addEventListener('keydown', skilldexKeyHandler)
     // CE skilldexOpen runs its own input loop: the map is frozen and no game key reaches
     // gameHandleKey while the window is open
-    skilldexWindow.onShow = () => { globalState.uiMode = UIMode.skilldex }
-    skilldexWindow.onClose = () => { if (globalState.uiMode === UIMode.skilldex) globalState.uiMode = UIMode.none }
+    skilldexWindow.onShow = () => {
+        globalState.uiMode = UIMode.skilldex
+    }
+    skilldexWindow.onClose = () => {
+        if (globalState.uiMode === UIMode.skilldex) globalState.uiMode = UIMode.none
+    }
 }
 
 // CE game.cc: gameMouseSetCursor(MOUSE_CURSOR_USE_CROSSHAIR) + gameMouseSetMode(

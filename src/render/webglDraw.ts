@@ -50,7 +50,10 @@ WebGLRenderer.prototype.renderText = function (
     // Map common float-message palette names to CSS colors per CE:
     // white = normal damage, red = critter death, yellow = warnings.
     const colorMap: { [k: string]: string } = {
-        white: '#FFFFFF', red: '#FF4444', yellow: '#FFFF44', green: '#00ff00',
+        white: '#FFFFFF',
+        red: '#FF4444',
+        yellow: '#FFFF44',
+        green: '#00ff00',
     }
     ctx.fillStyle = color ? (colorMap[color] ?? color) : '#00ff00'
     ctx.textAlign = align
@@ -73,10 +76,10 @@ WebGLRenderer.prototype.renderScrollBorderOverlay = function (): void {
     const ctx = this.textCtx
 
     // Project the world-space bar bounds to screen pixels.
-    const leftEdge  = (b.minX - cam.x) * z
+    const leftEdge = (b.minX - cam.x) * z
     const rightEdge = (b.maxX - cam.x) * z
-    const topEdge   = (b.minY - cam.y) * z
-    const botEdge   = (b.maxY - cam.y) * z
+    const topEdge = (b.minY - cam.y) * z
+    const botEdge = (b.maxY - cam.y) * z
 
     // Calibration mode: `window.borderDebug = true` renders the bars as
     // semi-transparent grey so the map shows through and you can see exactly
@@ -88,12 +91,9 @@ WebGLRenderer.prototype.renderScrollBorderOverlay = function (): void {
     const innerL = Math.max(0, leftEdge)
     const innerR = Math.min(SCREEN_WIDTH, rightEdge)
 
-    if (leftEdge > 0)
-        ctx.fillRect(0, 0, leftEdge, SCREEN_HEIGHT)
-    if (rightEdge < SCREEN_WIDTH)
-        ctx.fillRect(rightEdge, 0, SCREEN_WIDTH - rightEdge, SCREEN_HEIGHT)
-    if (topEdge > 0 && innerR > innerL)
-        ctx.fillRect(innerL, 0, innerR - innerL, topEdge)
+    if (leftEdge > 0) ctx.fillRect(0, 0, leftEdge, SCREEN_HEIGHT)
+    if (rightEdge < SCREEN_WIDTH) ctx.fillRect(rightEdge, 0, SCREEN_WIDTH - rightEdge, SCREEN_HEIGHT)
+    if (topEdge > 0 && innerR > innerL) ctx.fillRect(innerL, 0, innerR - innerL, topEdge)
     if (botEdge < SCREEN_HEIGHT && innerR > innerL)
         ctx.fillRect(innerL, botEdge, innerR - innerL, SCREEN_HEIGHT - botEdge)
 }
@@ -155,7 +155,7 @@ WebGLRenderer.prototype.drawTileMap = function (tilemap: TileMap, offsetY: numbe
             gl.uniform2f(
                 this.offsetLocation,
                 (scr.x - globalState.cameraPosition.x) * z,
-                (scr.y - globalState.cameraPosition.y) * z
+                (scr.y - globalState.cameraPosition.y) * z,
             )
             gl.drawArrays(gl.TRIANGLES, 0, 6)
         }
@@ -200,8 +200,11 @@ WebGLRenderer.prototype.renderRoof = function (roof: TileMap, hideSet?: Set<stri
         Config.ui.showEgg !== false &&
         Config.ui.roofEgg !== false &&
         usesEggMaskTexture() &&
-        this.eggTexture && this.eggWidth > 0 && this.eggHeight > 0 &&
-        this.uEggMode && this.uEggCenter
+        this.eggTexture &&
+        this.eggWidth > 0 &&
+        this.eggHeight > 0 &&
+        this.uEggMode &&
+        this.uEggCenter
     ) {
         const playerInfo = globalState.player ? this.objectRenderInfo(globalState.player) : null
         if (playerInfo) {
@@ -248,7 +251,7 @@ WebGLRenderer.prototype.renderRoof = function (roof: TileMap, hideSet?: Set<stri
             gl.uniform2f(
                 this.offsetLocation,
                 (scr.x - globalState.cameraPosition.x) * z,
-                (scr.y - globalState.cameraPosition.y) * z
+                (scr.y - globalState.cameraPosition.y) * z,
             )
             gl.drawArrays(gl.TRIANGLES, 0, 6)
         }
@@ -273,11 +276,15 @@ WebGLRenderer.prototype.renderFloor = function (floor: TileMap): void {
 // CE ref: object.cc:4949 _obj_render() — walls/scenery that occlude the player
 // are drawn with the "egg" transparency so the player is visible behind them.
 // These are tunable at runtime via setEggAlpha() / setEggRadius() in the browser console.
-const EGG_RADIUS = 8   // hex distance — walls farther than this are never faded
-const EGG_ALPHA  = 0.4 // outer/flat alpha (0 = fully transparent, 1 = fully opaque)
+const EGG_RADIUS = 8 // hex distance — walls farther than this are never faded
+const EGG_ALPHA = 0.4 // outer/flat alpha (0 = fully transparent, 1 = fully opaque)
 
-function getEggAlpha(): number  { return Config.ui.eggAlpha  ?? EGG_ALPHA  }
-function getEggRadius(): number { return Config.ui.eggRadius ?? EGG_RADIUS }
+function getEggAlpha(): number {
+    return Config.ui.eggAlpha ?? EGG_ALPHA
+}
+function getEggRadius(): number {
+    return Config.ui.eggRadius ?? EGG_RADIUS
+}
 
 // CE ref: obj_types.h:81 — OBJECT_WALL_TRANS_END object flag bit.
 const OBJECT_WALL_TRANS_END = 0x10000000
@@ -492,9 +499,9 @@ function isEggObject(obj: Obj): boolean {
 // (_colorTable[x] of a 15-bit RGB) and its gray table (glass: _glassGrayTable).
 const rgb555 = (c: number): [number, number, number] => [((c >> 10) & 31) / 31, ((c >> 5) & 31) / 31, (c & 31) / 31]
 const TRANS_BLEND: { [flag: number]: { rgb: [number, number, number]; glassGray: boolean } | undefined } = {
-    0x4000: { rgb: rgb555(31744), glassGray: false },  // OBJECT_TRANS_RED
+    0x4000: { rgb: rgb555(31744), glassGray: false }, // OBJECT_TRANS_RED
     0x10000: { rgb: rgb555(25439), glassGray: false }, // OBJECT_TRANS_WALL
-    0x20000: { rgb: rgb555(10239), glassGray: true },  // OBJECT_TRANS_GLASS
+    0x20000: { rgb: rgb555(10239), glassGray: true }, // OBJECT_TRANS_GLASS
     0x40000: { rgb: rgb555(32767), glassGray: false }, // OBJECT_TRANS_STEAM
     0x80000: { rgb: rgb555(30689), glassGray: false }, // OBJECT_TRANS_ENERGY
 }
@@ -516,7 +523,7 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
     // CE object.cc _obj_render_object: OBJECT_TRANS_RED / WALL / GLASS / STEAM / ENERGY
     // draw through _dark_translucent_trans_buf_to_buf — the sprite's gray step blends the
     // flag's colour over the background (force fields, windows, steam, laser wires).
-    const trans = stealth ? null : TRANS_BLEND[(((obj as any).flags ?? 0) >>> 0) & 0xFC000] // CE switches on the whole mask (TRANS_NONE included)
+    const trans = stealth ? null : TRANS_BLEND[(((obj as any).flags ?? 0) >>> 0) & 0xfc000] // CE switches on the whole mask (TRANS_NONE included)
 
     if (stealth) {
         const gl = this.gl
@@ -558,7 +565,14 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
         // goes down/south and +x goes right/east). Deriving the anchor from
         // the player's own renderInfo also makes the egg track per-frame
         // walk-animation shift smoothly, instead of snapping per-hex.
-        if (usesEggMaskTexture() && this.eggTexture && this.eggWidth > 0 && this.eggHeight > 0 && this.uEggMode && this.uEggCenter) {
+        if (
+            usesEggMaskTexture() &&
+            this.eggTexture &&
+            this.eggWidth > 0 &&
+            this.eggHeight > 0 &&
+            this.uEggMode &&
+            this.uEggCenter
+        ) {
             const playerInfo = this.objectRenderInfo(globalState.player!)
             if (playerInfo) {
                 // Use frameWidth/frameHeight (this frame's actual trimmed
@@ -608,10 +622,10 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
         const tileCenterX = 32 * (150.0416667 - tx) + (4 / 3) * tileCenterY
         const foot = renderInfo.y + renderInfo.frameHeight
 
-        let baseY = -1.0     // -1 = per-fragment ('off')
-        let baseX = -1.0     // -1 = not flat
-        let smoothPx = 0.0   // 0 = no blur
-        let hardClamp = 0    // 1 = pin world_y exactly to baseY ('wall-clamp')
+        let baseY = -1.0 // -1 = per-fragment ('off')
+        let baseX = -1.0 // -1 = not flat
+        let smoothPx = 0.0 // 0 = no blur
+        let hardClamp = 0 // 1 = pin world_y exactly to baseY ('wall-clamp')
         if (mode === 'tile-y') {
             baseY = tileCenterY
         } else if (mode === 'foot-y') {
@@ -681,7 +695,7 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
         renderInfo.uniformFrameWidth * z,
         renderInfo.uniformFrameHeight * z,
         renderInfo.cell,
-        /*lit*/ true
+        /*lit*/ true,
     )
 
     if (egg || stealth || trans) {
@@ -725,8 +739,12 @@ const OUTLINE_COLORS: { [name: string]: [number, number, number] } = {
     unseen: [164 / 255, 136 / 255, 48 / 255],
 }
 
-function getOutlineFillAlpha(): number   { return Config.ui.outlineFillAlpha   ?? 0.2 }
-function getOutlineBorderAlpha(): number { return Config.ui.outlineBorderAlpha ?? 0.5 }
+function getOutlineFillAlpha(): number {
+    return Config.ui.outlineFillAlpha ?? 0.2
+}
+function getOutlineBorderAlpha(): number {
+    return Config.ui.outlineBorderAlpha ?? 0.5
+}
 
 // CE ref: object.cc:874 _obj_render_post_roof() — combat outlines (and the
 // item-pickup highlight) are drawn as a flat solid-color silhouette in a
@@ -784,45 +802,26 @@ WebGLRenderer.prototype.renderOutlinePass = function (objs: Obj[]): void {
             gl.uniform1i(this.uOutlineMode, 1)
             gl.uniform3f(this.uOutlineColor, color[0], color[1], color[2])
             gl.uniform1f(this.uOutlineAlpha, borderAlpha)
-            for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
-                this.renderFrame(
-                    obj.art,
-                    baseX + dx * z,
-                    baseY + dy * z,
-                    w,
-                    h,
-                    renderInfo.cell,
-                    /*lit*/ false
-                )
+            for (const [dx, dy] of [
+                [-1, 0],
+                [1, 0],
+                [0, -1],
+                [0, 1],
+            ]) {
+                this.renderFrame(obj.art, baseX + dx * z, baseY + dy * z, w, h, renderInfo.cell, /*lit*/ false)
             }
 
             // Punch-out: restore the interior to the normal sprite so only
             // the border stamps' protruding edge remains visible.
             gl.uniform1i(this.uOutlineMode, 0)
-            this.renderFrame(
-                obj.art,
-                baseX,
-                baseY,
-                w,
-                h,
-                renderInfo.cell,
-                /*lit*/ true
-            )
+            this.renderFrame(obj.art, baseX, baseY, w, h, renderInfo.cell, /*lit*/ true)
         }
 
         if (fillAlpha > 0) {
             gl.uniform1i(this.uOutlineMode, 1)
             gl.uniform3f(this.uOutlineColor, color[0], color[1], color[2])
             gl.uniform1f(this.uOutlineAlpha, fillAlpha)
-            this.renderFrame(
-                obj.art,
-                baseX,
-                baseY,
-                w,
-                h,
-                renderInfo.cell,
-                /*lit*/ false
-            )
+            this.renderFrame(obj.art, baseX, baseY, w, h, renderInfo.cell, /*lit*/ false)
         }
 
         gl.uniform1i(this.uOutlineMode, 0)
@@ -837,7 +836,7 @@ WebGLRenderer.prototype.renderFrame = function (
     width: number,
     height: number,
     cell: FrameCell,
-    lit = false
+    lit = false,
 ): void {
     // TODO: uses hack
     const texture = this.getTextureFromHack(imgPath)
@@ -876,7 +875,13 @@ WebGLRenderer.prototype.renderFrame = function (
 // a whole image as one cell (UI images, fullscreen art)
 const WHOLE_IMAGE: FrameCell = { sx: 0, sy: 0, column: 0, row: 0, columns: 1, rows: 1 }
 
-WebGLRenderer.prototype.renderImage = function (imgPath: string, x: number, y: number, width: number, height: number): void {
+WebGLRenderer.prototype.renderImage = function (
+    imgPath: string,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+): void {
     // UI path — never darkened by ambient.
     this.renderFrame(imgPath, x, y, width, height, WHOLE_IMAGE, /*lit*/ false)
 }

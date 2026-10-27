@@ -58,8 +58,9 @@ export class WeaponObj extends Item {
     // copies of the same weapon PID from merging into one stack.
     approxEq(obj: Obj): boolean {
         if (!super.approxEq(obj)) return false
-        return weaponGetAmmoTypePid(this) === weaponGetAmmoTypePid(obj)
-            && ammoGetQuantity(this) === ammoGetQuantity(obj)
+        return (
+            weaponGetAmmoTypePid(this) === weaponGetAmmoTypePid(obj) && ammoGetQuantity(this) === ammoGetQuantity(obj)
+        )
     }
 
     static fromPID(pid: number, sid?: number): WeaponObj {

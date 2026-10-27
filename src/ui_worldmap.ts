@@ -44,7 +44,7 @@ function setLabelScroll(y: number): void {
     outer.scrollTop = _labelScrollY
     // Sync background so wmtabs.png slot decorations stay aligned with labels.
     // CE ref: wmRefreshTabs reblits wmtabs.png starting at tabsScrollOffset.
-    outer.style.backgroundPositionY = (-27 - _labelScrollY) + 'px'
+    outer.style.backgroundPositionY = -27 - _labelScrollY + 'px'
 }
 
 // --- World map -------------------------------------------------------------
@@ -136,9 +136,9 @@ export function uiWorldMapShowArea(area: Area) {
     // are drawn and clickable.
     const WM_VIEW_X = 22
     const WM_VIEW_Y = 21
-    const positioned = area.entrances.filter(e => e.state && e.x !== -1 && e.y !== -1)
+    const positioned = area.entrances.filter((e) => e.state && e.x !== -1 && e.y !== -1)
 
-    function makeEntrance(entrance: typeof area.entrances[0], left: number, top: number): void {
+    function makeEntrance(entrance: (typeof area.entrances)[0], left: number, top: number): void {
         dbg('worldmap', '[Worldmap] area entrance:', entrance.mapLookupName, `@ (${left}, ${top})`)
         const $entranceEl = makeEl('div', { classes: ['worldmapEntrance'] })
         const $hotspot = makeEl('div', { classes: ['worldmapEntranceHotspot'] })
@@ -158,17 +158,22 @@ export function uiWorldMapShowArea(area: Area) {
             // CE worldmap.cc wmTownMapFunc → map.cc mapSetEnteringLocation(entrance elevation,
             // tile, rotation); -1 (most city.txt entrances) is the map header's start (mapLoad)
             const own = entrance.elevation >= 0 && entrance.tileNum >= 0
-            globalState.gMap.loadMap(mapName, own ? fromTileNum(entrance.tileNum) : undefined, own ? entrance.elevation : undefined)
+            globalState.gMap.loadMap(
+                mapName,
+                own ? fromTileNum(entrance.tileNum) : undefined,
+                own ? entrance.elevation : undefined,
+            )
             if (own && Number.isFinite(entrance.orientation)) globalState.player.orientation = entrance.orientation
             uiCloseWorldMap()
         }
 
         $entranceEl.appendChild($hotspot)
         // CE wmTownMapInit: the label is worldmap.msg 200 + 10 * area + entrance index
-        const label = getMessage('worldmap', 200 + 10 * area.id + area.entrances.indexOf(entrance)) ?? entrance.mapLookupName
+        const label =
+            getMessage('worldmap', 200 + 10 * area.id + area.entrances.indexOf(entrance)) ?? entrance.mapLookupName
         appendHTML($entranceEl, label)
         $entranceEl.style.left = left + 'px'
-        $entranceEl.style.top  = top + 'px'
+        $entranceEl.style.top = top + 'px'
         $areamap.appendChild($entranceEl)
     }
 
@@ -192,7 +197,7 @@ function uiWorldMapLabels() {
     // CE ref: worldmap.cc wmMakeTabsLabelList — the known areas (wmAreaIsKnown: known
     // and visited) with a label, sorted by name.
     const areas = Object.values(globalState.mapAreas)
-        .filter(a => !!a.labelArt && Worldmap.areaIsKnown(a.id))
+        .filter((a) => !!a.labelArt && Worldmap.areaIsKnown(a.id))
         .sort((a, b) => a.name.localeCompare(b.name))
 
     for (const area of areas) {

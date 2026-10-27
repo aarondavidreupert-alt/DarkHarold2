@@ -51,15 +51,35 @@ export function initCharacterSelector(startCb: () => void, backCb: () => void): 
 
 const sfx = (name: string) => globalState.audioEngine?.playSfxByName?.(name)
 
-function button(frame: HTMLElement, x: number, y: number, w: number, h: number, up: string, down: string,
-                sound: string, action: () => void): void {
+function button(
+    frame: HTMLElement,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    up: string,
+    down: string,
+    sound: string,
+    action: () => void,
+): void {
     const b = document.createElement('div')
     Object.assign(b.style, {
-        position: 'absolute', left: x + 'px', top: y + 'px', width: w + 'px', height: h + 'px',
-        backgroundImage: `url('${assetUrl(up)}')`, backgroundRepeat: 'no-repeat', cursor: 'pointer',
+        position: 'absolute',
+        left: x + 'px',
+        top: y + 'px',
+        width: w + 'px',
+        height: h + 'px',
+        backgroundImage: `url('${assetUrl(up)}')`,
+        backgroundRepeat: 'no-repeat',
+        cursor: 'pointer',
     })
-    b.onmousedown = () => { b.style.backgroundImage = `url('${assetUrl(down)}')`; sfx(sound) }
-    b.onmouseup = b.onmouseleave = () => { b.style.backgroundImage = `url('${assetUrl(up)}')` }
+    b.onmousedown = () => {
+        b.style.backgroundImage = `url('${assetUrl(down)}')`
+        sfx(sound)
+    }
+    b.onmouseup = b.onmouseleave = () => {
+        b.style.backgroundImage = `url('${assetUrl(up)}')`
+    }
     b.onclick = action
     frame.appendChild(b)
 }
@@ -68,14 +88,25 @@ function build(): void {
     overlay = document.createElement('div')
     overlay.id = 'charSelectOverlay'
     Object.assign(overlay.style, {
-        position: 'fixed', left: '0', top: '0', width: '100%', height: '100%',
-        backgroundColor: '#000', zIndex: '1000', display: 'none',
+        position: 'fixed',
+        left: '0',
+        top: '0',
+        width: '100%',
+        height: '100%',
+        backgroundColor: '#000',
+        zIndex: '1000',
+        display: 'none',
     })
     const frame = document.createElement('div')
     Object.assign(frame.style, {
-        position: 'absolute', width: W + 'px', height: H + 'px', left: '50%', top: '50%',
+        position: 'absolute',
+        width: W + 'px',
+        height: H + 'px',
+        left: '50%',
+        top: '50%',
         transform: 'translate(-50%, -50%)',
-        backgroundImage: "url('" + assetUrl('art/intrface/pickchar.png') + "')", backgroundRepeat: 'no-repeat', // FID 174
+        backgroundImage: "url('" + assetUrl('art/intrface/pickchar.png') + "')",
+        backgroundRepeat: 'no-repeat', // FID 174
     })
     canvas = document.createElement('canvas')
     canvas.width = W
@@ -101,13 +132,33 @@ function build(): void {
 function onKey(e: KeyboardEvent): void {
     if (!overlay || overlay.style.display === 'none') return
     switch (e.key) {
-        case 'ArrowLeft': sfx('ib2p1xx1'); step(-1); break
-        case 'ArrowRight': sfx('ib2p1xx1'); step(1); break
-        case 't': case 'T': take(); break
-        case 'm': case 'M': modify(); break
-        case 'c': case 'C': create(); break
-        case 'b': case 'B': case 'Escape': back(); break
-        default: return
+        case 'ArrowLeft':
+            sfx('ib2p1xx1')
+            step(-1)
+            break
+        case 'ArrowRight':
+            sfx('ib2p1xx1')
+            step(1)
+            break
+        case 't':
+        case 'T':
+            take()
+            break
+        case 'm':
+        case 'M':
+            modify()
+            break
+        case 'c':
+        case 'C':
+            create()
+            break
+        case 'b':
+        case 'B':
+        case 'Escape':
+            back()
+            break
+        default:
+            return
     }
     e.preventDefault()
 }
@@ -155,7 +206,9 @@ function draw(): void {
     if (!canvas || !premade) return
     const index = current
     const face = new Image()
-    face.onload = face.onerror = () => { if (index === current) drawPage(face.naturalWidth > 0 ? face : null) }
+    face.onload = face.onerror = () => {
+        if (index === current) drawPage(face.naturalWidth > 0 ? face : null)
+    }
     face.src = assetUrl(PREMADE_CHARACTERS[index].face)
 }
 
@@ -230,7 +283,12 @@ function take(): void {
 // CANCEL comes back to the selector.
 function modify(): void {
     if (!premade) return
-    const initial: CreatorInitialState = { ...premade, special: { ...premade.special }, tagged: [...premade.tagged], traits: [...premade.traits] }
+    const initial: CreatorInitialState = {
+        ...premade,
+        special: { ...premade.special },
+        tagged: [...premade.tagged],
+        traits: [...premade.traits],
+    }
     openEditor(initial)
 }
 
@@ -243,7 +301,10 @@ function openEditor(initial: CreatorInitialState | undefined): void {
     hide()
     globalState.uiMode = UIMode.characterCreator
     showCharacterCreator(
-        () => { globalState.uiMode = UIMode.none; onStart?.() },
+        () => {
+            globalState.uiMode = UIMode.none
+            onStart?.()
+        },
         () => showCharacterSelector(false),
         initial,
     )

@@ -42,15 +42,27 @@ export const CHARACTER_SOUND_EFFECT = { unused: 0, knockdown: 1, passOut: 2, die
 
 // CE anim ids used for character sounds (animation.h).
 export const ANIM = {
-    climbLadder: 4, dodge: 13, hitFromFront: 14, hitFromBack: 15, throwPunch: 16, kickLeg: 17,
-    fallBack: 20, fallFront: 21, takeOut: 38, putAway: 39,
+    climbLadder: 4,
+    dodge: 13,
+    hitFromFront: 14,
+    hitFromBack: 15,
+    throwPunch: 16,
+    kickLeg: 17,
+    fallBack: 20,
+    fallFront: 21,
+    takeOut: 38,
+    putAway: 39,
 } as const
 
 // CE game_sound.cc:1318 sfxBuildCharName — critter art base name (6 chars) + the
 // art code of `anim` for the weapon code currently held (fid bits 12-15). TAKE_OUT
 // uses `extra` as the weapon code; falls with PASS_OUT/DIE and unarmed attacks
 // with CONTACT replace the first code letter with 'Y'/'Z'.
-export function sfxBuildCharName(critter: Obj, anim: number, extra: number = CHARACTER_SOUND_EFFECT.unused): string | null {
+export function sfxBuildCharName(
+    critter: Obj,
+    anim: number,
+    extra: number = CHARACTER_SOUND_EFFECT.unused,
+): string | null {
     const base = critter.art?.split('/').pop()?.slice(0, 6)
     if (!base) return null
     const code = artGetCode(anim, anim === ANIM.takeOut ? extra : critterWeaponCode(critter))
@@ -115,7 +127,12 @@ export function playOpenSfx(obj: Obj, action: number): void {
 // or hit in a mode other than the primary ones and the punch (CE hit modes 0, 2, 4);
 // material X unless a hit on a target with a damage type other than plasma / EMP /
 // explosion — then M / W / S from the item, scenery or wall material, F for a critter.
-export function sfxBuildWeaponName(effectType: number, weapon: Obj | null | undefined, secondaryMode: boolean, target: Obj | null | undefined): string {
+export function sfxBuildWeaponName(
+    effectType: number,
+    weapon: Obj | null | undefined,
+    secondaryMode: boolean,
+    target: Obj | null | undefined,
+): string {
     const typeCode = 'RAOFH'[effectType] ?? 'A'
     const sid = (weapon as any)?.pro?.extra?.soundID
     const weaponCode = typeof sid === 'number' ? String.fromCharCode(sid) : 'A'
@@ -124,8 +141,13 @@ export function sfxBuildWeaponName(effectType: number, weapon: Obj | null | unde
     let material = 'X'
     if (effectType === 4 && target && dmg !== 3 /* plasma */ && dmg !== 5 /* EMP */ && dmg !== 6 /* explosion */) {
         const extra = (target as any).pro?.extra
-        const m = target.type === 'wall' ? extra?.material : (target.type === 'item' || target.type === 'scenery') ? extra?.materialID : -1
-        material = (m === 0 || m === 1 || m === 2) ? 'M' : m === 3 ? 'W' : (m === 4 || m === 5 || m === 6) ? 'S' : 'F'
+        const m =
+            target.type === 'wall'
+                ? extra?.material
+                : target.type === 'item' || target.type === 'scenery'
+                  ? extra?.materialID
+                  : -1
+        material = m === 0 || m === 1 || m === 2 ? 'M' : m === 3 ? 'W' : m === 4 || m === 5 || m === 6 ? 'S' : 'F'
     }
     return `W${typeCode}${weaponCode}${variant}${material}XX1`.toUpperCase()
 }

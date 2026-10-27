@@ -44,7 +44,13 @@ declare module './Critter.js' {
         getAnimation(anim: string): string
         hasAnimation(anim: string): boolean
         setIdleArt(): void
-        staticAnimation(anim: string, callback?: () => void, waitForLoad?: boolean, reversed?: boolean, onActionFrame?: () => void): void
+        staticAnimation(
+            anim: string,
+            callback?: () => void,
+            waitForLoad?: boolean,
+            reversed?: boolean,
+            onActionFrame?: () => void,
+        ): void
         // FA3: fired once when the current static animation reaches its FRM action frame
         // (CE art.h ArtFrame.actionFrame), or just before animCallback if it never does.
         actionFrameCallback?: (() => void) | null
@@ -201,13 +207,13 @@ Critter.prototype.getAnimation = function (this: Critter, anim: string): string 
         case 'weapon-draw': {
             // Xc = pull out weapon (played forward)
             const wObj = this.equippedWeapon
-            const skin = (wObj?.weapon?.getSkin()) ?? 'a'
+            const skin = wObj?.weapon?.getSkin() ?? 'a'
             return base + skin + 'c'
         }
         case 'weapon-holster': {
             // Xd = put away weapon (played forward)
             const wObj = this.equippedWeapon
-            const skin = (wObj?.weapon?.getSkin()) ?? 'a'
+            const skin = wObj?.weapon?.getSkin() ?? 'a'
             return base + skin + 'd'
         }
         case 'static-idle':
@@ -215,14 +221,14 @@ Critter.prototype.getAnimation = function (this: Critter, anim: string): string 
         case 'static':
             return this.art
         case 'hitFront':
-            return base + 'ao'   // unarmed 'a' prefix, front hit
+            return base + 'ao' // unarmed 'a' prefix, front hit
         case 'hitBack':
-            return base + 'ap'   // unarmed 'a' prefix, back hit (was 'an' = dodge)
+            return base + 'ap' // unarmed 'a' prefix, back hit (was 'an' = dodge)
         case 'dodge': {
             // Xe = weapon-specific dodge; 'an' = unarmed dodge
             const wObjD = this.equippedWeapon
             const skinD = wObjD?.weapon?.getSkin()
-            return (skinD && skinD !== 'a') ? base + skinD + 'e' : base + 'an'
+            return skinD && skinD !== 'a' ? base + skinD + 'e' : base + 'an'
         }
         // CE actions.cc:402 — knocked down by a hit from the front = ANIM_FALL_BACK ('ba'),
         // from behind = ANIM_FALL_FRONT ('bb'); getting up from them is
@@ -240,7 +246,7 @@ Critter.prototype.getAnimation = function (this: Critter, anim: string): string 
         case 'fidget': {
             // Xa = idle/fidget/reload — the idle animation IS the fidget in Fallout 2
             const wObj = this.equippedWeapon
-            const skin = (wObj?.weapon?.getSkin()) ?? 'a'
+            const skin = wObj?.weapon?.getSkin() ?? 'a'
             return base + skin + 'a'
         }
         case 'use':
@@ -288,7 +294,7 @@ Critter.prototype.updateStaticAnim = function (this: Critter): void {
         this.fireActionFrame()
         const cb = this.animCallback
         ;(this as any).animCallback = null
-        this.frame = 0  // match the normal done-path which resets frame before calling callback
+        this.frame = 0 // match the normal done-path which resets frame before calling callback
         if (cb) cb()
         return
     }
@@ -314,9 +320,7 @@ Critter.prototype.updateStaticAnim = function (this: Critter): void {
             if (af !== null && this.frame >= af) this.fireActionFrame()
         }
 
-        const done = reversed
-            ? this.frame === -1
-            : this.frame === globalState.imageInfo[this.art].numFrames
+        const done = reversed ? this.frame === -1 : this.frame === globalState.imageInfo[this.art].numFrames
         if (done) {
             if (reversed) this.frame++ // clamp back to frame 0
             // An action frame past the last frame (or missing data) still resolves first.
@@ -354,7 +358,10 @@ function dudeFidget(time: number): void {
     if (candidates.length > 0) {
         const c = candidates[randomBetween(0, candidates.length - 1)]
         const name = c.art?.split('/').pop() ?? ''
-        if (c === dude || ((name[0] === 'm' || name[0] === 'M') && hexDistance(c.position, dude.position) < dude.getStat('PER') * 2)) {
+        if (
+            c === dude ||
+            ((name[0] === 'm' || name[0] === 'M') && hexDistance(c.position, dude.position) < dude.getStat('PER') * 2)
+        ) {
             playCharAnimSfx(c, 0 /* ANIM_STAND */)
         }
         c.nextIdleAnimTime = time // its one cycle starts (a frame from now)
@@ -412,7 +419,10 @@ Critter.prototype.updateAnim = function (this: Critter): void {
     if (animInfo[this.anim] === undefined) {
         // Unknown anim key — likely stale state from a deserialized save or a script bug.
         // Log identity for diagnostics, then tombstone so the rAF loop stops hammering it.
-        dbgWarn('animation', `[updateAnim] unknown anim "${this.anim}" on critter "${this.name || this.pid}" pid=${this.pid} tile=(${this.position.x},${this.position.y}) art="${this.art}" — tombstoning`)
+        dbgWarn(
+            'animation',
+            `[updateAnim] unknown anim "${this.anim}" on critter "${this.name || this.pid}" pid=${this.pid} tile=(${this.position.x},${this.position.y}) art="${this.art}" — tombstoning`,
+        )
         this.anim = 'dead'
         return
     }
@@ -543,7 +553,8 @@ const HEX_STEP_X = [16, 32, 16, -16, -32, -16]
 const HEX_STEP_Y = [-12, 0, 12, 12, 0, -12]
 
 function crossedHexStep(dir: number, sx: number, sy: number): boolean {
-    const x = HEX_STEP_X[dir], y = HEX_STEP_Y[dir]
+    const x = HEX_STEP_X[dir],
+        y = HEX_STEP_Y[dir]
     return (x > 0 && x <= sx) || (x < 0 && x >= sx) || (y > 0 && y <= sy) || (y < 0 && y >= sy)
 }
 
@@ -593,7 +604,10 @@ Critter.prototype.walkFrameCE = function (this: Critter): void {
     // (counted first: move() side effects can end the walk — refundWalk)
     const path = this.path
     path.walked = (path.walked ?? 0) + 1
-    if (!this.move({ x: pos[0], y: pos[1] })) { path.walked--; return }
+    if (!this.move({ x: pos[0], y: pos[1] })) {
+        path.walked--
+        return
+    }
     if (!this.path) return // move() side effects can end the walk
 
     if (this.position.x === this.path.target.x && this.position.y === this.path.target.y) {
@@ -612,11 +626,12 @@ Critter.prototype.walkFrameCE = function (this: Critter): void {
 
 // 'smooth' walk model: how far (0..1) the current frame has progressed toward the next.
 Critter.prototype.walkFrameBlend = function (this: Critter): { x: number; y: number } {
-    if (Config.engine.walkModel !== 'smooth' || !this.shift || (this.anim !== 'walk' && this.anim !== 'run')) return { x: 0, y: 0 }
+    if (Config.engine.walkModel !== 'smooth' || !this.shift || (this.anim !== 'walk' && this.anim !== 'run'))
+        return { x: 0, y: 0 }
     const info = globalState.imageInfo[this.art]
     if (!info) return { x: 0, y: 0 }
     const fps = info.fps || 10
-    const t = Math.max(0, Math.min(1, (window.performance.now() - this.lastFrameTime) * fps / 1000))
+    const t = Math.max(0, Math.min(1, ((window.performance.now() - this.lastFrameTime) * fps) / 1000))
     const d = info.frameOffsets[this.orientation]?.[(this.frame + 1) % info.numFrames]
     return d ? { x: d.x * t, y: d.y * t } : { x: 0, y: 0 }
 }
@@ -647,7 +662,14 @@ Critter.prototype.getWalkLerp = function (this: Critter): { hexA: Point; hexB: P
     return { hexA, hexB, t }
 }
 
-Critter.prototype.staticAnimation = function (this: Critter, anim: string, callback?: () => void, waitForLoad = true, reversed = false, onActionFrame?: () => void): void {
+Critter.prototype.staticAnimation = function (
+    this: Critter,
+    anim: string,
+    callback?: () => void,
+    waitForLoad = true,
+    reversed = false,
+    onActionFrame?: () => void,
+): void {
     // Capture current state synchronously — these are the old-art values we need for the
     // offset formula. We do NOT switch this.art/this.frame here so the renderer keeps
     // showing the old sprite until the new texture is confirmed loaded.
@@ -676,19 +698,28 @@ Critter.prototype.staticAnimation = function (this: Critter, anim: string, callb
         const oldFrames = oldInfo.frameOffsets[orient]
         const clampedOld = Math.min(oldFrame, (oldFrames?.length ?? 1) - 1)
         const oldF = oldFrames?.[clampedOld] ?? { w: 0, h: 0, ox: 0, oy: 0 }
-        const newStartFrame = reversed ? (newInfo.numFrames - 1) : 0
+        const newStartFrame = reversed ? newInfo.numFrames - 1 : 0
         const newF0 = newInfo.frameOffsets[orient]?.[newStartFrame] ?? { w: 0, h: 0, ox: 0, oy: 0 }
         // For looping animations (idle), anchor on frame 0 geometry regardless of which frame
         // is currently playing. Using the mid-cycle frame's ox would bake iOxF into artOffset,
         // displacing the critter throughout the entire subsequent one-shot animation.
         // CE ref: art.cc artGetFrameOffsets — frame deltas are independent of playback position;
         // CE never carries a mid-animation ox into the object reference point.
-        const srcF = (this.anim === 'idle') ? (oldFrames?.[0] ?? oldF) : oldF
+        const srcF = this.anim === 'idle' ? (oldFrames?.[0] ?? oldF) : oldF
         pendingArtOffset = {
-            x: Math.floor(newF0.w / 2) - Math.floor(srcF.w / 2) + oldDirOff.x - newDirOff.x + srcF.ox - newF0.ox + prevArtOffset.x,
-            y: (newF0.h - srcF.h) + oldDirOff.y - newDirOff.y + srcF.oy - newF0.oy + prevArtOffset.y,
+            x:
+                Math.floor(newF0.w / 2) -
+                Math.floor(srcF.w / 2) +
+                oldDirOff.x -
+                newDirOff.x +
+                srcF.ox -
+                newF0.ox +
+                prevArtOffset.x,
+            y: newF0.h - srcF.h + oldDirOff.y - newDirOff.y + srcF.oy - newF0.oy + prevArtOffset.y,
         }
-        dbg('animOffset', '[ArtOffset] staticAnimation',
+        dbg(
+            'animOffset',
+            '[ArtOffset] staticAnimation',
             `${oldArt}@f${clampedOld}(w=${oldF.w},ox=${oldF.ox},oy=${oldF.oy})`,
             srcF !== oldF ? `[anchor:f0(w=${srcF.w},ox=${srcF.ox})]` : '',
             `→ ${newArt}@f${newStartFrame}(w=${newF0.w},ox=${newF0.ox},oy=${newF0.oy})`,
@@ -707,7 +738,9 @@ Critter.prototype.staticAnimation = function (this: Critter, anim: string, callb
         if (this.shift !== null) this.ceOff = { x: 0, y: 0 }
         if (newArt !== oldArt) {
             const oldDir = globalState.imageInfo[oldArt]?.directionOffsets[this.orientation ?? 0]
-            if (oldDir) { this.ceOff = { x: this.ceOff.x + oldDir.x, y: this.ceOff.y + oldDir.y } }
+            if (oldDir) {
+                this.ceOff = { x: this.ceOff.x + oldDir.x, y: this.ceOff.y + oldDir.y }
+            }
         }
         this.art = newArt
         this.lastFrameTime = window.performance.now()
@@ -777,7 +810,8 @@ Critter.prototype.clearAnim = function (this: Critter): void {
     Obj.prototype.clearAnim.call(this)
     if (this.path?.paid) {
         this.AP?.refundWalk(this.path)
-        if (this.isPlayer && globalState.inCombat && this.AP) drawAP(this.AP.getAvailableCombatAP(), this.AP.getTotalMaxAP(), this.AP.move)
+        if (this.isPlayer && globalState.inCombat && this.AP)
+            drawAP(this.AP.getAvailableCombatAP(), this.AP.getTotalMaxAP(), this.AP.move)
     }
     this.path = null
 
@@ -805,10 +839,19 @@ Critter.prototype.clearAnim = function (this: Critter): void {
             const newF0 = newInfo.frameOffsets[orient]?.[0] ?? { w: 0, h: 0, ox: 0, oy: 0 }
             const prev = this.artOffset
             newArtOffset = {
-                x: Math.floor(newF0.w / 2) - Math.floor(oldF.w / 2) + oldDirOff.x - newDirOff.x + oldF.ox - newF0.ox + prev.x,
-                y: (newF0.h - oldF.h) + oldDirOff.y - newDirOff.y + oldF.oy - newF0.oy + prev.y,
+                x:
+                    Math.floor(newF0.w / 2) -
+                    Math.floor(oldF.w / 2) +
+                    oldDirOff.x -
+                    newDirOff.x +
+                    oldF.ox -
+                    newF0.ox +
+                    prev.x,
+                y: newF0.h - oldF.h + oldDirOff.y - newDirOff.y + oldF.oy - newF0.oy + prev.y,
             }
-            dbg('animOffset', '[ArtOffset] clearAnim',
+            dbg(
+                'animOffset',
+                '[ArtOffset] clearAnim',
                 `${oldArt}@f${clampedOld}(w=${oldF.w},h=${oldF.h},ox=${oldF.ox},oy=${oldF.oy})`,
                 `→ ${newArt}@f0(w=${newF0.w},h=${newF0.h},ox=${newF0.ox},oy=${newF0.oy})`,
                 `dir${orient} dirOff(${oldDirOff.x},${oldDirOff.y})→(${newDirOff.x},${newDirOff.y})`,
@@ -844,8 +887,12 @@ function ceStandOffset(c: Critter): Point {
     const takeOut = globalState.imageInfo[base + skin + 'c']
     const stand = globalState.imageInfo[base + 'aa']
     if (!takeOut || !stand) return { x: 0, y: 0 }
-    let x = 0, y = 0
-    for (const f of takeOut.frameOffsets[orient] ?? []) { x += f.x; y += f.y }
+    let x = 0,
+        y = 0
+    for (const f of takeOut.frameOffsets[orient] ?? []) {
+        x += f.x
+        y += f.y
+    }
     const so = stand.directionOffsets[orient] ?? { x: 0, y: 0 }
     return { x: x + so.x, y: y + so.y }
 }

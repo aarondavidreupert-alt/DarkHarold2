@@ -30,7 +30,10 @@ export class Widget {
     hoverBackground: string | null = null
     mouseDownBackground: string | null = null
 
-    constructor(public background: string | null, public bbox: CSSBoundingBox) {
+    constructor(
+        public background: string | null,
+        public bbox: CSSBoundingBox,
+    ) {
         this.elem = document.createElement('div')
 
         Object.assign(this.elem.style, {

@@ -48,7 +48,11 @@ export function characterSheetText(dude: any = globalState.player): string {
     out.push(centered(msg(620)))
     out.push(centered(msg(621)))
     const date = GameTime.getDate()
-    out.push(centered(`${pad(date.day, 2)} ${msg(500 + date.month)} ${date.year}  ${pad(GameTime.getHourMilitary(), 4)} ${msg(622)}`))
+    out.push(
+        centered(
+            `${pad(date.day, 2)} ${msg(500 + date.month)} ${date.year}  ${pad(GameTime.getHourMilitary(), 4)} ${msg(622)}`,
+        ),
+    )
     out.push('')
 
     let line = `${msg(642)} ${p.name ?? ''}`
@@ -57,16 +61,24 @@ export function characterSheetText(dude: any = globalState.player): string {
     out.push(`${line}${msg(643)} ${stat('Age')}${msg(644)} ${msg(645 + gender)}`)
     const xp = thousands(stat('Experience'))
     const level = stat('Level')
-    const nextXP = Math.floor((level + 1) * level / 2) * 1000
+    const nextXP = Math.floor(((level + 1) * level) / 2) * 1000
     out.push(`${msg(647)} ${pad(level, 2)} ${msg(648)} ${xp} ${spaces(12 - xp.length)}${msg(649)} ${thousands(nextXP)}`)
     out.push('')
     out.push('')
 
     // (CE prints ST instead of Sequence on the first line — its FIXME — kept)
-    out.push(`${msg(624)} ${pad(stat('STR'), 2)} ${msg(625)} ${pad(stat('HP'), 3)}/${pad(stat('Max HP'), 3)} ${msg(626)} ${pad(stat('STR'), 2)}`)
-    out.push(`${msg(627)} ${pad(stat('PER'), 2)} ${msg(628)} ${pad(ac(), 3)} ${msg(629)} ${pad(stat('Healing Rate'), 2)}`)
-    out.push(`${msg(630)} ${pad(stat('END'), 2)} ${msg(631)} ${pad(stat('AP'), 2)} ${msg(632)} ${pad(stat('Critical Chance'), 3)}%`)
-    out.push(`${msg(633)} ${pad(stat('CHA'), 2)} ${msg(634)} ${pad(stat('Melee'), 2)} ${msg(635)} ${pad(stat('Carry'), 3)} lbs.`)
+    out.push(
+        `${msg(624)} ${pad(stat('STR'), 2)} ${msg(625)} ${pad(stat('HP'), 3)}/${pad(stat('Max HP'), 3)} ${msg(626)} ${pad(stat('STR'), 2)}`,
+    )
+    out.push(
+        `${msg(627)} ${pad(stat('PER'), 2)} ${msg(628)} ${pad(ac(), 3)} ${msg(629)} ${pad(stat('Healing Rate'), 2)}`,
+    )
+    out.push(
+        `${msg(630)} ${pad(stat('END'), 2)} ${msg(631)} ${pad(stat('AP'), 2)} ${msg(632)} ${pad(stat('Critical Chance'), 3)}%`,
+    )
+    out.push(
+        `${msg(633)} ${pad(stat('CHA'), 2)} ${msg(634)} ${pad(stat('Melee'), 2)} ${msg(635)} ${pad(stat('Carry'), 3)} lbs.`,
+    )
     out.push(`${msg(636)} ${pad(stat('INT'), 2)} ${msg(637)} ${pad(dr('Normal'), 3)}%`)
     out.push(`${msg(638)} ${pad(stat('AGI'), 2)} ${msg(639)} ${pad(dr('Radiation'), 3)}%`)
     out.push(`${msg(640)} ${pad(stat('LUK'), 2)} ${msg(641)} ${pad(dr('Poison'), 3)}%`)
@@ -92,7 +104,8 @@ export function characterSheetText(dude: any = globalState.player): string {
 
     // Karma, then (with their own headings, 657 / 656 in the sheet) town reputations and addictions
     out.push(msg(652))
-    const townHeading = msg(4000), addictionHeading = msg(4001)
+    const townHeading = msg(4000),
+        addictionHeading = msg(4001)
     for (const l of karmaFolder().lines) {
         if (l.kind === 'heading') {
             out.push('')
@@ -128,7 +141,9 @@ export function characterSheetText(dude: any = globalState.player): string {
     out.push('')
 
     out.push(msg(654))
-    const items = [p.leftHand, p.rightHand, p.armor].filter((it: any) => it && it.pid !== undefined).concat(p.inventory ?? [])
+    const items = [p.leftHand, p.rightHand, p.armor]
+        .filter((it: any) => it && it.pid !== undefined)
+        .concat(p.inventory ?? [])
     for (let i = 0; i < items.length; i += 3) {
         let row = ''
         for (const it of items.slice(i, i + 3)) {

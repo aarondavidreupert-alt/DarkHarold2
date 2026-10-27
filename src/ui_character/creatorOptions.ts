@@ -31,10 +31,19 @@ const msg = (id: number, fallback: string) => getMessage('editor', id) ?? fallba
 const STORE_KEY = 'dh2.premadeCharacters'
 
 function readStore(): { [name: string]: CreatorInitialState } {
-    try { return JSON.parse(localStorage.getItem(STORE_KEY) ?? '{}') ?? {} } catch { return {} }
+    try {
+        return JSON.parse(localStorage.getItem(STORE_KEY) ?? '{}') ?? {}
+    } catch {
+        return {}
+    }
 }
 function writeStore(store: { [name: string]: CreatorInitialState }): boolean {
-    try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); return true } catch { return false }
+    try {
+        localStorage.setItem(STORE_KEY, JSON.stringify(store))
+        return true
+    } catch {
+        return false
+    }
 }
 
 export interface CreatorOptionsContext {
@@ -45,8 +54,13 @@ export interface CreatorOptionsContext {
 
 // CE BLANK.GCD (editor.msg 618): every SPECIAL 5, no traits or tags, 5 points
 export const BLANK_CHARACTER: CreatorInitialState = {
-    name: 'None', special: { STR: 5, PER: 5, END: 5, CHA: 5, INT: 5, AGI: 5, LUK: 5 },
-    age: 25, sex: 'Male', tagged: [], traits: [], characterPoints: 5,
+    name: 'None',
+    special: { STR: 5, PER: 5, END: 5, CHA: 5, INT: 5, AGI: 5, LUK: 5 },
+    age: 25,
+    sex: 'Male',
+    tagged: [],
+    traits: [],
+    characterPoints: 5,
 }
 
 // the large button sound (CE _gsound_lrg_butt_press)
@@ -55,15 +69,31 @@ function playButtonSound(): void {
 }
 
 export function showCreatorOptions(parent: HTMLElement, ctx: CreatorOptionsContext): void {
-    const W = 164, H = 217, BTN_W = 137, BTN_H = 34
+    const W = 164,
+        H = 217,
+        BTN_W = 137,
+        BTN_H = 34
     // CE: 238, 90 in the 640×480 editor window
     const panel = document.createElement('div')
     Object.assign(panel.style, {
-        position: 'absolute', left: '238px', top: '90px', width: W + 'px', height: H + 'px', zIndex: '30',
-        backgroundImage: `url('${assetUrl('art/intrface/opbase.png')}')`, backgroundRepeat: 'no-repeat',
+        position: 'absolute',
+        left: '238px',
+        top: '90px',
+        width: W + 'px',
+        height: H + 'px',
+        zIndex: '30',
+        backgroundImage: `url('${assetUrl('art/intrface/opbase.png')}')`,
+        backgroundRepeat: 'no-repeat',
     })
     const blocker = document.createElement('div') // WINDOW_MODAL
-    Object.assign(blocker.style, { position: 'absolute', left: '0', top: '0', width: '640px', height: '480px', zIndex: '29' })
+    Object.assign(blocker.style, {
+        position: 'absolute',
+        left: '0',
+        top: '0',
+        width: '640px',
+        height: '480px',
+        zIndex: '29',
+    })
     parent.appendChild(blocker)
     parent.appendChild(panel)
 
@@ -76,15 +106,29 @@ export function showCreatorOptions(parent: HTMLElement, ctx: CreatorOptionsConte
     const guard = (fn: () => Promise<void>) => async () => {
         if (busy) return
         busy = true
-        try { await fn() } finally { busy = false }
+        try {
+            await fn()
+        } finally {
+            busy = false
+        }
     }
 
     const save = guard(async () => {
         const raw = await showInput(msg(600, 'SAVE'), msg(617, 'PLAYER'))
         if (raw === null) return
-        const name = raw.trim().toUpperCase().replace(/\.GCD$/, '') || msg(617, 'PLAYER')
+        const name =
+            raw
+                .trim()
+                .toUpperCase()
+                .replace(/\.GCD$/, '') || msg(617, 'PLAYER')
         const store = readStore()
-        if (store[name] && !(await showConfirm(`"${name}.GCD" ${msg(609, 'already exists.')}\n${msg(610, 'Do you wish to overwrite?')}`))) return
+        if (
+            store[name] &&
+            !(await showConfirm(
+                `"${name}.GCD" ${msg(609, 'already exists.')}\n${msg(610, 'Do you wish to overwrite?')}`,
+            ))
+        )
+            return
         store[name] = ctx.snapshot()
         if (writeStore(store)) await showAlert(`${name}.GCD${msg(607, ' was successfully saved.')}`)
         else await showAlert(`${msg(611, 'Error saving ')}${name}.GCD`)
@@ -92,31 +136,53 @@ export function showCreatorOptions(parent: HTMLElement, ctx: CreatorOptionsConte
     const load = guard(async () => {
         const store = readStore()
         const names = Object.keys(store).sort()
-        if (names.length === 0) { await showAlert(msg(615, 'Error reading file list!')); return }
+        if (names.length === 0) {
+            await showAlert(msg(615, 'Error reading file list!'))
+            return
+        }
         const picked = await pickName(parent, msg(601, 'LOAD'), names)
         if (!picked) return
         close()
         ctx.reopen(store[picked])
     })
-    const print = guard(async () => { printCharacterSheet(ctx.printable()) })
+    const print = guard(async () => {
+        printCharacterSheet(ctx.printable())
+    })
     const erase = guard(async () => {
-        if (!(await showConfirm(`${msg(605, 'Are you sure you want to erase')}\n${msg(606, 'the current character?')}`))) return
+        if (
+            !(await showConfirm(`${msg(605, 'Are you sure you want to erase')}\n${msg(606, 'the current character?')}`))
+        )
+            return
         close()
         ctx.reopen(BLANK_CHARACTER)
     })
-    const handlers = [save, load, print, erase, async () => { close() }]
+    const handlers = [
+        save,
+        load,
+        print,
+        erase,
+        async () => {
+            close()
+        },
+    ]
     const fallback = ['SAVE', 'LOAD', 'PRINT TO FILE', 'ERASE', 'DONE']
 
     handlers.forEach((handler, i) => {
         const btn = new Widget('art/intrface/opbtnoff.png', { x: 13, y: 17 + i * (BTN_H + 3), w: BTN_W, h: BTN_H })
-            .mouseDownBG('art/intrface/opbtnon.png').css({ cursor: 'pointer' })
-            .onClick(() => { playButtonSound(); void handler() })
+            .mouseDownBG('art/intrface/opbtnon.png')
+            .css({ cursor: 'pointer' })
+            .onClick(() => {
+                playButtonSound()
+                void handler()
+            })
         const text = msg(600 + i, fallback[i])
         const label = new FoText(font3, text, CE_COLOR.label)
         font3.onLoad(() => {
             Object.assign(label.elem.style, {
-                position: 'absolute', pointerEvents: 'none',
-                left: Math.max(0, Math.trunc((BTN_W - font3.measureText(text)) / 2)) + 'px', top: '7px',
+                position: 'absolute',
+                pointerEvents: 'none',
+                left: Math.max(0, Math.trunc((BTN_W - font3.measureText(text)) / 2)) + 'px',
+                top: '7px',
             })
             btn.elem.appendChild(label.elem)
         })
@@ -141,11 +207,29 @@ function pickName(parent: HTMLElement, title: string, names: string[]): Promise<
     return new Promise((resolve) => {
         const box = document.createElement('div')
         Object.assign(box.style, {
-            position: 'absolute', left: '170px', top: '100px', width: '300px', maxHeight: '260px', overflowY: 'auto',
-            background: '#000', border: '2px solid #4a4a2a', padding: '8px', zIndex: '40',
+            position: 'absolute',
+            left: '170px',
+            top: '100px',
+            width: '300px',
+            maxHeight: '260px',
+            overflowY: 'auto',
+            background: '#000',
+            border: '2px solid #4a4a2a',
+            padding: '8px',
+            zIndex: '40',
         })
-        const finish = (v: string | null) => { document.removeEventListener('keydown', esc, true); box.remove(); resolve(v) }
-        const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finish(null) } }
+        const finish = (v: string | null) => {
+            document.removeEventListener('keydown', esc, true)
+            box.remove()
+            resolve(v)
+        }
+        const esc = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                e.preventDefault()
+                e.stopPropagation()
+                finish(null)
+            }
+        }
         document.addEventListener('keydown', esc, true)
         const head = document.createElement('div')
         new FoText(font1, title, '#fcfc7c').appendTo(head)
@@ -155,8 +239,12 @@ function pickName(parent: HTMLElement, title: string, names: string[]): Promise<
             Object.assign(row.style, { cursor: 'pointer', padding: '2px 0' })
             const t = new FoText(font1, name + '.GCD', '#00f800')
             t.appendTo(row)
-            row.onmouseenter = () => { t.color = '#fcfc7c' }
-            row.onmouseleave = () => { t.color = '#00f800' }
+            row.onmouseenter = () => {
+                t.color = '#fcfc7c'
+            }
+            row.onmouseleave = () => {
+                t.color = '#00f800'
+            }
             row.onclick = () => finish(name)
             box.appendChild(row)
         }
