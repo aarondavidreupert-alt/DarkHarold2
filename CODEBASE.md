@@ -40,7 +40,6 @@ DarkHarold2/
 │   ├── pal.py             PAL palette loading
 │   ├── proto.py           PRO binary parser
 │   ├── dat2.py            DAT2 archive extractor
-│   ├── fonts.py           FON font extraction
 │   ├── convertAudio.py    ACM → WAV (acmDecoder.py: CE sound_decoder.cc port, no ffmpeg)
 │   ├── stitchWorldmap.py  World map tiles → art/worldmap.png (stitch_worldmap stage)
 │   ├── convertLST.py      LST → JSON pre-bake (lut/lst/)
@@ -251,7 +250,6 @@ The engine consumes only pre-baked JSON/PNG — no runtime DAT parsing.
 | MAP → JSON | `tools/fomap.py` | `maps/*.json`, `maps/*.images.json` |
 | LST → JSON | `tools/convertLST.py` | `lut/lst/*.json` |
 | PRO indexes | `tools/convertPRO.py` (no pipeline stage; nothing reads its output) | `lut/pro/*.json` (proto lookup) |
-| AAF/FON fonts | `tools/fonts.py` | `art/fonts/` |
 | ACM → WAV | `tools/convertAudio.py` (`export_audio` stage, default; `tools/acmDecoder.py`, a port of CE `sound_decoder.cc`) | `audio/**/*.wav` |
 | AAF/FON fonts → PNG atlas + web font | `tools/exportFonts.py` (`export_fonts` stage; the `.woff` needs fontTools) | `art/fonts/font<N>_aaf.png/.json/.woff`, `font<N>_fon.png/.json` |
 | MVE → WebM | `tools/convertMovies.py` (`export_movies` stage; needs ffmpeg) | `art/cuts/*.webm` + `.json` |

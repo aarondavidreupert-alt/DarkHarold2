@@ -162,7 +162,6 @@ pipenv run python tools/pipeline_gui.py
 | [`tools/convertAudio.py`](tools/convertAudio.py) | ACM → WAV (`export_audio` stage; ACM decoded by `tools/acmDecoder.py`, a port of CE `sound_decoder.cc`) |
 | [`tools/dat2.py`](tools/dat2.py) | DAT2 archive extractor |
 | [`tools/pal.py`](tools/pal.py) | PAL palette loading |
-| [`tools/fonts.py`](tools/fonts.py) | FON font extraction |
 | [`tools/convertLST.py`](tools/convertLST.py) | LST → JSON pre-bake (`lut/lst/`) |
 | [`tools/convertPRO.py`](tools/convertPRO.py) | Standalone PRO converter (debug) |
 | [`tools/convertEndgame.py`](tools/convertEndgame.py) | Endgame slide extraction |
