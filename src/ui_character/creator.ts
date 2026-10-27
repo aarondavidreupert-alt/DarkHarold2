@@ -68,7 +68,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
 
     // Creation-mode state
     let pool = 5                                   // bonus SPECIAL points to allocate
-    let selectedTraits: string[] = []
+    const selectedTraits: string[] = []
     let playerName = 'none'
     let playerAge = 25
     let playerSex: 'Male' | 'Female' = 'Male'

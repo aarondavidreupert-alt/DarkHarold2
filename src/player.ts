@@ -400,8 +400,8 @@ export class Player extends Critter {
         if (signalEvents) Events.emit('playerMoved', position)
 
         // check if the player has entered an exit grid
-        var objs = globalState.gMap.objectsAtPosition(this.position)
-        for (var i = 0; i < objs.length; i++) {
+        const objs = globalState.gMap.objectsAtPosition(this.position)
+        for (let i = 0; i < objs.length; i++) {
             if (objs[i].type === 'misc' && objs[i].extra && objs[i].extra.exitMapID !== undefined) {
                 // walking on an exit grid
                 // todo: exit grids are likely multi-hex (maybe have a set?)

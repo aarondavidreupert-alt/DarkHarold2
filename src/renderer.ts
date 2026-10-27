@@ -90,7 +90,7 @@ function roofFloodFill(roof: TileMap, startX: number, startY: number, flags?: Re
     return hidden
 }
 
-let _animLogLast = { art: '', frame: -1 }
+const _animLogLast = { art: '', frame: -1 }
 
 export type TileMap = string[][]
 

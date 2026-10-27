@@ -44,7 +44,7 @@ interface IntNode { type: "int", value: number }
 export type Node = IfNode | OpNode | CallNode | VarNode | IntNode;
 
 function tokenizeCond(data: string): Token[] {
-    var tokensRe: { [re: string]: number } = {
+    const tokensRe: { [re: string]: number } = {
         "if": Tok.IF,
         "and": Tok.OP,
         "[a-z_]+": Tok.IDENT,
@@ -55,18 +55,18 @@ function tokenizeCond(data: string): Token[] {
     }
 
     function match(str: string): Token|null {
-        for(var re in tokensRe) {
-            var m = str.match(new RegExp("^\\s*(" + re + ")\\s*"))
+        for(const re in tokensRe) {
+            const m = str.match(new RegExp("^\\s*(" + re + ")\\s*"))
             if(m !== null)
                 return [tokensRe[re], m[1], m[0].length]
         }
         return null
     }
 
-    var acc = data
-    var toks: Token[] = []
+    let acc = data
+    const toks: Token[] = []
     while(acc.length > 0) {
-        var m = match(acc)
+        const m = match(acc)
         if(m === null)
             throw "error parsing condition: '" + data + "': choked on '" + acc + "'"
         toks.push(m[0] === Tok.INT ? [Tok.INT, m[1], parseInt(m[1])] : m)
@@ -78,8 +78,8 @@ function tokenizeCond(data: string): Token[] {
 
 function parseCond(data: string) {
     data = data.replace("%", "") // percentages don't really matter
-    var tokens = tokenizeCond(data)
-    var curTok = 0
+    const tokens = tokenizeCond(data)
+    let curTok = 0
 
     function expect(t: Tok) {
         if(tokens[curTok++][0] !== t)
@@ -99,27 +99,27 @@ function parseCond(data: string) {
 
     function call(name: string): Node {
         expect(Tok.LPAREN)
-        var arg = expr()
+        const arg = expr()
         expect(Tok.RPAREN)
         return {type: 'call', name, arg}
     }
 
     function checkOp(node: Node): Node {
-        var t = peek()
+        const t = peek()
         if(t === null || t[0] !== Tok.OP)
             return node
 
         curTok++
-        var rhs = checkOp(expr())
+        const rhs = checkOp(expr())
         return {type: 'op', op: t[1], lhs: node, rhs: rhs}
     }
 
     function expr(): Node {
-        var t = next()
+        const t = next()
         switch(t[0]) {
             case Tok.IF:
                 expect(Tok.LPAREN)
-                var cond = expr()
+                let cond = expr()
                 expect(Tok.RPAREN)
                 return checkOp({type: 'if', cond: cond})
             case Tok.IDENT:
@@ -140,8 +140,8 @@ export function parseConds(data: string) {
     // conditions are formed by conjunctions, so
     // x AND y AND z can just be collapsed to [x, y, z] here
 
-    var cond = parseCond(data)
-    var out: Node[] = []
+    const cond = parseCond(data)
+    const out: Node[] = []
 
     function visit(node: Node) {
         if(node.type === "op" && node.op === "and") {
@@ -243,7 +243,7 @@ function evalCond(node: Node, critterCount?: number): number|boolean {
 
 export function evalConds(conds: Node[], critterCount?: number): boolean {
     // TODO: Array.every
-    for(var i = 0; i < conds.length; i++) {
+    for(let i = 0; i < conds.length; i++) {
         if(evalCond(conds[i], critterCount) === false)
             return false
     }

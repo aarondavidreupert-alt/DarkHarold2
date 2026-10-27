@@ -23,7 +23,7 @@ import { fromTileNum, setCenterTile, toTileNum } from "../tile.js"
 import { dbg } from "../logger.js"
 
 function zeroArray(arr: any[]) {
-    for (var i = 0; i < arr.length; i++)
+    for (let i = 0; i < arr.length; i++)
         arr[i] = 0
 }
 
@@ -46,7 +46,7 @@ function tile_num_in_direction(tileNum: number, dir: number, distance: number): 
     if (distance === 0)
         return tileNum
 
-    var hex = hexInDirectionDistance(fromTileNum(tileNum), dir, distance)
+    const hex = hexInDirectionDistance(fromTileNum(tileNum), dir, distance)
     if (!hex) {
         dbg('lighting', "hex (input tile is %s) is %o; dir=%d distance=%d", tileNum.toString(16), hex, dir, distance)
         return -1
@@ -60,21 +60,21 @@ export function obj_light_table_init(): void {
     //var centerTile_: Point = getCenterTile()
 
     // should we use the center tile at all?
-    var edi = toTileNum(globalState.centerTile)
-    var edx = edi & 1
-    var eax = edx*4
+    let edi = toTileNum(globalState.centerTile)
+    let edx = edi & 1
+    let eax = edx*4
     eax -= edx
     eax <<= 5
     edx = eax
     eax <<= 3
-    var ecx = 0
+    let ecx = 0
     eax += edx
 
-    var v2c = ecx
-    var v54 = eax
-    var v48
-    var ebx, ebp, esi, v3c, v40, v50, v20, v24, lightOffsetsStart, v58
-    var v44, v4c, v38, v34, v28, v1c, v28
+    let v2c = ecx
+    let v54 = eax
+    let v48
+    let ebx, ebp, esi, v3c, v40, v50, v20, v24, lightOffsetsStart, v58
+    let v44, v4c, v38, v34, v28, v1c
 
     do {
         eax = v54

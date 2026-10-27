@@ -41,8 +41,8 @@ export function parseIni(text: string) {
     const lines = text.split('\n').map(l => l.replace(/\r$/, ''))
     let category = null
 
-    for (var i = 0; i < lines.length; i++) {
-        var line = lines[i].replace(/\s*;.*/, '') // replace comments
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].replace(/\s*;.*/, '') // replace comments
         if (line.trim() === '') {
         } else if (line[0] === '[') category = line.trim().slice(1, -1)
         else {
@@ -230,12 +230,12 @@ export class BinaryReader {
         return this.data.getUint8(this.offset++)
     }
     read16(): number {
-        var r = this.data.getUint16(this.offset)
+        const r = this.data.getUint16(this.offset)
         this.offset += 2
         return r
     }
     read32(): number {
-        var r = this.data.getUint32(this.offset)
+        const r = this.data.getUint32(this.offset)
         this.offset += 4
         return r
     }

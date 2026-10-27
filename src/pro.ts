@@ -104,9 +104,9 @@ export function critterArtShouldRun(art: string): boolean {
 // Previously threw "reindex(?)" / "0x14" etc. for death, dodge and throw animations.
 function getCritterArtPath(frmPID: number) {
     dbg('object', "FRM PID: " + frmPID)
-    var idx = (frmPID & 0x00000fff)
-    var weaponType = (frmPID & 0x0000f000) >> 12
-    var anim = (frmPID & 0x00ff0000) >> 16
+    let idx = (frmPID & 0x00000fff)
+    const weaponType = (frmPID & 0x0000f000) >> 12
+    const anim = (frmPID & 0x00ff0000) >> 16
 
     if (ALIASED_CRITTER_ANIMS.includes(anim)) {
         const alias = getLstJson("art/critters/critters", idx)?.walk
@@ -131,19 +131,19 @@ export function lookupInterfaceArt(idx: number) {
 }
 
 export function lookupArt(frmPID: number) {
-    var type = getPROType(frmPID)
-    var pidID = frmPID & 0xffff
+    const type = getPROType(frmPID)
+    const pidID = frmPID & 0xffff
 
     if(type === "critters")
         return getCritterArtPath(frmPID)
 
-    var lsts: { [lst: string]: string } = {
+    const lsts: { [lst: string]: string } = {
                 "items": "art/items/items",
                 "scenery": "art/scenery/scenery",
                 "walls": "art/walls/walls",
                 "tiles": "art/tiles/tiles",
                 "misc": "art/misc/misc"}
-    var path = "art/" + type + "/" + getLstJson(lsts[type], pidID)!
+    const path = "art/" + type + "/" + getLstJson(lsts[type], pidID)!
 
     return path.toLowerCase()
 }

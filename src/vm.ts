@@ -24,7 +24,7 @@ import { dbg, dbgWarn } from './logger.js'
 
 function binop(f: (x: any, y: any) => any) {
     return function (this: ScriptVM) {
-        var rhs = this.pop()
+        const rhs = this.pop()
         this.push(f(this.pop(), rhs))
     }
 }
@@ -347,15 +347,15 @@ export const opMap: { [opcode: number]: (this: ScriptVM) => void } = {
     0x8003: function () {}, // op_critical_done (nop)
     0x802b: function () {
         // op_push_base
-        var argc = this.pop()
+        const argc = this.pop()
         this.retStack.push(this.dvarBase)
         this.dvarBase = this.dataStack.length - argc
         // console.log("op_push_base (argc %d)", argc)
     },
     0x8019: function () {
         // op_swapa
-        var a = this.popAddr()
-        var b = this.popAddr()
+        const a = this.popAddr()
+        const b = this.popAddr()
         this.retStack.push(a)
         this.retStack.push(b)
     },
@@ -369,16 +369,16 @@ export const opMap: { [opcode: number]: (this: ScriptVM) => void } = {
         this.svarBase = this.dataStack.length
     }, // op_set_global
     0x8013: function () {
-        var num = this.pop()
+        const num = this.pop()
         this.dataStack[this.svarBase + num] = this.popRaw()
     }, // op_store_global
     0x8012: function () {
-        var num = this.pop()
+        const num = this.pop()
         this.push(this.dataStack[this.svarBase + num])
     }, // op_fetch_global
     0x801c: function () {
         // op_pop_return
-        var addr = this.popAddr()
+        const addr = this.popAddr()
         if (addr === -1) this.halted = true
         else this.pc = addr
     },
@@ -393,7 +393,7 @@ export const opMap: { [opcode: number]: (this: ScriptVM) => void } = {
         } else this.pop()
     }, // op_if
     0x8031: function () {
-        var varNum = this.pop()
+        const varNum = this.pop()
         this.dataStack[this.dvarBase + varNum] = this.popRaw()
     }, // op_store
     0x8032: function () {
@@ -426,9 +426,9 @@ export const opMap: { [opcode: number]: (this: ScriptVM) => void } = {
 
     0x8030: function () {
         // op_while (CE opWhile: ProgramValue::isEmpty, as op_if)
-        var cond = this.pop()
+        const cond = this.pop()
         if (!sslTrue(cond)) {
-            var pc = this.pop()
+            const pc = this.pop()
             this.pc = pc
         }
     },
@@ -443,9 +443,9 @@ export const opMap: { [opcode: number]: (this: ScriptVM) => void } = {
     },
     0x8027: function () {
         // op_check_arg_count
-        var argc = this.pop()
-        var procIdx = this.pop()
-        var proc = this.intfile.proceduresTable[procIdx]
+        const argc = this.pop()
+        const procIdx = this.pop()
+        const proc = this.intfile.proceduresTable[procIdx]
         dbg('script', 'CHECK ARGS: argc=%d procIdx=%d, proc=%o', argc, procIdx, proc)
         // CE opCheckProcedureArgumentCount → programFatalError
         if (argc !== proc.argc) throw new VMFatalError(`Wrong number of args to procedure ${proc.name}: expected ${proc.argc}, got ${argc}`)
@@ -469,8 +469,8 @@ export const opMap: { [opcode: number]: (this: ScriptVM) => void } = {
         // we just check the next instruction and match it up with the set of
         // instructions who use it as an identifier (whom use interpretGetName).
 
-        var num = this.script.read32()
-        var nextOpcode = this.script.peek16()
+        const num = this.script.read32()
+        const nextOpcode = this.script.peek16()
 
         if (
             arrayIncludes(
@@ -684,8 +684,8 @@ export class ScriptVM {
     }
 
     dis(): string {
-        var offset = this.script.offset
-        var disassembly = transpile(this.intfile, this.script)
+        const offset = this.script.offset
+        const disassembly = transpile(this.intfile, this.script)
         this.script.seek(offset)
         return disassembly
     }
@@ -697,7 +697,7 @@ export class ScriptVM {
     // call a named procedure
     call(procName: string, args: any[] = []): any {
         if (this.dead) return 0
-        var proc = this.intfile.procedures[procName]
+        const proc = this.intfile.procedures[procName]
         // console.log("CALL " + procName + " @ " + proc.offset + " from " + this.scriptObj.scriptName)
         if (!proc) throw 'ScriptVM: unknown procedure ' + procName
         if ((proc.flags & PROC_IMPORTED) !== 0) {
@@ -831,9 +831,9 @@ export class ScriptVM {
         if (this.halted) return false
 
         // fetch op
-        var pc = this.pc
+        const pc = this.pc
         this.script.seek(pc)
-        var opcode = this.script.read16()
+        const opcode = this.script.read16()
 
         // dispatch based on opMap
         if (opMap[opcode] !== undefined) opMap[opcode].call(this)

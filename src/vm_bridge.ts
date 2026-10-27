@@ -30,13 +30,13 @@ export module ScriptVMBridge {
     // create a bridged function that calls procedures on scriptObj
     function bridged(procName: string, argc: number, pushResult: boolean=true) {
         return function(this: GameScriptVM) {
-            var args = []
-            for(var i = 0; i < argc; i++)
+            const args = []
+            for(let i = 0; i < argc; i++)
                 args.push(this.pop())
             args.reverse()
 
             const self = this.scriptObj.self_obj
-            var r = (<any>this.scriptObj)[procName].apply(this.scriptObj, args)
+            const r = (<any>this.scriptObj)[procName].apply(this.scriptObj, args)
             // (destroying / killing / damaging its own self_obj ends the procedure — CE drops its frame)
             if(STOPS_PROC_ON_SELF.has(procName) && self && args[0] === self) {
                 this.halted = true
@@ -90,7 +90,7 @@ export module ScriptVMBridge {
         return function(this: GameScriptVM) { this.push(sslValue(reader(this.scriptObj))) }
     }
 
-    var bridgeOpMap: { [opcode: number]: (this: GameScriptVM) => void } = {
+    let bridgeOpMap: { [opcode: number]: (this: GameScriptVM) => void } = {
         0x80BF: builtin("dude_obj")
        ,0x80BC: builtin("self_obj")
        ,0x8128: builtin("combat_is_initialized")
@@ -107,7 +107,7 @@ export module ScriptVMBridge {
        ,0x80F7: builtin("fixed_param")
 
        ,0x8016: function() { this.mapScript()[this.pop()] = 0 } // op_export_var
-       ,0x8015: function() { var name = varName.call(this, this.pop()); this.mapScript()[name] = this.popRaw() } // op_store_external
+       ,0x8015: function() { const name = varName.call(this, this.pop()); this.mapScript()[name] = this.popRaw() } // op_store_external
        ,0x8014: function() { this.push(this.mapScript()[varName.call(this, this.pop())]) } // op_fetch_external
 
        ,0x80B9: bridged("script_overrides", 0, false)
@@ -270,11 +270,11 @@ export module ScriptVMBridge {
        // sfall register_hook_proc (0x8262): like gsay_option, the procedure argument (a
        // procedure number, 0 = unregister) becomes a function
        ,0x8262: function() {
-            var proc = this.pop()
-            var hookId = this.pop()
-            var procFn = null
+            const proc = this.pop()
+            const hookId = this.pop()
+            let procFn = null
             if (proc !== 0) {
-                var procName = typeof proc === 'string' ? proc : this.intfile.proceduresTable[proc].name
+                const procName = typeof proc === 'string' ? proc : this.intfile.proceduresTable[proc].name
                 procFn = () => { this.call(procName) }
             }
             this.scriptObj.register_hook_proc(hookId, procFn)
@@ -411,32 +411,32 @@ export module ScriptVMBridge {
 
        // gsay_option — CE: interpreter_extra.cc _op_gsay_option (0x811F); like giq_option without the IQ test.
        ,0x811F: function() {
-            var reaction = this.pop()
-            var target = this.pop()
-            var msgId = this.pop()
-            var msgList = this.pop()
-            var targetProc = typeof target === 'string' ? target : this.intfile.proceduresTable[target].name
-            var targetFn = () => { this.call(targetProc) }
+            const reaction = this.pop()
+            const target = this.pop()
+            const msgId = this.pop()
+            const msgList = this.pop()
+            const targetProc = typeof target === 'string' ? target : this.intfile.proceduresTable[target].name
+            const targetFn = () => { this.call(targetProc) }
             this.scriptObj.gsay_option(msgList, msgId, targetFn, reaction)
        }
 
        //,0x8121: bridged("giq_option", 5) // TODO: wrap this so that target becomes a function
        // giq_option
        ,0x8121: function() { // giq_option
-            var reaction = this.pop()
-            var target = this.pop()
-            var msgId = this.pop()
-            var msgList = this.pop()
-            var iqTest = this.pop()
+            const reaction = this.pop()
+            const target = this.pop()
+            const msgId = this.pop()
+            const msgList = this.pop()
+            const iqTest = this.pop()
 
             // wrap target in a function
             //var targetFn = () => { this.call() }
             //console.log("TARGET=%o, proc=%o this=%o", targetFn, this.intfile.proceduresTable[target], this)
-            var targetProc = this.intfile.proceduresTable[target].name
+            const targetProc = this.intfile.proceduresTable[target].name
             // TODO: do we save the current PC as the return address?
             // otherwise when end_dialogue is reached, we will have
             // interrupted to this targetFn, and have no way back
-            var targetFn = () => { this.call(targetProc) }
+            const targetFn = () => { this.call(targetProc) }
 
             this.scriptObj.giq_option(iqTest, msgList, msgId, targetFn, reaction)
         }

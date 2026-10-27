@@ -47,11 +47,11 @@ export module Lightmap {
     }
 
     // Tile lightmap (Int32Array for fast .set() bulk copy)
-    export var tile_intensity = new Int32Array(40000)
+    export let tile_intensity = new Int32Array(40000)
     light_reset()
 
     // Static (non-critter) light bake — populated by bakeStaticLight()
-    export var staticTileIntensity = new Int32Array(40000)
+    export let staticTileIntensity = new Int32Array(40000)
 
     function light_subtract_from_tile(tileNum: number, intensity: number) {
         tile_intensity[tileNum] -= intensity
@@ -62,7 +62,7 @@ export module Lightmap {
     }
 
     function zeroArray(arr: any[]) {
-        for(var i = 0; i < arr.length; i++)
+        for(let i = 0; i < arr.length; i++)
             arr[i] = 0
     }
 
@@ -85,7 +85,7 @@ export module Lightmap {
         // Scale the APPLIED amount (not obj.lightIntensity — that would distort the
         // cone via the −655 falloff term); this keeps the cone shape and scales its
         // amplitude, so weighted stamps sum linearly. §player-light-smooth.
-        var lightModifier = scale === 1
+        const lightModifier = scale === 1
             ? baseModifier
             : (tile: number, amount: number) => baseModifier(tile, Math.round(amount * scale))
 
@@ -99,7 +99,7 @@ export module Lightmap {
             return
         }
 
-        var pos = posOverride ?? obj.position
+        const pos = posOverride ?? obj.position
 
         const srcTile = toTileNum(pos)
         if (srcTile < 0 || srcTile >= 40000) return   // off-grid override → skip
@@ -109,17 +109,17 @@ export module Lightmap {
 
         ensureLightTableInit()
 
-        var edx: any, eax
+        let edx: any, eax
         edx = (pos.x%2)*3 * 32
         eax = edx*9
         //var lightOffsetsStart = light_offsets + eax // so &light_offsets[eax/4|0], we'd use an index here
-        var lightOffsetsStart = eax // starting offset into light_offsets
+        const lightOffsetsStart = eax // starting offset into light_offsets
 
-        var light_per_dist = /* obj.lightIntensity - */ (((obj.lightIntensity - 655) / (obj.lightRadius+1)) | 0)
+        const light_per_dist = /* obj.lightIntensity - */ (((obj.lightIntensity - 655) / (obj.lightRadius+1)) | 0)
 
 
-        var stackArray = new Array(36)
-        var light = obj.lightIntensity
+        const stackArray = new Array(36)
+        let light = obj.lightIntensity
 
         light -= light_per_dist
         stackArray[0] = light
@@ -173,23 +173,23 @@ export module Lightmap {
         stackArray[136/4|0] = light
         stackArray[140/4|0] = light
 
-        var _light_blocked = new Array(36*6) // XXX: Is this the exact size?
+        const _light_blocked = new Array(36*6) // XXX: Is this the exact size?
 
         // zero arrays
         zeroArray(_light_blocked)
 
-        var isLightBlocked // var_C
+        let isLightBlocked // var_C
 
         function light_blocked(index: number) {
             return _light_blocked[index];
         }
 
-        for(var i = 0; i < 36; i++) {
+        for(let i = 0; i < 36; i++) {
             if(obj.lightRadius >= light_distance[i]) {
-                var v26, v27, v28, v29, v30, v31, v32, v33, v34 // temporaries
+                let v26, v27, v28, v29, v30, v31, v32, v33, v34 // temporaries
 
-                for(var dir = 0; dir < 6; dir++) {
-                    var nextDir = (dir + 1) % 6
+                for(let dir = 0; dir < 6; dir++) {
+                    const nextDir = (dir + 1) % 6
 
                     switch(i) {
                         case 0:
@@ -314,14 +314,14 @@ export module Lightmap {
 
                     if(isLightBlocked === 0) {
                         // loc_4A7500:
-                        var nextTile = toTileNum(pos) + light_offsets[(lightOffsetsStart/4|0) + 36 * dir + i]
+                        const nextTile = toTileNum(pos) + light_offsets[(lightOffsetsStart/4|0) + 36 * dir + i]
 
                         if(nextTile >= 0 && nextTile < 40000) { // CE hexGridTileIsValid
-                            var edi = 1
+                            let edi = 1
                             // for each object at position nextTile
-                            var objs = globalState.gMap.objectsAtPosition(fromTileNum(nextTile))
-                            for(var objsN = 0; objsN < objs.length; objsN++) {
-                                var curObj = objs[objsN]
+                            const objs = globalState.gMap.objectsAtPosition(fromTileNum(nextTile))
+                            for(let objsN = 0; objsN < objs.length; objsN++) {
+                                const curObj = objs[objsN]
                                 if(!curObj.pro) // XXX: why wouldn't an object have pro?
                                     continue
 
@@ -346,7 +346,7 @@ export module Lightmap {
                                         // the wrong occlusion for W-E walls (light-bleed stripes) while
                                         // NW-SE walls happened to match the default. See wiki/known_bugs
                                         // LD11 / wiki/extended_flags.md §4.
-                                        var flags = curObj.pro.extra?.extendedFlags ?? 0
+                                        const flags = curObj.pro.extra?.extendedFlags ?? 0
                                         if(flags & 0x8000000 || flags & 0x40000000) {
                                             if(dir != 4 && dir != 5 && (dir || i >= 8) && (dir != 3 || i <= 15))
                                                 edi = 0
@@ -374,7 +374,7 @@ export module Lightmap {
                             }
 
                             if(edi !== 0) {
-                                var lightAdjustment = stackArray[i]
+                                const lightAdjustment = stackArray[i]
                                 // eax = 0 // should be set to obj+28h, aka elevation (we don't take elevation into account so we don't need this)
                                 lightModifier(nextTile, lightAdjustment)
 

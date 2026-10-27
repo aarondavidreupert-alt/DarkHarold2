@@ -894,18 +894,18 @@ export class Combat {
             if (!(target as any).whoHitMe) critterSetWhoHitMe(target, obj)
         }
         // turn to face the target
-        var hex = hexNearestNeighbor(obj.position, target.position)
+        const hex = hexNearestNeighbor(obj.position, target.position)
         if (hex !== null) obj.orientation = hex.direction
         // CE actions.cc _action_attack: reg_anim_clear on the defender, so a defender still
         // busy with an animation (a dodge, a hit from the last burst) shows this attack's
         // reaction. Not a dead or knocked-down one (their lying art would be reset).
         if (target !== obj && !target.dead && !target.isKnockedDown && target.inAnim()) target.clearAnim()
 
-        var weaponObj = obj.equippedWeapon
+        let weaponObj = obj.equippedWeapon
         // CE combat_ai.cc _ai_pick_hit_mode: an item that isn't ITEM_TYPE_WEAPON — the Shiv
         // (itemGetType MISC) — makes the AI punch (HIT_MODE_PUNCH); the Shiv stays in hand
         if (!obj.isPlayer && weaponObj && weaponObj.pid === 383) weaponObj = Critter.makeFist()
-        var who = obj.isPlayer ? 'You' : obj.name
+        const who = obj.isPlayer ? 'You' : obj.name
 
         // Early ammo guard — no animation, no AP loss for any attacker
         if (!aiHaveAmmo(weaponObj)) {
@@ -2150,7 +2150,7 @@ export class Combat {
             if (!targets[2] && c.teamNum === obj.teamNum && hit && hit !== obj && hit.teamNum !== obj.teamNum && !hit.dead) { targets[2] = hit; continue }
             if (!targets[3] && !c.dead && c.teamNum !== obj.teamNum && hit && hit.teamNum === obj.teamNum) { targets[3] = c; continue }
         }
-        let list = targets.filter((t): t is Critter => !!t && !(ignoreFleeing && (t as any).fleeing))
+        const list = targets.filter((t): t is Critter => !!t && !(ignoreFleeing && (t as any).fleeing))
         // CE _compare_strength sorts "strongest" by rating ascending and _compare_weakness
         // "weakest" descending — a vanilla oddity CE keeps (its comments say "melee then
         // ranged" / "ranged then melee")
@@ -3369,7 +3369,7 @@ export class Combat {
             // red lights + icombat1 during AI turns (buttons disabled)
             if (!(window as any).__test?.fastMode) globalState.audioEngine.playSfxByName('icombat1')
             uiEndButtonsRedLights()
-            var critter = this.combatants[this.whoseTurn]
+            const critter = this.combatants[this.whoseTurn]
             // CE: only combatants act — party members too join first (_combat_add_noncoms,
             // via _combatai_notify_friends at the end of a round)
             if (critter.dead === true) return this.nextTurn()

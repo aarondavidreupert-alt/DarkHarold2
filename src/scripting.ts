@@ -80,32 +80,32 @@ import { AI } from './combat/AI.js'
 import { objUseItemOn } from './useItemOn.js'
 
 export module Scripting {
-    var gameObjects: Obj[] | null = null
-    var mapVars: any = null
+    let gameObjects: Obj[] | null = null
+    let mapVars: any = null
     let floatMsgLastColor = 0 // CE _last_color (opFloatMessage COLOR_SEQUENCE)
-    var globalVars: any = {}
-    var globalVarsLoaded = false
-    var currentMapID: number | null = null
-    var currentMapObject: Script | null = null
-    var mapFirstRun = true
+    let globalVars: any = {}
+    let globalVarsLoaded = false
+    let currentMapID: number | null = null
+    let currentMapObject: Script | null = null
+    let mapFirstRun = true
     // CE loadsave.cc _loadingGame / _isLoadingGame — set while a saved game's map runs
     // its start / map_enter / map_update procs (GameMap.runLoadGameProcs).
-    var loadingGame = false
+    let loadingGame = false
     export function isLoadingGame(): boolean { return loadingGame }
     export function setLoadingGame(v: boolean): void { loadingGame = v }
-    var scriptMessages: { [scriptName: string]: { [msgID: number]: string } } = {}
-    var dialogueOptionProcs: (() => void)[] = [] // Maps dialogue options to handler callbacks
-    var dialogueOptionTexts: string[] = [] // parallel to dialogueOptionProcs — display text, for the review log
+    let scriptMessages: { [scriptName: string]: { [msgID: number]: string } } = {}
+    let dialogueOptionProcs: (() => void)[] = [] // Maps dialogue options to handler callbacks
+    let dialogueOptionTexts: string[] = [] // parallel to dialogueOptionProcs — display text, for the review log
     // CE game_dialog.cc gameDialogBarter only sets _dialogue_switch_mode = 2; the dialogue
     // loop opens the barter screen once the option's procedure has returned (with the
     // reply and options it set up). The merchant waiting for that, while an option runs.
-    var pendingBarter: Critter | null = null
+    let pendingBarter: Critter | null = null
     // CE gDialogReplyMessageListId != -1: a reply the dialogue loop has to show (set by
     // gsay_reply / gsay_message, cleared when a gsay_message's loop ends)
-    var dialogueReplyPending = false
+    let dialogueReplyPending = false
     // the map script's map_enter_p_proc is running (override_map_start hands its position
     // to the map loader then)
-    var inMapEnter = false
+    let inMapEnter = false
     // CE _scr_spatials_disable / _scr_spatials_enable: no spatial_p_proc while map_enter /
     // map_update scripts run or scenery explodes
     let spatialsOff = 0
@@ -114,10 +114,10 @@ export module Scripting {
         spatialsOff++
         try { return fn() } finally { spatialsOff-- }
     }
-    var inDialogueReply = false
-    var dialogueOptionReactions: number[] = [] // parallel — GAME_DIALOG_REACTION_* (head reaction on pick)
-    var scriptMessageAudio: { [msgFile: string]: { [msgID: number]: string } } = {} // {id}{audio}{text} middle field
-    var currentDialogueObject: Obj | null = null
+    let inDialogueReply = false
+    let dialogueOptionReactions: number[] = [] // parallel — GAME_DIALOG_REACTION_* (head reaction on pick)
+    let scriptMessageAudio: { [msgFile: string]: { [msgID: number]: string } } = {} // {id}{audio}{text} middle field
+    let currentDialogueObject: Obj | null = null
     /** CE game_dialog.cc _gdialogActive: a dialogue (or its barter / control screens) is up. */
     export function dialogueActive(): boolean {
         return currentDialogueObject !== null
@@ -132,12 +132,12 @@ export module Scripting {
         reply: string
         option: string | null
     }
-    var dialogueReviewLog: DialogueReviewEntry[] = []
+    let dialogueReviewLog: DialogueReviewEntry[] = []
 
     export function getDialogueReviewLog(): readonly DialogueReviewEntry[] {
         return dialogueReviewLog
     }
-    export var timeEventList: TimedEvent[] = []
+    export let timeEventList: TimedEvent[] = []
 
     const PROTO_ID_MONEY = 41
 
@@ -299,7 +299,7 @@ export module Scripting {
         if ($bar) $bar.style.pointerEvents = disabled ? 'none' : ''
     }
 
-    var statMap: { [stat: number]: string } = {
+    let statMap: { [stat: number]: string } = {
         0: 'STR',
         1: 'PER',
         2: 'END',
@@ -323,17 +323,17 @@ export module Scripting {
     function stub(name: string, args: IArguments, type?: DebugLogShowType) {
         if (Config.scripting.debugLogShowType.stub === false || Config.scripting.debugLogShowType[type] === false)
             return
-        var a = ''
-        for (var i = 0; i < args.length; i++)
+        let a = ''
+        for (let i = 0; i < args.length; i++)
             if (i === args.length - 1) a += args[i]
             else a += args[i] + ', '
         console.log('STUB: ' + name + ': ' + a)
     }
 
-    function log(name: string, args: IArguments, type?: DebugLogShowType) {
+    function log(name: string, args: unknown[], type?: DebugLogShowType) {
         if (Config.scripting.debugLogShowType.log === false || Config.scripting.debugLogShowType[type] === false) return
-        var a = ''
-        for (var i = 0; i < args.length; i++)
+        let a = ''
+        for (let i = 0; i < args.length; i++)
             if (i === args.length - 1) a += args[i]
             else a += args[i] + ', '
         console.log('log: ' + name + ': ' + a)
@@ -567,7 +567,7 @@ export module Scripting {
         if ((id === 0 && msg === 0) || (id === -1 && msg === -1)) return ''
         if (id === -2 && msg === -2) return getProtoMsg(650) ?? ''
 
-        var name = getScriptName(id)
+        const name = getScriptName(id)
         if (name === null) {
             warn('getScriptMessage: no script with ID ' + id)
             return null
@@ -597,7 +597,7 @@ export module Scripting {
     }
 
     export function dialogueReply(id: number): void {
-        var f = dialogueOptionProcs[id]
+        const f = dialogueOptionProcs[id]
         // CE ref: game_dialog.cc:2040-2044 _gdProcessChoice — records the
         // chosen option's text onto the most recent review entry, before
         // running its callback (which may clear/replace state).
@@ -815,7 +815,7 @@ export module Scripting {
         set_global_var(gvar: number, value: any) {
             globalVars[gvar] = value
             info('set_global_var: ' + gvar + ' = ' + value, 'gvars')
-            log('set_global_var', arguments, 'gvars')
+            log('set_global_var', [gvar, value], 'gvars')
             // CE ref: game.cc:995 gameSetGlobalVar — GVAR 0 is the main karma score
             // Sync to player stat so the character-sheet title display stays current.
             if (gvar === 0 && globalState.player) {
@@ -834,10 +834,10 @@ export module Scripting {
             if (globalState.gMap?.mapScript === this) { warn('set_local_var: map scripts have no local vars'); return }
             this.lvars[lvar] = value
             info('set_local_var: ' + lvar + ' = ' + value + ' [' + this.scriptName + ']', 'lvars')
-            log('set_local_var', arguments, 'lvars')
+            log('set_local_var', [lvar, value], 'lvars')
         }
         local_var(lvar: number) {
-            log('local_var', arguments, 'lvars')
+            log('local_var', [lvar], 'lvars')
             // CE scriptGetLocalVar: every LVAR exists from the start as 0 and a read
             // never writes (an unset one is 0 here, not stored); a map script's read is −1
             if (globalState.gMap?.mapScript === this) { warn('local_var: map scripts have no local vars'); return -1 }
@@ -848,7 +848,7 @@ export module Scripting {
                 warn('map_var: no map script')
                 return
             }
-            var scriptName = this._mapScript.scriptName
+            const scriptName = this._mapScript.scriptName
             if (scriptName === undefined) {
                 warn('map_var: map script has no name')
                 return
@@ -858,7 +858,7 @@ export module Scripting {
         }
         set_map_var(mvar: number, value: any) {
             if (!this._mapScript) throw Error('set_map_var: no map script')
-            var scriptName = this._mapScript.scriptName
+            const scriptName = this._mapScript.scriptName
             if (scriptName === undefined) {
                 warn('map_var: map script has no name')
                 return
@@ -875,15 +875,15 @@ export module Scripting {
             return globalVars[gvar]
         }
         random(min: number, max: number) {
-            log('random', arguments)
+            log('random', [min, max])
             return getRandomInt(min, max)
         }
         debug_msg(msg: string) {
-            log('debug_msg', arguments)
+            log('debug_msg', [msg])
             info('DEBUG MSG: [' + this.scriptName + ']: ' + msg, 'debugMessage')
         }
         display_msg(msg: string) {
-            log('display_msg', arguments)
+            log('display_msg', [msg])
             info('DISPLAY MSG: ' + msg, 'displayMessage')
             uiLog(msg)
         }
@@ -1100,7 +1100,7 @@ export module Scripting {
                 // at (tile, elevation) — the dude included; the first one when previous is 0
                 const p = fromTileNum(obj as number)
                 const previous = radius as any
-                log('metarule3 106 (tile_get_next_critter)', arguments)
+                log('metarule3 106 (tile_get_next_critter)', [id, obj, userdata, radius])
                 let found = !previous
                 for (const o of globalState.gMap.getObjects(userdata as number)) {
                     if (o.position?.x !== p.x || o.position?.y !== p.y) continue
@@ -1152,7 +1152,7 @@ export module Scripting {
             }
         }
         script_overrides() {
-            log('script_overrides', arguments)
+            log('script_overrides', [])
             info('[SCRIPT OVERRIDES]')
             this._didOverride = true
         }
@@ -1210,7 +1210,7 @@ export module Scripting {
             }
             if (stat === 36) return obj.poisonLevel ?? 0    // STAT_CURRENT_POISON_LEVEL
             if (stat === 37) return obj.radiationLevel ?? 0 // STAT_CURRENT_RADIATION_LEVEL
-            var namedStat = statMap[stat]
+            const namedStat = statMap[stat]
             if (namedStat !== undefined) return obj.getStat(namedStat)
             dbgWarn('script', `get_critter_stat: unknown stat ${stat}`)
             return 0
@@ -1430,7 +1430,7 @@ export module Scripting {
         // CE opObjectIsCarryingObjectWithPid → objectGetCarriedQuantityByPid: the quantity of
         // every matching stack, bags and the dude's equipped items included.
         obj_is_carrying_obj_pid(obj: Obj, pid: number) {
-            log('obj_is_carrying_obj_pid', arguments)
+            log('obj_is_carrying_obj_pid', [obj, pid])
             if (!isGameObject(obj)) {
                 warn('obj_is_carrying_obj_pid: not a game object')
                 return 0
@@ -1526,7 +1526,7 @@ export module Scripting {
         }
         // CE opObjectCarryingObjectByPid → objectGetCarriedObjectByPid (bags searched).
         obj_carrying_pid_obj(obj: Obj, pid: number) {
-            log('obj_carrying_pid_obj', arguments)
+            log('obj_carrying_pid_obj', [obj, pid])
             if (!isGameObject(obj)) {
                 warn('obj_carrying_pid_obj: not a game object: ' + obj)
                 return 0
@@ -1542,7 +1542,7 @@ export module Scripting {
             }
         }
         obj_can_see_obj(a: Critter, b: Critter) {
-            log('obj_can_see_obj', arguments)
+            log('obj_can_see_obj', [a, b])
             if (!isGameObject(a) || !isGameObject(b)) {
                 warn(`obj_can_see_obj: not game object: a=${a} b=${b}`, undefined, this)
                 return 0
@@ -1699,7 +1699,7 @@ export module Scripting {
         // CE opKillCritter — critterKill(obj, deathFrame) without animation: the corpse
         // is the single-frame death `deathFrame` (ANIM_*_SF; others → LAST_SF_DEATH_ANIM).
         kill_critter(obj: Critter, deathFrame: number) {
-            log('kill_critter', arguments)
+            log('kill_critter', [obj, deathFrame])
             critterKill(obj, undefined, false, { deathFrame }) // CE critterKill never runs destroy_p_proc
         }
         get_poison(obj: Obj) {
@@ -1943,7 +1943,7 @@ export module Scripting {
 
         // objects
         obj_is_locked(obj: Obj) {
-            log('obj_is_locked', arguments)
+            log('obj_is_locked', [obj])
             if (!isGameObject(obj)) {
                 warn('obj_is_locked: not game object: ' + obj, undefined, this)
                 return 1
@@ -1951,7 +1951,7 @@ export module Scripting {
             return obj.locked ? 1 : 0
         }
         obj_lock(obj: Obj) {
-            log('obj_lock', arguments)
+            log('obj_lock', [obj])
             if (!isGameObject(obj)) {
                 warn('obj_lock: not game object: ' + obj, undefined, this)
                 return
@@ -1959,7 +1959,7 @@ export module Scripting {
             obj.locked = true
         }
         obj_unlock(obj: Obj) {
-            log('obj_unlock', arguments)
+            log('obj_unlock', [obj])
             if (!isGameObject(obj)) {
                 warn('obj_unlock: not game object: ' + obj, undefined, this)
                 return
@@ -1968,7 +1968,7 @@ export module Scripting {
         }
         // CE ref: interpreter_extra.cc:4688 opJamLock — sets jammed flag on lockable objects
         jam_lock(obj: Obj) {
-            log('jam_lock', arguments)
+            log('jam_lock', [obj])
             if (!isGameObject(obj)) {
                 warn('jam_lock: not game object: ' + obj, undefined, this)
                 return
@@ -1976,7 +1976,7 @@ export module Scripting {
             if (obj.isDoor || obj.isContainer) obj.jammed = true
         }
         obj_is_open(obj: Obj) {
-            log('obj_is_open', arguments)
+            log('obj_is_open', [obj])
             if (!isGameObject(obj)) {
                 warn('obj_is_open: not game object: ' + obj, undefined, this)
                 return 0
@@ -2089,7 +2089,7 @@ export module Scripting {
             if (elev < 0 || elev > 2) { warn('create_object_sid: elev out of range: elev=' + elev, undefined, this); return null }
             if (tile === -1) tile = 0 // CE opCreateObject
 
-            var obj = createObjectWithPID(pid, sid)
+            const obj = createObjectWithPID(pid, sid)
             if (!obj) {
                 warn("create_object_sid: couldn't create object", undefined, this)
                 return null
@@ -2138,7 +2138,7 @@ export module Scripting {
             return -1
         }
         anim_busy(obj: Obj) {
-            log('anim_busy', arguments)
+            log('anim_busy', [obj])
             if (!isGameObject(obj)) {
                 warn('anim_busy: not game object: ' + obj)
                 return false
@@ -2255,7 +2255,7 @@ export module Scripting {
 
         // environment
         set_light_level(level: number) {
-            log('set_light_level', arguments)
+            log('set_light_level', [level])
             // Fallout 2 passes 0..100. A call with the "default" magic
             // value releases the override and lets the time-of-day curve
             // take back over on the next map load.
@@ -2293,7 +2293,7 @@ export module Scripting {
             gMap.mapObj.startElevation = elevation
         }
         override_map_start(x: number, y: number, elevation: number, rotation: number) {
-            log('override_map_start', arguments)
+            log('override_map_start', [x, y, elevation, rotation])
             info(`override_map_start: ${x}, ${y} / elevation ${elevation}`)
             // CE opOverrideMapStart moves the dude at once (rotation, location, view centre).
             // In the map script's map_enter_p_proc the map loader places the party from it;
@@ -2315,7 +2315,7 @@ export module Scripting {
             return obj.pid
         }
         obj_on_screen(obj: Obj) {
-            log('obj_on_screen', arguments)
+            log('obj_on_screen', [obj])
             if (!isGameObject(obj)) {
                 warn('obj_on_screen: not a game object: ' + obj)
                 return 0
@@ -2335,7 +2335,7 @@ export module Scripting {
         }
         destroy_object(obj: Obj) {
             // destroy object from world
-            log('destroy_object', arguments)
+            log('destroy_object', [obj])
             // CE opDestroyObject: a critter isn't destroyed while a game loads
             if (loadingGame && obj?.type === 'critter') { warn('destroy_object: attempt to destroy critter in load/save-game'); return }
             // CE: a carried object first leaves its owner (objectGetOwner → itemRemove, the
@@ -2385,9 +2385,9 @@ export module Scripting {
             return toTileNum(obj.position)
         }
         tile_contains_pid_obj(tile: number, elevation: number, pid: number): any {
-            var pos = fromTileNum(tile)
-            var objects = globalState.gMap.getObjects(elevation)
-            for (var i = 0; i < objects.length; i++) {
+            const pos = fromTileNum(tile)
+            const objects = globalState.gMap.getObjects(elevation)
+            for (let i = 0; i < objects.length; i++) {
                 if (objects[i].position.x === pos.x && objects[i].position.y === pos.y && objects[i].pid === pid) {
                     return objects[i]
                 }
@@ -2823,7 +2823,7 @@ export module Scripting {
             }
             let newTile = hexInDirection(fromTileNum(tile), direction)
             for (
-                var i = 0;
+                let i = 0;
                 i < distance - 1;
                 i++ // repeat for each further distance
             )
@@ -2842,9 +2842,9 @@ export module Scripting {
             return globalState.gMap.getObjects(elevation).some((o) => o.pid === pid && o.position?.x === p.x && o.position?.y === p.y) ? 1 : 0
         }
         rotation_to_tile(srcTile: number, destTile: number) {
-            var src = fromTileNum(srcTile),
+            const src = fromTileNum(srcTile),
                 dest = fromTileNum(destTile)
-            var hex = hexNearestNeighbor(src, dest)
+            const hex = hexNearestNeighbor(src, dest)
             if (hex !== null) return hex.direction
             warn('rotation_to_tile: invalid hex: ' + srcTile + ' / ' + destTile)
             return -1 // TODO/XXX: what does this return if invalid?
@@ -2889,12 +2889,12 @@ export module Scripting {
         }
         gdialog_set_barter_mod(mod: number) {
             // ref: fallout2-ce barter.cc, dialog.cc gDialogSetBarterMod
-            log('gdialog_set_barter_mod', arguments)
+            log('gdialog_set_barter_mod', [mod])
             dialogueBarterMod = mod
         }
         gdialog_mod_barter(mod: number) {
             // CE ref: game_dialog.cc:3163 gameDialogBarter — sets _dialogBarterMod then opens barter
-            log('gdialog_mod_barter', arguments)
+            log('gdialog_mod_barter', [mod])
             dbg('dialogue', '--> barter mode')
             if (!this.self_obj) throw 'need self_obj'
             dialogueBarterMod = mod
@@ -2903,7 +2903,7 @@ export module Scripting {
             else uiBarterMode(this.self_obj as Critter)
         }
         start_gdialog(msgFileID: number, obj: Obj, mood: number, headNum: number, backgroundID: number) {
-            log('start_gdialog', arguments)
+            log('start_gdialog', [msgFileID, obj, mood, headNum, backgroundID])
             info('DIALOGUE START', 'dialogue')
             if (!this.self_obj) throw 'no self_obj for start_gdialog'
             // CE opStartGameDialog: nothing in combat
@@ -3221,7 +3221,7 @@ export module Scripting {
             uiAddDialogueOption(msg, dialogueOptionProcs.length - 1, reaction)
         }
         gsay_start() {
-            log('gsay_start', arguments)
+            log('gsay_start', [])
             // CE _gdialogStart: the review entries and the options start empty
             dialogueReviewLog = []
             dialogueOptionProcs = []
@@ -3234,8 +3234,8 @@ export module Scripting {
         }
         //gSay_Option(msgList, msgID, target, reaction) { stub("gSay_Option", arguments) },
         gsay_reply(msgList: number, msgID: string | number) {
-            log('gSay_Reply', arguments)
-            var msg = getScriptMessage(msgList, msgID)
+            log('gSay_Reply', [msgList, msgID])
+            const msg = getScriptMessage(msgList, msgID)
             if (msg === null) throw Error('gsay_reply: msg is null')
             info('REPLY: ' + msg, 'dialogue')
             // CE gameDialogSetMessageReply: options added before the reply are dropped
@@ -3252,7 +3252,7 @@ export module Scripting {
         }
         gsay_message(msgList: number, msgID: string | number, reaction: number) {
             // ref: fallout2-ce dialog.cc gDialogSayMessage
-            log('gsay_message', arguments)
+            log('gsay_message', [msgList, msgID, reaction])
             const msg = getScriptMessage(msgList, msgID)
             if (msg === null) {
                 warn('gsay_message: msg is null')
@@ -3319,8 +3319,8 @@ export module Scripting {
             dialogueExit()
         }
         giq_option(iqTest: number, msgList: number, msgID: string | number, target: any, reaction: number) {
-            log('giQ_Option', arguments)
-            var msg = getScriptMessage(msgList, msgID)
+            log('giQ_Option', [iqTest, msgList, msgID, target, reaction])
+            const msg = getScriptMessage(msgList, msgID)
             if (msg === null) {
                 dbgWarn('script', 'giq_option: msg is null')
                 return
@@ -3341,7 +3341,7 @@ export module Scripting {
             uiAddDialogueOption(msg, dialogueOptionProcs.length - 1, reaction)
         }
         dialogue_system_enter() {
-            log('dialogue_system_enter', arguments)
+            log('dialogue_system_enter', [])
             if (!this.self_obj) {
                 warn('dialogue_system_enter: no self_obj')
                 return
@@ -3356,7 +3356,7 @@ export module Scripting {
             requestedDialogue = this.self_obj as Obj
         }
         float_msg(obj: Obj, msg: string, type: number) {
-            log('float_msg', arguments)
+            log('float_msg', [obj, msg, type])
             //info("FLOAT MSG: " + msg, "floatMessage")
             if (!isGameObject(obj)) {
                 warn('float_msg: not game object: ' + obj)
@@ -3539,7 +3539,7 @@ export module Scripting {
             this.regAnimPush('reg_anim_animate_forever', obj, { kind: 'forever', obj, anim } as any)
         }
         animate_move_obj_to_tile(obj: Critter, tileNum: any, isRun: number) {
-            log('animate_move_obj_to_tile', arguments, 'movement')
+            log('animate_move_obj_to_tile', [obj, tileNum, isRun], 'movement')
             if (!isGameObject(obj)) {
                 warn('animate_move_obj_to_tile: not a game object', 'movement', this)
                 return
@@ -3553,7 +3553,7 @@ export module Scripting {
                 return
             }
 
-            var tile = fromTileNum(tileNum)
+            const tile = fromTileNum(tileNum)
             if (tile.x < 0 || tile.x >= 200 || tile.y < 0 || tile.y >= 200) {
                 warn(
                     'animate_move_obj_to_tile: invalid tile: ' + tile.x + ', ' + tile.y + ' (' + tileNum + ')',
@@ -3588,7 +3588,7 @@ export module Scripting {
         }
 
         explosion(tile: number, elevation: number, damage: number) {
-            log('explosion', arguments)
+            log('explosion', [tile, elevation, damage])
             // CE interpreter_extra.cc opExplosion → scriptsRequestExplosion → actionExplode:
             // d(1, damage) (0 when damage is 0) with no source object.
             // (scriptsRequestExplosion: it goes off from the game loop once the script returns)
@@ -3602,7 +3602,7 @@ export module Scripting {
         }
 
         gfade_out(time: number) {
-            log('gfade_out', arguments)
+            log('gfade_out', [time])
             if (!fadeOverlay) {
                 fadeOverlay = document.createElement('div')
                 Object.assign(fadeOverlay.style, {
@@ -3619,7 +3619,7 @@ export module Scripting {
             fadeOverlay.style.opacity = '1'
         }
         gfade_in(time: number) {
-            log('gfade_in', arguments)
+            log('gfade_in', [time])
             if (!fadeOverlay) return
             fadeOverlay.style.transition = `opacity ${time}ms linear`
             fadeOverlay.style.opacity = '0'
@@ -3633,7 +3633,7 @@ export module Scripting {
 
         // timing
         add_timer_event(obj: Obj, ticks: number, userdata: any) {
-            log('add_timer_event', arguments)
+            log('add_timer_event', [obj, ticks, userdata])
             if (!obj || !obj._script) {
                 warn('add_timer_event: not a scriptable object: ' + obj)
                 return
@@ -3653,7 +3653,7 @@ export module Scripting {
         // CE interpreter_extra.cc opRemoveTimerEvent → queue.cc queueRemoveEvents(object):
         // every queued event this object owns goes, whatever its type.
         rm_timer_event(obj: Obj) {
-            log('rm_timer_event', arguments)
+            log('rm_timer_event', [obj])
             if (!obj) { warn('rm_timer_event: pobj is NULL'); return }
             for (let i = timeEventList.length - 1; i >= 0; i--) {
                 if (timeEventList[i].obj === obj) timeEventList.splice(i, 1)
@@ -3670,7 +3670,7 @@ export module Scripting {
             return Math.floor((GameTime.getTime() - lastVisit) / GameTime.TICKS_PER_DAY)
         }
         game_time_advance(ticks: number) {
-            log('game_time_advance', arguments)
+            log('game_time_advance', [ticks])
             info('advancing time ' + ticks + ' ticks (' + ticks / 10 + ' seconds)')
             // CE ref: interpreter_extra.cc:2761 opGameTimeAdvance — advance, then
             // queueProcessEvents(); GameTime's time-jump hook (gameTick.ts) runs every
@@ -3680,7 +3680,7 @@ export module Scripting {
 
         // game
         load_map(map: number | string, startLocation: number) {
-            log('load_map', arguments)
+            log('load_map', [map, startLocation])
             info('load_map: ' + map)
             // CE interpreter_extra.cc opLoadMap: the entrance goes to GVAR_LOAD_MAP_INDEX (27),
             // which the new map's map_enter_p_proc reads to place the player; a negative
@@ -3727,7 +3727,7 @@ export module Scripting {
         // (wmAreaSetVisibleState force) and sets the visited state (1 known, 2 visited);
         // type 1: wmMapMarkVisited(mapIdx) marks the area containing that map visited.
         mark_area_known(areaType: number, areaID: number, state: number) {
-            log('mark_area_known', arguments)
+            log('mark_area_known', [areaType, areaID, state])
             if (areaType === 0) {
                 if (state === -66) {
                     Worldmap.setAreaVisible(areaID, false)
@@ -3769,18 +3769,18 @@ export module Scripting {
 
         // party
         party_member_obj(pid: number) {
-            log('party_member_obj', arguments, 'party')
+            log('party_member_obj', [pid], 'party')
             return globalState.gParty.getPartyMemberByPID(pid) || 0
         }
         party_add(obj: Critter) {
-            log('party_add', arguments)
+            log('party_add', [obj])
             globalState.gParty.addPartyMember(obj)
             if (currentDialogueObject) SfallHooks.gameModeSpecial(true) // sfall: joins in dialogue
         }
         party_remove(obj: Critter) {
             // CE ref: interpreter_extra.cc:3956 — silently no-ops when obj isn't a
             // party member (dismissal dialogue hook).
-            log('party_remove', arguments)
+            log('party_remove', [obj])
             globalState.gParty.dismissPartyMember(obj)
             if (currentDialogueObject) SfallHooks.gameModeSpecial(true) // sfall: leaves in dialogue
         }
@@ -3791,7 +3791,7 @@ export module Scripting {
     }
 
     export function deserializeScript(obj: SerializedScript): Script {
-        var script = loadScript(obj.name)
+        const script = loadScript(obj.name)
         script.lvars = obj.lvars
         // TODO: do some kind of logic like enterMap/updateMap
         return script
@@ -3800,7 +3800,7 @@ export module Scripting {
     function loadMessageFile(name: string) {
         name = name.toLowerCase()
         info('loading message file: ' + name, 'load')
-        var msg = getFileText('data/text/english/dialog/' + name + '.msg')
+        const msg = getFileText('data/text/english/dialog/' + name + '.msg')
         if (scriptMessages[name] === undefined) scriptMessages[name] = {}
 
         for (const e of parseMsgFile(msg, name)) {
@@ -3878,17 +3878,17 @@ export module Scripting {
 
     // The .int on the script VM (vm.ts) — also a child program's (callstart / spawn / fork / exec)
     function loadIntScript(name: string): Script {
-        var path = 'data/scripts/' + name.toLowerCase() + '.int'
-        var data: DataView = getFileBinarySync(path)
-        var reader = new BinaryReader(data)
-        var intfile = parseIntFile(reader, name.toLowerCase())
+        const path = 'data/scripts/' + name.toLowerCase() + '.int'
+        const data: DataView = getFileBinarySync(path)
+        const reader = new BinaryReader(data)
+        const intfile = parseIntFile(reader, name.toLowerCase())
 
 
         if (!currentMapObject)
             dbg('load', 'note: using current script (%s) as map script for this object', intfile.name)
 
         reader.seek(0)
-        var vm = new ScriptVMBridge.GameScriptVM(reader, intfile)
+        const vm = new ScriptVMBridge.GameScriptVM(reader, intfile)
         vm.scriptObj.scriptName = name
         vm.scriptObj.lvars = {}
         vm.scriptObj._mapScript = currentMapObject || vm.scriptObj // map scripts are their own map scripts
@@ -4318,7 +4318,7 @@ export module Scripting {
 
         // hack so that the procedure is allowed to finish before
         // we actually terminate combat
-        var doTerminate: any = false // did combat_p_proc terminate combat?
+        let doTerminate: any = false // did combat_p_proc terminate combat?
         obj._script.terminate_combat = function () {
             doTerminate = true
         }
@@ -4347,9 +4347,9 @@ export module Scripting {
             }
         }
 
-        var updated = 0
-        for (var i = 0; i < gameObjects.length; i++) {
-            var script = gameObjects[i]._script
+        let updated = 0
+        for (let i = 0; i < gameObjects.length; i++) {
+            const script = gameObjects[i]._script
             if (script !== undefined && script.map_update_p_proc === undefined) noteMissingProc(script, 'map_update_p_proc')
             if (script !== undefined && script.map_update_p_proc !== undefined) {
                 script.self_obj = gameObjects[i] as ScriptableObj
@@ -4424,7 +4424,7 @@ export module Scripting {
     }
 
     export function objectEnterMap(obj: Obj, elevation: number, mapID: number) {
-        var script = obj._script
+        const script = obj._script
         if (script !== undefined && script.map_enter_p_proc !== undefined) {
             script.self_obj = obj as ScriptableObj
             // CE scripts.cc scriptsExecMapUpdateScripts(MAP_ENTER): fixed_param = first visit

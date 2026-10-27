@@ -232,7 +232,7 @@ export class HTMLAudioEngine implements AudioEngine {
     }
 
     playSound(soundName: string): HTMLAudioElement | null {
-        var sound = new Audio()
+        const sound = new Audio()
         sound.addEventListener('canplaythrough', () => {
             dbg('audio', '[Sound]', soundName)
             if (audioUnlocked()) {

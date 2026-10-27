@@ -143,11 +143,11 @@ interface AttackInfo {
 }
 
 function parseAttack(weapon: WeaponObj): { first: AttackInfo; second: AttackInfo } {
-    var attackModes = weapon.pro.extra['attackMode']
-    var modeOne = attackMode[attackModes & 0xf] as number
-    var modeTwo = attackMode[(attackModes >> 4) & 0xf] as number
-    var attackOne: AttackInfo = { mode: modeOne, APCost: 0, maxRange: 0 }
-    var attackTwo: AttackInfo = { mode: modeTwo, APCost: 0, maxRange: 0 }
+    const attackModes = weapon.pro.extra['attackMode']
+    const modeOne = attackMode[attackModes & 0xf] as number
+    const modeTwo = attackMode[(attackModes >> 4) & 0xf] as number
+    const attackOne: AttackInfo = { mode: modeOne, APCost: 0, maxRange: 0 }
+    const attackTwo: AttackInfo = { mode: modeTwo, APCost: 0, maxRange: 0 }
 
     if (modeOne !== attackMode.none) {
         attackOne.APCost = weapon.pro.extra.APCost1
@@ -202,10 +202,10 @@ export class Weapon {
             this.type = 'gun'
             this.minDmg = weapon.pro.extra.minDmg
             this.maxDmg = weapon.pro.extra.maxDmg
-            var s = weapon.art.split('/')
+            const s = weapon.art.split('/')
             this.name = s[s.length - 1]
 
-            var attacks = parseAttack(weapon)
+            const attacks = parseAttack(weapon)
             this.attackOne = attacks.first
             this.attackTwo = attacks.second
 
@@ -404,14 +404,14 @@ export class Weapon {
     getAnim(anim: string): string | null {
         if (weaponAnims[this.name] && weaponAnims[this.name][anim]) return weaponAnims[this.name][anim]
 
-        var wep = this.getSkin() || 'a'
+        const wep = this.getSkin() || 'a'
         switch (anim) {
             case 'idle':
                 return wep + 'a'
             case 'walk':
                 return wep + 'b'
             case 'attack':
-                var attackSkin = this.getAttackSkin()
+                let attackSkin = this.getAttackSkin()
                 // CE art.cc (ANIM_THROW_ANIM): knife throw 'dm', spear throw 'gm', any other
                 // throw (rock, grenade, spike) the unarmed 'as'
                 if (attackSkin === 's') return wep === 'd' ? 'dm' : wep === 'g' ? 'gm' : 'as'

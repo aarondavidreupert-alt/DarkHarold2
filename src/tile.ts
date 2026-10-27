@@ -29,22 +29,22 @@ export function fromTileNum(tile: number): Point {
 
 export function tileToScreen(x: number, y: number): Point {
     x = 99 - x // this algorithm expects x to be reversed
-    var sx = 4752 + 32 * y - 48 * x
-    var sy = 24 * y + 12 * x
+    const sx = 4752 + 32 * y - 48 * x
+    const sy = 24 * y + 12 * x
 
     return { x: sx, y: sy }
 }
 
 export function tileFromScreen(x: number, y: number): Point {
-    var off_x = -4800 + x
-    var off_y = y
-    var xx = off_x - (off_y * 4) / 3
-    var tx = xx / 64
+    const off_x = -4800 + x
+    const off_y = y
+    const xx = off_x - (off_y * 4) / 3
+    let tx = xx / 64
 
     if (xx >= 0) tx++
     tx = -tx
-    var yy = off_y + off_x / 4
-    var ty = yy / 32
+    const yy = off_y + off_x / 4
+    let ty = yy / 32
     if (yy < 0) ty--
 
     return { x: 99 - Math.round(tx), y: Math.round(ty) }

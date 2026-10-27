@@ -34,8 +34,8 @@ interface Point3 {
 
 export function hexNeighbors(position: Point): Point[] {
     const neighbors: Point[] = []
-    var x = position.x
-    var y = position.y
+    const x = position.x
+    const y = position.y
 
     function n(x: number, y: number) {
         neighbors.push({ x: x, y: y })
@@ -85,8 +85,8 @@ export function hexInDirectionDistance(position: Point, dir: number, distance: n
 }
 
 export function directionOfDelta(xa: number, ya: number, xb: number, yb: number): number | null {
-    let neighbors = hexNeighbors({ x: xa, y: ya })
-    for (var i = 0; i < neighbors.length; i++) {
+    const neighbors = hexNeighbors({ x: xa, y: ya })
+    for (let i = 0; i < neighbors.length; i++) {
         if (neighbors[i].x === xb && neighbors[i].y === yb) return i
     }
 
@@ -95,8 +95,8 @@ export function directionOfDelta(xa: number, ya: number, xb: number, yb: number)
 
 function hexGridToCube(grid: Point): Point3 {
     //even-q layout -> cube layout
-    var z = grid.y - (grid.x + (grid.x & 1)) / 2
-    var y = -grid.x - z
+    const z = grid.y - (grid.x + (grid.x & 1)) / 2
+    const y = -grid.x - z
     return { x: grid.x, y: y, z: z }
 }
 
@@ -104,8 +104,8 @@ export function hexDistance(a: Point, b: Point): number {
     // we convert our hex coordinates into cube coordinates and then
     // we only have to see which of the 3 axes is the longest
 
-    var cubeA = hexGridToCube(a)
-    var cubeB = hexGridToCube(b)
+    const cubeA = hexGridToCube(a)
+    const cubeB = hexGridToCube(b)
     return Math.max(Math.abs(cubeA.x - cubeB.x), Math.abs(cubeA.y - cubeB.y), Math.abs(cubeA.z - cubeB.z))
 }
 
@@ -134,11 +134,11 @@ function hexOppositeDirection(direction: number) {
 
 // The adjacent hex around a nearest to b
 export function hexNearestNeighbor(a: Point, b: Point) {
-    var neighbors = hexNeighbors(a)
-    var min = Infinity,
+    const neighbors = hexNeighbors(a)
+    let min = Infinity,
         minIdx = -1
-    for (var i = 0; i < neighbors.length; i++) {
-        var dist = hexDistance(neighbors[i], b)
+    for (let i = 0; i < neighbors.length; i++) {
+        const dist = hexDistance(neighbors[i], b)
         if (dist < min) {
             min = dist
             minIdx = i
@@ -150,13 +150,13 @@ export function hexNearestNeighbor(a: Point, b: Point) {
 
 // Draws a line between a and b, returning the list of coordinates (including b)
 export function hexLine(a: Point, b: Point): Point[] {
-    var path = []
-    var position: Point = { x: a.x, y: a.y }
+    const path = []
+    let position: Point = { x: a.x, y: a.y }
 
     while (true) {
         path.push(position)
         if (position.x === b.x && position.y === b.y) return path
-        var nearest = hexNearestNeighbor(position, b)
+        const nearest = hexNearestNeighbor(position, b)
         if (nearest === null) return null
         position = nearest.hex
     }
@@ -219,11 +219,11 @@ export function hexLineBeyond(from: Point, to: Point, distance: number): Point {
 }
 
 export function hexesInRadius(center: Point, radius: number) {
-    var hexes = []
-    for (var x = 0; x < 200; x++) {
-        for (var y = 0; y < 200; y++) {
+    const hexes = []
+    for (let x = 0; x < 200; x++) {
+        for (let y = 0; y < 200; y++) {
             if (x === center.x && y === center.y) continue
-            var pos = { x: x, y: y }
+            const pos = { x: x, y: y }
             if (hexDistance(center, pos) <= radius) hexes.push(pos)
         }
     }
@@ -263,14 +263,14 @@ export function tile_in_tile_rect(tile: Point, a: Point, b: Point, c: Point, d: 
     //b = min x, max y
     //c = max x, max y
     //d = max x, min y
-    var error = false
+    let error = false
     if (c.x != d.x || a.x != b.x || a.x > c.x) error = true
     if (a.y != d.y || b.y != c.y || a.y > c.y) error = true
     if (error) {
         dbgWarn('object', `[Geometry] pointInRect: not a rectangle: (${a.x},${a.y}), (${b.x},${b.y}), (${c.x},${c.y}), (${d.x},${d.y})`)
         return false
     }
-    var inside = true
+    let inside = true
     if (tile.x <= a.x || tile.x >= c.x) inside = false
     if (tile.y <= a.y || tile.y >= c.y) inside = false
 
@@ -278,8 +278,8 @@ export function tile_in_tile_rect(tile: Point, a: Point, b: Point, c: Point, d: 
 }
 
 function tile_in_tile_rect2(tile: Point, a: Point, c: Point) {
-    var b = { x: a.x, y: c.y }
-    var d = { x: c.x, y: a.y }
+    const b = { x: a.x, y: c.y }
+    const d = { x: c.x, y: a.y }
     return tile_in_tile_rect(tile, a, b, c, d)
 }
 

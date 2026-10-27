@@ -21,9 +21,9 @@ import { Point } from './geometry.js'
 import { lookupInterfaceArt } from './pro.js'
 import { CE_ELEVATORS, Elevator } from './ceElevators.js'
 
-var lstFiles: { [lsgFile: string]: string[] } = {}
-var lstJsonFiles: { [lstFile: string]: any[] | null } = {}
-var mapInfo: { [mapID: number]: MapInfo } | null = null
+let lstFiles: { [lsgFile: string]: string[] } = {}
+let lstJsonFiles: { [lstFile: string]: any[] | null } = {}
+let mapInfo: { [mapID: number]: MapInfo } | null = null
 
 export interface AreaMap {
     // XXX: Why does using a number key break areas?
@@ -79,17 +79,17 @@ export function getElevator(type: number): Elevator {
 }
 
 function parseAreas(data: string): AreaMap {
-    var areas = parseIni(data)
-    var out: AreaMap = {}
+    const areas = parseIni(data)
+    const out: AreaMap = {}
 
-    for (var _area in areas) {
-        var area = areas[_area]
-        var match = _area.match(/Area (\d+)/)
+    for (const _area in areas) {
+        const area = areas[_area]
+        const match = _area.match(/Area (\d+)/)
         if (match === null) throw 'city.txt: invalid area name: ' + area.area_name
-        var areaID = parseInt(match[1])
-        var worldPos = area.world_pos.split(',').map((x: string) => parseInt(x))
+        const areaID = parseInt(match[1])
+        const worldPos = area.world_pos.split(',').map((x: string) => parseInt(x))
 
-        var newArea: Area = {
+        const newArea: Area = {
             name: area.area_name,
             id: areaID,
             size: area.size.toLowerCase(),
@@ -100,8 +100,8 @@ function parseAreas(data: string): AreaMap {
         }
 
         // map/label art
-        var mapArtIdx = parseInt(area.townmap_art_idx)
-        var labelArtIdx = parseInt(area.townmap_label_art_idx)
+        const mapArtIdx = parseInt(area.townmap_art_idx)
+        const labelArtIdx = parseInt(area.townmap_label_art_idx)
 
 
         if (mapArtIdx !== -1) newArea.mapArt = lookupInterfaceArt(mapArtIdx)
@@ -147,9 +147,9 @@ function parseAreas(data: string): AreaMap {
 
 export function areaContainingMap(mapName: string) {
     if (!globalState.mapAreas) throw Error('globalState.mapAreas not loaded')
-    for (var area in globalState.mapAreas) {
-        var entrances = globalState.mapAreas[area].entrances
-        for (var i = 0; i < entrances.length; i++) {
+    for (const area in globalState.mapAreas) {
+        const entrances = globalState.mapAreas[area].entrances
+        for (let i = 0; i < entrances.length; i++) {
             if (entrances[i].mapName === mapName) return globalState.mapAreas[area]
         }
     }
@@ -162,8 +162,8 @@ export function loadAreas() {
 
 function allAreas() {
     if (globalState.mapAreas === null) globalState.mapAreas = loadAreas()
-    var areas = []
-    for (var area in globalState.mapAreas) areas.push(globalState.mapAreas[area])
+    const areas = []
+    for (const area in globalState.mapAreas) areas.push(globalState.mapAreas[area])
     return areas
 }
 
@@ -217,7 +217,7 @@ export function parseMsgFile(src: string, fileName = ''): MsgEntry[] {
 
 export function loadMessage(name: string) {
     name = name.toLowerCase()
-    var msg = getFileText('data/text/english/game/' + name + '.msg')
+    const msg = getFileText('data/text/english/game/' + name + '.msg')
     if (globalState.messageFiles[name] === undefined) globalState.messageFiles[name] = {}
     for (const e of parseMsgFile(msg, name)) globalState.messageFiles[name][e.num] = e.text
 }
@@ -280,7 +280,7 @@ function parseMapInfo() {
     mapInfo = {}
     const text = getFileText('data/data/maps.txt')
     const ini = parseIni(text)
-    for (var category in ini) {
+    for (let category in ini) {
         const m = category.match(/Map (\d+)/)
         if (!m) throw Error('maps.txt: invalid category: ' + category)
 
@@ -288,22 +288,22 @@ function parseMapInfo() {
         if (id === null) throw 'maps.txt: invalid category: ' + category
         id = parseInt(id)
 
-        var randomStartPoints = []
-        for (var key in ini[category]) {
+        const randomStartPoints = []
+        for (const key in ini[category]) {
             if (key.indexOf('random_start_point_') === 0) {
-                var startPoint = ini[category][key].match(/elev:(\d), tile_num:(\d+)/)
+                const startPoint = ini[category][key].match(/elev:(\d), tile_num:(\d+)/)
                 if (startPoint === null) throw 'invalid random_start_point: ' + ini[category][key]
                 randomStartPoints.push({ elevation: parseInt(startPoint[1]), tileNum: parseInt(startPoint[2]) })
             }
         }
 
         // parse ambient sfx list
-        var ambientSfx: [string, number][] = []
-        var ambient_sfx = ini[category].ambient_sfx
+        const ambientSfx: [string, number][] = []
+        const ambient_sfx = ini[category].ambient_sfx
         if (ambient_sfx) {
-            var s = ambient_sfx.split(',')
-            for (var i = 0; i < s.length; i++) {
-                var kv = s[i].trim().split(':')
+            const s = ambient_sfx.split(',')
+            for (let i = 0; i < s.length; i++) {
+                const kv = s[i].trim().split(':')
                 ambientSfx.push([kv[0].toLowerCase(), parseInt(kv[1].toLowerCase())])
             }
         }
@@ -324,7 +324,7 @@ function parseMapInfo() {
 export function lookupMapFromLookup(lookupName: string) {
     if (mapInfo === null) parseMapInfo()
 
-    for (var mapID in mapInfo!) {
+    for (const mapID in mapInfo!) {
         if (mapInfo![mapID].lookupName === lookupName) return mapInfo![mapID]
     }
     return null
@@ -348,7 +348,7 @@ export function getMapInfoById(mapID: number): MapInfo | null {
 export function lookupMapNameFromLookup(lookupName: string) {
     if (mapInfo === null) parseMapInfo()
 
-    for (var mapID in mapInfo!) {
+    for (const mapID in mapInfo!) {
         if (mapInfo![mapID].lookupName.toLowerCase() === lookupName.toLowerCase()) return mapInfo![mapID].name
     }
     return null
@@ -372,7 +372,7 @@ export function mapIndexOf(mapName: string): number {
 function getMapInfo(mapName: string) {
     if (mapInfo === null) parseMapInfo()
 
-    for (var mapID in mapInfo!) {
+    for (const mapID in mapInfo!) {
         if (mapInfo![mapID].name.toLowerCase() === mapName.toLowerCase()) return mapInfo![mapID]
     }
     return null

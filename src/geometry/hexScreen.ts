@@ -42,8 +42,8 @@ export interface BoundingBox {
 }
 
 export function hexToScreen(x: number, y: number): Point {
-    var sx = 4816 - ((((x + 1) >> 1) << 5) + ((x >> 1) << 4) - (y << 4))
-    var sy = 12 * (x >> 1) + y * 12 + 11
+    const sx = 4816 - ((((x + 1) >> 1) << 5) + ((x >> 1) << 4) - (y << 4))
+    const sy = 12 * (x >> 1) + y * 12 + 11
 
     return { x: sx, y: sy }
 }
@@ -122,8 +122,8 @@ export function hexIsToRightOf(a: Point, b: Point): boolean {
  * @return float 3d cartesian coordinates
  */
 export function pixelToCube(point: Point): Point3 {
-    let x = point.x / HEX_WIDTH - point.y / 3 / (HEX_HEIGHT / 2);
-    let z = point.y / (HEX_HEIGHT * 3 / 4);
+    const x = point.x / HEX_WIDTH - point.y / 3 / (HEX_HEIGHT / 2);
+    const z = point.y / (HEX_HEIGHT * 3 / 4);
     return { x, y: -x - z, z };
 }
 
@@ -145,13 +145,13 @@ export function pixelToCube(point: Point): Point3 {
  * @return int 3d hexagonal coordinates
  */
 export function cubeRound(cube: Point3): Point3 {
-    let round = {
+    const round = {
         x: Math.round(cube.x),
         y: Math.round(cube.y),
         z: Math.round(cube.z)
     };
 
-    let diff = {
+    const diff = {
         x: Math.abs(round.x - cube.x),
         y: Math.abs(round.y - cube.y),
         z: Math.abs(round.z - cube.z)
@@ -174,9 +174,9 @@ export function cubeRound(cube: Point3): Point3 {
  * @returns int 2d hexagonal offset coordinates
  */
 export function сubeRoundToHex(cubeRound: Point3): Point {
-    let x = (cubeRound.x - 150) * (-1);
-    let isEvenX = !(cubeRound.x & 1);
-    let y = (cubeRound.z + (cubeRound.x - Number(isEvenX)) / 2 - 75) | 0;
+    const x = (cubeRound.x - 150) * (-1);
+    const isEvenX = !(cubeRound.x & 1);
+    const y = (cubeRound.z + (cubeRound.x - Number(isEvenX)) / 2 - 75) | 0;
 
     return { x, y };
 }

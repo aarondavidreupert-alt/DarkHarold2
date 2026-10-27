@@ -273,8 +273,8 @@ WebGLRenderer.prototype.renderFloor = function (floor: TileMap): void {
 // CE ref: object.cc:4949 _obj_render() — walls/scenery that occlude the player
 // are drawn with the "egg" transparency so the player is visible behind them.
 // These are tunable at runtime via setEggAlpha() / setEggRadius() in the browser console.
-let EGG_RADIUS = 8   // hex distance — walls farther than this are never faded
-let EGG_ALPHA  = 0.4 // outer/flat alpha (0 = fully transparent, 1 = fully opaque)
+const EGG_RADIUS = 8   // hex distance — walls farther than this are never faded
+const EGG_ALPHA  = 0.4 // outer/flat alpha (0 = fully transparent, 1 = fully opaque)
 
 function getEggAlpha(): number  { return Config.ui.eggAlpha  ?? EGG_ALPHA  }
 function getEggRadius(): number { return Config.ui.eggRadius ?? EGG_RADIUS }

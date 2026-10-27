@@ -41,17 +41,17 @@ export function parseIntFile(reader: BinaryReader, name: string=""): IntFile {
     reader.seek(0x2A) // seek to procedure table
 
     // read procedure table
-    var numProcs = reader.read32()
-    var procs: Procedure[] = []
-    var procedures: { [name: string]: Procedure } = {}
+    const numProcs = reader.read32()
+    const procs: Procedure[] = []
+    const procedures: { [name: string]: Procedure } = {}
 
-    for(var i = 0; i < numProcs; i++) {
-        var nameIndex = reader.read32()
-        var flags = reader.read32()
+    for(let i = 0; i < numProcs; i++) {
+        const nameIndex = reader.read32()
+        const flags = reader.read32()
         assertEq(reader.read32(), 0, "unk0 != 0")
         assertEq(reader.read32(), 0, "unk1 != 0")
-        var offset = reader.read32()
-        var argc = reader.read32()
+        let offset = reader.read32()
+        const argc = reader.read32()
 
         procs.push({nameIndex: nameIndex
                    ,name: ""
@@ -63,20 +63,20 @@ export function parseIntFile(reader: BinaryReader, name: string=""): IntFile {
     }
 
     // offset->identifier table
-    var identEnd = reader.read32()
-    var identifiers: { [offset: number]: string } = {}
+    const identEnd = reader.read32()
+    const identifiers: { [offset: number]: string } = {}
 
-    var baseOffset = reader.offset
+    let baseOffset = reader.offset
     while(true) {
         if(reader.offset - baseOffset >= identEnd)
             break
 
-        var len = reader.read16()
-        var offset = reader.offset - baseOffset + 4
-        var str = ""
+        let len = reader.read16()
+        let offset = reader.offset - baseOffset + 4
+        let str = ""
 
-        for(var j = 0; j < len; j++) {
-            var c = reader.read8()
+        for(let j = 0; j < len; j++) {
+            let c = reader.read8()
             if(c)
                 str += String.fromCharCode(c)
         }
@@ -94,22 +94,22 @@ export function parseIntFile(reader: BinaryReader, name: string=""): IntFile {
 
 
     // offset->strings table
-    var stringEnd = reader.read32()
-    var strings: { [offset: number]: string } = {}
+    const stringEnd = reader.read32()
+    const strings: { [offset: number]: string } = {}
 
     if(stringEnd !== 0xFFFFFFFF) {
         // read string table
-        var baseOffset = reader.offset
+        let baseOffset = reader.offset
         while(true) {
             if(reader.offset - baseOffset >= stringEnd)
                 break
 
-            var len = reader.read16()
-            var offset = reader.offset - baseOffset + 4
-            var str = ""
+            let len = reader.read16()
+            let offset = reader.offset - baseOffset + 4
+            let str = ""
 
-            for(var j = 0; j < len; j++) {
-                var c = reader.read8()
+            for(let j = 0; j < len; j++) {
+                let c = reader.read8()
                 if(c)
                     str += String.fromCharCode(c)
             }
@@ -118,7 +118,7 @@ export function parseIntFile(reader: BinaryReader, name: string=""): IntFile {
         }
     }
 
-    var codeOffset = reader.offset
+    const codeOffset = reader.offset
 
     return {procedures: procedures
            ,proceduresTable: procs
