@@ -34,10 +34,6 @@ const PERK_WEAPON_ACCURATE = 59
 const PERK_WEAPON_SCOPE_RANGE = 64
 const PERK_WEAPON_NIGHT_SIGHT = 66
 
-function combatDebug(...args: any[]): void {
-    dbg('combat', ...args)
-}
-
 /** Load ammo stats for a loaded weapon. Returns defaults (X=1,Y=1,RM=0,ACmod=0) if no ammo.
  *  Vanilla: weaponGetAmmoDamageMultiplier / weaponGetAmmoDamageDivisor return 1/1 for no ammo. */
 export function getAmmoStats(weaponObj: Obj): { X: number; Y: number; RM: number; ACmod: number } {
@@ -235,7 +231,8 @@ export function getHitChance(
     // +10 is in the stat; an unarmed move's bonus crit chance is its own roll in rollHit.)
     const critChance = obj.getStat('Critical Chance') + regionPenalty
 
-    combatDebug(
+    dbg(
+        'combat',
         `hitChance: type=${attackType} dist=${distanceMod} cover=${coverPenalty} AC=${AC} region=${region} -> ${toHit}%`,
     )
     return { hit: toHit, crit: critChance }

@@ -207,7 +207,7 @@ export function critterKill(
         return
     }
 
-    const hitFromFront = options.hitFromFront ?? isHitFromFront(obj, source)
+    const hitFromFront = options.hitFromFront ?? isHitFromFrontOf(obj, source)
     let anim = options.scriptDamage
         ? checkDeath(obj, MAXIMUM_BLOOD_DEATH_ANIMATIONS[damageTypeIndex(damageType)], 3, hitFromFront)
         : pickDeath(obj, {
@@ -455,10 +455,14 @@ export function itemDropAll(obj: Critter): void {
 
 // CE ref: actions.cc:1512 _is_hit_from_front(attacker, defender) — compares the two
 // facings: the hit is from behind when they face the same way (difference 0, 1 or 5).
-function isHitFromFront(obj: Critter, source?: Critter): boolean {
-    if (!source || source === obj) return true
-    const diff = Math.abs((source.orientation ?? 0) - (obj.orientation ?? 0))
+export function isHitFromFront(a: Critter, b: Critter): boolean {
+    const diff = Math.abs((a.orientation ?? 0) - (b.orientation ?? 0))
     return diff !== 0 && diff !== 1 && diff !== 5
+}
+
+// no source (a script's damage) or self-inflicted: shown as from the front
+function isHitFromFrontOf(obj: Critter, source?: Critter): boolean {
+    return !source || source === obj || isHitFromFront(source, obj)
 }
 
 // CE combat.cc _apply_damage → _set_new_results + _damage_object, and actions.cc
@@ -501,7 +505,7 @@ export function critterDamage(
     const knockback =
         (((obj.pro as any)?.extra?.flags ?? 0) & CRITTER_NO_KNOCKBACK) !== 0 ? 0 : (killOptions.knockback ?? 0)
     const rotation = killOptions.knockbackRotation ?? 0
-    const hitFromFront = killOptions.hitFromFront ?? isHitFromFront(obj, source)
+    const hitFromFront = killOptions.hitFromFront ?? isHitFromFrontOf(obj, source)
     const done = () => {
         if (callback) callback()
     }

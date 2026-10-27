@@ -27,7 +27,7 @@ import {
 } from '../weaponAmmo.js'
 import { AudioEngine } from '../audio.js'
 import { Config } from '../config.js'
-import { ANIM_KICK_LEG, critterDamage, critterKill, unarmedAttackAnim } from '../critter.js'
+import { ANIM_KICK_LEG, critterDamage, critterKill, isHitFromFront, unarmedAttackAnim } from '../critter.js'
 import * as GameTime from '../gametime.js'
 import { Lightmap } from '../lightmap.js'
 import {
@@ -261,12 +261,6 @@ function checkForDeath(c: Critter, damage: number, flags: number): number {
     if (((c.pro as any)?.extra?.flags ?? 0) & CRITTER_INVULNERABLE) return flags
     if (damage > 0 && c.getStat('HP') - damage <= 0) flags |= DAM_DEAD
     return flags
-}
-
-// CE actions.cc _is_hit_from_front — the two facings differ by more than one step.
-function isHitFromFront(a: Critter, b: Critter): boolean {
-    const diff = Math.abs((a.orientation ?? 0) - (b.orientation ?? 0))
-    return diff !== 0 && diff !== 1 && diff !== 5
 }
 
 // Take `item` out of the critter's hands (a critter's empty hand is its fist).

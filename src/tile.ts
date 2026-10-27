@@ -14,6 +14,7 @@
 
 import { hexFromScreen, Point } from './geometry.js'
 import globalState from './globalState.js'
+import { getCenterTile } from './render/camera.js'
 import { SCREEN_HEIGHT, SCREEN_WIDTH } from './renderer.js'
 
 export const TILE_WIDTH = 80
@@ -57,19 +58,8 @@ export function hexToTile(pos: Point): Point {
     return { x: 99 - (pos.x >> 1), y: pos.y >> 1 }
 }
 
-function getCenterTile(cameraPosition: Point): Point {
-    // Camera is top-left of the visible world region; when zoomed, the
-    // visible width/height in world units is SCREEN_WIDTH/zoom. Offset
-    // half that to find the middle tile under the viewport.
-    const z = globalState.cameraZoom || 1.0
-    return hexFromScreen(
-        cameraPosition.x + ((SCREEN_WIDTH / (2 * z)) | 0) - 32,
-        cameraPosition.y + ((SCREEN_HEIGHT / (2 * z)) | 0) - 16,
-    )
-    /*return hexFromScreen(cameraX + Math.floor((SCREEN_WIDTH - 32) / 2),
-                       cameraY + Math.floor((SCREEN_HEIGHT - 16) / 2))*/
-}
-
+// CE gCenterTile: the hex at the centre of the view (render/camera.ts getCenterTile). The copy that
+// lived here subtracted (32, 16) px and so always named a neighbouring hex (cleanup_audit CA42).
 export function setCenterTile() {
-    globalState.centerTile = getCenterTile(globalState.cameraPosition)
+    globalState.centerTile = getCenterTile()
 }
