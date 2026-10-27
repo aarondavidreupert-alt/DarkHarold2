@@ -16,7 +16,7 @@
 // This module owns the UIMode transitions and the callbacks registered by init.ts.
 
 import globalState from './globalState.js'
-import { UIMode } from './ui_panels.js'
+import { UIMode } from './uiMode.js'
 import { showCharacterCreator as openCreatorWindow } from './ui_character.js'
 
 let onDone: (() => void) | null = null

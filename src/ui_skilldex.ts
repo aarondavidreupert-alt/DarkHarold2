@@ -27,7 +27,7 @@ import { CE_COLOR, font3, FontWidget, FoText, renderBignum } from './ui_font.js'
 import { getMessage } from './util.js'
 import { WindowFrame, SmallButton } from './ui_components.js'
 import { makePanelDraggable } from './ui_drag.js'
-import { UIMode } from './ui_panels.js'
+import { UIMode } from './uiMode.js'
 import { assetUrl } from './modAssets.js'
 
 let skilldexWindow: WindowFrame

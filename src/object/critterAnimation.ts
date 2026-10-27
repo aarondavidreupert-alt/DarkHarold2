@@ -32,7 +32,7 @@ import { Critter } from './Critter.js'
 // Imported from Obj (not the barrel) to avoid a cycle through ../object.js.
 import { Obj } from './Obj.js'
 import { canUseDoor } from '../map/pathfinder.js'
-import { drawAP } from '../ui_hud.js'
+import { drawAP } from '../hudRefresh.js'
 
 // Suppress unused-import warning — Obj is referenced indirectly via the
 // import-cycle break documented above.

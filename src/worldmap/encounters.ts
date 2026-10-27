@@ -29,7 +29,7 @@ import { dbg } from '../logger.js'
 import { pathfinderFindPath } from '../map/pathfinder.js'
 import { Critter, createObjectWithPID, Obj } from '../object.js'
 import { fromTileNum, toTileNum } from '../tile.js'
-import { uiLog } from '../ui.js'
+import { uiLog } from '../messageLog.js'
 import { getMessage, getRandomInt } from '../util.js'
 import {
     EncBaseType,

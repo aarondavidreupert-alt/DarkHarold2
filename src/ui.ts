@@ -33,7 +33,6 @@ import { initLoot } from './ui_loot.js'
 import { initCalledShot } from './ui_calledshot.js'
 import { drawHP, drawAC, drawAP, uiDrawWeapon, uiEndCombatAnimationDone, attackButtonDisabled } from './ui_hud.js'
 import {
-    initUiContainer,
     closeAllPanels,
     isCharacterOpen,
     isSkilldexOpen,
@@ -42,6 +41,7 @@ import {
     registerSkilldexWindow,
     registerOptionsWindow,
 } from './ui_panels.js'
+import { initUiContainer } from './uiContainer.js'
 
 // --- Re-exports for external callers (keep `from './ui.js'` import sites
 // working after individual panels were extracted into ui_*.ts modules) -----

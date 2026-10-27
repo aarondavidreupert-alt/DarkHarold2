@@ -22,7 +22,7 @@ limitations under the License.
 import { Config } from '../config.js'
 import * as Events from '../events.js'
 import globalState from '../globalState.js'
-import { UIMode } from '../ui_panels.js'
+import { UIMode } from '../uiMode.js'
 import { dbg } from '../logger.js'
 import { Widget } from '../ui_widget.js'
 import { font1, font2, font3, makeFontLabel, setBignum } from '../ui_font.js'

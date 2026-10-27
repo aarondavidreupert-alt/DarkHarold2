@@ -20,7 +20,7 @@ limitations under the License.
 import globalState from '../globalState.js'
 import { Obj, createObjectWithPID } from '../object.js'
 import { objExamine } from '../examine.js'
-import { uiLog } from '../ui_hud.js'
+import { uiLog } from '../messageLog.js'
 import { $id, clearEl, hidev, makeEl } from '../ui_dom.js'
 import {
     ammoGetCapacity,

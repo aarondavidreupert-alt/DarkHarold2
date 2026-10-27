@@ -22,7 +22,7 @@ import globalState from './globalState.js'
 import { dbg } from './logger.js'
 import { Critter } from './object.js'
 import { drawDigits } from './ui_hud.js'
-import { UIMode } from './ui_panels.js'
+import { UIMode } from './uiMode.js'
 import { $id, $qa, show, hide, makeEl } from './ui_dom.js'
 import { assetUrl } from './modAssets.js'
 

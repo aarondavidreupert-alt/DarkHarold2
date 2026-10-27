@@ -31,7 +31,7 @@ import * as Scripting from './scripting.js'
 import globalState from './globalState.js'
 import { endLips } from './talkingHead.js'
 import { getDialogueSpeaker } from './ui_dialogue.js'
-import { getUiContainer } from './ui_panels.js'
+import { getUiContainer } from './uiContainer.js'
 import { assetUrl } from './modAssets.js'
 
 const SCROLL_STEP_PX = 32

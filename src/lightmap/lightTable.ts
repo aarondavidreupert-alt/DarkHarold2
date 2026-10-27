@@ -19,7 +19,8 @@ limitations under the License.
 
 import { hexInDirectionDistance } from '../geometry.js'
 import globalState from '../globalState.js'
-import { fromTileNum, setCenterTile, toTileNum } from '../tile.js'
+import { setCenterTile } from '../render/camera.js'
+import { fromTileNum, toTileNum } from '../tile.js'
 import { dbg } from '../logger.js'
 
 function zeroArray(arr: any[]) {

@@ -17,6 +17,8 @@ limitations under the License.
 // Main HUD bar: HP / AC / AP readouts, weapon display, combat-mode buttons,
 // combat hover info, and the scrolling message log.
 
+import { setHudRefresh } from './hudRefresh.js'
+import { uiLog } from './messageLog.js'
 import { objExamine, objLookAt } from './examine.js'
 import { ammoGetQuantity } from './weaponAmmo.js'
 import { Config } from './config.js'
@@ -374,59 +376,8 @@ export function attackButtonDisabled(): boolean {
     return document.getElementById('attackButtonContainer')?.classList.contains('weaponDisabled') ?? false
 }
 
-// --- Scrolling log ---------------------------------------------------------
-
-const LOG_LINE_HEIGHT = 13 // approx px per line for 8pt font
-
-// CE display_monitor.cc displayMonitorAddMessage: plain text (a message is never markup),
-// the last DISPLAY_MONITOR_LINES_CAPACITY (100) lines kept. Each line carries its number
-// (data-seq) for readers that follow the log (uiLogCount, the story crawler).
-const LOG_CAPACITY = 100
-let logSeq = 0
-// CE display_monitor.cc displayMonitorAddMessage: each message starts with the '\x95' knob
-// (•); out of combat a new one sounds "monitor", at most every 500 ms
-// (DISPLAY_MONITOR_BEEP_DELAY); 100 lines are kept
-let lastMonitorBeep = -Infinity
-export function uiLog(msg: string): void {
-    const $log = $id('displayLog')
-    if (!globalState.inCombat) {
-        const now = performance.now()
-        if (now - lastMonitorBeep >= 500) {
-            lastMonitorBeep = now
-            globalState.audioEngine?.playSfxByName?.('monitor')
-        }
-    }
-    const li = document.createElement('li')
-    li.textContent = '\u2022' + msg
-    li.dataset.seq = String(logSeq++)
-    $log.appendChild(li)
-    while ($log.children.length > LOG_CAPACITY) $log.removeChild($log.firstChild!)
-    $log.scrollTop = $log.scrollHeight
-}
-
-/** CE displayMonitorReset (interfaceReset, from gameReset): the log is emptied. */
-export function uiLogReset(): void {
-    const $log = document.getElementById('displayLog')
-    if ($log) $log.innerHTML = ''
-}
-
-/** How many lines the message window has received so far. */
-export function uiLogCount(): number {
-    return logSeq
-}
-
-export function initLogScrollZones(): void {
-    const log = document.getElementById('displayLog')
-    const up = document.getElementById('logScrollUp')
-    const down = document.getElementById('logScrollDown')
-    if (!log || !up || !down) return
-    up.addEventListener('click', () => {
-        log.scrollTop -= LOG_LINE_HEIGHT
-    })
-    down.addEventListener('click', () => {
-        log.scrollTop += LOG_LINE_HEIGHT
-    })
-}
+// --- Scrolling log: messageLog.ts (a leaf module, so game logic can log without importing the HUD)
+export { uiLog, uiLogReset, uiLogCount, initLogScrollZones } from './messageLog.js'
 
 // --- Weapon bar ------------------------------------------------------------
 
@@ -751,3 +702,6 @@ export function uiHideCombatHover(): void {
 export function uiEndCombatAnimationDone(this: HTMLElement): void {
     // no-op: JS frame-stepping replaced the CSS animation
 }
+
+// game logic calls these through hudRefresh.ts, a module without HUD imports
+setHudRefresh({ drawHP, drawAC, drawAP, uiDrawWeapon, updateIndicatorBar })

@@ -21,7 +21,8 @@
 import { makePanelDraggable } from './ui_drag.js'
 import globalState from './globalState.js'
 import { font1, font3, FoText } from './ui_font.js'
-import { UIMode, getUiContainer } from './ui_panels.js'
+import { getUiContainer } from './uiContainer.js'
+import { UIMode } from './uiMode.js'
 import { assetUrl } from './modAssets.js'
 
 // ── CE layout constants (dbox.cc DIALOG_TYPE_LARGE) ──────────────────────────

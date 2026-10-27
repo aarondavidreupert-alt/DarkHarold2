@@ -15,9 +15,10 @@ limitations under the License.
 */
 
 import globalState from './globalState.js'
-import { closeAllPanels, UIMode } from './ui_panels.js'
+import { closeAllPanels } from './ui_panels.js'
+import { UIMode } from './uiMode.js'
 import { miscItemConsumeCharge, miscItemGetCharges, PROTO_ID_MOTION_SENSOR } from './miscItem.js'
-import { uiLog } from './ui_hud.js'
+import { uiLog } from './messageLog.js'
 import { getMessage } from './util.js'
 import { renderAutomapCanvas, drawAutomapInto } from './automapData.js'
 import { makePanelDraggable } from './ui_drag.js'

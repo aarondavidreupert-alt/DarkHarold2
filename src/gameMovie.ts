@@ -22,7 +22,7 @@ limitations under the License.
 // to art/cuts/<name>.webm plus art/cuts/<name>.json { fps } — the MVE timer rate,
 // which is what .SVE subtitle and .CFG effect frame numbers count in.
 
-import { UIMode } from './ui_panels.js'
+import { UIMode } from './uiMode.js'
 import { Config } from './config.js'
 import globalState from './globalState.js'
 import { dbg, dbgWarn } from './logger.js'

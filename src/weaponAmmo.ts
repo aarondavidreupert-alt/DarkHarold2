@@ -25,7 +25,7 @@ limitations under the License.
 
 import type { Obj } from './object.js'
 import { getAmbientLight } from './gametime.js'
-import { uiLog } from './ui_hud.js'
+import { uiLog } from './messageLog.js'
 import { getMessage } from './util.js'
 
 const isWeapon = (w: Obj | null | undefined): w is Obj => !!w && w.subtype === 'weapon' && !!w.pro?.extra

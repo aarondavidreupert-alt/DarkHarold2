@@ -21,11 +21,11 @@ import { Point } from './geometry.js'
 import type { EventLogEntry } from './eventlog.types.js'
 import { GameMap, SerializedMap } from './map.js'
 import { Critter, Obj } from './object.js'
-import { Party } from './party.js'
+import type { Party } from './party.js'
 import { Player } from './player.js'
 import { Renderer } from './renderer.js'
 import { Skills } from './skills.js'
-import { UIMode } from './ui.js'
+import { UIMode } from './uiMode.js'
 
 export type CursorMode = 'move' | 'command' | 'attack' | 'interface' | 'scroll' | 'useSkill' | 'useItem'
 
@@ -103,7 +103,7 @@ const globalState = {
     centerTile: { x: 0, y: 0 },
 
     dirtyMapCache: {},
-    gParty: new Party(),
+    gParty: null!, // party.ts creates it when it loads (globalState imports nothing from the game)
 
     uiMode: UIMode.none,
 

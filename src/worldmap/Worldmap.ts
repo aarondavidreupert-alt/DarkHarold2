@@ -37,7 +37,7 @@ import {
     rndEncounterOccurred,
     setupRandomEncounter,
 } from './encounters.js'
-import { drawHP } from '../ui_hud.js'
+import { drawHP } from '../hudRefresh.js'
 import { assetUrl } from '../modAssets.js'
 
 export const WORLDMAP_UNDISCOVERED = 0

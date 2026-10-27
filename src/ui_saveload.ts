@@ -27,7 +27,7 @@ limitations under the License.
 // bar and mouse wheel, and deleting a save (DELETE button / Del key, with confirmation).
 
 import { makePanelDraggable } from './ui_drag.js'
-import { uiLog } from './ui_hud.js'
+import { uiLog } from './messageLog.js'
 import { areaContainingMap, loadAreas, mapIndexOf } from './data.js'
 import * as GameTime from './gametime.js'
 import { Config } from './config.js'
@@ -37,7 +37,7 @@ import { deleteSave, getSaveSnapshot, load, save, SaveGame, saveList, takeSaveSn
 import { Widget } from './ui_widget.js'
 import { WindowFrame, SmallButton } from './ui_components.js'
 import { CE_COLOR, font1, font3, FoText } from './ui_font.js'
-import { UIMode } from './ui_panels.js'
+import { UIMode } from './uiMode.js'
 import { showConfirm, showInput } from './ui_dialog.js'
 import { getMessage } from './util.js'
 

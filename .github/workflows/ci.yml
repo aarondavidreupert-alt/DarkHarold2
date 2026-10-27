@@ -21,6 +21,8 @@ jobs:
             - run: npm ci
             - name: TypeScript (0 errors)
               run: npm run build
+            - name: Import cycle ratchet (largest cycle, tools/importCycles.mjs)
+              run: node tools/importCycles.mjs --max 73
             - name: Prettier (npm run format to fix)
               run: npm run format:check
             - name: ESLint ratchet (tools/eslintBaseline.json)

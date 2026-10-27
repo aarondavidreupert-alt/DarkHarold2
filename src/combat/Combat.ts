@@ -59,17 +59,9 @@ import { invenUnwield, invenWield, invenWieldAnimated } from '../inventoryWield.
 import { weaponCanBeReloadedWith } from '../weaponAmmo.js'
 import { Player } from '../player.js'
 import * as Scripting from '../scripting.js'
-import {
-    drawAC,
-    drawAP,
-    drawHP,
-    uiDrawWeapon,
-    uiEndCombat,
-    uiEndButtonsGreenLights,
-    uiEndButtonsRedLights,
-    uiLog,
-    uiStartCombat,
-} from '../ui.js'
+import { uiEndCombat, uiEndButtonsGreenLights, uiEndButtonsRedLights, uiStartCombat } from '../ui.js'
+import { drawAC, drawAP, drawHP, uiDrawWeapon } from '../hudRefresh.js'
+import { uiLog } from '../messageLog.js'
 import { getMessage, getProtoMsg, getRandomInt, randomRoll, RollResult, rollIsSuccess } from '../util.js'
 import { randomBetween } from '../random.js'
 import { perkNameById } from '../perks.js'

@@ -14,7 +14,6 @@
 
 import { Point } from './geometry.js'
 import globalState from './globalState.js'
-import { getCenterTile } from './render/camera.js'
 
 export const TILE_WIDTH = 80
 export const TILE_HEIGHT = 36
@@ -55,10 +54,4 @@ export function tileFromScreen(x: number, y: number): Point {
 // position put every odd hex row one square too far south.)
 export function hexToTile(pos: Point): Point {
     return { x: 99 - (pos.x >> 1), y: pos.y >> 1 }
-}
-
-// CE gCenterTile: the hex at the centre of the view (render/camera.ts getCenterTile). The copy that
-// lived here subtracted (32, 16) px and so always named a neighbouring hex (cleanup_audit CA42).
-export function setCenterTile() {
-    globalState.centerTile = getCenterTile()
 }

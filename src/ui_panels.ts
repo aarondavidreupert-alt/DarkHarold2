@@ -25,55 +25,12 @@ import globalState from './globalState.js'
 import { closeAutomap, isAutomapOpen } from './ui_automap.js'
 import { closePipBoy, isPipBoyOpen } from './ui_pipboy.js'
 
-// Top-level UI mode the game is currently in. Owned by ui_panels.ts (not
-// ui.ts) because every panel module reads/writes it and we want to keep the
-// panel-related state in one place.
-export enum UIMode {
-    none = 0,
-    dialogue = 1,
-    barter = 2,
-    loot = 3,
-    inventory = 4,
-    worldMap = 5,
-    elevator = 6,
-    calledShot = 7,
-    skilldex = 8,
-    useSkill = 9,
-    contextMenu = 10,
-    saveLoad = 11,
-    char = 12,
-    pipBoy = 13,
-    automap = 14,
-    options = 15,
-    mainMenu = 16,
-    characterCreator = 17,
-    dialog = 18,
-    companionControl = 19,
-    movie = 20, // gameMovie.ts modal player — pauses tickGame like other panels
-}
+// The top-level UI mode (uiMode.ts, a leaf module so globalState.ts can use it)
+export { UIMode } from './uiMode.js'
+import { UIMode } from './uiMode.js'
 
-// --- $uiContainer ownership -------------------------------------------------
-
-let $uiContainer: HTMLElement | null = null
-
-export function initUiContainer(): HTMLElement {
-    $uiContainer = (document.getElementById('uiStage') ?? document.getElementById('game-container'))!
-    return $uiContainer
-}
-
-/**
- * Returns the element that top-level UI windows (skilldex / character / save-
- * load / worldmap) are appended into. Must be called after initUiContainer().
- */
-export function getUiContainer(): HTMLElement {
-    if (!$uiContainer) {
-        // Fall back to locating it lazily — initUiContainer() is normally
-        // called early in uiInit() but some code paths reach here before
-        // that runs (e.g. hot module reload in dev).
-        return initUiContainer()
-    }
-    return $uiContainer
-}
+// --- $uiContainer ownership: uiContainer.ts (a leaf module)
+export { initUiContainer, getUiContainer } from './uiContainer.js'
 
 // --- Panel mutual-exclusion helpers -----------------------------------------
 //

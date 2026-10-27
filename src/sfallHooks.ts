@@ -6,7 +6,7 @@
 // others can be registered and never run. wiki/upu_support.md → "Hooks and global scripts".
 
 import globalState from './globalState.js'
-import { UIMode } from './ui_panels.js'
+import { UIMode } from './uiMode.js'
 import { dbg, dbgWarn } from './logger.js'
 
 // sfall.h hook ids

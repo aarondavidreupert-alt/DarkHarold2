@@ -32,7 +32,7 @@ limitations under the License.
 import { switchItemProto, type Critter, type Obj } from './object.js'
 import * as Scripting from './scripting.js'
 import { dbg } from './logger.js'
-import { uiLog } from './ui_hud.js'
+import { uiLog } from './messageLog.js'
 import { getMessage } from './util.js'
 import { openAutomap } from './ui_automap.js'
 

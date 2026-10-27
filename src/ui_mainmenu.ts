@@ -36,7 +36,7 @@ function menuSound(name: string): void {
 const MENU_TEXT = '#b89c28'
 import { uiSaveLoad } from './ui_saveload.js'
 import globalState from './globalState.js'
-import { UIMode } from './ui_panels.js'
+import { UIMode } from './uiMode.js'
 import { assetUrl } from './modAssets.js'
 
 // Enum mirrors fallout2-ce MainMenuButton order exactly.

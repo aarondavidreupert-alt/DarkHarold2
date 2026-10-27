@@ -21,7 +21,7 @@ import { Critter, deserializeObj, SerializedObj } from './object.js'
 import { arrayIncludes, arrayRemove, getFileText, getMessage, getRandomInt, parseIni } from './util.js'
 import { SkillSet } from './char.js'
 import { loadPRO } from './pro.js'
-import { uiLog } from './ui_hud.js'
+import { uiLog } from './messageLog.js'
 import * as Scripting from './scripting.js'
 import * as Events from './events.js'
 import { AiPacket, Disposition, findCompanionPacketForDisposition, getAiPacket } from './aiPackets.js'
@@ -339,3 +339,6 @@ export function getCompanionEffectivePacket(critter: Critter): AiPacket {
 function customOverridesFor(critter: Critter, packet: AiPacket): Partial<AiPacket> | null {
     return packet.disposition === 'custom' ? critter.customAiOverrides : null
 }
+
+// the one party (CE gPartyMembers); set here, not in globalState.ts, so that module stays a leaf
+globalState.gParty = new Party()

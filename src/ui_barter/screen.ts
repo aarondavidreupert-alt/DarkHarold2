@@ -24,7 +24,7 @@ import { Critter, cloneItem, Obj } from '../object.js'
 import * as Scripting from '../scripting.js'
 import { aiAttemptWeaponReload } from '../combat/Combat.js'
 import { endLips } from '../talkingHead.js'
-import { UIMode } from '../ui_panels.js'
+import { UIMode } from '../uiMode.js'
 import { uiAnimateBox, uiSetDialogueReply } from '../ui_dialogue.js'
 import {
     drawBagView,

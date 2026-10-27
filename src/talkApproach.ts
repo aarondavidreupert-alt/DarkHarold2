@@ -24,7 +24,7 @@ import globalState from './globalState.js'
 import { hexDistance } from './geometry.js'
 import { combatIsShotBlocked } from './combat/lineOfFire.js'
 import type { Critter, Obj } from './object.js'
-import { uiLog } from './ui_hud.js'
+import { uiLog } from './messageLog.js'
 import { getMessage } from './util.js'
 
 // CE actions.cc _can_talk_to (a forced callback: it runs even when the walk failed) — still

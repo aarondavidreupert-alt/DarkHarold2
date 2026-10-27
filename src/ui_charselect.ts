@@ -25,7 +25,7 @@ import { dbg } from './logger.js'
 import { loadPremade, loadPremadeBio, PREMADE_CHARACTERS, PremadeCharacter } from './premade.js'
 import { CreatorInitialState, showCharacterCreator, STATS } from './ui_character.js'
 import { font1 } from './ui_font.js'
-import { UIMode } from './ui_panels.js'
+import { UIMode } from './uiMode.js'
 import { getMessage } from './util.js'
 import { assetUrl } from './modAssets.js'
 

@@ -24,8 +24,9 @@ import globalState from './globalState.js'
 import { Critter, createObjectWithPID, Obj, WeaponObj } from './object.js'
 import { centerCamera } from './renderer.js'
 import { fromTileNum } from './tile.js'
-import { drawHP } from './ui_hud.js'
-import { uiLog, uiWorldMap } from './ui.js'
+import { drawHP } from './hudRefresh.js'
+import { uiWorldMap } from './ui.js'
+import { uiLog } from './messageLog.js'
 
 // Contains the Player class and relevant initialization logic
 

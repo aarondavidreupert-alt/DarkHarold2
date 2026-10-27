@@ -21,7 +21,7 @@ limitations under the License.
 import * as Events from '../events.js'
 import globalState from '../globalState.js'
 import * as GameTime from '../gametime.js'
-import { UIMode } from '../ui_panels.js'
+import { UIMode } from '../uiMode.js'
 import { Config } from '../config.js'
 import { makePanelDraggable } from '../ui_drag.js'
 import { getMessage } from '../util.js'

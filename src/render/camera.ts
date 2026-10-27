@@ -812,7 +812,13 @@ function clampCameraDH2(): void {
     globalState.cameraPosition.y = nextCY - halfH
 }
 
-// CE gCenterTile: the hex at the centre of the view
+// CE gCenterTile: the hex at the centre of the view, kept in globalState.centerTile. (tile.ts used
+// to keep a copy of this that subtracted (32, 16) px and so always named a neighbouring hex,
+// cleanup_audit CA42; setCenterTile lives here so tile.ts does not import the camera.)
+export function setCenterTile() {
+    globalState.centerTile = getCenterTile()
+}
+
 export function getCenterTile(): Point {
     return hexFromScreen(
         globalState.cameraPosition.x + getWorldViewWidth() / 2,

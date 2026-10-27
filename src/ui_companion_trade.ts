@@ -36,7 +36,7 @@ limitations under the License.
 import globalState from './globalState.js'
 import { relinkTradedHands, tradeHeldAside } from './inventoryWield.js'
 import { Critter, cloneItem, Obj } from './object.js'
-import { UIMode } from './ui_panels.js'
+import { UIMode } from './uiMode.js'
 import { getVisibleDialoguePanel, uiSetDialogueReply, uiSwapDialoguePanel } from './ui_dialogue.js'
 import {
     drawBagView,

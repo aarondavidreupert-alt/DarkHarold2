@@ -10,11 +10,11 @@ import type { Critter, Obj } from './object.js'
 import { refreshStealthState } from './miscItem.js'
 import { armorPerkSwap } from './perks/cePerks.js'
 import { applyArmorArt } from './ui_inventory/dragdrop.js'
-import { drawAC, uiDrawWeapon } from './ui_hud.js'
+import { drawAC, uiDrawWeapon } from './hudRefresh.js'
 import { updateHandFlareLight } from './object.js'
 import { ANIM, critterWeaponCode, playCharAnimSfx } from './sfxNames.js'
 import globalState from './globalState.js'
-import { UIMode } from './ui_panels.js'
+import { UIMode } from './uiMode.js'
 
 const OBJECT_IN_LEFT_HAND = 0x1000000
 const OBJECT_IN_RIGHT_HAND = 0x2000000

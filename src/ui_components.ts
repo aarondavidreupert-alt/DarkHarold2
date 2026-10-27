@@ -20,7 +20,7 @@ limitations under the License.
 import { Point } from './geometry.js'
 import { dbgWarn } from './logger.js'
 import { CSSBoundingBox, Widget } from './ui_widget.js'
-import { getUiContainer } from './ui_panels.js'
+import { getUiContainer } from './uiContainer.js'
 import { assetUrl } from './modAssets.js'
 
 export class WindowFrame {

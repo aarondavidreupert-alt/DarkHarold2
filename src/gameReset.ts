@@ -29,7 +29,7 @@ import * as Worldmap from './worldmap.js'
 import { resetAutomap } from './automapData.js'
 import { resetSkillUsage } from './skillUse.js'
 import { removeAllGlobalScripts, sfallGlobalVarsReset } from './sfallGlobalScripts.js'
-import { uiLogReset } from './ui_hud.js'
+import { uiLogReset } from './messageLog.js'
 import { sfallHooksReset } from './sfallHooks.js'
 
 export function gameReset(): void {

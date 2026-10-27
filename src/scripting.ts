@@ -96,15 +96,15 @@ import { fromTileNum, toTileNum } from './tile.js'
 import {
     uiAddDialogueOption,
     uiBarterMode,
-    uiDrawWeapon,
     uiEndDialogue,
-    uiLog,
     uiSetDialogueReply,
     uiStartDialogue,
     uiWorldMap,
-    UIMode,
 } from './ui.js'
-import { drawAC, updateIndicatorBar } from './ui_hud.js'
+import { uiDrawWeapon } from './hudRefresh.js'
+import { uiLog } from './messageLog.js'
+import { UIMode } from './uiMode.js'
+import { drawAC, updateIndicatorBar } from './hudRefresh.js'
 import {
     carriedObjectByPid,
     carriedQuantityByPid,

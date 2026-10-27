@@ -8,12 +8,13 @@
     "lint": "eslint \"src/**/*.ts\"",
     "lint:ratchet": "node tools/eslintRatchet.mjs",
     "pretest": "tsc -p .",
-    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./test/support/register.mjs --test \"test/*.test.mjs\"",
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"test/*.test.mjs\"",
     "parity": "tsc -p . && node tools/parity.mjs",
     "smoke": "tsc -p . && node tools/smoke.mjs",
     "storycrawl": "tsc -p . && node tools/storycrawl.mjs",
     "format": "prettier --write \"src/**/*.{ts,js}\"",
-    "format:check": "prettier --check \"src/**/*.{ts,js}\""
+    "format:check": "prettier --check \"src/**/*.{ts,js}\"",
+    "cycles": "node tools/importCycles.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

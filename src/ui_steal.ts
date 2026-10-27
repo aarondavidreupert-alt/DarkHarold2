@@ -27,9 +27,9 @@ limitations under the License.
 
 import globalState from './globalState.js'
 import { Critter, itemIsHidden, Obj } from './object.js'
-import { UIMode } from './ui_panels.js'
+import { UIMode } from './uiMode.js'
 import { uiGetAmount, uiSwapItem } from './ui_barter.js'
-import { uiLog } from './ui_hud.js'
+import { uiLog } from './messageLog.js'
 import {
     examineToLog,
     itemMenuActions,

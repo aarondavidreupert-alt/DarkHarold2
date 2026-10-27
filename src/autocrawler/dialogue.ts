@@ -6,7 +6,8 @@ import globalState from '../globalState.js'
 import { Critter } from '../object.js'
 import * as Scripting from '../scripting.js'
 import { toTileNum } from '../tile.js'
-import { UIMode, uiEndDialogue } from '../ui.js'
+import { uiEndDialogue } from '../ui.js'
+import { UIMode } from '../uiMode.js'
 import { buildReport, printSummary } from './report.js'
 import {
     COMBAT_ACTIVE_TIMEOUT_MS,

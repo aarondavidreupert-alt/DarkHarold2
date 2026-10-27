@@ -34,10 +34,11 @@ import { randomDraws, randomSeedExact, setRandomDrawHook } from '../random.js'
 import * as Scripting from '../scripting.js'
 import { toTileNum } from '../tile.js'
 import { setVMFatalHook } from '../vm.js'
-import { UIMode, uiEndDialogue } from '../ui.js'
+import { uiEndDialogue } from '../ui.js'
+import { UIMode } from '../uiMode.js'
 import { activeBarter } from '../ui_barter.js'
 import { uiElevatorDone } from '../ui_elevator.js'
-import { uiLogCount } from '../ui_hud.js'
+import { uiLogCount } from '../messageLog.js'
 import { uiCloseWorldMap } from '../ui_worldmap.js'
 import {
     critterDisplayName,
