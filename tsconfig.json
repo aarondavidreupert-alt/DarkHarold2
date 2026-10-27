@@ -11,7 +11,9 @@
         "rootDir": "src",
         "target": "es2021",
         "lib": ["es2021", "dom"],
-        "allowJs": true
+        "allowJs": true,
+        // js/**/*.js.map (gitignored, *.map): browser stack traces and breakpoints show the .ts
+        "sourceMap": true
     },
 
     "include": ["src/**/*"],
