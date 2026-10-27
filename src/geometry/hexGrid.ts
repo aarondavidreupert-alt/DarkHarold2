@@ -122,10 +122,6 @@ export function hexDirectionTo(a: Point, b: Point): number {
     return dy < 0 ? 0 : 2 // dy<0=up=NE(0), dy>0=down=SE(2)
 }
 
-function hexOppositeDirection(direction: number) {
-    return (direction + 3) % 6
-}
-
 // The adjacent hex around a nearest to b
 export function hexNearestNeighbor(a: Point, b: Point) {
     const neighbors = hexNeighbors(a)
@@ -278,12 +274,6 @@ export function tile_in_tile_rect(tile: Point, a: Point, b: Point, c: Point, d: 
     if (tile.y <= a.y || tile.y >= c.y) inside = false
 
     return inside
-}
-
-function tile_in_tile_rect2(tile: Point, a: Point, c: Point) {
-    const b = { x: a.x, y: c.y }
-    const d = { x: c.x, y: a.y }
-    return tile_in_tile_rect(tile, a, b, c, d)
 }
 
 export function pointIntersectsCircle(center: Point, radius: number, point: Point): boolean {

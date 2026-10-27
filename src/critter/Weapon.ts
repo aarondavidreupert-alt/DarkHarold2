@@ -25,11 +25,6 @@ import type { Critter } from '../object/Critter.js'
 import type { WeaponObj } from '../object/items.js'
 import type { Obj } from '../object/Obj.js'
 
-const weaponSkins: { [weapon: string]: string } = {
-    uzi: 'i',
-    rifle: 'j',
-}
-
 const weaponAnims: { [weapon: string]: { [anim: string]: string } } = {
     punch: { idle: 'aa', attack: 'aq' },
 }

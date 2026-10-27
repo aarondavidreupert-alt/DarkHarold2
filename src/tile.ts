@@ -12,10 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { hexFromScreen, Point } from './geometry.js'
+import { Point } from './geometry.js'
 import globalState from './globalState.js'
 import { getCenterTile } from './render/camera.js'
-import { SCREEN_HEIGHT, SCREEN_WIDTH } from './renderer.js'
 
 export const TILE_WIDTH = 80
 export const TILE_HEIGHT = 36

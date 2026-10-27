@@ -78,17 +78,6 @@ export function getFileJSON(path: string, err?: () => void): any {
     return JSON.parse(getFileText(path, err))
 }
 
-// GET binary data into a DataView
-function getFileBinaryAsync(path: string, callback: (data: DataView) => void) {
-    const xhr = new XMLHttpRequest()
-    xhr.open('GET', assetUrl(path), true)
-    xhr.responseType = 'arraybuffer'
-    xhr.onload = (evt) => {
-        callback(new DataView(xhr.response))
-    }
-    xhr.send(null)
-}
-
 export function getFileBinarySync(path: string) {
     // Synchronous requests aren't allowed by browsers to define response types
     // in a misguided attempt to force developers to switch to asynchronous requests,

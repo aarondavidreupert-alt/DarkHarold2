@@ -53,7 +53,6 @@ function animateGauge(fromFloor: number, toFloor: number, levels: number, onDone
         return
     }
     const step = fromFrame < toFrame ? 1 : -1
-    const totalSteps = Math.abs(toFrame - fromFrame)
     const delay = Math.max(16, Math.round(GAUGE_FRAME_MS))
     let cur = fromFrame
     function tick(): void {

@@ -46,7 +46,7 @@ export module IDBCache {
 
         request.onupgradeneeded = function () {
             const db = request.result
-            const store = db.createObjectStore('cache', { keyPath: 'key' })
+            db.createObjectStore('cache', { keyPath: 'key' })
             // store.createIndex("key", "key", {unique: true});
         }
 

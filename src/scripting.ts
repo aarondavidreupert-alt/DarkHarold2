@@ -4959,7 +4959,6 @@ export module Scripting {
             }
         }
 
-        let updated = 0
         for (let i = 0; i < gameObjects.length; i++) {
             const script = gameObjects[i]._script
             if (script !== undefined && script.map_update_p_proc === undefined)
@@ -4970,12 +4969,9 @@ export module Scripting {
                 script.game_time_hour = GameTime.getHourMilitary()
                 script.cur_map_index = currentMapID
                 script.map_update_p_proc()
-                updated++
             }
         }
         GlobalScripts.globalScriptsMapProc('map_update_p_proc') // CE scriptsExecMapUpdateScripts
-
-        // info("updated " + updated + " objects")
     }
 
     export function enterMap(

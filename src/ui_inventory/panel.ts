@@ -215,8 +215,6 @@ export function showInventory(useOn = false) {
         clearEl($info)
         const p = globalState.player
         const playerAny = p as any
-        const armor = playerAny.armor ?? null
-        const armorExtra = armor?.pro?.extra ?? null
 
         const addHR = () => {
             const hr = document.createElement('hr')

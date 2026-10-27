@@ -670,7 +670,7 @@ export function saveLoadInit(): void {
 
     request.onupgradeneeded = function () {
         const db = request.result
-        const store = db.createObjectStore('saves', { keyPath: 'id', autoIncrement: true })
+        db.createObjectStore('saves', { keyPath: 'id', autoIncrement: true })
     }
 
     request.onsuccess = function () {

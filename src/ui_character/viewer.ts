@@ -180,7 +180,6 @@ export function showCharacterScreen() {
         whiteSpace: 'pre',
         lineHeight: '1.2',
     })
-    const panel3El = panel3.elem
 
     // Slider widget elements (initially hidden)
     const sliderContainer = document.createElement('div')
@@ -417,9 +416,7 @@ export function showCharacterScreen() {
     // The folder contents (CE folder view) — created with the info card below.
     let folderView: FolderView | null = null
 
-    let activeFolder = 0
     const activateFolder = (idx: number) => {
-        activeFolder = idx
         tabImg.src = assetUrl(FOLDER_TABS[idx].sprite)
         globalState.audioEngine?.playSfxByName?.('ib3p1xx1')
         folderView?.setFolder(idx)

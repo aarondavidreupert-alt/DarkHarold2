@@ -22,7 +22,6 @@ import { ensureCycleMask } from '../images.js'
 import { Config } from '../config.js'
 import { lookupMapName, mapDeadBodiesAge } from '../data.js'
 import { itemDropAll } from '../critter.js'
-import * as GameTime from '../gametime.js'
 import { Events } from '../events.js'
 import { Point } from '../geometry.js'
 import globalState from '../globalState.js'
@@ -396,8 +395,6 @@ GameMap.prototype.loadNewMap = function (
     this.changeElevation(elevation, false, true)
 
     // TODO: when exactly are these called?
-    // TODO: when objectsAndSpatials is updated, the scripting engine won't know
-    const objectsAndSpatials = this.getObjectsAndSpatials()
 
     if (Config.engine.doLoadScripts) {
         // party member NPCs get the new map script

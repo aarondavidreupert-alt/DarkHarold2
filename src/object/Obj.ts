@@ -27,14 +27,7 @@ import {
     sfxBuildCharName,
     SCENERY_SOUND_EFFECT,
 } from '../sfxNames.js'
-import {
-    ammoFromRounds,
-    ammoGetCapacity,
-    ammoGetQuantity,
-    ammoMergeInto,
-    ammoSplitOff,
-    initWeaponAmmo,
-} from '../weaponAmmo.js'
+import { ammoFromRounds, ammoGetCapacity, ammoGetQuantity, ammoMergeInto, initWeaponAmmo } from '../weaponAmmo.js'
 import type { Proto } from '../proto_types.js'
 
 // Object kinds as getPROTypeName() names them (plus map-object kinds that carry no proto).
@@ -95,15 +88,6 @@ export function objectIsWeapon(obj: any): boolean {
     return obj.weapon !== undefined
 }
 
-function objectFindItemIndex(obj: Obj, item: Obj): number {
-    for (let i = 0; i < obj.inventory.length; i++) {
-        if (obj.inventory[i] === item) {
-            return i
-        }
-    }
-    return -1
-}
-
 // A new object made by splitting a stack gets its own uid (cloneItem keeps it: barter's
 // working copies are matched to their originals by it). Saved timers are keyed by uid.
 export function giveNewUid(obj: Obj): Obj {
@@ -118,29 +102,6 @@ export function cloneItem(item: Obj): Obj {
         clone.inventory = item.inventory.map(cloneItem)
     }
     return clone
-}
-
-function objectSwapItem(a: Obj, item: Obj, b: Obj, amount: number) {
-    // swap item from a -> b
-    if (amount === 0) {
-        return
-    }
-
-    const idx = objectFindItemIndex(a, item)
-    if (idx === -1) {
-        throw new Error('item (' + item + ') does not exist in a')
-    }
-    if (amount !== undefined && amount < item.amount) {
-        // just deduct amount from a and give amount to b
-        item.amount -= amount
-        const moved = cloneItem(item)
-        ammoSplitOff(item, moved) // CE itemRemove: the top ammo box goes with the moved boxes
-        b.addInventoryItem(moved, amount)
-    } else {
-        // just swap them
-        a.inventory.splice(idx, 1)
-        b.addInventoryItem(item, amount || 1)
-    }
 }
 
 export function objectGetDamageType(obj: any): string {

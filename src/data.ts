@@ -159,13 +159,6 @@ export function loadAreas() {
     return parseAreas(getFileText('data/data/city.txt'))
 }
 
-function allAreas() {
-    if (globalState.mapAreas === null) globalState.mapAreas = loadAreas()
-    const areas = []
-    for (const area in globalState.mapAreas) areas.push(globalState.mapAreas[area])
-    return areas
-}
-
 export interface MsgEntry {
     num: number
     audio: string

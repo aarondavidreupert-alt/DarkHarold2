@@ -36,9 +36,6 @@ import { showConfirm } from './ui_dialog.js'
 import { getMessage } from './util.js'
 import { assetUrl } from './modAssets.js'
 
-// FO2-CE ref: preferences.cc TargetHighlight enum — 0=off, 1=targeting-only, 2=all-enemies.
-type TargetHighlight = 'off' | 'targeting-only' | 'on'
-
 export { SavedPreferences, PREFS_KEY, loadPreferences, savePreferences } from './ui_options/preferences.js'
 export { loadFallout2Cfg, loadModsOrder, parseCfg, applyCfg, parseModList } from './ui_options/fallout2Cfg.js'
 

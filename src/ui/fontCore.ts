@@ -90,7 +90,6 @@ export class FontRenderer {
     /** Public URL of the sprite sheet (suitable for CSS url('...')). */
     spriteUrl: string
 
-    private spritePath: string
     private jsonPath: string
     private symbolInfo: SymbolInfoMap | null = null
     private meta: FontMeta | null = null
@@ -106,7 +105,6 @@ export class FontRenderer {
      * @param jsonPath    Full path to the symbol info JSON (including .json).
      */
     constructor(spritePath: string, jsonPath: string) {
-        this.spritePath = spritePath
         this.jsonPath = jsonPath
         this.spriteUrl = spritePath + '.png' + FONT_ASSET_QUERY
     }

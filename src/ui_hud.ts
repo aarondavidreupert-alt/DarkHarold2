@@ -682,12 +682,6 @@ export function uiEndCombat(): void {
 
     const $hover = document.getElementById('combatHoverInfo')
     if ($hover) $hover.style.display = 'none'
-
-    // Refresh the attack button's affordability tint now that combat's AP pool
-    // has been reset (Combat end()/forceEnd() call player.AP.resetAP() first).
-    // Otherwise the button keeps the dimmed tint from the fight's leftover AP.
-    // (Restored 2026-10-06; lost in b282cca.)
-    const player = globalState.player
 }
 
 // CE _colorTable[rgb555] → CSS.

@@ -538,14 +538,6 @@ export module Lightmap {
         }
     }
 
-    function obj_rebuild_all_light(): void {
-        light_reset()
-
-        globalState.gMap.getObjects().forEach((obj) => {
-            obj_adjust_light(obj, false)
-        })
-    }
-
     export function resetLight(): void {
         light_reset()
         obj_light_table_init()

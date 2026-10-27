@@ -69,7 +69,6 @@ let pipBoyContainer: HTMLDivElement | null = null
 let currentTab: PipBoyTab = 'STATUS'
 const dotElements: Map<string, HTMLDivElement> = new Map()
 let alarmOn = false
-let waitMenuDiv: HTMLDivElement | null = null
 let isRestAnimating = false // prevents re-entry during time-advance animation
 
 // ESC stops a rest in progress (CE pipboyRest: inputGetInput() == KEY_ESCAPE)
@@ -375,7 +374,6 @@ function toggleWaitMenu(): void {
 
     if (alarmOn) {
         alarmOn = false
-        waitMenuDiv = null
         renderDateTimeBar()
         renderTab(currentTab)
         return
@@ -435,7 +433,6 @@ function toggleWaitMenu(): void {
     }
 
     screen.appendChild(content)
-    waitMenuDiv = content
     renderRestClock()
 }
 
@@ -465,10 +462,6 @@ export function critterCanDudeRest(): boolean {
         return false
     }
     return true
-}
-
-function formatGameTime(_ticks: number): string {
-    return `${GameTime.getDateString()}  ${GameTime.getTimeString()}`
 }
 
 // --- Shared primitives so every tab is built the same way ---
@@ -670,7 +663,6 @@ export function closePipBoy(): void {
     restCancelled = true
     leaveStatusTab()
 
-    waitMenuDiv = null
     alarmOn = false
     stopIdleWatch?.()
     stopIdleWatch = null

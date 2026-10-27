@@ -19,7 +19,7 @@ limitations under the License.
 // object.ts per wiki/ts-split-refactor.md §2.
 
 import { Config } from '../config.js'
-import { directionOfDelta, hexDistance, hexToScreen, Point } from '../geometry.js'
+import { directionOfDelta, hexDistance, Point } from '../geometry.js'
 import { randomBetween } from '../random.js'
 import { objectOnScreen } from '../renderer.js'
 import globalState from '../globalState.js'
@@ -463,8 +463,6 @@ Critter.prototype.updateAnim = function (this: Critter): void {
         }
         return
     }
-
-    const targetScreen = hexToScreen(this.path.target.x, this.path.target.y)
 
     const partials = getAnimPartialActions(this.art, this.anim)
     const currentPartial = partials.actions[this.path.partial]

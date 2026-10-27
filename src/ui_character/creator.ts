@@ -126,7 +126,6 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
         whiteSpace: 'pre',
         lineHeight: '1.2',
     })
-    const panel3El = panel3.elem
 
     // ── Skill rows container (replaces List widget) ───────────────────────────
     const skillRowsEl = document.createElement('div')
@@ -897,16 +896,6 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
     characterWindow.elem.appendChild(rightColEl)
 
     // ── Render helpers ────────────────────────────────────────────────────────
-    const CONDITION_LABELS = [
-        'Poisoned',
-        'Radiated',
-        'Eye Damage',
-        'Crippled Right Arm',
-        'Crippled Left Arm',
-        'Crippled Right Leg',
-        'Crippled Left Leg',
-    ]
-
     // CE critterGetBaseStatWithTraitModifier / critterGetStat: the creation screen's derived
     // stats and skills follow the picked traits — their SPECIAL bonus (Gifted, Bruiser,
     // Small Frame) and the trait effects of Player.getStat (AP, carry, sequence, …)
