@@ -75,23 +75,23 @@ Status column: **fixed** (this pass), **open** (RISKY, waiting), **no action**.
 | CA15 | `globalState.imageInfo: any` (the `art/imageMap.json` entries) | `src/globalState.ts:158` | typing | SAFE | `ImageInfo` interface (numFrames, totalFrames, frameWidth/Height, fps, actionFrame, numDirections, directionOffsets, frameOffsets) | fixed |
 | CA16 | `lastUpdateTime` / `lastDrawTime` are in the type but missing from the initialiser | `src/globalState.ts:170-171` | typing | SAFE | Initialise to 0 (the FPS overlay shows "update: 0ms" for the first frame instead of nothing) | fixed |
 | CA17 | `drugHandler` / `miscItemUseHandler` typed `user: any` | `src/globalState.ts:213-215` | typing | SAFE | `user: Critter` | fixed |
-| CA18 | `tsconfig.json` has no `"strict": true` (strictNullChecks, strictPropertyInitialization ... off); CLAUDE.md said "strict mode" | `tsconfig.json`, `CLAUDE.md:7,182` | config / docs | doc SAFE, flag RISKY | Docs now name the flags that are on. Turning `strict` on means hundreds of errors and touches every system. | doc fixed, flag open |
-| CA19 | 694 `as any` | `combat/Combat.ts` 158, `scripting.ts` 63, `render/camera.ts` 48 ... | typing | RISKY | Combat / scripting hotspots are CE-parity code; type them system by system | open |
+| CA18 | `tsconfig.json` has no `"strict": true` (strictNullChecks, strictPropertyInitialization ... off); CLAUDE.md said "strict mode" | `tsconfig.json`, `CLAUDE.md:7,182` | config / docs | doc SAFE, flag RISKY | Docs now name the flags that are on. Turning `strict` on means hundreds of errors and touches every system. | fixed 2026-10-27: `strict` on (code_quality Q10) |
+| CA19 | 694 `as any` | `combat/Combat.ts` 158, `scripting.ts` 63, `render/camera.ts` 48 ... | typing | RISKY | Combat / scripting hotspots are CE-parity code; type them system by system | 694 → 172 (2026-10-27, code_quality Q11) |
 
 ### Startup and caching
 
 | # | Item | file:line | Category | Class | Proposed fix | Status |
 |---|---|---|---|---|---|---|
 | CA20 | Shaders fetched with `?v=Date.now()`: a new URL every load, never cached | `src/main.ts:86-90` | caching | SAFE | Plain URL with `{ cache: 'no-cache' }`: the browser revalidates (304) and still always gets the current file | fixed |
-| CA21 | Synchronous XHR in `fileStamp()` (a HEAD per cached JSON) | `src/main.ts:320` | startup | RISKY | `fetch` HEAD + async `cachedJSON`; it changes the startup sequence. `getFile*` in `util.ts` and `aiPackets.ts:139` are sync XHR too (the whole loader is synchronous by design). | open |
-| CA22 | Nested callback chain `IDBCache.init → cachedJSON → cachedJSON → initGame` | `src/main.ts:352-371` | startup | RISKY | Promise-based `IDBCache` + `await`; same order, but it is the boot path | open |
+| CA21 | Synchronous XHR in `fileStamp()` (a HEAD per cached JSON) | `src/main.ts:320` | startup | RISKY | `fetch` HEAD + async `cachedJSON`; it changes the startup sequence. `getFile*` in `util.ts` and `aiPackets.ts:139` are sync XHR too (the whole loader is synchronous by design). | fixed 2026-10-27: `fetch` HEAD, async `cachedJSON`, prefetch for the sync loaders (code_quality Q13) |
+| CA22 | Nested callback chain `IDBCache.init → cachedJSON → cachedJSON → initGame` | `src/main.ts:352-371` | startup | RISKY | Promise-based `IDBCache` + `await`; same order, but it is the boot path | fixed 2026-10-27: one async boot function, same order (code_quality Q13) |
 
 ### Config and repository
 
 | # | Item | file:line | Category | Class | Proposed fix | Status |
 |---|---|---|---|---|---|---|
 | CA23 | `package.json` has no name / private / scripts | `package.json` | config | SAFE | Add `name`, `private: true`, scripts `build` (`tsc -p .`) and `lint` | fixed |
-| CA24 | TypeScript ^4.6, ESLint 7 with legacy `.eslintrc.js`, `@typescript-eslint` 5 | `package.json`, `.eslintrc.js` | dependencies | RISKY | Upgrade TS 5.x / ESLint 9 flat config; new TS versions add errors | open |
+| CA24 | TypeScript ^4.6, ESLint 7 with legacy `.eslintrc.js`, `@typescript-eslint` 5 | `package.json`, `.eslintrc.js` | dependencies | RISKY | Upgrade TS 5.x / ESLint 9 flat config; new TS versions add errors | fixed 2026-10-27: TS 6.0, ESLint 10 flat config, typescript-eslint 8, Python 3.11+ lock (code_quality Q17) |
 | CA25 | `.gitignore` lists `*.map` and `*.msk` twice | `.gitignore:3,6,13,17` | config | SAFE | Drop the duplicates | fixed |
 | CA26 | `.claude/settings.local.json` (personal tool permissions) is tracked | `.claude/settings.local.json` | repo | RISKY | `git rm --cached` + ignore it. A pull of that commit **deletes the file** in every other checkout (e.g. the main working copy). `.claude/launch.json` stays tracked (decided). | fixed 2026-10-26 (approved; now in .gitignore) |
 | CA27 | `raw/fallout2-ce/` vendors the whole CE repo (Android/iOS/SDL `os/`, `.github/` CI, `third_party/`, CMake) — 400 of the 780 tracked files | `raw/` | repo | RISKY | Keep only `src/` (+ LICENSE) or move to a submodule. Not deleted (task note). | fixed 2026-10-27: `src/` + LICENSE + README kept, `VENDORED.md` |

@@ -3,7 +3,7 @@
 DarkHarold2 is a semi-faithful browser recreation of Fallout 2, forked from the DarkFO project (Apache 2.0 license). Goal: faithful F2 gameplay with only minor tweaks — do not invent features, follow the originals.
 
 ## Tech Stack
-- Engine/logic: TypeScript 6 (`noImplicitAny`, `noImplicitReturns`, `noImplicitThis`, `alwaysStrict`; **not** full `strict` — `strictNullChecks` is off), compiled with `npx tsc -p .` (`npm run build`) → `js/`
+- Engine/logic: TypeScript 6, `strict` (incl. `strictNullChecks`) + `noImplicitReturns`; a value the code knows is set is marked `!`. Compiled with `npx tsc -p .` (`npm run build`) → `js/`
 - Rendering: WebGL 2.0 (no canvas 2D fallback)
 - Audio: Web Audio API (ACM source files, converted to WAV by pipeline)
 - Asset pipeline: Python 3.11+ / Pipenv, scripts under `tools/` (`tools/setup.py` orchestrates full extraction; `tools/pipeline_gui.py` is a Tkinter GUI front-end)
@@ -20,7 +20,10 @@ DarkHarold2 is a semi-faithful browser recreation of Fallout 2, forked from the 
 - `npm run lint:ratchet` — ESLint must not rise above `tools/eslintBaseline.json` (`-- --update` after lowering it)
 - `npm run parity` — `tools/luadiff.html` in headless Chromium (Playwright); must print the luadiff baseline line.
   Needs the extracted game data: local only, not in CI
-- CI (`.github/workflows/ci.yml`): build (0 errors), lint ratchet, `npm test` on every push / PR.
+- `npm run smoke` / `npm run storycrawl` — headless game boot (page errors, `SMOKE_SYNC_XHR=1` counts blocking
+  requests) and the story crawler on both backends (VM = Lua, `--compare` a saved run). Local only, like parity
+- `npm run format` (Prettier, checked in CI), `npm run cycles` (import cycles; CI: largest ≤ 73 modules)
+- CI (`.github/workflows/ci.yml`): build (0 errors, `strict`), import-cycle ratchet, Prettier, lint ratchet, `npm test`.
   Everything else (play testing, story crawler) is manual in the browser
 
 ## Ground-Truth References
@@ -181,4 +184,4 @@ an opcode scan of the 1288 scripts in scripts.lst finds a handler for all 192 op
 - WebGL 2.0 only — no Three.js, no canvas 2D, no native deps
 - Browser-safe: no Node.js-only APIs in src/
 - Do not modify the asset pipeline (Python) unless the task is explicitly about assets
-- TypeScript: no implicit any, no implicit returns (tsconfig.json; `strictNullChecks` is off)
+- TypeScript: `strict` + no implicit returns (tsconfig.json); keep `as any` rare (CI does not count it yet; 172 left)

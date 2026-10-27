@@ -342,14 +342,18 @@ The pipeline's last stage, `compile_ts`, compiles the source code to `js/` (it r
 `npm install` first when `node_modules/` has no TypeScript yet, and needs node.js). After
 changing `src/`, or without that stage, run `npm install` once and then `npx tsc`.
 
-Checks (node.js 22 or later; GitHub Actions runs the first three on every push and pull request,
+Checks (node.js 22 or later; GitHub Actions runs the first five on every push and pull request,
 `.github/workflows/ci.yml`):
 
 | Command | What it checks |
 |---|---|
 | `npm run build` | `tsc -p .`, must report 0 errors (writes `js/` with source maps) |
+| `npm run format:check` | Prettier (`npm run format` rewrites) |
+| `npm run cycles` | the import cycles between modules; CI fails if the largest grows (`--max 73`) |
 | `npm run lint:ratchet` | ESLint over `src/`; fails only if errors or warnings rise above `tools/eslintBaseline.json` (`-- --update` lowers it) |
 | `npm test` | unit tests (`test/*.test.mjs`, `node --test`) of formula code against values from fallout2-ce |
+| `npm run smoke` | boots `play.html?<map>` headless (artemple, klamall, denbus1) and fails on page errors; `SMOKE_SYNC_XHR=1` counts blocking requests. Needs the game data |
+| `npm run storycrawl` | the AutoCrawler's story crawler on both script backends; fails unless VM = Lua (`--save` / `--compare` a stored run). Needs the game data |
 | `npm run parity` | `tools/luadiff.html` (VM vs Lua scripts) in headless Chromium; needs the extracted game data, so local only. First time: `npx playwright install chromium` (or it uses an installed Chrome / Edge) |
 
 Browse to `http://localhost/play.html?artemple` (or whatever port you're using). If all went well, it should begin the game. If not, check the JavaScript console for errors.

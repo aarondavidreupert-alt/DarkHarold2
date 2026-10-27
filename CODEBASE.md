@@ -1,8 +1,8 @@
 # DarkHarold2 — Codebase Map
 
 DarkHarold2 is a browser-based recreation of Fallout 2, forked from the DarkFO
-project (Apache 2.0). Written in TypeScript (no implicit any / returns; `strictNullChecks`
-off) with WebGL 2.0 rendering and a Python 3 asset pipeline. Estimated completion: ~99%
+project (Apache 2.0). Written in TypeScript 6 (`strict`, no implicit
+returns) with WebGL 2.0 rendering and a Python 3 asset pipeline. Estimated completion: ~99%
 (canonical figure: ROADMAP.md).
 
 Ground-truth reference: [fallout2-ce](https://github.com/alexbatalov/fallout2-ce)
@@ -48,7 +48,7 @@ DarkHarold2/
 │   └── parseCritTable.py  Extracts criticalTables.json from fallout2.exe
 ├── play.html        Main entry point (loads js/main.js)
 ├── ui.css           All UI/HUD styling
-├── tsconfig.json    TypeScript config (target: ES2021, outDir: js/, noImplicitAny; strictNullChecks off; source maps)
+├── tsconfig.json    TypeScript config (target: ES2021, outDir: js/, strict; source maps)
 ├── package.json     npm devDeps only: typescript 6, eslint 10 + typescript-eslint (eslint.config.mjs), prettier, playwright; scripts build / lint:ratchet / format / test / parity / smoke / storycrawl
 ├── test/            Unit tests (node --test on js/, npm test): formula code vs fallout2-ce; support/ce.mjs reads the vendored CE sources
 ├── .github/workflows/ci.yml  CI on push / PR: tsc, ESLint ratchet (tools/eslintBaseline.json), npm test
