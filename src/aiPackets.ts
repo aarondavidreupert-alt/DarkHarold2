@@ -2,8 +2,10 @@
 AI Packet system — parse data/data/ai.txt into typed AiPacket records.
 
 Intentionally has NO imports from the game module tree to avoid circular
-dependency chains (util → object → combat → aiPackets → util).
+dependency chains (util → object → combat → aiPackets → util). fileCache.ts has no imports.
 */
+
+import { prefetched, prefetchedText } from './fileCache.js'
 
 // ── String union types ────────────────────────────────────────────────────────
 
@@ -210,6 +212,13 @@ function parseIntList(raw: string | undefined): number[] {
 // ── Standalone file loader & INI parser (no game module imports) ──────────────
 
 function loadText(path: string): string {
+    const file = prefetched(path) // fileCache.ts (main.ts prefetches it at boot)
+    if (file) {
+        if (file.status !== 200) {
+            throw new Error(`[aiPackets] HTTP ${file.status} loading '${path}'`)
+        }
+        return prefetchedText(file)
+    }
     const xhr = new XMLHttpRequest()
     xhr.open('GET', path, false)
     xhr.send(null)

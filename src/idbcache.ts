@@ -61,3 +61,13 @@ export function init(callback?: () => void): void {
         callback && callback()
     }
 }
+
+/** init as a Promise (main.ts boot). */
+export function initAsync(): Promise<void> {
+    return new Promise((resolve) => init(resolve))
+}
+
+/** get as a Promise: the cached value, or null. */
+export function getAsync<T = unknown>(key: string): Promise<T | null> {
+    return new Promise((resolve) => get(key, resolve))
+}

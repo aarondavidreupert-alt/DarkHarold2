@@ -132,7 +132,7 @@ export function tickGame(): void {
 
     // CE game loop: a script's load_map transition, then game state 4 (a script's
     // dialogue_system_enter) opening the dialogue
-    if (Scripting.processMapTransition()) return
+    if (Scripting.processMapTransition(true)) return
     Scripting.processScriptRequests()
     Scripting.doProgramEvents()
     Scripting.processDialogueRequest()

@@ -20,11 +20,22 @@ import globalState from './globalState.js'
 import { dbgWarn } from './logger.js'
 import { randomBetween } from './random.js'
 import { assetUrl } from './modAssets.js'
+import { prefetched, prefetchedText, prefetchFiles } from './fileCache.js'
 
 // Utility functions
 
-/** Whether a file the page could load exists (a synchronous HEAD request). */
+/** Fetch files ahead of time for the synchronous loaders below (fileCache.ts), each as
+ *  assetUrl resolves it (an active mod's copy first). */
+export function prefetchAssets(paths: string[]): Promise<void> {
+    return prefetchFiles(paths, assetUrl)
+}
+
+/** Whether a file the page could load exists (prefetched, else a synchronous HEAD request). */
 export function fileExistsSync(path: string): boolean {
+    const file = prefetched(path)
+    if (file) {
+        return file.status >= 200 && file.status < 300
+    }
     try {
         const xhr = new XMLHttpRequest()
         xhr.open('HEAD', assetUrl(path), false)
@@ -66,6 +77,13 @@ export function parseIni(text: string) {
 }
 
 export function getFileText(path: string, err?: () => void): string {
+    const file = prefetched(path)
+    if (file) {
+        if (file.status !== 200) {
+            throw Error(`getFileText: got status ${file.status} when requesting '${path}'`)
+        }
+        return prefetchedText(file)
+    }
     const xhr = new XMLHttpRequest()
     xhr.open('GET', assetUrl(path), false) // an active mod's copy first (modAssets.ts)
     xhr.send(null)
@@ -79,6 +97,14 @@ export function getFileJSON(path: string, err?: () => void): any {
 }
 
 export function getFileBinarySync(path: string) {
+    const file = prefetched(path)
+    if (file) {
+        if (file.status !== 200) {
+            throw Error(`getFileBinarySync: got status ${file.status} when requesting '${path}'`)
+        }
+        return new DataView(file.bytes.slice().buffer) // a copy, as each request gave
+    }
+
     // Synchronous requests aren't allowed by browsers to define response types
     // in a misguided attempt to force developers to switch to asynchronous requests,
     // so we transfer as a user-defined charset and then decode it manually.

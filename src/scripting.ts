@@ -63,6 +63,7 @@ import {
     scriptNumberOf,
     setMapMusicOverride,
 } from './data.js'
+import { prefetchMap } from './map/prefetch.js'
 import { CHEM_USE_MAP, getAiPacket } from './aiPackets.js'
 import * as GameTime from './gametime.js'
 import { hexDistance, hexFromScreen, hexInDirection, hexNearestNeighbor, Point } from './geometry.js'
@@ -4220,9 +4221,11 @@ export class Script {
         if (typeof map === 'string') {
             setGlobalVar(27, startLocation)
             pendingMapTransition = map.split('.')[0].toLowerCase()
+            startTransitionPrefetch(pendingMapTransition)
         } else if (map >= 0) {
             setGlobalVar(27, startLocation)
             pendingMapTransition = map
+            startTransitionPrefetch(lookupMapName(map))
         }
     }
     play_gmovie(movieID: number) {
@@ -4647,10 +4650,28 @@ let requestedDialogue: Obj | null = null
 // load_map's transition (CE mapSetTransition): a map name or index
 let pendingMapTransition: string | number | null = null
 
+// the new map's files, fetched while the transition waits (map/prefetch.ts); null = none pending
+let transitionPrefetchDone: boolean | null = null
+function startTransitionPrefetch(mapName: string | null): void {
+    if (!mapName) {
+        return
+    }
+    transitionPrefetchDone = false
+    void prefetchMap(mapName).finally(() => {
+        transitionPrefetchDone = true
+    })
+}
+
 /** Change to the map a script's load_map asked for, once no dialogue runs and
- *  no map is loading (CE game loop → mapHandleTransition). True if it did. */
-export function processMapTransition(): boolean {
+ *  no map is loading (CE game loop → mapHandleTransition). True if it did.
+ *  `waitForPrefetch`: also wait until the new map's files are fetched (the game loop does;
+ *  the story crawler does not, its traces must not depend on download timing). */
+export function processMapTransition(waitForPrefetch = false): boolean {
     if (pendingMapTransition === null || globalState.uiMode !== UIMode.none || globalState.isLoading) return false
+    if (waitForPrefetch && transitionPrefetchDone === false) {
+        return false
+    }
+    transitionPrefetchDone = null
     const map = pendingMapTransition
     pendingMapTransition = null
     if (typeof map === 'string') {

@@ -44,19 +44,24 @@ function normalize(path: string): string {
 }
 
 /** Reads mods/<name>/manifest.json for every active mod (Config.scripting.mods, load
- *  order). A mod without a manifest adds no assets (a Lua-only mod). */
-export function initModAssets(mods: string[]): void {
+ *  order). A mod without a manifest adds no assets (a Lua-only mod). main.ts awaits it
+ *  before any asset loads. */
+export async function initModAssets(mods: string[]): Promise<void> {
     layers = []
-    for (const name of mods) {
-        let manifest: ModManifest | null = null
-        try {
-            const xhr = new XMLHttpRequest()
-            xhr.open('GET', `mods/${name}/manifest.json`, false)
-            xhr.send(null)
-            if (xhr.status === 200) manifest = JSON.parse(xhr.responseText)
-        } catch (e) {
-            dbgWarn('load', `mods/${name}/manifest.json: ${e}`)
-        }
+    // fetched together, applied in load order
+    const manifests = await Promise.all(
+        mods.map(async (name): Promise<ModManifest | null> => {
+            try {
+                const response = await fetch(`mods/${name}/manifest.json`)
+                return response.status === 200 ? JSON.parse(await response.text()) : null
+            } catch (e) {
+                dbgWarn('load', `mods/${name}/manifest.json: ${e}`)
+                return null
+            }
+        }),
+    )
+    for (const [i, name] of mods.entries()) {
+        const manifest = manifests[i]
         if (!manifest || !Array.isArray(manifest.files)) {
             dbg('load', `mod ${name}: no manifest (scripts only)`)
             continue

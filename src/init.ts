@@ -50,6 +50,12 @@ import * as Worldmap from './worldmap.js'
 import { initAutomapTracking } from './automapData.js'
 import { requestGlobalScriptsStart } from './sfallGlobalScripts.js'
 
+/** The map initGame loads first: ?<map> (not with ?crawl=), else artemple behind the menu. */
+export function initialMapName(): string {
+    const qs = new URLSearchParams(location.search)
+    return !qs.get('crawl') && location.search ? location.search.slice(1) : 'artemple'
+}
+
 export function initGame() {
     // initialize player
     globalState.player = new Player()

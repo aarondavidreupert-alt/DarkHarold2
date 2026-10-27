@@ -17,18 +17,19 @@ import { useDrug } from './drugs.js'
 import { heart } from './heart.js'
 import globalState from './globalState.js'
 import * as IDBCache from './idbcache.js'
-import { initGame } from './init.js'
+import { initGame, initialMapName } from './init.js'
+import { prefetchMap } from './map/prefetch.js'
 import { dbg, dbgWarn } from './logger.js'
 import { initLuaRuntime } from './lua/luaRuntime.js'
 import { clampCameraPosition, ceMapScroll, setScreenSize, ZOOM_MAX, ZOOM_MIN } from './renderer.js'
 import { initLogScrollZones, UIMode } from './ui.js'
 import { objUseItemOn } from './useItemOn.js'
-import { initModAssets, mergeModJSON, overrideStylesheets } from './modAssets.js'
+import { assetUrl, initModAssets, mergeModJSON, overrideStylesheets } from './modAssets.js'
 import { loadFallout2Cfg, loadModsOrder, loadPreferences, parseModList } from './ui_options.js'
 import { showSplash } from './splash.js'
 import { isMainMenuReturn } from './mainMenuReturn.js'
 import { skipOpeningMoviesLevel } from './init.js'
-import { getFileJSON } from './util.js'
+import { getFileJSON, prefetchAssets } from './util.js'
 import { WebGLRenderer } from './webglrenderer.js'
 import { Config } from './config.js'
 import { fonUnpack } from './formats/fon.js'
@@ -54,6 +55,48 @@ function miscHealingItemUse(item: import('./object.js').Obj, user: import('./obj
 }
 
 registerEventLogCommands()
+
+/** The files the engine reads synchronously while it starts and loads the first map, prefetched
+ *  at boot (fileCache.ts, wiki/code_quality.md Q13). A file missing here still loads, with a
+ *  synchronous request; one listed that does not exist costs a 404. */
+function bootFiles(backend: string): string[] {
+    const lst = [
+        'proto_items',
+        'proto_critters',
+        'proto_scenery',
+        'proto_walls',
+        'proto_misc',
+        'art_items',
+        'art_intrface',
+        'sound_sfx_sndlist',
+        'scripts',
+    ]
+    const gameMsg = [
+        'pro_item',
+        'pro_crit',
+        'worldmap',
+        'skilldex',
+        'options',
+        'perk',
+        'scrname',
+        'map',
+        'misc',
+        'intrface',
+    ]
+    return [
+        ...lst.map((n) => `lut/lst/${n}.json`),
+        ...gameMsg.map((n) => `data/text/english/game/${n}.msg`),
+        'data/art/inven/inven.lst',
+        'data/data/worldmap.txt',
+        'data/data/maps.txt',
+        'data/data/city.txt',
+        'data/data/ai.txt',
+        'data/gvars.json',
+        'lut/color_lut.json',
+        'lut/color_rgb.json',
+        `data/scripts/obj_dude.${backend === 'lua' ? 'lua' : 'int'}`,
+    ]
+}
 
 window.onload = async function () {
     globalState.isInitializing = true
@@ -242,7 +285,9 @@ window.onload = async function () {
     // Apply persisted user preferences (volume, difficulty, etc.) after audioEngine is ready:
     // fallout2.cfg first (CE game_config.cc gameConfigInit), then the options screen's
     // localStorage write-back on top (FO2-CE ref: preferences.cc — preferenceLoad()).
-    // mods/mods_order.txt first: fallout2.cfg's [dh2] mods= overrides it when set
+    // mods/mods_order.txt first: fallout2.cfg's [dh2] mods= overrides it when set. Both are read
+    // before any mod is active, so their plain paths are the ones to prefetch (fileCache.ts).
+    await prefetchAssets(['mods/mods_order.txt', 'fallout2.cfg'])
     loadModsOrder()
     loadFallout2Cfg()
     loadPreferences()
@@ -253,7 +298,10 @@ window.onload = async function () {
     const modsOverride = /mods=([^&]*)/.exec(location.hash) // play.html#script_backend=lua&mods=a,b
     if (modsOverride) Config.scripting.mods = parseModList(decodeURIComponent(modsOverride[1]))
     // the active mods' asset folders (mods/<mod>/manifest.json), before any asset loads
-    initModAssets(Config.scripting.mods)
+    await initModAssets(Config.scripting.mods)
+    // the static tables the engine reads synchronously while it starts (now that the mods are
+    // known, so each key is fetched as assetUrl resolves it): no blocking request for them
+    const prefetch = prefetchAssets(bootFiles(Config.scripting.backend))
     overrideStylesheets()
     // CE gameInitWithOptions → showSplash while the game loads — not for a ?map / ?crawl
     // start, a return to the main menu, or SkipOpeningMovies=2
@@ -301,56 +349,52 @@ window.onload = async function () {
 
     // initialize cached data
 
-    // Cheap fingerprint of a static file (Last-Modified + Content-Length via a sync
-    // HEAD request) so a pipeline re-run invalidates the IndexedDB copy instead of
-    // silently serving stale proMap/imageMap data forever.
-    function fileStamp(path: string): string {
+    // Cheap fingerprint of a static file (Last-Modified + Content-Length of a HEAD request) so a
+    // pipeline re-run invalidates the IndexedDB copy instead of silently serving stale
+    // proMap/imageMap data forever.
+    async function fileStamp(path: string): Promise<string> {
         try {
-            const xhr = new XMLHttpRequest()
-            xhr.open('HEAD', path, false)
-            // Force revalidation: the browser's heuristic HTTP cache otherwise answers
-            // with the stale Last-Modified of an older copy.
-            xhr.setRequestHeader('Cache-Control', 'no-cache')
-            xhr.send(null)
-            return `${xhr.getResponseHeader('Last-Modified') ?? ''}|${xhr.getResponseHeader('Content-Length') ?? ''}`
+            // no-cache: revalidate, the browser's heuristic HTTP cache otherwise answers with
+            // the stale Last-Modified of an older copy
+            const response = await fetch(path, { method: 'HEAD', cache: 'no-cache' })
+            return `${response.headers.get('Last-Modified') ?? ''}|${response.headers.get('Content-Length') ?? ''}`
         } catch {
             return ''
         }
     }
 
-    function cachedJSON(key: string, path: string, callback: (value: any) => void): void {
-        // load data from cache if possible (and still current), else load and cache it
-        const stamp = fileStamp(path)
-        IDBCache.get(key, (cached) => {
-            if (cached && cached.__stamp !== undefined && cached.__stamp === stamp && stamp !== '') {
-                dbg('map', '[Main] %s loaded from cache DB', key)
-                // the vanilla file is cached; the active mods' entries are merged on top
-                callback(mergeModJSON(path, cached.data, getFileJSON))
-            } else {
-                // Version query string so the HTTP cache can't hand back an old body either.
-                const value = getFileJSON(stamp ? `${path}?v=${encodeURIComponent(stamp)}` : path)
-                IDBCache.add(key, { __stamp: stamp, data: value })
-                dbg('map', '[Main] %s loaded and cached (stamp %s)', key, stamp)
-                callback(mergeModJSON(path, value, getFileJSON))
-            }
-        })
+    // load data from the cache DB if it is still current, else load and cache it
+    async function cachedJSON(key: string, path: string): Promise<unknown> {
+        const stamp = await fileStamp(path)
+        const cached = await IDBCache.getAsync<{ __stamp?: string; data: unknown }>(key)
+        if (cached && cached.__stamp !== undefined && cached.__stamp === stamp && stamp !== '') {
+            dbg('map', '[Main] %s loaded from cache DB', key)
+            // the vanilla file is cached; the active mods' entries are merged on top
+            return mergeModJSON(path, cached.data, getFileJSON)
+        }
+        // Version query string so the HTTP cache can't hand back an old body either.
+        const response = await fetch(assetUrl(stamp ? `${path}?v=${encodeURIComponent(stamp)}` : path))
+        if (response.status !== 200) throw Error(`cachedJSON: got status ${response.status} when requesting '${path}'`)
+        const value = await response.json()
+        IDBCache.add(key, { __stamp: stamp, data: value })
+        dbg('map', '[Main] %s loaded and cached (stamp %s)', key, stamp)
+        return mergeModJSON(path, value, getFileJSON)
     }
 
-    IDBCache.init(() => {
-        cachedJSON('imageMap', 'art/imageMap.json', (value) => {
-            globalState.imageInfo = value
-
-            cachedJSON('proMap', 'proto/pro.json', (value) => {
-                globalState.proMap = value
-
-                // continue initialization
-                initGame()
-                globalState.drugHandler = useDrug
-                globalState.miscItemUseHandler = miscHealingItemUse
-                globalState.isInitializing = false
-            })
-        })
-    })
+    // not awaited: the frame loop starts below meanwhile, as before (it waits on isInitializing)
+    void (async () => {
+        await IDBCache.initAsync()
+        globalState.imageInfo = (await cachedJSON('imageMap', 'art/imageMap.json')) as typeof globalState.imageInfo
+        globalState.proMap = (await cachedJSON('proMap', 'proto/pro.json')) as typeof globalState.proMap
+        await prefetch
+        // the first map's JSON and scripts (map/prefetch.ts), read synchronously by loadMap
+        await prefetchMap(initialMapName())
+        // continue initialization
+        initGame()
+        globalState.drugHandler = useDrug
+        globalState.miscItemUseHandler = miscHealingItemUse
+        globalState.isInitializing = false
+    })()
 
     heart._init()
 
