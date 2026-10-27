@@ -3,6 +3,9 @@
         "removeComments": true,
         "preserveConstEnums": true,
         "noImplicitReturns": true,
+        // TypeScript 6 turns all of `strict` on by default; this project enables its parts one by
+        // one (wiki/code_quality.md Q10), so the default is switched off and the flags in use listed
+        "strict": false,
         "alwaysStrict": true, // emit "use strict"
         "skipLibCheck": true,
         "noImplicitAny": true,

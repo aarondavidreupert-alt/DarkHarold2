@@ -147,7 +147,7 @@ import { getCenterTile } from './render/camera.js'
 import { AI } from './combat/AI.js'
 import { objUseItemOn } from './useItemOn.js'
 
-export module Scripting {
+export namespace Scripting {
     let gameObjects: Obj[] | null = null
     let mapVars: any = null
     let floatMsgLastColor = 0 // CE _last_color (opFloatMessage COLOR_SEQUENCE)
@@ -4586,7 +4586,7 @@ export module Scripting {
                           (buf) =>
                               parseIntFile(new BinaryReader(new DataView(buf)), key).proceduresTable?.[1]?.name ?? null,
                       )
-                      .catch(() => null) // a stub, or no .int
+                      .catch((): null => null) // a stub, or no .int
         }
         return procedureOneNames[key]
     }

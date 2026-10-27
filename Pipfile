@@ -4,11 +4,9 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-numpy = "*"
-pillow = "*"
-fonttools = "*"
+# Python 3.11+ (numpy 2.4 needs >= 3.11). Pinned to a minor version; `pipenv lock` after changing.
+numpy = "~=2.4.6"
+pillow = "~=12.3.0"
+fonttools = "~=4.66.1"
 
 [dev-packages]
-
-[requires]
-python_version = "3.9"

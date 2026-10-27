@@ -36,7 +36,7 @@ import { obj_adjust_light_naive } from './lightmap/lightNaive.js'
 // (light_offsets, light_distance, obj_light_table_init,
 // tile_num_in_direction, the isInit flag) lives in lightmap/lightTable.ts.
 
-export module Lightmap {
+export namespace Lightmap {
     function light_reset(): void {
         tile_intensity.fill(655)
     }

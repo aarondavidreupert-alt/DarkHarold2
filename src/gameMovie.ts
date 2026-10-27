@@ -441,7 +441,7 @@ export function gameMoviePlay(movie: number, flags: number): Promise<void> {
                     }
                     if (finished) return
                     sub.textContent = ''
-                    video.play().catch(() => void finish())
+                    video.play().catch((): void => void finish())
                 }
                 // The click that starts playback must not also skip the movie: its
                 // mouseup (or the key's own keydown) is swallowed, input counts again after.

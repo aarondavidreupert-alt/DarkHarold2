@@ -21,7 +21,7 @@ import { Node as _Node, parseConds as _parseConds, evalConds as _evalConds } fro
 
 // The encounter condition language of worldmap.txt ("If(...) And If(...)"); the
 // encounters themselves are worldmap/encounterData.ts + worldmap/encounters.ts.
-export module Encounters {
+export namespace Encounters {
     export type Node = _Node
     export const parseConds = _parseConds
     export const evalConds = _evalConds

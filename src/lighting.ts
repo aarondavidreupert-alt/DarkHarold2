@@ -21,7 +21,7 @@ import { toTileNum } from './tile.js'
 
 // Floor lighting
 
-export module Lighting {
+export namespace Lighting {
     // length 15
     let rightside_up_triangles = [2, 3, 0, 3, 4, 1, 5, 6, 3, 6, 7, 4, 8, 9, 6]
     let upside_down_triangles = [0, 3, 1, 2, 5, 3, 3, 6, 4, 5, 8, 6, 6, 9, 7]

@@ -1,6 +1,6 @@
 import { dbg, dbgWarn } from './logger.js'
 
-export module IDBCache {
+export namespace IDBCache {
     let db: IDBDatabase = null
 
     function withTransaction(f: (trans: IDBTransaction) => void, finished?: () => void) {

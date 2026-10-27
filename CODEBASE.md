@@ -50,7 +50,7 @@ DarkHarold2/
 ├── play.html        Main entry point (loads js/main.js)
 ├── ui.css           All UI/HUD styling
 ├── tsconfig.json    TypeScript config (target: ES2021, outDir: js/, noImplicitAny; strictNullChecks off; source maps)
-├── package.json     npm devDeps only: typescript, eslint, playwright (npm run parity); scripts build / lint:ratchet / test / parity
+├── package.json     npm devDeps only: typescript 6, eslint 10 + typescript-eslint (eslint.config.mjs), prettier, playwright; scripts build / lint:ratchet / format / test / parity / smoke / storycrawl
 ├── test/            Unit tests (node --test on js/, npm test): formula code vs fallout2-ce; support/ stubs logger + globalState
 ├── .github/workflows/ci.yml  CI on push / PR: tsc, ESLint ratchet (tools/eslintBaseline.json), npm test
 ├── Pipfile          Python deps for asset pipeline

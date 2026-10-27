@@ -21,7 +21,7 @@ limitations under the License.
 import * as _WorldmapMod from './worldmap/Worldmap.js'
 import * as _Encounters from './worldmap/encounters.js'
 
-export module Worldmap {
+export namespace Worldmap {
     // DOM lifecycle + travel loop (worldmap/Worldmap.ts).
     export const init = _WorldmapMod.init
     export const start = _WorldmapMod.start

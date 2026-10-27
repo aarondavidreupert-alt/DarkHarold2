@@ -26,7 +26,7 @@ import { BuiltinVarReader, setBuiltinVarReader, sslValue } from './lua/luaRuntim
 
 // Bridge between Scripting API and the Scripting VM
 
-export module ScriptVMBridge {
+export namespace ScriptVMBridge {
     // create a bridged function that calls procedures on scriptObj
     function bridged(procName: string, argc: number, pushResult: boolean = true) {
         return function (this: GameScriptVM) {

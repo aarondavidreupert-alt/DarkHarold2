@@ -416,7 +416,7 @@ function showPickList(
         // CE perkDialogHandleInput: a click on the line already selected is DONE
         row.onclick = () => {
             if (selectedPerk === def.name) {
-                doneBtn.onclick?.(new MouseEvent('click'))
+                doneBtn.onclick?.(new PointerEvent('click'))
                 return
             }
             select(validPerks.indexOf(def))
@@ -455,10 +455,10 @@ function showPickList(
                 select(cur + 11)
                 break
             case 'Enter':
-                doneBtn.onclick?.(new MouseEvent('click'))
+                doneBtn.onclick?.(new PointerEvent('click'))
                 break
             case 'Escape':
-                cancelBtn.onclick?.(new MouseEvent('click'))
+                cancelBtn.onclick?.(new PointerEvent('click'))
                 break
             default:
                 return

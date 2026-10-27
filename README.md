@@ -130,7 +130,7 @@ Pre-audited summaries of CE behaviour with DH2 gaps already identified. Trust th
 | Inline `// TODO` / `// FIXME` in `src/` | Source-level annotations |
 | [`CLAUDE.md`](CLAUDE.md) → "Intentionally Incomplete Systems" | Remaining deliberate approximations |
 
-### 🔧 Asset pipeline (Python 3.9+)
+### 🔧 Asset pipeline (Python 3.11+)
 
 All pipeline scripts live under [`tools/`](tools/) (moved from the repository root
 2026-06-18 for a cleaner layout). `tools/setup.py` orchestrates the full extraction; the
@@ -302,7 +302,7 @@ To use this, you'll need a few things:
 
 The other dependencies (on macOS with [Homebrew](https://brew.sh): `brew install pipenv innoextract node`):
 
--   Python 3.9 or later, earlier minor versions of Python 3 may work, but are not tested. Python 2 is not supported.
+-   Python 3.11 or later (the locked numpy 2.4 needs it; `tools/` already uses 3.10 syntax). Python 2 is not supported.
 
 -   [Pipenv](https://github.com/pypa/pipenv) for Python dependency management.
 
