@@ -1,8 +1,8 @@
 import { hexFromScreen } from '../geometry.js'
 import globalState from '../globalState.js'
 import * as GameTime from '../gametime.js'
-import { Lighting } from '../lighting.js'
-import { Lightmap } from '../lightmap.js'
+import * as Lighting from '../lighting.js'
+import * as Lightmap from '../lightmap.js'
 import { getZoom, SCREEN_HEIGHT, SCREEN_WIDTH, TileMap } from '../renderer.js'
 import { tileToScreen, TILE_HEIGHT, TILE_WIDTH } from '../tile.js'
 import { getFileJSON } from '../util.js'
@@ -25,8 +25,7 @@ WebGLRenderer.prototype.renderLitFloorCPU = function (tileMap: TileMap, useColor
     // initialize color tables if necessary (TODO: hack, should be initialized elsewhere)
     if (useColorTable) {
         if (Lighting.colorLUT === null) {
-            Lighting.colorLUT = getFileJSON('lut/color_lut.json')
-            Lighting.colorRGB = getFileJSON('lut/color_rgb.json')
+            Lighting.setColorTables(getFileJSON('lut/color_lut.json'), getFileJSON('lut/color_rgb.json'))
         }
     }
 

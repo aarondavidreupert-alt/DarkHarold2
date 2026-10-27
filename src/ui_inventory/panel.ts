@@ -46,7 +46,7 @@ import {
 } from './dragdrop.js'
 import { refreshStealthState } from '../miscItem.js'
 import { armorPerkSwap } from '../perks.js'
-import { Events } from '../events.js'
+import * as Events from '../events.js'
 import { unarmedHandMode } from '../unarmed.js'
 import { getMessage, getProtoMsg } from '../util.js'
 import { objExamine } from '../examine.js'

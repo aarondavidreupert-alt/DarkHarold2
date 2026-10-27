@@ -15,7 +15,7 @@ import { dbg, eventLogPush } from './logger.js'
 import { RollResult, randomRoll, rollIsSuccess, getRandomInt, getMessage } from './util.js'
 import { updateIndicatorBar, uiLog, drawHP } from './ui_hud.js'
 import * as GameTime from './gametime.js'
-import { Scripting } from './scripting.js'
+import * as Scripting from './scripting.js'
 import { SKILL_NAMES } from './skills.js'
 
 function emitSkillRoll(skillName: string, user: Critter, chance: number, roll: RollResult, d100: number): void {

@@ -20,7 +20,7 @@
 import { Combat } from '../combat.js'
 import { Config } from '../config.js'
 import { getMapInfoById, lookupMapName } from '../data.js'
-import { Encounters } from '../encounters.js'
+import * as Encounters from '../encounters.js'
 import * as GameTime from '../gametime.js'
 import { hexDirectionTo, hexDistance, hexInDirectionDistance, Point } from '../geometry.js'
 import globalState from '../globalState.js'

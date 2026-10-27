@@ -35,13 +35,13 @@ import {
     SerializedObj,
 } from './object.js'
 import { refreshStealthState, scheduleTrickle } from './miscItem.js'
-import { Scripting } from './scripting.js'
+import * as Scripting from './scripting.js'
 import { scheduleSneakEvent, sneakClear, serializeSkillUsage, deserializeSkillUsage } from './skillUse.js'
 import { restoreDrugEvent } from './drugs.js'
 import { drawHP, drawAC, uiDrawWeapon } from './ui_hud.js'
 import { getFileJSON } from './util.js'
 import { gameReset } from './gameReset.js'
-import { Worldmap } from './worldmap.js'
+import * as Worldmap from './worldmap.js'
 import { beginMapFade, endMapFade } from './mapFade.js'
 import { deserializeSfallGlobals, serializeSfallGlobals } from './sfallGlobalScripts.js'
 import {

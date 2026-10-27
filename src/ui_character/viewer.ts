@@ -20,7 +20,7 @@ limitations under the License.
 // in creator.ts; the level-up perk picker lives in perkModal.ts.
 
 import { Config } from '../config.js'
-import { Events } from '../events.js'
+import * as Events from '../events.js'
 import globalState from '../globalState.js'
 import { UIMode } from '../ui_panels.js'
 import { dbg } from '../logger.js'

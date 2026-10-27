@@ -7,9 +7,9 @@
 // (exportEventLog(), __eventLog) are documented for everyone and always registered.
 
 import globalState from '../globalState.js'
-import { Lightmap } from '../lightmap.js'
+import * as Lightmap from '../lightmap.js'
 import { blackBar, borderSave, clearBorder, scrollDebug } from '../render/camera.js'
-import { Worldmap } from '../worldmap.js'
+import * as Worldmap from '../worldmap.js'
 import { registerEggCommands } from './egg.js'
 import { registerLightingCommands } from './lighting.js'
 import { registerCacheAndOutlineCommands, registerToggleCommands } from './toggles.js'

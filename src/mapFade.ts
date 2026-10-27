@@ -26,7 +26,7 @@ limitations under the License.
 
 import globalState from './globalState.js'
 import { heart } from './heart.js'
-import { Events } from './events.js'
+import * as Events from './events.js'
 
 const FADE_IN_MS = 250 // ≈ CE paletteFadeTo
 const SETTLE_FRAMES = 3 // frames drawn after loading went quiet

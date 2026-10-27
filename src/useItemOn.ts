@@ -24,14 +24,14 @@ import { hexDistance, hexNeighbors } from './geometry.js'
 import globalState from './globalState.js'
 import { dbg } from './logger.js'
 import { Critter, Obj, refillHand } from './object.js'
-import { Scripting } from './scripting.js'
+import * as Scripting from './scripting.js'
 import { skillUse } from './skillUse.js'
 import { drawAP, drawHP, uiDrawWeapon } from './ui_hud.js'
 import { uiLog } from './ui.js'
 import { getMessage, getProtoMsg, getRandomInt } from './util.js'
 import { Config } from './config.js'
 import { ammoGetCapacity, ammoGetQuantity } from './weaponAmmo.js'
-import { Worldmap } from './worldmap.js'
+import * as Worldmap from './worldmap.js'
 
 const PROTO_ID_FIRST_AID_KIT = 47
 const PROTO_ID_DOCTORS_BAG = 91

@@ -42,7 +42,7 @@ import {
 } from './ui_inventory.js'
 import { appendItemSlot, $id, clearEl, showv, hidev, off, makeEl } from './ui_dom.js'
 import { performSteal } from './skillUse.js'
-import { Scripting } from './scripting.js'
+import * as Scripting from './scripting.js'
 import { drawLootBagViews, initLoot } from './ui_loot.js'
 import { dbg } from './logger.js'
 import { getMessage } from './util.js'

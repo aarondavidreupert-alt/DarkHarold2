@@ -20,7 +20,7 @@ limitations under the License.
 import { getMessage } from './util.js'
 import globalState from './globalState.js'
 import { Area, loadAreas, lookupMapNameFromLookup } from './data.js'
-import { Worldmap } from './worldmap.js'
+import * as Worldmap from './worldmap.js'
 import { UIMode } from './ui_panels.js'
 import { $id, clearEl, show, hide, showv, hidev, appendHTML, makeEl } from './ui_dom.js'
 import { dbg } from './logger.js'

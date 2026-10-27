@@ -1,65 +1,63 @@
 import { dbg, dbgWarn } from './logger.js'
 
-export namespace IDBCache {
-    let db: IDBDatabase = null
+let db: IDBDatabase = null
 
-    function withTransaction(f: (trans: IDBTransaction) => void, finished?: () => void) {
-        const trans = db.transaction('cache', 'readwrite')
-        trans.oncomplete = finished
-        f(trans)
+function withTransaction(f: (trans: IDBTransaction) => void, finished?: () => void) {
+    const trans = db.transaction('cache', 'readwrite')
+    trans.oncomplete = finished
+    f(trans)
+}
+
+export function nuke(): void {
+    withTransaction((trans) => {
+        trans.objectStore('cache').clear()
+    })
+}
+
+export function add(key: string, value: any): any {
+    withTransaction((trans) => {
+        trans.objectStore('cache').put({ key, value }) // put: replaces a stale entry (add would throw ConstraintError)
+    })
+
+    return value
+}
+
+export function exists(key: string, callback: (exists: boolean) => void): void {
+    withTransaction((trans) => {
+        const req = trans.objectStore('cache').count(key)
+        req.onsuccess = (e) => {
+            callback((<any>e).result !== 0)
+        }
+    })
+}
+
+export function get(key: string, callback: (value: any) => void): any {
+    withTransaction((trans) => {
+        trans.objectStore('cache').get(key).onsuccess = function (e) {
+            const result = (<any>e.target).result
+            callback(result ? result.value : null)
+        }
+    })
+}
+
+export function init(callback?: () => void): void {
+    const request = indexedDB.open('darkfo-cache', 1)
+
+    request.onupgradeneeded = function () {
+        const db = request.result
+        db.createObjectStore('cache', { keyPath: 'key' })
+        // store.createIndex("key", "key", {unique: true});
     }
 
-    export function nuke(): void {
-        withTransaction((trans) => {
-            trans.objectStore('cache').clear()
-        })
-    }
+    request.onsuccess = function () {
+        db = request.result
 
-    export function add(key: string, value: any): any {
-        withTransaction((trans) => {
-            trans.objectStore('cache').put({ key, value }) // put: replaces a stale entry (add would throw ConstraintError)
-        })
-
-        return value
-    }
-
-    export function exists(key: string, callback: (exists: boolean) => void): void {
-        withTransaction((trans) => {
-            const req = trans.objectStore('cache').count(key)
-            req.onsuccess = (e) => {
-                callback((<any>e).result !== 0)
-            }
-        })
-    }
-
-    export function get(key: string, callback: (value: any) => void): any {
-        withTransaction((trans) => {
-            trans.objectStore('cache').get(key).onsuccess = function (e) {
-                const result = (<any>e.target).result
-                callback(result ? result.value : null)
-            }
-        })
-    }
-
-    export function init(callback?: () => void): void {
-        const request = indexedDB.open('darkfo-cache', 1)
-
-        request.onupgradeneeded = function () {
-            const db = request.result
-            db.createObjectStore('cache', { keyPath: 'key' })
-            // store.createIndex("key", "key", {unique: true});
+        db.onerror = function (e) {
+            dbgWarn('saveload', `Database error: ${(<any>e.target).errorCode}`)
         }
 
-        request.onsuccess = function () {
-            db = request.result
+        dbg('saveload', 'Established Cache DB connection')
 
-            db.onerror = function (e) {
-                dbgWarn('saveload', `Database error: ${(<any>e.target).errorCode}`)
-            }
-
-            dbg('saveload', 'Established Cache DB connection')
-
-            callback && callback()
-        }
+        callback && callback()
     }
 }

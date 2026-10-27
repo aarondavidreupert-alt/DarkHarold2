@@ -15,10 +15,10 @@
 import { Config } from '../config.js'
 import { debug } from '../debug.js'
 import globalState from '../globalState.js'
-import { IDBCache } from '../idbcache.js'
+import * as IDBCache from '../idbcache.js'
 import { dbg } from '../logger.js'
 import { uiWorldMap } from '../ui.js'
-import { Worldmap } from '../worldmap.js'
+import * as Worldmap from '../worldmap.js'
 
 // DH2 console commands (no CE equivalent): engine and UI toggles, test shortcuts.
 // Moved out of main.ts (window.onload).

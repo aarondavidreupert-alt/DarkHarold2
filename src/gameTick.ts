@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import { returnToMainMenu } from './mainMenuReturn.js'
-import { Events } from './events.js'
+import * as Events from './events.js'
 import { DAM_KNOCKED_OUT } from './combat/results.js'
-import { Worldmap } from './worldmap.js'
+import * as Worldmap from './worldmap.js'
 import {
     gameMoviePlay,
     GAME_MOVIE_FADE_IN,
@@ -32,7 +32,7 @@ import { dbg } from './logger.js'
 import { Critter, objectUnjamAll } from './object.js'
 import { changeCursor } from './playerUse.js'
 import { clampCameraPosition, ceMapScroll, getObjectUnderCursor, SCREEN_HEIGHT, SCREEN_WIDTH } from './renderer.js'
-import { Scripting } from './scripting.js'
+import * as Scripting from './scripting.js'
 import { uiHideCombatHover, UIMode, uiShowCombatHover } from './ui.js'
 import * as Endgame from './endgame.js'
 import * as GameTime from './gametime.js'

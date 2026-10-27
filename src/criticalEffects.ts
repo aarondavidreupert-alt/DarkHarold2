@@ -20,7 +20,5 @@ limitations under the License.
 import { regionHitChanceDecTable as _regionHitChanceDecTable } from './criticalEffects/effects.js'
 import { loadTable as _loadTable } from './criticalEffects/table.js'
 
-export namespace CriticalEffects {
-    export const regionHitChanceDecTable = _regionHitChanceDecTable
-    export const loadTable = _loadTable
-}
+export const regionHitChanceDecTable = _regionHitChanceDecTable
+export const loadTable = _loadTable

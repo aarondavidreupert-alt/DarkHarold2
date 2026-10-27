@@ -30,7 +30,7 @@ limitations under the License.
 // wiki/items.md LE10.
 
 import { switchItemProto, type Critter, type Obj } from './object.js'
-import { Scripting } from './scripting.js'
+import * as Scripting from './scripting.js'
 import { dbg } from './logger.js'
 import { uiLog } from './ui_hud.js'
 import { getMessage } from './util.js'

@@ -17,10 +17,10 @@ limitations under the License.
 
 import { weaponGetAmmoTypePid } from '../weaponAmmo.js'
 import { Config } from '../config.js'
-import { CriticalEffects } from '../criticalEffects.js'
+import * as CriticalEffects from '../criticalEffects.js'
 import { hexDistance, Point } from '../geometry.js'
 import globalState from '../globalState.js'
-import { Lightmap } from '../lightmap.js'
+import * as Lightmap from '../lightmap.js'
 import { dbg } from '../logger.js'
 import { Critter, Obj } from '../object.js'
 import { loadPRO } from '../pro.js'

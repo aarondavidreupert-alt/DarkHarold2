@@ -19,7 +19,7 @@ limitations under the License.
 // "Per-file split proposals" §20.
 
 import globalState from '../globalState.js'
-import { Scripting } from '../scripting.js'
+import * as Scripting from '../scripting.js'
 import { getRandomInt } from '../util.js'
 import { dbg } from '../logger.js'
 import { getHourMilitary, getTotalDays } from '../gametime.js'

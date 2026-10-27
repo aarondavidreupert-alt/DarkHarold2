@@ -7,7 +7,7 @@
 //   endgameDeathEndingValidate    (0x440CF4)
 //   endgameDeathEndingGetFileName (0x440D8C)
 
-import { Scripting } from '../scripting.js'
+import * as Scripting from '../scripting.js'
 import globalState from '../globalState.js'
 import { getFileJSON, getRandomInt } from '../util.js'
 import { dbg, dbgWarn } from '../logger.js'

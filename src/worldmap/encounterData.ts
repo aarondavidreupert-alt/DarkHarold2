@@ -10,7 +10,7 @@
 // wmEvalConditional.
 
 import { mapIndexFromLookup } from '../data.js'
-import { Encounters } from '../encounters.js'
+import * as Encounters from '../encounters.js'
 
 // CE worldmap.cc wmFormationStrs / wmSceneryStrs (indices are the enum values)
 export const FORMATIONS = ['surrounding', 'straight_line', 'double_line', 'wedge', 'cone', 'huddle']

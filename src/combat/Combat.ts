@@ -29,7 +29,7 @@ import { AudioEngine } from '../audio.js'
 import { Config } from '../config.js'
 import { ANIM_KICK_LEG, critterDamage, critterKill, isHitFromFront, unarmedAttackAnim } from '../critter.js'
 import * as GameTime from '../gametime.js'
-import { Lightmap } from '../lightmap.js'
+import * as Lightmap from '../lightmap.js'
 import {
     hexDirectionTo,
     hexDistance,
@@ -58,7 +58,7 @@ import {
 import { invenUnwield, invenWield, invenWieldAnimated } from '../inventoryWield.js'
 import { weaponCanBeReloadedWith } from '../weaponAmmo.js'
 import { Player } from '../player.js'
-import { Scripting } from '../scripting.js'
+import * as Scripting from '../scripting.js'
 import {
     drawAC,
     drawAP,

@@ -27,7 +27,7 @@ limitations under the License.
 // mechanism. See wiki/known_bugs.md P17/P18.
 
 import { makePanelDraggable } from './ui_drag.js'
-import { Scripting } from './scripting.js'
+import * as Scripting from './scripting.js'
 import globalState from './globalState.js'
 import { endLips } from './talkingHead.js'
 import { getDialogueSpeaker } from './ui_dialogue.js'

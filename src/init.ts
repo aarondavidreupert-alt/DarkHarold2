@@ -26,7 +26,7 @@ import {
     MOVIE_IPLOGO,
 } from './gameMovie.js'
 import { Config } from './config.js'
-import { CriticalEffects } from './criticalEffects.js'
+import * as CriticalEffects from './criticalEffects.js'
 import * as GameTime from './gametime.js'
 import globalState from './globalState.js'
 import { GameMap } from './map.js'
@@ -46,7 +46,7 @@ export function skipOpeningMoviesLevel(): number {
 }
 import { initCharacterCreator } from './ui_charactercreator.js'
 import { initCharacterSelector, showCharacterSelector } from './ui_charselect.js'
-import { Worldmap } from './worldmap.js'
+import * as Worldmap from './worldmap.js'
 import { initAutomapTracking } from './automapData.js'
 import { requestGlobalScriptsStart } from './sfallGlobalScripts.js'
 

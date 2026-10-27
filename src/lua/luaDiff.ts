@@ -14,7 +14,7 @@
 import globalState from '../globalState.js'
 import { parseIntFile } from '../intfile.js'
 import { BinaryReader } from '../util.js'
-import { ScriptVMBridge } from '../vm_bridge.js'
+import * as ScriptVMBridge from '../vm_bridge.js'
 import { setVMFatalHook } from '../vm.js'
 import { attachLuaScript, detachLuaScript, initLuaRuntime, setLuaErrorHook, sslValue } from './luaRuntime.js'
 

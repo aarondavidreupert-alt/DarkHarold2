@@ -22,8 +22,8 @@ import { arrayIncludes, arrayRemove, getFileText, getMessage, getRandomInt, pars
 import { SkillSet } from './char.js'
 import { loadPRO } from './pro.js'
 import { uiLog } from './ui_hud.js'
-import { Scripting } from './scripting.js'
-import { Events } from './events.js'
+import * as Scripting from './scripting.js'
+import * as Events from './events.js'
 import { AiPacket, Disposition, findCompanionPacketForDisposition, getAiPacket } from './aiPackets.js'
 
 // Party member system for DarkFO

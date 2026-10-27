@@ -23,7 +23,7 @@
 
 import { returnToMainMenu } from './mainMenuReturn.js'
 import { showConfirm } from './ui_dialog.js'
-import { Scripting } from './scripting.js'
+import * as Scripting from './scripting.js'
 import globalState from './globalState.js'
 import { getFileJSON, getMessage } from './util.js'
 import { dbg, dbgWarn } from './logger.js'

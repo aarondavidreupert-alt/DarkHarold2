@@ -15,7 +15,7 @@
 import { Config } from '../config.js'
 import { hexDistance, hexInDirection, hexInDirectionDistance } from '../geometry.js'
 import globalState from '../globalState.js'
-import { Lightmap } from '../lightmap.js'
+import * as Lightmap from '../lightmap.js'
 import { dbg } from '../logger.js'
 import {
     WebGLRenderer,

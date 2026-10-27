@@ -28,7 +28,7 @@ import globalState from './globalState.js'
 import { dbg, dbgWarn } from './logger.js'
 import { getFileText, parseIni } from './util.js'
 import { assetUrl } from './modAssets.js'
-import { Events } from './events.js'
+import * as Events from './events.js'
 
 Events.on('loadMapPost', () => gameMovieFadeOut()) // CE map.cc mapLoad → gameMovieFadeOut
 

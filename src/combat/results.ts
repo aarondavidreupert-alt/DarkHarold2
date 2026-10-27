@@ -19,7 +19,7 @@ limitations under the License.
 // booleans on Critter read and write the same bits.
 
 import globalState from '../globalState.js'
-import { Scripting } from '../scripting.js'
+import * as Scripting from '../scripting.js'
 import { randomBetween } from '../random.js'
 import type { Critter } from '../object/Critter.js'
 import { itemIsHidden, type Obj } from '../object/Obj.js'

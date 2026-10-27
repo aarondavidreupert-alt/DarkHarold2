@@ -36,7 +36,7 @@ import { hexToTile, tileFromScreen } from './tile.js'
 import { Config } from './config.js'
 import { WindowFrame } from './ui.js'
 import { Font } from './formats/fon.js'
-import { Lightmap } from './lightmap.js'
+import * as Lightmap from './lightmap.js'
 import {
     SCREEN_WIDTH,
     SCREEN_HEIGHT,

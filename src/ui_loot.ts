@@ -26,7 +26,7 @@ import { renderBarterPortrait } from './ui_barter/screen.js'
 import { uiLog } from './ui_hud.js'
 import { getMessage } from './util.js'
 import { showAlert } from './ui_dialog.js'
-import { Scripting } from './scripting.js'
+import * as Scripting from './scripting.js'
 import {
     drawBagView,
     examineToLog,

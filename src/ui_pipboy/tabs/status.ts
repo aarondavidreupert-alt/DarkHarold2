@@ -21,7 +21,7 @@ limitations under the License.
 
 import { Config } from '../../config.js'
 import globalState from '../../globalState.js'
-import { Scripting } from '../../scripting.js'
+import * as Scripting from '../../scripting.js'
 import { getMessage } from '../../util.js'
 import { getActiveQuests, getUnknownActiveGvars } from '../../questLog.js'
 import { getHolodiskDefs, type HolodiskDef } from '../../questData.js'

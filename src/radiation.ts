@@ -21,11 +21,11 @@ limitations under the License.
 //   radiationEventProcess()    (critter.cc:695)  — damage event, schedules 7-day recovery
 // Only the player (gDude) accumulates radiation in CE.
 
-import { Events } from './events.js'
+import * as Events from './events.js'
 import globalState from './globalState.js'
 import { dbg } from './logger.js'
 import type { Critter } from './object.js'
-import { Scripting } from './scripting.js'
+import * as Scripting from './scripting.js'
 import { critterKill } from './critter/lifecycle.js'
 import { uiLog, updateIndicatorBar } from './ui_hud.js'
 import { showAlert } from './ui_dialog.js'

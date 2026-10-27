@@ -18,9 +18,9 @@
 import globalState from './globalState.js'
 import { dbg } from './logger.js'
 import { Critter, Obj } from './object.js'
-import { Scripting } from './scripting.js'
+import * as Scripting from './scripting.js'
 import { uiLog, updateIndicatorBar } from './ui_hud.js'
-import { Events } from './events.js'
+import * as Events from './events.js'
 import { critterKill } from './critter/lifecycle.js'
 import { critterAdjustRadiation } from './radiation.js'
 import {

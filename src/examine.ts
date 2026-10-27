@@ -22,11 +22,11 @@ limitations under the License.
 import globalState from './globalState.js'
 import type { Critter, Obj } from './object.js'
 import { randomBetween } from './random.js'
-import { Scripting } from './scripting.js'
+import * as Scripting from './scripting.js'
 import { getMessage } from './util.js'
 import { ammoGetCapacity, ammoGetQuantity, weaponGetAmmoTypePid } from './weaponAmmo.js'
 import { loadPRO } from './pro.js'
-import { Worldmap } from './worldmap.js'
+import * as Worldmap from './worldmap.js'
 
 // CE item.cc ammoGetCaliber: an ammo item's caliber; for a weapon, the caliber of the
 // ammo type loaded in it (0 when none is set)

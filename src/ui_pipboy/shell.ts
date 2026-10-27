@@ -18,7 +18,7 @@ limitations under the License.
 // tab dispatcher, public open/close/toggle. Split out of ui_pipboy.ts.
 // See wiki/ts-split-refactor.md → "Per-file split proposals" §12.
 
-import { Events } from '../events.js'
+import * as Events from '../events.js'
 import globalState from '../globalState.js'
 import * as GameTime from '../gametime.js'
 import { UIMode } from '../ui_panels.js'

@@ -17,7 +17,7 @@ limitations under the License.
 import { pathfinderFindPathPoints } from './pathfinder.js'
 import { Config } from '../config.js'
 import { getCurrentMapInfo } from '../data.js'
-import { Events } from '../events.js'
+import * as Events from '../events.js'
 import {
     hexDistance,
     hexFromScreen,
@@ -30,12 +30,12 @@ import {
     Point,
 } from '../geometry.js'
 import globalState from '../globalState.js'
-import { Lightmap } from '../lightmap.js'
+import * as Lightmap from '../lightmap.js'
 import { dbg, dbgWarn } from '../logger.js'
 import { Critter, deserializeObj, Obj, zsortMap } from '../object.js'
 import { centerCamera } from '../renderer.js'
 import { computeMapContentBounds, computeObjectContentBounds, computeScrollBlockerBounds } from '../render/camera.js'
-import { Scripting } from '../scripting.js'
+import * as Scripting from '../scripting.js'
 import { fromTileNum, hexToTile, toTileNum } from '../tile.js'
 import { arrayRemove } from '../util.js'
 

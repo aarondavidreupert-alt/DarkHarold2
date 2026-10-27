@@ -52,7 +52,7 @@ import {
 import { appendItemSlot, $id, clearEl, makeEl } from './ui_dom.js'
 import { uiGetAmount, uiSwapItem } from './ui_barter/swap.js'
 import { renderBarterPortrait, startBarterPortraitAnimation, stopBarterPortraitAnimation } from './ui_barter/screen.js'
-import { Scripting } from './scripting.js'
+import * as Scripting from './scripting.js'
 import { getMessage } from './util.js'
 import { assetUrl } from './modAssets.js'
 

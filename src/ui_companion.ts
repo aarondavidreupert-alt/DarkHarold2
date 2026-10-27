@@ -50,7 +50,7 @@ import {
 import { uiCompanionTrade } from './ui_companion_trade.js'
 import { getVisibleDialoguePanel, uiSetDialogueReply, uiSwapDialoguePanel } from './ui_dialogue.js'
 import { $id } from './ui_dom.js'
-import { Scripting } from './scripting.js'
+import * as Scripting from './scripting.js'
 import { assetUrl } from './modAssets.js'
 
 // ── Layout constants (verified against game_dialog.cc) ───────────────────────

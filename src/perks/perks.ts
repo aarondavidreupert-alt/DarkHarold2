@@ -4,7 +4,7 @@
 
 import { CE_PERKS, CE_PERK_REQS, PERK_COUNT, perkApplyEffect, perkIdByName, perkNameById } from './cePerks.js'
 import { getFileJSON, getMessage } from '../util.js'
-import { Scripting } from '../scripting.js'
+import * as Scripting from '../scripting.js'
 import { SKILL_NAMES } from '../skills.js'
 import type { Player } from '../player.js'
 import { PerkDef, PERKS, SPECIAL } from './perks.data.js'

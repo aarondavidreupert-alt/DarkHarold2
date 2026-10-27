@@ -19,7 +19,7 @@ import { heart } from './heart.js'
 import { hexFromScreen, hexToScreen, hexDistance, Point } from './geometry.js'
 import globalState from './globalState.js'
 import { dbg, dbgWarn } from './logger.js'
-import { Lightmap } from './lightmap.js'
+import * as Lightmap from './lightmap.js'
 import { Obj, objectIsWeapon } from './object.js'
 import {
     clampCameraPosition,
@@ -31,7 +31,7 @@ import {
     screenToWorld,
 } from './renderer.js'
 import { objLookAt } from './examine.js'
-import { Scripting } from './scripting.js'
+import * as Scripting from './scripting.js'
 import { drawAP, uiContextMenu, uiHideContextMenu, uiLog, uiLoot, UIMode, uiWorldMap } from './ui.js'
 import { getProtoMsg } from './util.js'
 import { Config } from './config.js'

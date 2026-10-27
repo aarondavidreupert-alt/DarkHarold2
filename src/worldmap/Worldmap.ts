@@ -18,7 +18,7 @@ limitations under the License.
 // carved out of worldmap.ts. See wiki/ts-split-refactor.md §10.
 
 import { scriptsCheckGameEvents } from '../gameTick.js'
-import { Events } from '../events.js'
+import * as Events from '../events.js'
 import { areaContainingMap, loadAreas, lookupMapName, mapIsSaved, type Area } from '../data.js'
 import * as GameTime from '../gametime.js'
 import { Point } from '../geometry.js'
