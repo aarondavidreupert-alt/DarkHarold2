@@ -1,0 +1,25 @@
+# CI (wiki/code_quality.md Q1): compile, lint ratchet. Game data is not in the repository, so
+# browser parity tests (npm run parity) run locally only.
+name: CI
+
+on:
+    push:
+    pull_request:
+
+permissions:
+    contents: read
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: npm
+            - run: npm ci
+            - name: TypeScript (0 errors)
+              run: npm run build
+            - name: ESLint ratchet (tools/eslintBaseline.json)
+              run: npm run lint:ratchet

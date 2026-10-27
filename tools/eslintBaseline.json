@@ -1,0 +1,6 @@
+{
+    "pattern": "src/**/*.ts",
+    "errors": 4047,
+    "warnings": 1439,
+    "problems": 5486
+}
