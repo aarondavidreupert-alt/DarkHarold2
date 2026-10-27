@@ -507,10 +507,13 @@ export function showInventory(useOn = false) {
                     const srcIdx = parseInt(data.slice(1))
                     const srcObj = inventoryList()[srcIdx]
                     if (!srcObj || srcObj === capturedWeapon) return
-                    if (tryLoadAmmoIntoWeapon(srcObj, capturedWeapon)) {
-                        uiDrawWeapon()
-                        showInventory()
-                    }
+                    // async: it may ask how many boxes first; redraw once the reload is done
+                    void tryLoadAmmoIntoWeapon(srcObj, capturedWeapon).then((reloaded) => {
+                        if (reloaded) {
+                            uiDrawWeapon()
+                            showInventory()
+                        }
+                    })
                 })
             }
             // CE inventory.cc _drop_into_container: an item dropped on a bag in the list goes
