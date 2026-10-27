@@ -19,9 +19,9 @@ two to four years old. None of this is a correctness emergency; it makes changes
 | Architecture | ❌ dated | **144 of 206** compiled modules form one strongly connected import cycle (why `main.js` must be imported first, e.g. in `tools/luadiff.html`). The `globalState` singleton is imported by **119** modules and is read and written from everywhere. 9 files still use TS `module` / `namespace` blocks (`scripting.ts`, `vm_bridge.ts`, `worldmap.ts`, `events.ts`, `idbcache.ts`, `lighting.ts`, `lightmap.ts`, `encounters.ts`, `criticalEffects.ts`). Ten files are over 800 lines (`scripting.ts` 4533, `combat/Combat.ts` 3498 — CA41). |
 | Legacy syntax | ⚠️ | **253** `var`, **59** uses of `arguments`, **123** loose `==` / `!=`, **52** `throw` of a string instead of an `Error` (most in `encounters/conditionLang.ts` and `scripting.ts`), 2 empty `catch {}`. |
 | I/O and startup | ❌ | Synchronous `XMLHttpRequest` on the main thread (deprecated by browsers; freezes the page while it waits): `util.ts` `getFileText` / `getFileBinarySync` / `fileExistsSync`, `main.ts` `fileStamp`, `modAssets.ts` manifests, `aiPackets.ts`; **49** call sites use the sync `getFile*` helpers. Startup still chains callbacks (`IDBCache.init → cachedJSON → ...`, CA21 / CA22). |
-| Tests and CI | ❌ missing | No unit tests, no test runner, no `.github/` CI. Regression safety comes only from manual browser tools: `tools/luadiff.html` (VM vs Lua), the AutoCrawler and the story crawler (`wiki/autocrawler.md`). Nothing runs `tsc` or ESLint automatically. |
-| Lint and format | ⚠️ | ESLint is not part of the build and reports **5490** problems (4051 errors, mostly `curly`). All **205** source files differ from the repo's own `.prettierrc.json`. No pre-commit hook. |
-| Dependencies | ⚠️ outdated | TypeScript **4.6** (2022; current 5.x), ESLint **7** with legacy `.eslintrc.js` (out of support), `@typescript-eslint` 5 (CA24). Pipeline targets **Python 3.9** (end of life Oct 2025); 29 of 329 Python functions have type hints. No source maps (`sourceMap` off, `removeComments` on), so browser stack traces point into compiled JS. |
+| Tests and CI | ⚠️ started (Phase 1, 2026-10-27) | GitHub Actions (`.github/workflows/ci.yml`) runs `tsc`, the ESLint ratchet and `npm test` (42 unit tests of formula code against CE) on every push / PR. `npm run parity` runs `tools/luadiff.html` headless, locally (needs game data). Still manual: the AutoCrawler and story crawler (`wiki/autocrawler.md`), play tests. ~~No unit tests, no test runner, no CI.~~ |
+| Lint and format | ⚠️ | ESLint reports **5486** problems (4047 errors, mostly `curly`; 5490 / 4051 before the CA47 fix); CI fails if the count rises (`tools/eslintBaseline.json`, Q1), it does not have to be 0. All **205** source files differ from the repo's own `.prettierrc.json`. No pre-commit hook. |
+| Dependencies | ⚠️ outdated | TypeScript **4.6** (2022; current 5.x), ESLint **7** with legacy `.eslintrc.js` (out of support), `@typescript-eslint` 5 (CA24). Pipeline targets **Python 3.9** (end of life Oct 2025); 29 of 329 Python functions have type hints. Source maps on since Q4 (2026-10-27): browser stack traces show the `.ts` files. Dev dependency added: Playwright (Q3, `npm run parity`). |
 | Security | ✅ mostly fine | No `eval` / `new Function` / `document.write`; `localStorage` access is guarded; Lua scripts run sandboxed in wasmoon. 14 `innerHTML` writes remain, mostly constants or numbers; the one that took game text (`ui_dialogue.ts` reply) was a real bug and is fixed (known_bugs CA47). `ui_components.ts` `Label.setText` still uses `innerHTML` (callers pass editor.msg text). |
 | Strengths | ✅ | Native ES modules, WebGL 2, `async` / `await` in newer code (69 async functions), `requestAnimationFrame` loop. Every system cites its CE source; the wiki covers each subsystem; barrel / subfolder convention applied consistently; structured logging (`dbg`, categories); deterministic differential tests for the script backends. |
 
@@ -33,14 +33,45 @@ VM threw", story crawler (subset `arvillag,klamall,kladwtwn,denbus1` at least) i
 and against the previous run, plus a short play test. **Approval** marks steps that are RISKY under the
 cleanup rules (startup order, VM / scripting, dependency upgrades, renames, deletions).
 
-### Phase 1 — safety net (do first; everything else depends on it)
+### Phase 1 — safety net (do first; everything else depends on it) — ✅ done 2026-10-27
 
 | # | Step | Approval | Done when |
 |---|---|---|---|
-| Q1 | **CI on every push / PR** (GitHub Actions): `npm ci`, `npm run build`, ESLint with a *ratchet* (fail only if the problem count rises above a stored baseline). | no (new file) | CI green on the branch; a deliberate type error fails it |
-| Q2 | **Unit test runner** for pure logic (Vitest or `node --test` on the compiled `js/`): start with formula code that needs no DOM — `combat/damage.ts`, `combat/hitChance.ts`, `random.ts`, `geometry/hexGrid.ts`, `gametime.ts`, `skills.ts`; test values taken from CE. | dev dependency | ≥ 30 tests, run in CI |
-| Q3 | **Headless parity tests in CI**: run `tools/luadiff.html` (and later the story crawler subset) in headless Chromium. Needs game data, which can't be committed: run on a self-hosted runner or a local `npm run parity` script. | no | `npm run parity` prints the baseline line |
-| Q4 | **Source maps** (`"sourceMap": true`; `*.map` is already ignored). | no | DevTools shows `.ts` lines in stack traces |
+| Q1 | ✅ **CI on every push / PR** (GitHub Actions): `npm ci`, `npm run build`, ESLint with a *ratchet* (fail only if the problem count rises above a stored baseline). | no (new file) | CI green on the branch; a deliberate type error fails it |
+| Q2 | ✅ **Unit test runner** for pure logic (Vitest or `node --test` on the compiled `js/`): start with formula code that needs no DOM — `combat/damage.ts`, `combat/hitChance.ts`, `random.ts`, `geometry/hexGrid.ts`, `gametime.ts`, `skills.ts`; test values taken from CE. | dev dependency | ≥ 30 tests, run in CI |
+| Q3 | ✅ **Headless parity tests in CI**: run `tools/luadiff.html` (and later the story crawler subset) in headless Chromium. Needs game data, which can't be committed: run on a self-hosted runner or a local `npm run parity` script. | no | `npm run parity` prints the baseline line |
+| Q4 | ✅ **Source maps** (`"sourceMap": true`; `*.map` is already ignored). | no | DevTools shows `.ts` lines in stack traces |
+
+What Phase 1 delivered (2026-10-27):
+
+- **Q1** `.github/workflows/ci.yml`: `npm ci` → `npm run build` (0 errors) → `npm run lint:ratchet` →
+  `npm test`, Node 22, on every push and pull request. `tools/eslintRatchet.mjs` compares the error and
+  warning counts with `tools/eslintBaseline.json` (5486 problems: 4047 errors, 1439 warnings; the same
+  on an LF checkout as on Windows CRLF) and fails if either rises; `npm run lint:ratchet -- --update`
+  writes a lower baseline. Checked locally: one added `curly` error fails it. Not yet run on GitHub
+  (the branch is unpushed); the workflow was reviewed by hand and parsed as YAML.
+- **Q2** `npm test`: `node --test` over `test/*.test.mjs` on the compiled `js/` (pretest runs `tsc`); no
+  new dependency (Vitest would add a bundler for no gain while the tests read compiled ES modules).
+  **42 tests**: `combat/damage.ts` 16 (`combat.cc` attackComputeDamage, damageModGlovzDivRound,
+  damageModCalculateGlovz, damageModCalculateYaam as meant), `skills.ts` 8 (`skill.cc`
+  gSkillDescriptions parsed from the CE source, skillsGetCost, skillGetGameDifficultyModifier;
+  `perk.cc` perkGetSkillModifier; `trait.cc` traitGetSkillModifier), `gametime.ts` 6 (`scripts.cc`
+  gameTimeGetDate / gameTimeGetHour / gameTimeGetTimeString, `scripts.h`), `geometry/hexGrid.ts` +
+  `hexScreen.ts` 6 (`tile.cc` _dir_tile, tileDistanceBetween, tileGetRotationTo, tileToScreenXY,
+  tileGetTileInDirection), `random.ts` 6 (`random.cc` draw for draw). Expected values are worked out
+  by hand in the test comments or come from the CE function transliterated in the test. All pass;
+  no disagreement with CE found, so nothing new in `known_bugs.md`. `js/logger.js` imports
+  `globalState.js`, which pulls in the browser-only cycle; a resolve hook (`test/support/`) swaps those
+  two for stubs so the formula modules load in Node — engine code unchanged. `combat/hitChance.ts`
+  is not covered: it imports protos, the lightmap and tiles (needs Q14 or a larger stub set).
+- **Q3** `npm run parity` (`tools/parity.mjs`, Playwright dev dependency): builds, serves the project
+  root with `python -m http.server` on port 8124, opens `tools/luadiff.html` in headless Chromium
+  (falls back to an installed Chrome / Edge), prints the status line and exits 1 unless it starts with
+  the baseline. Needs the extracted game data, so it is a local script, not in GitHub CI. Measured:
+  the baseline line (`..., missing: none`) in 28–29 s.
+- **Q4** `"sourceMap": true` in `tsconfig.json`; `js/**/*.js.map` point at `../src/**/*.ts`, which the
+  same static server serves. Checked in headless Chromium: all 202 modules load with a map, and a
+  TypeError thrown at `js/combat/damage.js:15:46` resolves to `src/combat/damage.ts:52`.
 
 ### Phase 2 — mechanical modernisation (low risk, provable)
 

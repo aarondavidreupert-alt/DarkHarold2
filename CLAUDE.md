@@ -14,7 +14,14 @@ DarkHarold2 is a semi-faithful browser recreation of Fallout 2, forked from the 
 - `npx tsc` — compile TypeScript (output to js/)
 - `pipenv run python tools/setup.py /path/to/Fallout2/` — full asset extraction pipeline (run from project root; `--stages`, `--skip-existing`, `--delete-originals` flags available)
 - `pipenv run python tools/pipeline_gui.py` — graphical front-end for the same pipeline
-- No test runner — manual testing in browser only
+- `npm test` — unit tests (`test/*.test.mjs`, `node --test` on the compiled `js/`; pretest runs tsc). Expected
+  values come from CE (cite file + function in each test), never from running the TS. `test/support/` stubs
+  `logger.js` / `globalState.js` so formula modules load outside the browser import cycle
+- `npm run lint:ratchet` — ESLint must not rise above `tools/eslintBaseline.json` (`-- --update` after lowering it)
+- `npm run parity` — `tools/luadiff.html` in headless Chromium (Playwright); must print the luadiff baseline line.
+  Needs the extracted game data: local only, not in CI
+- CI (`.github/workflows/ci.yml`): build (0 errors), lint ratchet, `npm test` on every push / PR.
+  Everything else (play testing, story crawler) is manual in the browser
 
 ## Ground-Truth References
 All game logic, formulas, and data structures must be anchored to:
