@@ -9,7 +9,9 @@
     "lint:ratchet": "node tools/eslintRatchet.mjs",
     "pretest": "tsc -p .",
     "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./test/support/register.mjs --test \"test/*.test.mjs\"",
-    "parity": "tsc -p . && node tools/parity.mjs"
+    "parity": "tsc -p . && node tools/parity.mjs",
+    "smoke": "tsc -p . && node tools/smoke.mjs",
+    "storycrawl": "tsc -p . && node tools/storycrawl.mjs"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^5.25.0",

@@ -36,7 +36,7 @@ function startServer() {
             }
             const proc = spawn(candidates[i], ['-m', 'http.server', String(port), '--bind', '127.0.0.1'], {
                 cwd: root,
-                stdio: ['ignore', 'ignore', 'pipe'],
+                stdio: 'ignore', // never 'pipe' without reading it: the request log fills the pipe and the server blocks
             })
             proc.once('error', (e) => tryNext(i + 1, e.message))
             proc.once('spawn', () => resolve(proc))
