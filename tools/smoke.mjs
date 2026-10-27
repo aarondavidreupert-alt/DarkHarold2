@@ -87,6 +87,15 @@ try {
         page.on('response', (r) => {
             if (r.status() === 404) missing.push(r.url().slice(base.length))
         })
+        // count synchronous XHRs (wiki/code_quality.md Q13: they freeze the page while they wait)
+        await page.addInitScript(() => {
+            const open = XMLHttpRequest.prototype.open
+            window.__syncXhr = []
+            XMLHttpRequest.prototype.open = function (method, url, async, ...rest) {
+                if (async === false) window.__syncXhr.push(String(url))
+                return open.call(this, method, url, async === undefined ? true : async, ...rest)
+            }
+        })
         const started = Date.now()
         await page.goto(`${base}play.html?${map}`, { timeout: 60000 }).catch((e) => problems.push('goto: ' + e.message))
         let state = 'timeout'
@@ -104,7 +113,7 @@ try {
         const info = await withTimeout(page.evaluate(() => {
             const g = window.globalState
             return g && g.gMap ? { map: g.gMap.name, objects: g.gMap.getObjects().length, tick: g.gameTickTime,
-                loading: g.isLoading, initializing: g.isInitializing } : null
+                syncXhr: window.__syncXhr.length } : null
         }), 15000, 'reading the game state').catch((e) => { problems.push(e.message); return null })
         if (shotDir) {
             await withTimeout(page.screenshot({ path: `${shotDir}/${map}.png` }), 30000, 'screenshot')
@@ -117,6 +126,16 @@ try {
             for (const p of problems.slice(0, 20)) console.log('  ' + p.split('\n').slice(0, 6).join('\n    '))
         } else {
             console.log(`ok   ${map} (${secs} s) ${JSON.stringify(info)}`)
+        }
+        if (process.env.SMOKE_SYNC_XHR && info) {
+            const urls = await page.evaluate(() => window.__syncXhr)
+            const kinds = {}
+            for (const u of urls) {
+                const k = u.replace(/^https?:\/\/[^/]+\//, '').replace(/[^/]+$/, '*')
+                kinds[k] = (kinds[k] || 0) + 1
+            }
+            console.log('  sync XHR by folder: ' + JSON.stringify(kinds))
+            if (process.env.SMOKE_SYNC_XHR === 'all') console.log(urls.map((u) => '    ' + u).join('\n'))
         }
         if (missing.length) console.log(`  404 (optional files): ${missing.slice(0, 8).join(', ')}${missing.length > 8 ? ', ...' : ''}`)
         await withTimeout(page.close(), 10000, 'page.close').catch(() => {})

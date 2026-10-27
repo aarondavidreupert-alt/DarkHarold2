@@ -91,7 +91,12 @@ async function crawl(base, backend) {
 // reported as inconclusive, not as a difference.
 // the step label is the text before ` reply=` / ` ui=`; noise = the same step, a reply on one side only
 const stepOf = (line) => line.split(/ (?:reply=|ui=)/)[0]
-const isTimingNoise = (d) => stepOf(d.a) === stepOf(d.b) && d.a.includes(' reply=') !== d.b.includes(' reply=')
+// or the same line apart from the UI mode the step started / ended in (ui=N, ui:A>B): a screen a
+// map load or the previous step left open for a moment (seen on unchanged code, arvillag)
+const withoutUi = (line) => line.replace(/ ui=\d+/g, '').replace(/ ?ui:\d+>\d+/g, '')
+const isTimingNoise = (d) =>
+    (stepOf(d.a) === stepOf(d.b) && d.a.includes(' reply=') !== d.b.includes(' reply=')) ||
+    withoutUi(d.a) === withoutUi(d.b)
 let inconclusive = 0
 
 function firstDiff(a, b) {
