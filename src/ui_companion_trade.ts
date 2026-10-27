@@ -196,11 +196,11 @@ export function uiCompanionTrade(companion: Critter): void {
                 r: companionBarterTable,
             } as any
         )[data[0]]
-        if (from === undefined) throw 'uiCompanionTrade.uiMove: wrong data: ' + data
+        if (from === undefined) throw new Error('uiCompanionTrade.uiMove: wrong data: ' + data)
 
         const idx = parseInt(data.slice(1))
         const obj = from[idx]
-        if (obj === undefined) throw 'uiCompanionTrade.uiMove: obj not found in list (' + idx + ')'
+        if (obj === undefined) throw new Error('uiCompanionTrade.uiMove: obj not found in list (' + idx + ')')
 
         if (data[0] === 'p' && where !== 'left' && where !== 'leftInv') return
         if (data[0] === 'm' && where !== 'right' && where !== 'rightInv') return

@@ -305,14 +305,14 @@ export function playerUse(obj: Obj | null) {
                 dbg('map', '[Main] cannot walk there')
             } else {
                 if (!globalState.player.AP.subtractMoveAP(globalState.player.path.path.length - 1)) {
-                    throw (
+                    throw new Error((
                         'subtraction issue: has AP: ' +
                         globalState.player.AP.getAvailableMoveAP() +
                         ' needs AP:' +
                         globalState.player.path.path.length +
                         ' and maxDist was:' +
                         maxWalkingDist
-                    )
+                    ))
                 }
                 drawAP(globalState.player.AP.getAvailableCombatAP(), globalState.player.AP.getTotalMaxAP(), globalState.player.AP.move)
             }

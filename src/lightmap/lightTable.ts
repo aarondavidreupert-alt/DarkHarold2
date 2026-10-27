@@ -42,7 +42,7 @@ let isInit = false
 // eax = tile, edx = direction, ebx = distance
 function tile_num_in_direction(tileNum: number, dir: number, distance: number): number {
     if (dir < 0 || dir > 5)
-        throw "tile_num_in_direction: dir = " + dir
+        throw new Error("tile_num_in_direction: dir = " + dir)
     if (distance === 0)
         return tileNum
 

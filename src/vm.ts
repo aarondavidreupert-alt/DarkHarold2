@@ -699,7 +699,7 @@ export class ScriptVM {
         if (this.dead) return 0
         const proc = this.intfile.procedures[procName]
         // console.log("CALL " + procName + " @ " + proc.offset + " from " + this.scriptObj.scriptName)
-        if (!proc) throw 'ScriptVM: unknown procedure ' + procName
+        if (!proc) throw new Error('ScriptVM: unknown procedure ' + procName)
         if ((proc.flags & PROC_IMPORTED) !== 0) {
             // CE _executeProcedure: an imported procedure runs in the program that exported
             // it (externalProcedureGetProgram), and only without arguments

@@ -81,19 +81,19 @@ export function uiLoot(object: Obj) {
         const from = ({ l: leftList(), r: rightList() } as any)[data[0]]
 
         if (from === undefined) {
-            throw 'uiLootMove: wrong data: ' + data
+            throw new Error('uiLootMove: wrong data: ' + data)
         }
 
         const idx = parseInt(data.slice(1))
         const obj = from[idx]
         if (obj === undefined) {
-            throw 'uiLootMove: obj not found in list (' + idx + ')'
+            throw new Error('uiLootMove: obj not found in list (' + idx + ')')
         }
 
         const to = { left: leftList(), right: rightList() }[where]
 
         if (to === undefined) {
-            throw 'uiLootMove: invalid location: ' + where
+            throw new Error('uiLootMove: invalid location: ' + where)
         } else if (to === from) {
             // object -> same location
             return

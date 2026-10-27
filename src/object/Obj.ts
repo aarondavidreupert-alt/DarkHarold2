@@ -113,7 +113,7 @@ function objectSwapItem(a: Obj, item: Obj, b: Obj, amount: number) {
 
     const idx = objectFindItemIndex(a, item)
     if (idx === -1) {
-        throw 'item (' + item + ') does not exist in a'
+        throw new Error('item (' + item + ') does not exist in a')
     }
     if (amount !== undefined && amount < item.amount) {
         // just deduct amount from a and give amount to b
@@ -133,7 +133,7 @@ export function objectGetDamageType(obj: any): string {
     if (obj.dmgType !== undefined) {
         return obj.dmgType
     }
-    throw 'no damage type for obj: ' + obj
+    throw new Error('no damage type for obj: ' + obj)
 }
 
 // CE item.cc explosiveActivate / _queue_do_explosion_: dynamite (51 → armed 206) and

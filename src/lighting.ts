@@ -211,7 +211,7 @@ export module Lighting {
 
                 let light = baseLight
                 for (let k = 0; k < edx; k++) {
-                    if (intensityIdx < 0 || intensityIdx >= intensity_map.length) throw 'guard'
+                    if (intensityIdx < 0 || intensityIdx >= intensity_map.length) throw new Error('guard')
                     intensity_map[intensityIdx++] = light
                     light += lightInc
                 }

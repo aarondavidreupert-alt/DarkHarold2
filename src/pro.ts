@@ -121,7 +121,7 @@ function getCritterArtPath(frmPID: number) {
 
     const code = artGetCode(anim, weaponType)
     if (code === null)
-        throw `getCritterArtPath: no art code for anim=${anim} weapon=${weaponType}`
+        throw new Error(`getCritterArtPath: no art code for anim=${anim} weapon=${weaponType}`)
 
     return "art/critters/" + getLstJson("art/critters/critters", idx)!.frm.toLowerCase() + code[0] + code[1]
 }

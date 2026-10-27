@@ -422,13 +422,13 @@ export function uiBarterMode(merchant: Critter) {
         )[data[0]]
 
         if (from === undefined) {
-            throw 'uiBarterMove: wrong data: ' + data
+            throw new Error('uiBarterMove: wrong data: ' + data)
         }
 
         const idx = parseInt(data.slice(1))
         const obj = from[idx]
         if (obj === undefined) {
-            throw 'uiBarterMove: obj not found in list (' + idx + ')'
+            throw new Error('uiBarterMove: obj not found in list (' + idx + ')')
         }
 
         // player inventory -> left table or player inventory
@@ -449,7 +449,7 @@ export function uiBarterMode(merchant: Critter) {
         }[where]
 
         if (to === undefined) {
-            throw 'uiBarterMove: invalid location: ' + where
+            throw new Error('uiBarterMove: invalid location: ' + where)
         } else if (to === from) {
             // table -> same table
             return

@@ -68,7 +68,7 @@ function tokenizeCond(data: string): Token[] {
     while(acc.length > 0) {
         const m = match(acc)
         if(m === null)
-            throw "error parsing condition: '" + data + "': choked on '" + acc + "'"
+            throw new Error("error parsing condition: '" + data + "': choked on '" + acc + "'")
         toks.push(m[0] === Tok.INT ? [Tok.INT, m[1], parseInt(m[1])] : m)
         acc = acc.slice(m[2])
     }
@@ -83,8 +83,8 @@ function parseCond(data: string) {
 
     function expect(t: Tok) {
         if(tokens[curTok++][0] !== t)
-            throw "expect: expected " + t + ", got " + tokens[curTok-1] +
-                  ", input: " + data
+            throw new Error("expect: expected " + t + ", got " + tokens[curTok-1] +
+                  ", input: " + data)
     }
 
     function next() {
@@ -129,7 +129,7 @@ function parseCond(data: string) {
             case Tok.INT:
                 return checkOp({type: 'int', value: t[2]})
             default:
-                throw "unhandled/unexpected token: " + t + " in: " + data
+                throw new Error("unhandled/unexpected token: " + t + " in: " + data)
         }
     }
 
@@ -189,23 +189,23 @@ function evalCond(node: Node, critterCount?: number): number|boolean {
         case "call": // call (more like a property access)
             switch(node.name) {
                 case "global": // GVAR
-                    if(node.arg.type !== "int") throw "evalCond: GVAR not a number";
+                    if(node.arg.type !== "int") throw new Error("evalCond: GVAR not a number");
                     return Scripting.getGlobalVar(node.arg.value)
                 case "player":
-                    if(node.arg.type !== "var") throw "evalCond: player arg not a var";
+                    if(node.arg.type !== "var") throw new Error("evalCond: player arg not a var");
                     if(node.arg.name !== "level")
-                        throw "player( " + node.arg.name + ")"
+                        throw new Error("player( " + node.arg.name + ")")
                     return globalState.player?.getStat('Level') ?? 1
                 case "rand": // random percentage
-                    if(node.arg.type !== "int") throw "evalCond: rand arg not a number";
+                    if(node.arg.type !== "int") throw new Error("evalCond: rand arg not a number");
                     return getRandomInt(0, 100) <= node.arg.value
                 case "enctr":
                     // CE ref: worldmap.cc wmEvalConditional ENCOUNTER_CONDITION_TYPE_NUMBER_OF_CRITTERS
                     // enctr(num_critters) — critter count for the current encounter group
                     if(node.arg.type !== "var" || node.arg.name !== "num_critters")
-                        throw "evalCond: enctr arg must be num_critters"
+                        throw new Error("evalCond: enctr arg must be num_critters")
                     return critterCount ?? 0
-                default: throw "unhandled call: " + node.name
+                default: throw new Error("unhandled call: " + node.name)
             }
         case "var":
             switch(node.name) {
@@ -217,7 +217,7 @@ function evalCond(node: Node, critterCount?: number): number|boolean {
                     // CE ref: worldmap.cc wmEvalConditional ENCOUNTER_CONDITION_TYPE_DAYS_PLAYED
                     // gameTimeGetTime() / GAME_TIME_TICKS_PER_DAY
                     return getTotalDays()
-                default: throw "unhandled var: " + node.name
+                default: throw new Error("unhandled var: " + node.name)
             }
         case "int": return node.value
         case "op": {
@@ -234,10 +234,10 @@ function evalCond(node: Node, critterCount?: number): number|boolean {
                 "or":  (l, r) => (l as boolean) || (r as boolean),
             }
             if(op[node.op] === undefined)
-                throw "unhandled op: " + node.op
+                throw new Error("unhandled op: " + node.op)
             return op[node.op](lhs, rhs)
         }
-        default: throw "unhandled node: " + node
+        default: throw new Error("unhandled node: " + node)
     }
 }
 

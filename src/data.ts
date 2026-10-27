@@ -85,7 +85,7 @@ function parseAreas(data: string): AreaMap {
     for (const _area in areas) {
         const area = areas[_area]
         const match = _area.match(/Area (\d+)/)
-        if (match === null) throw 'city.txt: invalid area name: ' + area.area_name
+        if (match === null) throw new Error('city.txt: invalid area name: ' + area.area_name)
         const areaID = parseInt(match[1])
         const worldPos = area.world_pos.split(',').map((x: string) => parseInt(x))
 
@@ -285,14 +285,14 @@ function parseMapInfo() {
         if (!m) throw Error('maps.txt: invalid category: ' + category)
 
         let id: string | number = m[1]
-        if (id === null) throw 'maps.txt: invalid category: ' + category
+        if (id === null) throw new Error('maps.txt: invalid category: ' + category)
         id = parseInt(id)
 
         const randomStartPoints = []
         for (const key in ini[category]) {
             if (key.indexOf('random_start_point_') === 0) {
                 const startPoint = ini[category][key].match(/elev:(\d), tile_num:(\d+)/)
-                if (startPoint === null) throw 'invalid random_start_point: ' + ini[category][key]
+                if (startPoint === null) throw new Error('invalid random_start_point: ' + ini[category][key])
                 randomStartPoints.push({ elevation: parseInt(startPoint[1]), tileNum: parseInt(startPoint[2]) })
             }
         }

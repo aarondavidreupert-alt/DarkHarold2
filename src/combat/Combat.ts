@@ -459,7 +459,7 @@ export class Combat {
                 // NOTE: AI is initialized here for simplicity; could be moved to Critter later
                 if (!obj.isPlayer && !obj.ai) obj.ai = new AI(obj)
 
-                if (obj.stats === undefined) throw 'no stats'
+                if (obj.stats === undefined) throw new Error('no stats')
                 obj.dead = false
                 obj.AP = new ActionPoints(obj)
                 // CE combat.cc _combatInitAIInfoList (_combat_begin): friendlyDead, lastTarget
@@ -480,7 +480,7 @@ export class Combat {
         // The first round's order comes from sequenceInit (Combat.start); later rounds
         // are sorted by Sequence (combatSequence).
         this.playerIdx = this.combatants.findIndex((x) => x.isPlayer)
-        if (this.playerIdx === -1) throw "combat: couldn't find player?"
+        if (this.playerIdx === -1) throw new Error("combat: couldn't find player?")
 
         this.player = this.combatants[this.playerIdx] as Player
         this.turnNum = 1
@@ -1995,14 +1995,14 @@ export class Combat {
         if (obj.walkTo(target, false, callback, maxDistance)) {
             // OK
             if (obj.AP!.subtractMoveAP(obj.path.path.length - 1) === false)
-                throw (
+                throw new Error((
                     'subtraction issue: has AP: ' +
                     obj.AP!.getAvailableMoveAP() +
                     ' needs AP:' +
                     obj.path.path.length +
                     ' and maxDist was:' +
                     maxDistance
-                )
+                ))
             return true
         }
 

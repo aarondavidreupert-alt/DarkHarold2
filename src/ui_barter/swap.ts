@@ -310,7 +310,7 @@ export function uiSwapItem(a: Obj[], item: Obj, b: Obj[], amount: number) {
         }
     }
     if (idx === -1) {
-        throw 'item (' + item + ') does not exist in a'
+        throw new Error('item (' + item + ') does not exist in a')
     }
 
     if (amount < item.amount) {

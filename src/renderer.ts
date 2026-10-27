@@ -447,7 +447,7 @@ export class Renderer {
 
         const info = globalState.imageInfo[obj.art]
         if (info === undefined) {
-            throw 'No image map info for: ' + obj.art
+            throw new Error('No image map info for: ' + obj.art)
         }
 
         if (!(obj.orientation in info.frameOffsets)) {
@@ -650,7 +650,7 @@ export function objectBoundingBox(obj: Obj): BoundingBox | null {
 
     const info = globalState.imageInfo[obj.art]
     if (info === undefined) {
-        throw 'No image map info for: ' + obj.art
+        throw new Error('No image map info for: ' + obj.art)
     }
 
     let frameIdx = 0

@@ -101,7 +101,7 @@ interface PartialAction {
 function getAnimDistance(art: string): number {
     const info = globalState.imageInfo[art]
     if (info === undefined) {
-        throw 'no image info for ' + art
+        throw new Error('no image info for ' + art)
     }
 
     // Direction E (index 1) gives purely horizontal screen displacement of +32px per hex.
@@ -253,7 +253,7 @@ Critter.prototype.getAnimation = function (this: Critter, anim: string): string 
         case 'called-shot':
             return base + 'na'
         default:
-            throw 'Unknown animation: ' + anim
+            throw new Error('Unknown animation: ' + anim)
     }
 }
 
@@ -512,7 +512,7 @@ Critter.prototype.updateAnim = function (this: Critter): void {
 
             const info = globalState.imageInfo[this.art]
             if (info === undefined) {
-                throw 'No image map info for: ' + this.art
+                throw new Error('No image map info for: ' + this.art)
             }
 
             // add the new frame's offset to our shift

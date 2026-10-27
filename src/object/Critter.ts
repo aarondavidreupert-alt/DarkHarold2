@@ -417,7 +417,7 @@ export class Critter extends Obj {
     get directionalOffset(): Point {
         const info = globalState.imageInfo[this.art]
         if (info === undefined) {
-            throw 'No image map info for: ' + this.art
+            throw new Error('No image map info for: ' + this.art)
         }
         return info.directionOffsets[this.orientation]
     }

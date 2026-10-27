@@ -321,7 +321,7 @@ export class Weapon {
         const slot = attackType ?? this.slot()
         if (slot === 1) return this.weapon.pro.extra.maxRange1
         if (slot === 2) return this.weapon.pro.extra.maxRange2
-        throw 'invalid attack type ' + slot
+        throw new Error('invalid attack type ' + slot)
     }
 
     // When called without an argument, derives the slot from the current mode.

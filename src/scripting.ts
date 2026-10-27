@@ -574,7 +574,7 @@ export module Scripting {
         }
 
         if (scriptMessages[name] === undefined) loadMessageFile(name)
-        if (scriptMessages[name] === undefined) throw 'getScriptMessage: loadMessageFile failed?'
+        if (scriptMessages[name] === undefined) throw new Error('getScriptMessage: loadMessageFile failed?')
         if (scriptMessages[name][msg] === undefined) {
             // CE scripts.cc _scr_get_msg_str_speech: a missing message is the text "Error"
             // (vccharly asks for 134, which its .msg does not have)
@@ -1386,7 +1386,7 @@ export module Scripting {
         }
         // CE interpreter_extra.cc opItemCapsTotal → item.cc itemGetTotalCaps (containers included)
         item_caps_total(obj: Obj) {
-            if (!isGameObject(obj)) throw 'item_caps_total: not game object'
+            if (!isGameObject(obj)) throw new Error('item_caps_total: not game object')
             return itemGetTotalCaps(obj)
         }
         // CE opItemCapsAdjust → item.cc itemCapsAdjust: 0, or −1 when there isn't enough money
@@ -1722,7 +1722,7 @@ export module Scripting {
                 case 5: // PCSTAT_max_pc_stat (sentinel, always 5)
                     return 5
                 default:
-                    throw `get_pc_stat: unhandled ${pcstat}`
+                    throw new Error(`get_pc_stat: unhandled ${pcstat}`)
             }
         }
         set_pc_stat(pcstat: number, value: number) {
@@ -2896,7 +2896,7 @@ export module Scripting {
             // CE ref: game_dialog.cc:3163 gameDialogBarter — sets _dialogBarterMod then opens barter
             log('gdialog_mod_barter', [mod])
             dbg('dialogue', '--> barter mode')
-            if (!this.self_obj) throw 'need self_obj'
+            if (!this.self_obj) throw new Error('need self_obj')
             dialogueBarterMod = mod
             // inside an option's procedure: open it when the procedure has returned
             if (inDialogueReply) pendingBarter = this.self_obj as Critter
@@ -2905,7 +2905,7 @@ export module Scripting {
         start_gdialog(msgFileID: number, obj: Obj, mood: number, headNum: number, backgroundID: number) {
             log('start_gdialog', [msgFileID, obj, mood, headNum, backgroundID])
             info('DIALOGUE START', 'dialogue')
-            if (!this.self_obj) throw 'no self_obj for start_gdialog'
+            if (!this.self_obj) throw new Error('no self_obj for start_gdialog')
             // CE opStartGameDialog: nothing in combat
             if (globalState.inCombat) return
             // CE ref: game_dialog.cc:1070-1075 _gdialogStart resets the review
@@ -4301,7 +4301,7 @@ export module Scripting {
                 fixed_param = 5
                 break // CE _combatai_want_to_join
             default:
-                throw 'combatEvent: unknown event ' + event
+                throw new Error('combatEvent: unknown event ' + event)
         }
 
         if (!obj._script.combat_p_proc) return false

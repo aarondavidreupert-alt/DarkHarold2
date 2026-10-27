@@ -53,7 +53,7 @@ export function parseIni(text: string) {
                 dbgWarn('script', `warning: parseIni: not a key=value line: ${line}`)
                 continue
             }
-            if (category === null) throw 'parseIni: key=value not in category: ' + line
+            if (category === null) throw new Error('parseIni: key=value not in category: ' + line)
 
             const key = line.slice(0, eqIdx).trim()
             const val = line.slice(eqIdx + 1).trim() // may be empty string — that's valid
@@ -252,11 +252,11 @@ export class BinaryReader {
 }
 
 export function assert(value: boolean, message: string) {
-    if (!value) throw 'AssertionError: ' + message
+    if (!value) throw new Error('AssertionError: ' + message)
 }
 
 export function assertEq<T>(value: T, expected: T, message: string) {
-    if (value !== expected) throw `AssertionError: value (${value}) does not match expected (${expected}): ${message}`
+    if (value !== expected) throw new Error(`AssertionError: value (${value}) does not match expected (${expected}): ${message}`)
 }
 
 declare function structuredClone(value: any, options?: StructuredSerializeOptions): any
