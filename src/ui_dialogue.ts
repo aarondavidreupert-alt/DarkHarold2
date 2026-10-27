@@ -229,7 +229,8 @@ let replyPageTimer: number | null = null
 
 export function uiSetDialogueReply(reply: string) {
     const $dialogueBoxReply = $id('dialogueBoxReply')
-    $dialogueBoxReply.innerHTML = reply
+    // as text: .msg lines such as "<cough> <cough>" or "<zzzt>" are not markup (CE draws them as is)
+    $dialogueBoxReply.textContent = reply
     $dialogueBoxReply.scrollTop = 0
     if (replyPageTimer !== null) clearInterval(replyPageTimer)
     replyPageTimer = window.setInterval(() => {

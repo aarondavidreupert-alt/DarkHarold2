@@ -796,6 +796,7 @@ Real bugs it found:
 | ID | Description | Files | CE Ref | Severity | Status |
 |----|-------------|-------|--------|----------|--------|
 | CA46 | **sfall `fs_*` FRM header: action frame 0 for per-direction lists.** `sfallFs.ts` builds an art FRM's header from `imageInfo`; `actionFrame` is a per-direction list for 495 of the 12715 arts, and `DataView.setUint16` of an array writes 0. Only a mod script that reads an art header through the sfall file functions sees it. | `src/sfallFs.ts:47` | `art.h ArtFrame.actionFrame` (one per FRM file) | minor | open |
+| CA47 | **Dialogue replies dropped `<...>` text. FIXED 2026-10-27** — `uiSetDialogueReply` wrote the NPC reply with `innerHTML`, so .msg text such as `<cough> <cough> <cough>` (dcaddict 376) or `<zzzt>` was parsed as unknown HTML tags and vanished (18 vanilla dialog .msg files have such lines); a mod's message text could also inject markup. Now `textContent`, as the options and the Review window already did. | `src/ui_dialogue.ts` | `game_dialog.cc gameDialogRenderReply` (draws the text as is) | minor | fixed |
 
 <!-- audited: 2026-10-26 -->
 
