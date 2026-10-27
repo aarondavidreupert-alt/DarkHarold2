@@ -555,8 +555,8 @@ export function uiBarterMode(merchant: Critter) {
         const moneyLeft = totalAmount(playerBarterTable)
         const moneyRight = barterMinPlayerOffer(merchantBarterTable)
 
-        $id('barterBoxLeftAmount').innerHTML = '$' + moneyLeft
-        $id('barterBoxRightAmount').innerHTML = '$' + moneyRight
+        $id('barterBoxLeftAmount').textContent = '$' + moneyLeft
+        $id('barterBoxRightAmount').textContent = '$' + moneyRight
     }
 
     redrawBarterInventory()

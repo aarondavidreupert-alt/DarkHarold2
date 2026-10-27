@@ -289,8 +289,8 @@ export function uiCompanionTrade(companion: Critter): void {
         drawInventory($id('barterBoxRight'), 'r', companionBarterTable, companionOfferScroll)
 
         // Weight, not money — CE has no price concept in this screen at all.
-        $id('barterBoxLeftAmount').innerHTML = totalWeight(playerBarterTable) + ' lbs'
-        $id('barterBoxRightAmount').innerHTML = totalWeight(companionBarterTable) + ' lbs'
+        $id('barterBoxLeftAmount').textContent = totalWeight(playerBarterTable) + ' lbs'
+        $id('barterBoxRightAmount').textContent = totalWeight(companionBarterTable) + ' lbs'
     }
 
     redraw()

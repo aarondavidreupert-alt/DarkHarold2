@@ -107,7 +107,7 @@ export class Label extends Widget {
     }
 
     setText(text: string): void {
-        this.elem.innerHTML = text
+        this.elem.textContent = text
     }
 }
 
