@@ -119,6 +119,7 @@ Pre-audited summaries of CE behaviour with DH2 gaps already identified. Trust th
 | 53 | [`wiki/autocrawler.md`](wiki/autocrawler.md) | AutoCrawler: automated map / dialogue / combat test harness, URL auto-start, report format |
 | 54 | [`wiki/cleanup_audit.md`](wiki/cleanup_audit.md) | 2026-10-26 codebase hygiene audit: dead code, debug console (`play.html#dev`), stale docs; SAFE items fixed, RISKY items open |
 | 55 | [`wiki/code_quality.md`](wiki/code_quality.md) | Code quality vs modern standards (2026-10-27): type safety, import cycle, sync I/O, tests / CI, toolchain; phased fixing plan Q1–Q17 |
+| 56 | [`wiki/planning_archive.md`](wiki/planning_archive.md) | The early (spring 2026) planning documents, formerly `docs/planning/*.docx`, as text; superseded |
 
 ### 🐛 Known issues & roadmap
 

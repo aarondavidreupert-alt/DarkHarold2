@@ -56,7 +56,7 @@ DarkHarold2/
 ├── Pipfile          Python deps for asset pipeline
 ├── CLAUDE.md        Claude Code project instructions
 ├── ROADMAP.md       Phased roadmap to 95% completion
-├── docs/            README images (screenshot.png); planning/ — design documents (.docx, .txt), not engine code
+├── docs/            README images (screenshot.png); the old planning .docx files are text in wiki/planning_archive.md
 ├── tools/luadiff.html  VM-vs-Lua script test page (src/lua/luaDiff.ts); tools/parity.mjs runs it headless (npm run parity)
 └── tools/eslintRatchet.mjs  ESLint count check against tools/eslintBaseline.json (npm run lint:ratchet, CI)
 ```
