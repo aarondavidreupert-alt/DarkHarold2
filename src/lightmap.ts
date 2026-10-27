@@ -348,18 +348,18 @@ export module Lightmap {
                                         // LD11 / wiki/extended_flags.md §4.
                                         const flags = curObj.pro.extra?.extendedFlags ?? 0
                                         if(flags & 0x8000000 || flags & 0x40000000) {
-                                            if(dir != 4 && dir != 5 && (dir || i >= 8) && (dir != 3 || i <= 15))
+                                            if(dir !== 4 && dir !== 5 && (dir || i >= 8) && (dir !== 3 || i <= 15))
                                                 edi = 0
                                         }
                                         else if(flags & 0x10000000) {
-                                            if(dir && dir != 5)
+                                            if(dir && dir !== 5)
                                                 edi = 0
                                         }
                                         else if(flags & 0x20000000) {
-                                            if(dir && dir != 1 && dir != 4 && dir != 5 && (dir != 3 || i <= 15))
+                                            if(dir && dir !== 1 && dir !== 4 && dir !== 5 && (dir !== 3 || i <= 15))
                                                 edi = 0
                                         }
-                                        else if(dir && dir != 1 && (dir != 5 || i <= 7)) {
+                                        else if(dir && dir !== 1 && (dir !== 5 || i <= 7)) {
                                             edi = 0
                                         }
                                     }

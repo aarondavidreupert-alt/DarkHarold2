@@ -746,7 +746,7 @@ export class Obj {
         }
 
         // TODO: Subclasses
-        if (pidType == 0) {
+        if (pidType === 0) {
             // item — PRO JSON uses camelCase 'subType' (from proto.py), not 'subtype'
             obj.subtype = getPROSubTypeName(pro.extra.subType ?? pro.extra.subtype)
             obj.name = getMessage('pro_item', pro.textID)
@@ -1343,7 +1343,7 @@ export class Obj {
                 // bit 0x0800 lands in byte 2 (weaponFlags, bit 0x08). Scenery keeps the
                 // whole int32 as extendedFlags.
                 if (this.type === 'scenery') return ((this.pro.extra.extendedFlags ?? 0) & 0x0800) !== 0
-                return (this.pro.extra.weaponFlags & 0x08) != 0
+                return (this.pro.extra.weaponFlags & 0x08) !== 0
             }
         }
         return false

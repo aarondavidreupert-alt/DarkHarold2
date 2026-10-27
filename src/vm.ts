@@ -501,11 +501,13 @@ export const opMap: { [opcode: number]: (this: ScriptVM) => void } = {
     0x8045: function () {
         this.push(sslTrue(this.pop()) ? 0 : 1)
     },
+    // == / != stay loose on purpose: SSL values mix ints, floats and strings (and objects), and
+    // scripts rely on the VM's comparison as it is; luadiff compares it with the Lua backend
     0x8033: binop(function (x, y) {
-        return +(x == y)
+        return +(x == y) // eslint-disable-line eqeqeq
     }),
     0x8034: binop(function (x, y) {
-        return +(x != y)
+        return +(x != y) // eslint-disable-line eqeqeq
     }),
     0x8035: binop(function (x, y) {
         return +(x <= y)
