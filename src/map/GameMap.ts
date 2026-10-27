@@ -73,19 +73,19 @@ export interface SerializedMap {
 }
 
 export class GameMap {
-    name: string = null
-    startingPosition: Point
-    startingElevation: number
-    numLevels: number
+    name: string | null = null
+    startingPosition!: Point
+    startingElevation!: number
+    numLevels!: number
 
     currentElevation = 0 // current map elevation
 
-    floorMap: string[][] = null // Floor tilemap
-    roofMap: string[][] = null // Roof tilemap
+    floorMap: string[][] | null = null // Floor tilemap
+    roofMap: string[][] | null = null // Roof tilemap
 
     mapScript: any = null // Current map script object
-    objects: Obj[][] = null // Map objects on all levels
-    spatials: any[][] = null // Spatials on all levels
+    objects: Obj[][] | null = null // Map objects on all levels
+    spatials: any[][] | null = null // Spatials on all levels
 
     // CE ref: map.cc gMapHeader.lastVisitTime — ticks when player last left this map (0 = never)
     lastVisitTime: number = 0
@@ -93,7 +93,7 @@ export class GameMap {
     private _removalQueue: Obj[] = []
 
     mapObj: any = null
-    mapID: number
+    mapID!: number
 
     // Cached isOutdoor() result for the current map+elevation.
     // Reset whenever we (re)load a map or change elevation.
@@ -110,7 +110,7 @@ export class GameMap {
     }
 
     getSpatials(level?: number): any[] {
-        return this.spatials[level === undefined ? this.currentElevation : level]
+        return this.spatials![level === undefined ? this.currentElevation : level]
     }
 
     getObjectsAndSpatials(level?: number): Obj[] {
@@ -119,7 +119,7 @@ export class GameMap {
 
     addObject(obj: Obj, level?: number): void {
         const elevation = level === undefined ? this.currentElevation : level
-        this.objects[elevation].push(obj)
+        this.objects![elevation].push(obj)
         obj.elevation = elevation // (its spatial checks and move_to read it)
         // CE ref: objAddToMap (obj.cc) — purely spatial placement; does NOT fire map_enter_p_proc.
         // map_enter_p_proc is fired once per map load by scriptsExecMapEnterProc, not on every add.
@@ -140,7 +140,7 @@ export class GameMap {
         for (const obj of toRemove) {
             let found = false
             for (let level = 0; level < this.numLevels; level++) {
-                const objects = this.objects[level]
+                const objects = this.objects![level]
                 for (let i = 0; i < objects.length; i++) {
                     if (objects[i] === obj) {
                         dbg('object', 'drainRemovalQueue: removing index %d (%o)', i, obj)
@@ -256,21 +256,21 @@ export class GameMap {
 
         // If we're in combat, end it since we're moving off of that elevation
         if (globalState.inCombat) {
-            globalState.combat.forceEnd()
+            globalState.combat!.forceEnd()
         }
 
-        globalState.player.clearAnim()
+        globalState.player!.clearAnim()
 
         // Remove player & party (unless we're loading a new map, in which case they're not present)
         // and place them on the new map
         for (const obj of globalState.gParty.getPartyMembersAndPlayer()) {
             if (!isMapLoading) {
-                arrayRemove(this.objects[oldElevation], obj)
+                arrayRemove(this.objects![oldElevation], obj)
             }
 
             // Only add the member once, in case changeElevation is called multiple times
-            if (this.objects[level].indexOf(obj) === -1) {
-                this.objects[level].push(obj)
+            if (this.objects![level].indexOf(obj) === -1) {
+                this.objects![level].push(obj)
             }
             obj.elevation = level
         }
@@ -289,8 +289,8 @@ export class GameMap {
 
         // set up renderer data
         globalState.renderer.initData(
-            this.roofMap,
-            this.floorMap,
+            this.roofMap!,
+            this.floorMap!,
             this.getObjects(),
             this.mapObj.levels[level].tiles.roofFlags ?? null,
         )
@@ -308,7 +308,7 @@ export class GameMap {
             Lightmap.rebuildLight()
         }
 
-        centerCamera(globalState.player.position)
+        centerCamera(globalState.player!.position)
 
         Events.emit('elevationChanged', { elevation: level, oldElevation, isMapLoading })
     }
@@ -432,7 +432,7 @@ export class GameMap {
         if (!Config.engine.doLoadScripts) return
         Scripting.setLoadingGame(true)
         try {
-            for (const level of this.objects) {
+            for (const level of this.objects!) {
                 for (const obj of level.slice()) {
                     if (obj._script) Scripting.initScript(obj._script, obj)
                 }
@@ -445,15 +445,15 @@ export class GameMap {
                 false,
             )
             if (overridenStartPos && this.mapObj.levels[overridenStartPos.elevation]) {
-                globalState.player.position = overridenStartPos.position
-                globalState.player.orientation = overridenStartPos.orientation
+                globalState.player!.position = overridenStartPos.position
+                globalState.player!.orientation = overridenStartPos.orientation
             }
-            this.objects.forEach((level) => {
+            this.objects!.forEach((level) => {
                 for (const obj of level.slice()) {
                     if (level.includes(obj)) obj.enterMap()
                 }
             })
-            this.spatials.forEach((level) =>
+            this.spatials!.forEach((level) =>
                 level.forEach((spatial) => Scripting.objectEnterMap(spatial, this.currentElevation, this.mapID)),
             )
             Scripting.updateMap(this.mapScript, this.getObjectsAndSpatials(), this.currentElevation)
@@ -478,8 +478,8 @@ export class GameMap {
         if (overridenStartPos) {
             // Starting position was overridden by map_enter_p_proc -- use the new one
             dbg('map', 'Starting position overriden to %o', overridenStartPos)
-            globalState.player.position = overridenStartPos.position
-            globalState.player.orientation = overridenStartPos.orientation
+            globalState.player!.position = overridenStartPos.position
+            globalState.player!.orientation = overridenStartPos.orientation
             // FO2-CE ref: map.cc mapSetupEnter() — elevation from override_map_start is validated
             // against the number of map levels before use. Maps with fewer levels than the script
             // expects (e.g. modinn exported with 2 levels but script targets elevation 2) must not
@@ -498,19 +498,19 @@ export class GameMap {
         // place party again, so if the map script overrided the start position we're in the right place
         this.placeParty()
 
-        Scripting.startMapScripts(this.mapScript, this.spatials.flat(), this.objects.flat())
+        Scripting.startMapScripts(this.mapScript, this.spatials!.flat(), this.objects!.flat()!)
 
         // Tell objects' scripts that they're now on the map. CE ref: scripts.cc
         // scriptsExecMapUpdateScripts builds the script list first and skips scripts
         // removed meanwhile — map_enter procs create and destroy objects, and a live
         // forEach would skip the entries shifted down by a removal.
         // TODO: Does this apply to all levels or just the current elevation?
-        this.objects.forEach((level) => {
+        this.objects!.forEach((level) => {
             for (const obj of level.slice()) {
                 if (level.includes(obj)) obj.enterMap()
             }
         })
-        this.spatials.forEach((level) =>
+        this.spatials!.forEach((level) =>
             level.forEach((spatial) => Scripting.objectEnterMap(spatial, this.currentElevation, this.mapID)),
         )
 
@@ -752,7 +752,7 @@ export class GameMap {
 
     serialize(): SerializedMap {
         return {
-            name: this.name,
+            name: this.name!,
             mapID: this.mapID,
             numLevels: this.numLevels,
             mapObj: {
@@ -762,14 +762,14 @@ export class GameMap {
             },
 
             // roof/floor maps
-            roofMap: this.roofMap,
-            floorMap: this.floorMap,
+            roofMap: this.roofMap!,
+            floorMap: this.floorMap!,
 
             mapScript: this.mapScript ? this.mapScript._serialize() : null,
             // The party (player, companions, the car trunk) travels with the player, so
             // it isn't part of the map snapshot — otherwise a revisit restores a second
             // copy next to the one that walked in (CE removes the party before mapSave).
-            objects: this.objects.map((level: Obj[]) => {
+            objects: this.objects!.map((level: Obj[]) => {
                 const party = new Set<Obj>(globalState.gParty.getPartyMembersAndPlayer())
                 return level
                     .filter((obj): obj is Obj => obj !== null && !party.has(obj) && !(obj as any)._transient)

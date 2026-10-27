@@ -138,20 +138,20 @@ interface AttackInfo {
 }
 
 function parseAttack(weapon: WeaponObj): { first: AttackInfo; second: AttackInfo } {
-    const attackModes = weapon.pro.extra['attackMode']
+    const attackModes = weapon.pro!.extra['attackMode']
     const modeOne = attackMode[attackModes & 0xf] as number
     const modeTwo = attackMode[(attackModes >> 4) & 0xf] as number
     const attackOne: AttackInfo = { mode: modeOne, APCost: 0, maxRange: 0 }
     const attackTwo: AttackInfo = { mode: modeTwo, APCost: 0, maxRange: 0 }
 
     if (modeOne !== attackMode.none) {
-        attackOne.APCost = weapon.pro.extra.APCost1
-        attackOne.maxRange = weapon.pro.extra.maxRange1
+        attackOne.APCost = weapon.pro!.extra.APCost1
+        attackOne.maxRange = weapon.pro!.extra.maxRange1
     }
 
     if (modeTwo !== attackMode.none) {
-        attackTwo.APCost = weapon.pro.extra.APCost2
-        attackTwo.maxRange = weapon.pro.extra.maxRange2
+        attackTwo.APCost = weapon.pro!.extra.APCost2
+        attackTwo.maxRange = weapon.pro!.extra.maxRange2
     }
 
     return { first: attackOne, second: attackTwo }
@@ -198,8 +198,8 @@ export class Weapon {
         } else {
             // todo: spears, etc
             this.type = 'gun'
-            this.minDmg = weapon.pro.extra.minDmg
-            this.maxDmg = weapon.pro.extra.maxDmg
+            this.minDmg = weapon.pro!.extra.minDmg
+            this.maxDmg = weapon.pro!.extra.maxDmg
             const s = weapon.art.split('/')
             this.name = s[s.length - 1]
 
@@ -225,7 +225,7 @@ export class Weapon {
             // throw, a knife's thrust).
             this.modes = ['single']
             if (this.canAim(1)) this.modes.push('called')
-            const second = (weapon.pro.extra.attackMode >> 4) & 0xf
+            const second = (weapon.pro!.extra.attackMode >> 4) & 0xf
             if (second === 7 || second === 8) {
                 this.modes.push('burst')
             } else if (second !== 0) {
@@ -311,22 +311,22 @@ export class Weapon {
 
     getProjectilePID(): number {
         if (this.type === 'melee') return -1
-        return this.weapon.pro.extra.projPID
+        return this.weapon.pro!.extra.projPID
     }
 
     // TODO: enum
     // When called without an argument, derives the slot from the current mode.
     getMaximumRange(attackType?: number): number {
         const slot = attackType ?? this.slot()
-        if (slot === 1) return this.weapon.pro.extra.maxRange1
-        if (slot === 2) return this.weapon.pro.extra.maxRange2
+        if (slot === 1) return this.weapon.pro!.extra.maxRange1
+        if (slot === 2) return this.weapon.pro!.extra.maxRange2
         throw new Error('invalid attack type ' + slot)
     }
 
     // When called without an argument, derives the slot from the current mode.
     getAPCost(attackSlot?: number): number {
         const slot = attackSlot ?? this.slot()
-        return this.weapon.pro.extra['APCost' + slot]
+        return this.weapon.pro!.extra['APCost' + slot]
     }
 
     // CE item.cc weaponGetActionPointCost for an attack by `critter`: the slot's AP cost;
@@ -362,7 +362,7 @@ export class Weapon {
     }
 
     getSkin(): string | null {
-        if (this.weapon.pro === undefined || this.weapon.pro.extra === undefined) return null
+        if (this.weapon.pro === undefined || this.weapon.pro!.extra === undefined) return null
         const animCodeMap: { [animCode: number]: string } = {
             0: 'a', // None
             1: 'd', // Knife
@@ -376,11 +376,11 @@ export class Weapon {
             9: 'l', // Minigun
             10: 'm',
         } // Rocket Launcher
-        return animCodeMap[this.weapon.pro.extra.animCode]
+        return animCodeMap[this.weapon.pro!.extra.animCode]
     }
 
     getAttackSkin(): string | null {
-        if (this.weapon.pro === undefined || this.weapon.pro.extra === undefined) return null
+        if (this.weapon.pro === undefined || this.weapon.pro!.extra === undefined) return null
 
         const modeSkinMap: { [mode: string]: string } = {
             punch: 'q',
@@ -446,7 +446,7 @@ export class Weapon {
     getDamageType(): string {
         // Return the (string) damage type of the weapon, e.g. "Normal", "Laser", ...
         // Defaults to "Normal" if the weapon's PRO does not provide one.
-        const rawDmgType = this.weapon.pro.extra.dmgType
+        const rawDmgType = this.weapon.pro!.extra.dmgType
         return rawDmgType !== undefined ? (damageType[rawDmgType] as string) : 'Normal'
     }
 }

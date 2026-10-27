@@ -436,7 +436,7 @@ let statMap: { [stat: number]: string } = {
 type DebugLogShowType = keyof typeof Config.scripting.debugLogShowType
 
 function stub(name: string, args: IArguments, type?: DebugLogShowType) {
-    if (Config.scripting.debugLogShowType.stub === false || Config.scripting.debugLogShowType[type] === false) return
+    if (Config.scripting.debugLogShowType.stub === false || Config.scripting.debugLogShowType[type!] === false) return
     let a = ''
     for (let i = 0; i < args.length; i++)
         if (i === args.length - 1) a += args[i]
@@ -445,7 +445,7 @@ function stub(name: string, args: IArguments, type?: DebugLogShowType) {
 }
 
 function log(name: string, args: unknown[], type?: DebugLogShowType) {
-    if (Config.scripting.debugLogShowType.log === false || Config.scripting.debugLogShowType[type] === false) return
+    if (Config.scripting.debugLogShowType.log === false || Config.scripting.debugLogShowType[type!] === false) return
     let a = ''
     for (let i = 0; i < args.length; i++)
         if (i === args.length - 1) a += args[i]
@@ -643,8 +643,8 @@ const DAMAGE_TYPE_NAMES = ['Normal', 'Laser', 'Fire', 'Plasma', 'Electrical', 'E
 function requestElevator(self: Obj | null, explicitType: number): void {
     if (!self?.position) return
     let type = explicitType
-    const elevation = (self as any).elevation ?? globalState.gMap.currentElevation
-    const objects: Obj[] = globalState.gMap.getObjects(elevation)
+    const elevation = (self as any).elevation ?? globalState.gMap!.currentElevation
+    const objects: Obj[] = globalState.gMap!.getObjects(elevation)
     search: for (let dy = -5; dy < 5; dy++) {
         for (let dx = -5; dx < 5; dx++) {
             const x = self.position.x + dx,
@@ -835,7 +835,7 @@ export function setSeed(n: number): void {
 function objCanSeeObj(obj: Critter, target: Obj): boolean {
     if (obj.elevation !== target.elevation || !obj.position || !target.position) return false
     if (!isWithinPerception(obj, target as Critter)) return false
-    return globalState.gMap.straightPathBlockingObject(obj, target.position, 0) === target
+    return globalState.gMap!.straightPathBlockingObject(obj, target.position, 0) === target
 }
 
 export interface SerializedScript {
@@ -1286,7 +1286,7 @@ export class Script {
                 const previous = radius as any
                 log('metarule3 106 (tile_get_next_critter)', [id, obj, userdata, radius])
                 let found = !previous
-                for (const o of globalState.gMap.getObjects(userdata as number)) {
+                for (const o of globalState.gMap!.getObjects(userdata as number)) {
                     if (o.position?.x !== p.x || o.position?.y !== p.y) continue
                     if (o.type === 'critter' && found) return o
                     if (o === previous) found = true
@@ -1326,7 +1326,7 @@ export class Script {
             case 111: {
                 // METARULE3_111 (_map_target_load_area) — CE ref: map.cc:1202.
                 // Returns the worldmap area index containing the current map, or -1.
-                const mapName = lookupMapName(globalState.gMap.mapID)
+                const mapName = lookupMapName(globalState.gMap!.mapID)
                 const area = mapName ? areaContainingMap(mapName) : null
                 return area ? area.id : -1
             }
@@ -1529,7 +1529,7 @@ export class Script {
                     // … and the proto's packet when _isPotentialPartyMember — which ignores
                     // its argument and holds whenever the dude is party member 0, i.e.
                     // always: critters of this pid made later start with the new packet
-                    if ((<Critter>obj).pro?.extra) (<Critter>obj).pro.extra.AI = amount
+                    if ((<Critter>obj).pro?.extra) (<Critter>obj).pro!.extra.AI = amount
                     // the cached packet (combat/AI.ts) is rebuilt from the new number
                     if ((<Critter>obj).ai) (<Critter>obj).ai = new AI(<Critter>obj)
                     return
@@ -2376,9 +2376,9 @@ export class Script {
         // re-splices the *current* elevation's array) can't be used
         // directly here — a full zsort() of the target elevation's array is
         // safe and correct regardless of which elevation that is.
-        globalState.gMap.addObject(obj, elev)
+        globalState.gMap!.addObject(obj, elev)
         obj.position = fromTileNum(tile)
-        zsort(globalState.gMap.objects[elev])
+        zsort(globalState.gMap!.objects![elev])
         // CE objectCreateWithFidPid → objectSetLight: a lit proto lights its tile
         if (obj.lightRadius > 0 && obj.lightIntensity > 0 && Config.engine.doFloorLighting) Lightmap.rebuildLight()
 
@@ -2618,7 +2618,7 @@ export class Script {
             destroy(obj)
             return
         }
-        globalState.gMap.destroyObject(obj)
+        globalState.gMap!.destroyObject(obj)
     }
     set_exit_grids(onElev: number, mapID: number, elevation: number, tileNum: number, rotation: number) {
         // CE ref: interpreter_extra.cc:2180 opSetExitGrids — iterates objectFindFirstAtElevation(onElev)
@@ -2657,7 +2657,7 @@ export class Script {
     }
     tile_contains_pid_obj(tile: number, elevation: number, pid: number): any {
         const pos = fromTileNum(tile)
-        const objects = globalState.gMap.getObjects(elevation)
+        const objects = globalState.gMap!.getObjects(elevation)
         for (let i = 0; i < objects.length; i++) {
             if (objects[i].position.x === pos.x && objects[i].position.y === pos.y && objects[i].pid === pid) {
                 return objects[i]
@@ -3276,8 +3276,8 @@ export class Script {
     // CE opTileContainsObjectWithPid: the objects on that tile of the given elevation
     tile_contains_obj_pid(tile: number, elevation: number, pid: number) {
         const p = fromTileNum(tile)
-        return globalState.gMap
-            .getObjects(elevation)
+        return globalState
+            .gMap!.getObjects(elevation)
             .some((o) => o.pid === pid && o.position?.x === p.x && o.position?.y === p.y)
             ? 1
             : 0
@@ -3301,9 +3301,9 @@ export class Script {
         const fromElevation = isPlayer ? globalState.currentElevation : (obj.elevation ?? globalState.currentElevation)
         if (elevation !== fromElevation) {
             info('move_to: moving to elevation ' + elevation)
-            if (isPlayer) globalState.gMap.changeElevationFaded(elevation, true)
+            if (isPlayer) globalState.gMap!.changeElevationFaded(elevation, true)
             else {
-                const levels: Obj[][] = globalState.gMap.objects ?? []
+                const levels: Obj[][] = globalState.gMap!.objects ?? []
                 if (levels[fromElevation]) arrayRemove(levels[fromElevation], obj)
                 if (levels[elevation] && !levels[elevation].includes(obj)) levels[elevation].push(obj)
                 obj.elevation = elevation
@@ -3477,7 +3477,7 @@ export class Script {
         if (!isGameObject(obj) || !obj.pro) return 0
         try {
             const fid = ((obj.pro.frmType ?? 1) << 24) | ((anim & 0xff) << 16) | (obj.pro.frmPID & 0xfff)
-            const info = globalState.imageInfo[lookupArt(fid)]
+            const info = globalState.imageInfo![lookupArt(fid)]
             const af = info?.actionFrame
             return Array.isArray(af) ? (af[obj.orientation ?? 0] ?? af[0] ?? 0) : (af ?? 0)
         } catch {
@@ -3591,7 +3591,7 @@ export class Script {
             if (owner === globalState.player) uiDrawWeapon()
             return n
         }
-        globalState.gMap.destroyObject(obj)
+        globalState.gMap!.destroyObject(obj)
         return 0
     }
     // CE opGetCombatDifficulty (0x814F) — settings.preferences.combat_difficulty (0/1/2)
@@ -3639,7 +3639,7 @@ export class Script {
         const FT_LIST = [62, 51, 52, 53, 63, 62, 54, 56, 59, 62, 63]
         let ft = 0
         let count = 0
-        for (const obj of globalState.gMap.getObjects().slice()) {
+        for (const obj of globalState.gMap!.getObjects().slice()) {
             if (obj.type !== 'critter' || obj.pid !== pid || (obj as Critter).dead || obj.visible === false) continue
             if (++count > 200) {
                 warn('kill_critter_type: infinite loop destroying critters!')
@@ -3647,7 +3647,7 @@ export class Script {
             }
             const c = obj as Critter
             if (deathFrame === 0) {
-                globalState.gMap.destroyObject(c)
+                globalState.gMap!.destroyObject(c)
             } else {
                 // CE _combat_delete_critter: critterKill below drops it from combat via its dead flag.
                 let frame: number
@@ -3783,7 +3783,7 @@ export class Script {
             return 0
         }
         if (dialogueOptionProcs.length === 0) {
-            const text = globalState.player.getStat('INT') < 4 ? (getProtoMsg(655) ?? '') : ''
+            const text = globalState.player!.getStat('INT') < 4 ? (getProtoMsg(655) ?? '') : ''
             dialogueOptionProcs.push(() => {})
             dialogueOptionTexts.push(text)
             dialogueOptionReactions.push(50)
@@ -3807,8 +3807,8 @@ export class Script {
 
         // CE _op_giq_option: INT + Smooth Talker rank.
         const INT =
-            globalState.player.getStat('INT') +
-            globalState.player.perks.filter((p: string) => p === 'Smooth Talker').length
+            globalState.player!.getStat('INT') +
+            globalState.player!.perks.filter((p: string) => p === 'Smooth Talker').length
         if ((iqTest > 0 && INT < iqTest) || (iqTest < 0 && INT > -iqTest)) return // not enough intelligence for this option
         if (dialogueOptionProcs.length >= DIALOG_OPTION_ENTRIES_CAPACITY) return // CE: 30 at most
 
@@ -3977,13 +3977,14 @@ export class Script {
                 // animationRegisterMoveToTile (_anim_move, a5 = 0): onto the tile; an
                 // occupied one stops a step short.
                 const gMap = globalState.gMap
-                const path = gMap.recalcPath(c.position, dest, false, c)
+                const path = gMap!.recalcPath(c.position, dest, false, c)
                 if (path.length === 0) return arrived()
                 const toObj = (entry.to as any).position !== undefined
                 let drop = 0
                 if (toObj) drop = (((entry.to as any).flags ?? 0) & 0x800) !== 0 ? 2 : 1
                 else if (
-                    gMap.blockingObjectAt(toTileNum(dest), (c as any).elevation ?? gMap.currentElevation, 0, c) !== null
+                    gMap!.blockingObjectAt(toTileNum(dest), (c as any).elevation ?? gMap!.currentElevation, 0, c) !==
+                    null
                 )
                     drop = 1
                 path.length = Math.max(1, path.length - drop)
@@ -4113,9 +4114,9 @@ export class Script {
         requestScript('explosion', () => {
             const explosives = createObjectWithPID(makePID(0 /* items */, 85 /* Plastic Explosives */), -1)
             explosives.position = fromTileNum(tile)
-            globalState.gMap.addObject(explosives)
+            globalState.gMap!.addObject(explosives)
             withSpatialsOff(() => explosives.explode(null, damage === 0 ? 0 : 1, damage))
-            globalState.gMap.removeObject(explosives)
+            globalState.gMap!.removeObject(explosives)
         })
     }
 
@@ -4621,7 +4622,7 @@ export function description(obj: Obj, source: Obj): boolean {
 
 export function use(obj: Obj, source: Obj): boolean | null {
     if (!obj._script || obj._script.use_p_proc === undefined) {
-        noteMissingProc(obj._script, 'use_p_proc')
+        noteMissingProc(obj._script!, 'use_p_proc')
         return null
     }
 
@@ -4657,10 +4658,10 @@ export function processMapTransition(): boolean {
     const map = pendingMapTransition
     pendingMapTransition = null
     if (typeof map === 'string') {
-        globalState.gMap.loadMap(map)
+        globalState.gMap!.loadMap(map)
         Events.emit('mapTransition', mapIndexOf(map))
     } else {
-        globalState.gMap.loadMapByID(map)
+        globalState.gMap!.loadMapByID(map)
         Events.emit('mapTransition', map)
     }
     return true
@@ -4772,7 +4773,7 @@ export function destroy(obj: Obj, source?: Obj) {
 
 export function damage(obj: Obj, target: Obj, source: Obj, damage: number) {
     if (!obj._script || obj._script.damage_p_proc === undefined) {
-        noteMissingProc(obj._script, 'damage_p_proc')
+        noteMissingProc(obj._script!, 'damage_p_proc')
         return null
     }
 
@@ -4818,7 +4819,7 @@ export function pickup(obj: Obj, source: Critter): boolean {
 // item about to be dropped. True when the script overrides (keeps the item).
 export function isDropping(owner: Obj, item: Obj): boolean {
     if (!owner._script || owner._script.is_dropping_p_proc === undefined) {
-        noteMissingProc(owner._script, 'is_dropping_p_proc')
+        noteMissingProc(owner._script!, 'is_dropping_p_proc')
         return false
     }
     owner._script.self_obj = owner as ScriptableObj
@@ -4831,7 +4832,7 @@ export function isDropping(owner: Obj, item: Obj): boolean {
 
 export function drop(obj: Obj, source: Obj): boolean {
     if (!obj._script || obj._script.drop_p_proc === undefined) {
-        noteMissingProc(obj._script, 'drop_p_proc')
+        noteMissingProc(obj._script!, 'drop_p_proc')
         return false
     }
     obj._script.self_obj = obj as ScriptableObj
@@ -4846,7 +4847,7 @@ export function drop(obj: Obj, source: Obj): boolean {
 // scriptSetObjects(item->sid, critter, targetObj). True when the script overrides.
 export function useObjOnItem(item: Obj, source: Obj, target: Obj): boolean {
     if (!item._script || item._script.use_obj_on_p_proc === undefined) {
-        noteMissingProc(item._script, 'use_obj_on_p_proc')
+        noteMissingProc(item._script!, 'use_obj_on_p_proc')
         return false
     }
     item._script.self_obj = item as ScriptableObj
@@ -4860,7 +4861,7 @@ export function useObjOnItem(item: Obj, source: Obj, target: Obj): boolean {
 
 export function useObjOnMe(obj: Obj, item: Obj, source: Obj): boolean {
     if (!obj._script || obj._script.use_obj_on_p_proc === undefined) {
-        noteMissingProc(obj._script, 'use_obj_on_p_proc')
+        noteMissingProc(obj._script!, 'use_obj_on_p_proc')
         return false
     }
     // CE ref: proto_instance.cc:1286 scriptSetObjects(targetObj->sid, critter, item)
@@ -4937,13 +4938,14 @@ function updateMapScripts(mapScript: Script, objects: Obj[]) {
 
     for (let i = 0; i < gameObjects.length; i++) {
         const script = gameObjects[i]._script
-        if (script !== undefined && script.map_update_p_proc === undefined) noteMissingProc(script, 'map_update_p_proc')
-        if (script !== undefined && script.map_update_p_proc !== undefined) {
-            script.self_obj = gameObjects[i] as ScriptableObj
+        if (script !== undefined && script!.map_update_p_proc === undefined)
+            noteMissingProc(script!, 'map_update_p_proc')
+        if (script !== undefined && script!.map_update_p_proc !== undefined) {
+            script!.self_obj = gameObjects[i] as ScriptableObj
             // Fallout 2 style HHMM: "8:24 AM" => 824, "3:00 PM" => 1500
-            script.game_time_hour = GameTime.getHourMilitary()
-            script.cur_map_index = currentMapID
-            script.map_update_p_proc()
+            script!.game_time_hour = GameTime.getHourMilitary()
+            script!.cur_map_index = currentMapID
+            script!.map_update_p_proc()
         }
     }
     GlobalScripts.globalScriptsMapProc('map_update_p_proc') // CE scriptsExecMapUpdateScripts
@@ -5012,14 +5014,14 @@ export function objectRunProc(obj: Obj, proc: 'map_exit_p_proc'): void {
 
 export function objectEnterMap(obj: Obj, elevation: number, mapID: number) {
     const script = obj._script
-    if (script !== undefined && script.map_enter_p_proc !== undefined) {
-        script.self_obj = obj as ScriptableObj
+    if (script !== undefined && script!.map_enter_p_proc !== undefined) {
+        script!.self_obj = obj as ScriptableObj
         // CE scripts.cc scriptsExecMapUpdateScripts(MAP_ENTER): fixed_param = first visit
-        script.fixed_param = mapFirstRun ? 1 : 0
-        script.game_time_hour = GameTime.getHourMilitary()
-        script.cur_map_index = currentMapID
-        script.map_enter_p_proc()
-    } else noteMissingProc(script, 'map_enter_p_proc')
+        script!.fixed_param = mapFirstRun ? 1 : 0
+        script!.game_time_hour = GameTime.getHourMilitary()
+        script!.cur_map_index = currentMapID
+        script!.map_enter_p_proc()
+    } else noteMissingProc(script!, 'map_enter_p_proc')
 }
 
 export function reset(mapName: string, mapID?: number) {

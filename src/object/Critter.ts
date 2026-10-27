@@ -268,13 +268,13 @@ export class Critter extends Obj {
         super.init()
 
         this.stats = StatSet.fromPro(this.pro)
-        this.skills = SkillSet.fromPro(this.pro.extra.skills)
-        this.name = getMessage('pro_crit', this.pro.textID) || ''
+        this.skills = SkillSet.fromPro(this.pro!.extra.skills)
+        this.name = getMessage('pro_crit', this.pro!.textID) || ''
 
         // initialize AI packet / team number
         // FO2-CE ref: ai.cc — team_num comes from the proto field; fall back to AI packet if absent
-        this.aiNum = this.pro.extra.AI
-        const protoTeam: number | undefined = this.pro.extra.team
+        this.aiNum = this.pro!.extra.AI
+        const protoTeam: number | undefined = this.pro!.extra.team
         if (protoTeam !== undefined && protoTeam !== null && protoTeam >= 0) {
             this.teamNum = protoTeam
         } else {
@@ -377,7 +377,7 @@ export class Critter extends Obj {
             try {
                 const hitSpatials = hitSpatialTrigger(
                     position,
-                    (this as any).elevation ?? globalState.gMap.currentElevation,
+                    (this as any).elevation ?? globalState.gMap!.currentElevation,
                 )
                 for (let i = 0; i < hitSpatials.length; i++) {
                     const spatial = hitSpatials[i]
@@ -480,11 +480,11 @@ export class Critter extends Obj {
     }
 
     get directionalOffset(): Point {
-        const info = globalState.imageInfo[this.art]
+        const info = globalState.imageInfo![this.art]
         if (info === undefined) {
             throw new Error('No image map info for: ' + this.art)
         }
-        return info.directionOffsets[this.orientation]
+        return info.directionOffsets[this.orientation!]
     }
 
     walkTo(target: Point, running?: boolean, callback?: () => void, maxLength?: number, path?: any): boolean {
@@ -499,7 +499,7 @@ export class Critter extends Obj {
                 dbgWarn('movement', '[Pathfinding] walkTo: invalid target tile', target.x, target.y)
                 return false
             }
-            path = globalState.gMap.recalcPath(this.position, target, undefined, this)
+            path = globalState.gMap!.recalcPath(this.position, target, undefined, this)
         }
 
         if (path.length === 0) {
@@ -534,7 +534,7 @@ export class Critter extends Obj {
         // Critters without a walk/run FRM (spore plants, floaters' stand-only art) can't
         // move: CE _object_move does nothing when artLock(sad->fid) fails (animation.cc).
         const moveArt = this.getAnimation(running ? 'run' : 'walk')
-        if (!globalState.imageInfo[moveArt]) {
+        if (!globalState.imageInfo![moveArt]) {
             dbgWarn('movement', `[walkTo] ${this.name || this.pid} has no move art ${moveArt} — not moving`)
             return false
         }
@@ -556,7 +556,7 @@ export class Critter extends Obj {
         // CE ref: animation.cc _object_move (field_20 == -2000) — the walk starts on the
         // hex centre (objectSetLocation) and then adds frame 0's FRM delta.
         if (Config.engine.walkModel !== 'dh2') {
-            const d0 = globalState.imageInfo[this.art]?.frameOffsets[dir]?.[0]
+            const d0 = globalState.imageInfo![this.art]?.frameOffsets[dir]?.[0]
             if (d0) this.shift = { x: d0.x, y: d0.y }
         }
 
@@ -564,7 +564,7 @@ export class Critter extends Obj {
     }
 
     walkInFrontOf(targetPos: Point, callback?: () => void): boolean {
-        const path = globalState.gMap.recalcPath(this.position, targetPos, false, this)
+        const path = globalState.gMap!.recalcPath(this.position, targetPos, false, this)
         if (path.length === 0) {
             // invalid path
             return false
@@ -624,8 +624,8 @@ export class Critter extends Obj {
             action()
         }
         const path = exactHex
-            ? globalState.gMap.recalcPath(this.position, exactHex, true, this)
-            : globalState.gMap.recalcPath(this.position, targetPos, false, this)
+            ? globalState.gMap!.recalcPath(this.position, exactHex, true, this)
+            : globalState.gMap!.recalcPath(this.position, targetPos, false, this)
         if (path.length === 0 && !(exactHex && this.position.x === exactHex.x && this.position.y === exactHex.y)) return
         const steps = exactHex ? Math.max(0, path.length - 1) : Math.max(0, path.length - 2) // walkInFrontOf stops next to the target
         if (steps > ap.getAvailableMoveAP()) {

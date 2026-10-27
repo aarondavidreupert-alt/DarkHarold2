@@ -139,7 +139,7 @@ export function hexNearestNeighbor(a: Point, b: Point) {
 }
 
 // Draws a line between a and b, returning the list of coordinates (including b)
-export function hexLine(a: Point, b: Point): Point[] {
+export function hexLine(a: Point, b: Point): Point[] | null {
     const path = []
     let position: Point = { x: a.x, y: a.y }
 

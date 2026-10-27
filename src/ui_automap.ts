@@ -199,7 +199,7 @@ export function openAutomap(useScanner = false): void {
     `
     const renderOpts = () => {
         const map = globalState.gMap
-        const pan = map ? getAutomapPan(map.name, map.currentElevation) : { x: 0, y: 0 }
+        const pan = map ? getAutomapPan(map.name!, map.currentElevation) : { x: 0, y: 0 }
         return { zoom: zoomLevel, panX: pan.x, panY: pan.y, scanner: scannerOn, highDetail }
     }
 

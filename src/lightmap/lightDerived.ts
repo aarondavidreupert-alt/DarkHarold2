@@ -107,7 +107,7 @@ export function obj_adjust_light_derived(obj: Obj, addLight: LightWriter): void 
             }
 
             let tileBlocksLight = false
-            for (const curObj of globalState.gMap.objectsAtPosition(cell)) {
+            for (const curObj of globalState.gMap!.objectsAtPosition(cell)) {
                 if (!curObj.pro) continue
                 if ((curObj.flags & 1) !== 0) continue // internal flag, same skip as literal mode
                 if (!(curObj.flags & 0x20000000 /* OBJECT_LIGHT_THRU */)) {

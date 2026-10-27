@@ -55,7 +55,7 @@ export function uiCalledShot(art: string, target: Critter, callback?: (regionHit
     show($id('calledShotBox'))
 
     function drawChance(region: string) {
-        let chance: any = (globalState.combat ?? new Combat([])).getHitChance(globalState.player, target, region).hit
+        let chance: any = (globalState.combat ?? new Combat([])).getHitChance(globalState.player!, target, region).hit
         dbg('combat', `[UI] called shot: id: #calledShot-${region}-chance #digit | chance: ${chance}`)
         // CE _print_tohit: two digits from 0 ("00"), dashes only below 0
         if (chance < 0) {

@@ -97,7 +97,7 @@ function objectActions(obj: Obj) {
             else objectActions(obj).use()
         },
         rotate: () => {
-            player.orientation = (player.orientation + 1) % 6
+            player.orientation = (player.orientation! + 1) % 6
         }, // objectRotateClockwise
     }
 }

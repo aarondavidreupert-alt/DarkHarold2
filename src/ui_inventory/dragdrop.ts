@@ -42,7 +42,7 @@ export let dragInProgress = false
 
 export function makeDropTarget($el: HTMLElement, dropCallback: (data: string, e?: DragEvent) => void | Promise<void>) {
     $el.ondrop = (e: DragEvent) => {
-        const data = e.dataTransfer.getData('text/plain')
+        const data = e.dataTransfer!.getData('text/plain')
         dropCallback(data, e)
         return false
     }
@@ -53,13 +53,13 @@ export function makeDropTarget($el: HTMLElement, dropCallback: (data: string, e?
 export function makeDraggable($el: HTMLElement, data: string, endCallback?: () => void) {
     $el.setAttribute('draggable', 'true')
     $el.ondragstart = (e: DragEvent) => {
-        e.dataTransfer.setData('text/plain', data)
+        e.dataTransfer!.setData('text/plain', data)
         dragInProgress = true
         dbg('inventory', '[UI] start drag')
     }
     $el.ondragend = (e: DragEvent) => {
         dragInProgress = false
-        if (e.dataTransfer.dropEffect !== 'none') {
+        if (e.dataTransfer!.dropEffect !== 'none') {
             //$(this).remove()
             endCallback && endCallback()
         }
@@ -72,7 +72,7 @@ const openContainers: Obj[] = []
 export function inventoryList(): Obj[] {
     return openContainers.length > 0
         ? openContainers[openContainers.length - 1].inventory
-        : globalState.player.inventory
+        : globalState.player!.inventory
 }
 export function currentContainer(): Obj | null {
     return openContainers[openContainers.length - 1] ?? null
@@ -206,7 +206,7 @@ export async function uiMoveSlot(data: string, target: string) {
     if (target === 'inventory') {
         const bag = currentContainer()
         if (bag) bag.addInventoryItem(obj, obj.amount ?? 1)
-        else globalState.player.inventory.push(obj)
+        else globalState.player!.inventory.push(obj)
     } else {
         if (playerUnsafe[target] !== undefined && playerUnsafe[target] !== null) {
             // perform a swap
@@ -227,7 +227,7 @@ export async function uiMoveSlot(data: string, target: string) {
         armorPerkSwap(globalState.player!, oldArmor, playerUnsafe.armor ?? null)
         if (target === 'armor' && obj) {
             const fid: number =
-                globalState.player.gender === 'female'
+                globalState.player!.gender === 'female'
                     ? (obj as any).pro?.extra?.femaleFID
                     : (obj as any).pro?.extra?.maleFID
             let armorSound = 'ltharmor'
@@ -243,7 +243,7 @@ export async function uiMoveSlot(data: string, target: string) {
         }
         applyArmorArt(target === 'armor' ? obj : null)
         const armorAC = (globalState.player as any).armor?.pro?.extra?.AC ?? 0
-        drawAC(globalState.player.getStat('AC') + armorAC)
+        drawAC(globalState.player!.getStat('AC') + armorAC)
     }
 
     // CE ref: item.cc:353 itemAdd() stealthBoyTurnOn / item.cc:449 stealthBoyTurnOff —
@@ -261,15 +261,16 @@ export async function uiMoveSlot(data: string, target: string) {
 export function applyArmorArt(armor: Obj | null) {
     const playerAny = globalState.player as any
     if (armor?.pro?.extra) {
-        const fid: number = globalState.player.gender === 'female' ? armor.pro.extra.femaleFID : armor.pro.extra.maleFID
+        const fid: number =
+            globalState.player!.gender === 'female' ? armor.pro.extra.femaleFID : armor.pro.extra.maleFID
         if (fid && fid !== 0) {
             try {
                 const armorArt = lookupArt(fid)
                 if (armorArt) {
                     if (!playerAny._baseArt) {
-                        playerAny._baseArt = globalState.player.art
+                        playerAny._baseArt = globalState.player!.art
                     }
-                    globalState.player.art = armorArt
+                    globalState.player!.art = armorArt
                     return
                 }
             } catch (e) {
@@ -279,7 +280,7 @@ export function applyArmorArt(armor: Obj | null) {
     }
     // No armor or no valid FID — restore original art
     if (playerAny._baseArt) {
-        globalState.player.art = playerAny._baseArt
+        globalState.player!.art = playerAny._baseArt
         playerAny._baseArt = null
     }
 }

@@ -401,5 +401,5 @@ export function mapCanRestHere(elevation: number): boolean {
 }
 
 export function getCurrentMapInfo() {
-    return getMapInfo(globalState.gMap.name)
+    return getMapInfo(globalState.gMap!.name!)
 }

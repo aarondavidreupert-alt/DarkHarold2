@@ -496,18 +496,18 @@ export function uiDrawWeapon(): void {
     {
         // CE interfaceBarRefreshMainAction draws the item's inventory image for any weapon
         $wepImg.onload = null
-        $wepImg.onload = function (this: HTMLImageElement) {
-            if (!this.complete) {
+        $wepImg.onload = function () {
+            if (!$wepImg.complete) {
                 return
             }
-            Object.assign(this.style, {
+            Object.assign($wepImg.style, {
                 position: 'absolute',
                 top: '5px',
-                left: $id('attackButton').offsetWidth / 2 - this.width / 2 + 'px',
+                left: $id('attackButton').offsetWidth / 2 - $wepImg.width / 2 + 'px',
                 maxHeight: $id('attackButton').offsetHeight - 10 + 'px',
                 display: '',
             })
-            this.setAttribute('draggable', 'false')
+            $wepImg.setAttribute('draggable', 'false')
         }
         $wepImg.src = assetUrl(weapon.invArt + '.png')
     }
@@ -577,7 +577,7 @@ export function uiUpdateAmmoBar(weapon: WeaponObj | null): void {
 const END_ANIM_FRAMES = 5
 const END_ANIM_FRAME_W = 57
 // CE interfaceBarEndButtonsShow / Hide: a frame every 1000 / the FRM's fps
-const endAnimDelay = (): number => 1000 / (globalState.imageInfo['art/intrface/endanim']?.fps || 15)
+const endAnimDelay = (): number => 1000 / (globalState.imageInfo!['art/intrface/endanim']?.fps || 15)
 
 let _endAnimTimer: ReturnType<typeof setTimeout> | null = null
 let _endAnimFrame = 0

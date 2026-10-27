@@ -158,12 +158,12 @@ export function uiWorldMapShowArea(area: Area) {
             // CE worldmap.cc wmTownMapFunc → map.cc mapSetEnteringLocation(entrance elevation,
             // tile, rotation); -1 (most city.txt entrances) is the map header's start (mapLoad)
             const own = entrance.elevation >= 0 && entrance.tileNum >= 0
-            globalState.gMap.loadMap(
-                mapName,
+            globalState.gMap!.loadMap(
+                mapName!,
                 own ? fromTileNum(entrance.tileNum) : undefined,
                 own ? entrance.elevation : undefined,
             )
-            if (own && Number.isFinite(entrance.orientation)) globalState.player.orientation = entrance.orientation
+            if (own && Number.isFinite(entrance.orientation)) globalState.player!.orientation = entrance.orientation
             uiCloseWorldMap()
         }
 
@@ -196,7 +196,7 @@ function uiWorldMapLabels() {
 
     // CE ref: worldmap.cc wmMakeTabsLabelList — the known areas (wmAreaIsKnown: known
     // and visited) with a label, sorted by name.
-    const areas = Object.values(globalState.mapAreas)
+    const areas = Object.values(globalState.mapAreas!)
         .filter((a) => !!a.labelArt && Worldmap.areaIsKnown(a.id))
         .sort((a, b) => a.name.localeCompare(b.name))
 

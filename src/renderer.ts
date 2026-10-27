@@ -153,8 +153,8 @@ export function frameCell(info: any, orientation: number, frame: number): FrameC
 
 export class Renderer {
     private windows: WindowFrame[] = []
-    private objects: Obj[]
-    roofTiles: TileMap
+    private objects!: Obj[]
+    roofTiles!: TileMap
     // CE roof square flags from the map file ("x,y" → bits 12-15 of the square), when any
     roofFlags: Record<string, number> | null = null
     // squares the map file marks hidden (0x01): out of sight until the roof fill around the
@@ -162,8 +162,8 @@ export class Renderer {
     roofPresetHidden = new Set<string>()
     // the roof squares the last frame left out (the flood fill around the dude); picking reads it
     lastRoofHideSet: Set<string> | null = null
-    floorTiles: TileMap
-    fonts: Font[]
+    floorTiles!: TileMap
+    fonts!: Font[]
 
     initData(roof: TileMap, floor: TileMap, objects: Obj[], roofFlags: Record<string, number> | null = null): void {
         this.roofTiles = roof
@@ -337,21 +337,21 @@ export class Renderer {
         }
 
         if (Config.ui.showDebugOverlay && globalState.inCombat) {
-            const whose = globalState.combat.inPlayerTurn
+            const whose = globalState.combat!.inPlayerTurn
                 ? 'player'
-                : globalState.combat.combatants[globalState.combat.whoseTurn].name
-            const AP = globalState.combat.inPlayerTurn
-                ? globalState.player.AP
-                : globalState.combat.combatants[globalState.combat.whoseTurn].AP
+                : globalState.combat!.combatants[globalState.combat!.whoseTurn].name
+            const AP = globalState.combat!.inPlayerTurn
+                ? globalState.player!.AP
+                : globalState.combat!.combatants[globalState.combat!.whoseTurn].AP
             this.renderText(
-                '[turn ' + globalState.combat.turnNum + ' of ' + whose + ' AP: ' + AP.getAvailableMoveAP() + ']',
+                '[turn ' + globalState.combat!.turnNum + ' of ' + whose + ' AP: ' + AP!.getAvailableMoveAP() + ']',
                 SCREEN_WIDTH - 200,
                 15,
             )
         }
 
         if (Config.ui.showSpatials && Config.engine.doSpatials) {
-            globalState.gMap.getSpatials().forEach((spatial) => {
+            globalState.gMap!.getSpatials().forEach((spatial) => {
                 const scr = hexToScreen(spatial.position.x, spatial.position.y)
                 //heart.graphics.draw(hexOverlay, scr.x - 16 - cameraX, scr.y - 12 - cameraY)
                 const s = worldToScreen(scr.x - 10, scr.y - 3)
@@ -419,7 +419,7 @@ export class Renderer {
             SCREEN_HEIGHT,
         )
 
-        if (globalState.player.dead) {
+        if (globalState.player!.dead) {
             this.color(255, 0, 0, 50)
             this.rectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
         }
@@ -526,19 +526,19 @@ export class Renderer {
             return null
         }
 
-        const info = globalState.imageInfo[obj.art]
+        const info = globalState.imageInfo![obj.art]
         if (info === undefined) {
             throw new Error('No image map info for: ' + obj.art)
         }
 
-        if (!(obj.orientation in info.frameOffsets)) {
+        if (!(obj.orientation! in info.frameOffsets)) {
             obj.orientation = 0
         } // ...
-        const frameInfo = info.frameOffsets[obj.orientation][obj.frame]
+        const frameInfo = info.frameOffsets[obj.orientation!][obj.frame]
         if (!frameInfo) {
             return null
         }
-        const dirOffset = info.directionOffsets[obj.orientation]
+        const dirOffset = info.directionOffsets[obj.orientation!]
 
         // Anchored from the bottom center
         let offsetX = -((frameInfo.w / 2) | 0) + dirOffset.x
@@ -596,7 +596,7 @@ export class Renderer {
             visible = false
         } // out of screen bounds, no need to draw
 
-        const cell = frameCell(info, obj.orientation, obj.frame)
+        const cell = frameCell(info, obj.orientation!, obj.frame)
         const sx = cell.sx
 
         return {
@@ -699,7 +699,7 @@ export function objectOnScreen(obj: Obj): boolean {
 
 export function objectTransparentAt(obj: Obj, position: Point) {
     const frame = obj.frame !== undefined ? obj.frame : 0
-    const f = globalState.imageInfo[obj.art].frameOffsets[obj.orientation][frame]
+    const f = globalState.imageInfo![obj.art].frameOffsets[obj.orientation!][frame]
     const sx = f.sx
     const sy = f.sy ?? 0
 
@@ -731,7 +731,7 @@ export function objectBoundingBox(obj: Obj): BoundingBox | null {
         return null
     }
 
-    const info = globalState.imageInfo[obj.art]
+    const info = globalState.imageInfo![obj.art]
     if (info === undefined) {
         throw new Error('No image map info for: ' + obj.art)
     }
@@ -741,14 +741,14 @@ export function objectBoundingBox(obj: Obj): BoundingBox | null {
         frameIdx += obj.frame
     }
 
-    if (!(obj.orientation in info.frameOffsets)) {
+    if (!(obj.orientation! in info.frameOffsets)) {
         obj.orientation = 0
     } // ...
-    const frameInfo = info.frameOffsets[obj.orientation][frameIdx]
+    const frameInfo = info.frameOffsets[obj.orientation!][frameIdx]
     if (!frameInfo) {
         return null
     }
-    const dirOffset = info.directionOffsets[obj.orientation]
+    const dirOffset = info.directionOffsets[obj.orientation!]
     const ceModel = Config.engine.animOffsetModel === 'ce' && obj.type === 'critter' && obj.shift === null
     const ox = ceModel ? obj.ceOff.x : frameInfo.ox + obj.artOffset.x
     const oy = ceModel ? obj.ceOff.y : frameInfo.oy + obj.artOffset.y
@@ -768,7 +768,7 @@ export function getObjectUnderCursor(p: (obj: Obj) => boolean) {
     // every hit is a candidate, and the first opaque one outside the egg that is not a
     // dead or knocked-out critter wins — else the lowest candidate. Hidden objects never
     // intersect (object.cc _obj_intersects_with).
-    const objects = globalState.gMap.getObjects()
+    const objects = globalState.gMap!.getObjects()
     const player = globalState.player
     const mouseHex = hexFromScreen(mousePosition.x, mousePosition.y)
     const eggRadius = Config.ui.eggRadius ?? 8

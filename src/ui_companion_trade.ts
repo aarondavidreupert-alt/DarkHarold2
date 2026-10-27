@@ -88,7 +88,7 @@ export function uiCompanionTrade(companion: Critter): void {
     }
     renderBarterPortrait($id('barterBoxMerchantPortrait'), companion, true)
 
-    let workingPlayerInventory = globalState.player.inventory.map(cloneItem)
+    let workingPlayerInventory = globalState.player!.inventory.map(cloneItem)
     const heldAside = tradeHeldAside(companion, true) // CE: worn armor / right-hand item not for trade
     let workingCompanionInventory = companion.inventory.filter((it) => !heldAside.includes(it)).map(cloneItem)
 
@@ -121,7 +121,7 @@ export function uiCompanionTrade(companion: Critter): void {
     function offer(): void {
         const player = globalState.player
 
-        const playerCarry = player.getStat('Carry')
+        const playerCarry = player!.getStat('Carry')
         const playerCurrentWeight = totalWeight(workingPlayerInventory)
         const playerWeightAvailable = playerCarry - playerCurrentWeight
         if (totalWeight(companionBarterTable) > playerWeightAvailable) {
@@ -145,13 +145,13 @@ export function uiCompanionTrade(companion: Critter): void {
 
         // Accepted — finalize.
         companion.inventory = [...heldAside, ...workingCompanionInventory]
-        globalState.player.inventory = workingPlayerInventory
+        globalState.player!.inventory = workingPlayerInventory
 
-        for (const item of companionBarterTable) globalState.player.addInventoryItem(item, item.amount)
+        for (const item of companionBarterTable) globalState.player!.addInventoryItem(item, item.amount)
         for (const item of playerBarterTable) companion.addInventoryItem(item, item.amount)
 
-        workingPlayerInventory = globalState.player.inventory.map(cloneItem)
-        relinkTradedHands(companion, globalState.player)
+        workingPlayerInventory = globalState.player!.inventory.map(cloneItem)
+        relinkTradedHands(companion, globalState.player!)
         workingCompanionInventory = companion.inventory.filter((it) => !heldAside.includes(it)).map(cloneItem)
         playerBarterTable = []
         companionBarterTable = []

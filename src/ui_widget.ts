@@ -59,10 +59,10 @@ export class Widget {
         if (!this.elem.onmouseenter) {
             // Set up events for hovering/not hovering
             this.elem.onmouseenter = () => {
-                this.elem.style.backgroundImage = `url('${assetUrl(this.hoverBackground)}')`
+                this.elem.style.backgroundImage = `url('${assetUrl(this.hoverBackground!)}')`
             }
             this.elem.onmouseleave = () => {
-                this.elem.style.backgroundImage = `url('${assetUrl(this.background)}')`
+                this.elem.style.backgroundImage = `url('${assetUrl(this.background!)}')`
             }
         }
 
@@ -75,10 +75,10 @@ export class Widget {
         if (!this.elem.onmousedown) {
             // Set up events for mouse down/up
             this.elem.onmousedown = () => {
-                this.elem.style.backgroundImage = `url('${assetUrl(this.mouseDownBackground)}')`
+                this.elem.style.backgroundImage = `url('${assetUrl(this.mouseDownBackground!)}')`
             }
             this.elem.onmouseup = () => {
-                this.elem.style.backgroundImage = `url('${assetUrl(this.background)}')`
+                this.elem.style.backgroundImage = `url('${assetUrl(this.background!)}')`
             }
         }
 

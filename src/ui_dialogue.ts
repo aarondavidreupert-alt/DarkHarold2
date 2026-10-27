@@ -141,7 +141,7 @@ function setupDialogueActionButtons(target: Critter | undefined): void {
  */
 // CE game_dialog.cc gameDialogRenderCaps: itemGetTotalCaps — carried bags count too
 function updateDialogueCaps(): void {
-    $id('dialogueCapsDisplay').textContent = '$' + Scripting.itemGetTotalCaps(globalState.player)
+    $id('dialogueCapsDisplay').textContent = '$' + Scripting.itemGetTotalCaps(globalState.player!)
 }
 
 export function uiStartDialogue(force: boolean, target?: Critter) {

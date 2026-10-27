@@ -35,39 +35,39 @@ class Timer {
 class Graphics {
     rectangle(mode: string, x: number, y: number, w: number, h: number) {
         if (mode === 'fill') {
-            heart.ctx.fillRect(x, y, w, h)
+            heart.ctx!.fillRect(x, y, w, h)
         } else {
-            heart.ctx.strokeRect(x, y, w, h)
+            heart.ctx!.strokeRect(x, y, w, h)
         }
     }
 
     circle(mode: string, x: number, y: number, radius: number) {
-        heart.ctx.beginPath()
-        heart.ctx.arc(x, y, radius, 0, Math.PI * 2, false)
+        heart.ctx!.beginPath()
+        heart.ctx!.arc(x, y, radius, 0, Math.PI * 2, false)
         if (mode === 'fill') {
-            heart.ctx.fill()
+            heart.ctx!.fill()
         } else {
-            heart.ctx.stroke()
+            heart.ctx!.stroke()
         }
     }
 
     line(x1: number, y1: number, x2: number, y2: number) {
-        heart.ctx.beginPath()
-        heart.ctx.moveTo(x1, y1)
-        heart.ctx.lineTo(x2, y2)
-        heart.ctx.stroke()
+        heart.ctx!.beginPath()
+        heart.ctx!.moveTo(x1, y1)
+        heart.ctx!.lineTo(x2, y2)
+        heart.ctx!.stroke()
     }
 
     print(text: string, x: number, y: number) {
-        heart.ctx.fillText(text, x, y)
+        heart.ctx!.fillText(text, x, y)
     }
 
     setColor(r: number, g: number, b: number, a: number) {
         if (a === undefined) {
-            heart.ctx.fillStyle = heart.ctx.strokeStyle = 'rgb(' + r + ',' + g + ',' + b + ')'
+            heart.ctx!.fillStyle = heart.ctx!.strokeStyle = 'rgb(' + r + ',' + g + ',' + b + ')'
         } else {
             const alpha = (a / 255).toFixed(1) // input is in 0..255, output is in 0.0..1.0
-            heart.ctx.fillStyle = heart.ctx.strokeStyle = 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')'
+            heart.ctx!.fillStyle = heart.ctx!.strokeStyle = 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')'
         }
     }
 
@@ -101,24 +101,24 @@ class Graphics {
 
     draw(drawable: HTMLImageElement, x: number, y: number) {
         if (drawable !== undefined) {
-            heart.ctx.drawImage(drawable, x, y)
+            heart.ctx!.drawImage(drawable, x, y)
         }
     }
 
     translate(x: number, y: number) {
-        heart.ctx.translate(x, y)
+        heart.ctx!.translate(x, y)
     }
 
     rotate(angle: number) {
-        heart.ctx.rotate(angle)
+        heart.ctx!.rotate(angle)
     }
 
     push() {
-        heart.ctx.save()
+        heart.ctx!.save()
     }
 
     pop() {
-        heart.ctx.restore()
+        heart.ctx!.restore()
     }
 }
 
@@ -162,29 +162,29 @@ class Heart {
     _targetTickTime: number | undefined = undefined /* 1000 / _targetFPS (milliseconds to aim for) */
     _numFrames = 0 /* used for FPS counting (number of frames since last FPS count) */
     _lastFPSTime = 0 /* used for FPS counting (time the last FPS count was done) */
-    _bg = { r: 127, g: 127, b: 127 } /* background color */
+    _bg: { r: number; g: number; b: number } | null = { r: 127, g: 127, b: 127 } /* background color */
     _size = { w: 800, h: 600 } /* size of viewport */
     _imagesLoading: HTMLImageElement[] = [] /* for synchronous image loading */
     _keysDown: { [name: string]: boolean } = {} /* which keys are down (char -> bool) */
     _canvasOffset = { x: 0, y: 0 } /* offset of the canvas relative to the document */
 
-    canvas: HTMLCanvasElement
-    ctx: CanvasRenderingContext2D | undefined
+    canvas!: HTMLCanvasElement
+    ctx: CanvasRenderingContext2D | null | undefined
     graphics: Graphics = new Graphics()
     mouse: Mouse = new Mouse()
     keyboard = new Keyboard()
     timer = new Timer()
 
-    keydown: (key: string) => void
-    keypressed: (key: string) => void
-    keyup: (key: string) => void
-    keyreleased: (key: string) => void
-    mousemoved: (x: number, y: number) => void
-    mousepressed: (x: number, y: number, btn: MouseButton) => void
-    mousereleased: (x: number, y: number, btn: MouseButton) => void
-    update: (time: number) => void
-    draw: () => void
-    focus: (isFocused: boolean) => void
+    keydown!: (key: string) => void
+    keypressed!: (key: string) => void
+    keyup!: (key: string) => void
+    keyreleased!: (key: string) => void
+    mousemoved!: (x: number, y: number) => void
+    mousepressed!: (x: number, y: number, btn: MouseButton) => void
+    mousereleased!: (x: number, y: number, btn: MouseButton) => void
+    update!: (time: number) => void
+    draw!: () => void
+    focus!: (isFocused: boolean) => void
 
     _init() {
         /* if we're waiting on images to load, spinlock */
@@ -274,10 +274,10 @@ class Heart {
         heart._lastTick = time
         heart._frameAccum += heart._dt
 
-        if (heart._frameAccum >= heart._targetTickTime) {
-            heart._frameAccum -= heart._targetTickTime
+        if (heart._frameAccum >= heart._targetTickTime!) {
+            heart._frameAccum -= heart._targetTickTime!
             heart._numFrames++
-            heart._frameAccum = Math.min(heart._frameAccum, heart._targetTickTime)
+            heart._frameAccum = Math.min(heart._frameAccum, heart._targetTickTime!)
 
             const deltaFPSTime = time - heart._lastFPSTime
             if (deltaFPSTime >= 1000) {
@@ -291,8 +291,8 @@ class Heart {
             }
 
             if (heart._bg) {
-                heart.ctx.fillStyle = 'rgb(' + heart._bg.r + ',' + heart._bg.g + ',' + heart._bg.b + ')'
-                heart.ctx.fillRect(0, 0, heart._size.w, heart._size.h)
+                heart.ctx!.fillStyle = 'rgb(' + heart._bg.r + ',' + heart._bg.g + ',' + heart._bg.b + ')'
+                heart.ctx!.fillRect(0, 0, heart._size.w, heart._size.h)
             }
 
             if (heart.draw) {
@@ -307,7 +307,7 @@ class Heart {
             return false
         }
         heart.canvas = el as HTMLCanvasElement
-        heart.ctx = heart.canvas.getContext('2d', { willReadFrequently: true })
+        heart.ctx = heart.canvas.getContext('2d', { willReadFrequently: true })!
         if (!heart.ctx) {
             alert("couldn't get canvas context")
         }

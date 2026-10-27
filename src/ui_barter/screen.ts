@@ -221,7 +221,7 @@ export function uiBarterMode(merchant: Critter) {
     // TODO: would it be better if we dropped the "working" copies?
 
     // a copy of inventories for both parties
-    let workingPlayerInventory = globalState.player.inventory.map(cloneItem)
+    let workingPlayerInventory = globalState.player!.inventory.map(cloneItem)
     const heldAside = tradeHeldAside(merchant, false) // CE: worn armor / right-hand item not for trade
     let workingMerchantInventory = merchant.inventory.filter((it) => !heldAside.includes(it)).map(cloneItem)
 
@@ -280,7 +280,7 @@ export function uiBarterMode(merchant: Critter) {
 
         // Combined barterMod: script mod + reaction mod
         const scriptMod = Scripting.getDialogueBarterMod()
-        const perkBonus = player.hasPerk?.('Master Trader') ? 25 : 0
+        const perkBonus = player!.hasPerk?.('Master Trader') ? 25 : 0
         const barterModMult = Math.max(0.01, (scriptMod + reactionMod + 100 - perkBonus) * 0.01)
 
         const balancedCost = ((160 + npcBarter) / (160 + playerBarter)) * (costWithoutCaps * 2)
@@ -318,7 +318,7 @@ export function uiBarterMode(merchant: Critter) {
                 const it = (player as any)[h]
                 return w + (it && it.pid !== undefined ? it.stackWeight(it.amount ?? 1) : 0)
             }, 0)
-        if (tableWeight > player.getStat('Carry') - carried) {
+        if (tableWeight > player!.getStat('Carry') - carried) {
             uiSetDialogueReply(getMessage('inventry', 31) ?? 'Sorry, you cannot carry that much.')
             return false
         }
@@ -352,19 +352,19 @@ export function uiBarterMode(merchant: Critter) {
 
             // swap to working inventories
             merchant.inventory = [...heldAside, ...workingMerchantInventory]
-            globalState.player.inventory = workingPlayerInventory
+            globalState.player!.inventory = workingPlayerInventory
 
             // add in the table items
             for (let i = 0; i < merchantBarterTable.length; i++) {
-                globalState.player.addInventoryItem(merchantBarterTable[i], merchantBarterTable[i].amount)
+                globalState.player!.addInventoryItem(merchantBarterTable[i], merchantBarterTable[i].amount)
             }
             for (let i = 0; i < playerBarterTable.length; i++) {
                 merchant.addInventoryItem(playerBarterTable[i], playerBarterTable[i].amount)
             }
 
             // re-clone so we can continue bartering if necessary
-            workingPlayerInventory = globalState.player.inventory.map(cloneItem)
-            relinkTradedHands(merchant, globalState.player)
+            workingPlayerInventory = globalState.player!.inventory.map(cloneItem)
+            relinkTradedHands(merchant, globalState.player!)
             workingMerchantInventory = merchant.inventory.filter((it) => !heldAside.includes(it)).map(cloneItem)
 
             playerBarterTable = []

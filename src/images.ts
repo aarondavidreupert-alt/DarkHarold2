@@ -92,7 +92,7 @@ export function ensureCycleMask(art: string): void {
 export function artExists(art: string): Promise<boolean> {
     return new Promise((resolve) => {
         lazyLoadImage(art, (img) => {
-            resolve(img !== null && globalState.imageInfo[art] !== undefined)
+            resolve(img !== null && globalState.imageInfo![art] !== undefined)
         })
     })
 }

@@ -116,7 +116,7 @@ export function initGame() {
         void gameMoviePlay(MOVIE_ELDER, GAME_MOVIE_STOP_MUSIC).then(() => {
             randomSeedPrerandom(-1)
             requestGlobalScriptsStart() // sfall: after the new game's map has loaded
-            globalState.gMap.loadMap('artemple')
+            globalState.gMap!.loadMap('artemple')
         })
     }
     // CE main.cc:113 — NEW GAME opens the premade character selector first.

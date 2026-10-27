@@ -86,7 +86,7 @@ export function uiLoot(object: Obj) {
     // 9 deep); the body view (CE INVENTORY_LOOT_LEFT / RIGHT_BODY_VIEW) shows the open one
     const leftBags: Obj[] = []
     const rightBags: Obj[] = []
-    const leftList = () => (leftBags.length ? leftBags[leftBags.length - 1].inventory : globalState.player.inventory)
+    const leftList = () => (leftBags.length ? leftBags[leftBags.length - 1].inventory : globalState.player!.inventory)
     const rightList = () => (rightBags.length ? rightBags[rightBags.length - 1].inventory : object.inventory)
 
     async function uiLootMove(data: string /* "l"|"r" */, where: 'left' | 'right') {
@@ -121,8 +121,8 @@ export function uiLoot(object: Obj) {
         const tooHeavy =
             toBag &&
             where === 'left' &&
-            from !== globalState.player.inventory &&
-            !globalState.player.canCarry(obj, wantedAmount)
+            from !== globalState.player!.inventory &&
+            !globalState.player!.canCarry(obj, wantedAmount)
         if (wantedAmount > 0 && (tooHeavy || !toOwner.canCarry?.(obj, wantedAmount))) {
             // CE ref: inventory.cc:4622/4657 — msg 26 when the container is full,
             // msg 25 when the player is over their weight capacity.
@@ -173,11 +173,11 @@ export function uiLoot(object: Obj) {
                     else if (action === 'unload') unloadWeapon(item, (ammo) => owner.addInventoryItem(ammo, 1))
                     else if (action === 'drop') {
                         const list = ownerIsDude ? leftList() : rightList()
-                        if (list !== globalState.player.inventory) {
+                        if (list !== globalState.player!.inventory) {
                             list.splice(list.indexOf(item), 1)
-                            globalState.player.inventory.push(item)
+                            globalState.player!.inventory.push(item)
                         }
-                        item.drop(globalState.player)
+                        item.drop(globalState.player!)
                     }
                     drawLoot()
                 })

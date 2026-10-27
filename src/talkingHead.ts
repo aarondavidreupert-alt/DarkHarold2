@@ -116,7 +116,7 @@ function headArtKey(anim: number, fidget = 0): string {
 }
 
 function loadHeadArt(key: string): HeadArt | null {
-    const info = globalState.imageInfo[key]
+    const info = globalState.imageInfo![key]
     if (!info) return null
     lazyLoadImage(key)
     const dir = info.directionOffsets?.[0] ?? { x: 0, y: 0 }

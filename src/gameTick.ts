@@ -159,15 +159,15 @@ export function tickGame(): void {
     const $fps = globalState.$fpsOverlay
     if ($fps) $fps.style.display = Config.ui.showFPS ? '' : 'none'
     if (Config.ui.showFPS && time - globalState.lastFPSTime >= 500) {
-        globalState.$fpsOverlay.textContent = 'fps: ' + heart.timer.getFPS()
+        globalState.$fpsOverlay!.textContent = 'fps: ' + heart.timer.getFPS()
         globalState.lastFPSTime = time
 
         if (globalState.lastUpdateTime != undefined) {
-            globalState.$fpsOverlay.textContent += ' update: ' + globalState.lastUpdateTime + 'ms'
+            globalState.$fpsOverlay!.textContent += ' update: ' + globalState.lastUpdateTime + 'ms'
         }
 
         if (globalState.lastDrawTime) {
-            globalState.$fpsOverlay.textContent += ' draw: ' + globalState.lastDrawTime + 'ms'
+            globalState.$fpsOverlay!.textContent += ' draw: ' + globalState.lastDrawTime + 'ms'
         }
     }
 
@@ -346,8 +346,8 @@ export function tickGame(): void {
         const passes = Math.min(8, Math.floor((time - critterLoopLast) / CE_LOOP_MS))
         critterLoopLast += passes * CE_LOOP_MS
         if (passes > 0) {
-            const scripted = globalState.gMap
-                .getObjects()
+            const scripted = globalState
+                .gMap!.getObjects()
                 .filter((o) => o.type === 'critter' && o._script && !(o as Critter).dead)
             for (let i = 0; i < passes && scripted.length > 0; i++) {
                 critterScriptCursor = (critterScriptCursor + 1) % scripted.length
@@ -358,7 +358,7 @@ export function tickGame(): void {
         if (time - critterLoopLast > 8 * CE_LOOP_MS) critterLoopLast = time
     }
 
-    for (const obj of globalState.gMap.getObjects()) {
+    for (const obj of globalState.gMap!.getObjects()) {
         obj.updateAnim()
     }
 

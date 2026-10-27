@@ -1,10 +1,10 @@
 import { dbg, dbgWarn } from './logger.js'
 
-let db: IDBDatabase = null
+let db: IDBDatabase | null = null
 
 function withTransaction(f: (trans: IDBTransaction) => void, finished?: () => void) {
-    const trans = db.transaction('cache', 'readwrite')
-    trans.oncomplete = finished
+    const trans = db!.transaction('cache', 'readwrite')
+    trans.oncomplete = finished!
     f(trans)
 }
 

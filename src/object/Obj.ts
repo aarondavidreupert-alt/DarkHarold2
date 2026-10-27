@@ -528,7 +528,7 @@ export function toggleObjectOpen(obj: Obj, loot = true, signalEvent = true): boo
 }
 
 function objectFindIndex(obj: Obj): number {
-    return globalState.gMap.getObjects().findIndex((object) => object === obj)
+    return globalState.gMap!.getObjects().findIndex((object) => object === obj)
 }
 
 // CE ref: proto_instance.cc:2171 objectUnjamAll — clears jammed flag on all map objects.
@@ -596,7 +596,7 @@ function objectZOrder(obj: Obj, index: number): void {
     }
 
     // TOOD: mutable/potentially unsafe usage of getObjects
-    const objects = globalState.gMap.getObjects()
+    const objects = globalState.gMap!.getObjects()
 
     objects.splice(oldIdx, 1) // remove the object...
 
@@ -636,7 +636,7 @@ export function zsortMap(levels: Obj[][] | null): void {
 // CE scripts.cc scriptsExecSpatialProc(object, tile, elevation): the spatials of the moving
 // object's elevation (a critter on another floor than the dude's triggers its own floor's)
 export function hitSpatialTrigger(position: Point, elevation?: number): any {
-    return (globalState.gMap.getSpatials(elevation) ?? []).filter((spatial: any) => {
+    return (globalState.gMap!.getSpatials(elevation) ?? []).filter((spatial: any) => {
         const distance = hexDistance(position, spatial.position)
         if (distance === 0) return true
         const radius = spatial.range ?? 0
@@ -660,7 +660,7 @@ export interface SerializedObj {
     extra: any
 
     script: string
-    _script: Scripting.SerializedScript | undefined
+    _script: Scripting.SerializedScript | null | undefined
 
     name: string
     subtype: string
@@ -688,31 +688,31 @@ export interface SerializedObj {
 export class Obj {
     uid = -1 // Unique ID given to all objects, to distinguish objects with the same PIDs
 
-    pid: number // PID (Prototype IDentifier)
-    pidID: number // ID (not type) part of the PID
-    type: ObjType = null // getPROTypeName(): item/critter/scenery/wall/tile/misc
-    pro: Proto = null // PRO object (shared per pid — see weaponAmmo.ts for per-object state)
+    pid!: number // PID (Prototype IDentifier)
+    pidID!: number // ID (not type) part of the PID
+    type: ObjType | null = null // getPROTypeName(): item/critter/scenery/wall/tile/misc
+    pro: Proto | null = null // PRO object (shared per pid — see weaponAmmo.ts for per-object state)
     flags = 0 // Flags from PRO; may be overriden by map objects
-    art: string // TODO: Path // Art path
-    frmPID: number = null // Art FID
-    orientation: number = null // Direction the object is facing
+    art!: string // TODO: Path // Art path
+    frmPID: number | null = null // Art FID
+    orientation: number | null = null // Direction the object is facing
     visible = true // Is the object visible?
     open = false // Is the object open? (Mainly for doors)
     locked = false // Is the object locked? (Mainly for doors)
     jammed = false // Is the lock jammed? (CE DOOR_FLAG_JAMMGED / OBJ_JAMMED)
 
-    extra: { [key: string]: any } // per-object map data (fomap.py item/scenery/misc extras)
+    extra!: { [key: string]: any } // per-object map data (fomap.py item/scenery/misc extras)
 
-    script: string // Script name
-    _script: Scripting.Script | undefined // Live script object
+    script!: string // Script name
+    _script: Scripting.Script | null | undefined // Live script object
 
     // TOOD: unify these
-    name: string // = "<unnamed obj>"; // Only for some critters at the moment.
-    subtype: string // Some objects, like items and scenery, have subtypes
-    invArt: string // Art path used for in-inventory image
+    name!: string // = "<unnamed obj>"; // Only for some critters at the moment.
+    subtype!: string // Some objects, like items and scenery, have subtypes
+    invArt!: string // Art path used for in-inventory image
 
     anim: string | null = null // Current animation name ('idle', 'walk', 'attack', ...)
-    animCallback: () => void | null = null // Callback when current animation is finished playing
+    animCallback: (() => void) | null = null // Callback when current animation is finished playing
     frame = 0 // Animation frame index
     lastFrameTime = 0 // Time since last animation frame played
 
@@ -720,7 +720,7 @@ export class Obj {
     // For static animations, this is just null (effectively just the frame offset as declared in the .FRM),
     // but for walk/run animations it is the sum of frame offsets between the last action frame
     // and the current frame.
-    shift: Point = null
+    shift: Point | null = null
 
     // Carry-offset accumulated across FRM art transitions so that switching FRMs never causes a
     // visual jump. Mirrors CE's obj->x/y (object.cc) which is reset on objectSetLocation (tile
@@ -757,7 +757,7 @@ export class Obj {
         const pidType = (pid >> 24) & 0xff
         const pidID = pid & 0xffff
 
-        const pro: Proto = loadPRO(pid, pidID)
+        const pro: Proto = loadPRO(pid, pidID)!
         obj.type = getPROTypeName(pidType)
         obj.pid = pid
         obj.pro = pro
@@ -773,12 +773,12 @@ export class Obj {
         if (pidType === 0) {
             // item — PRO JSON uses camelCase 'subType' (from proto.py), not 'subtype'
             obj.subtype = getPROSubTypeName(pro.extra.subType ?? pro.extra.subtype)
-            obj.name = getMessage('pro_item', pro.textID)
+            obj.name = getMessage('pro_item', pro.textID)!
 
             const invPID = pro.extra.invFRM & 0xffff
             dbg('object', `[Object] invPID: ${invPID}, pid=${pid}`)
             if (invPID !== 0xffff) {
-                obj.invArt = 'art/inven/' + getLstId('art/inven/inven', invPID).split('.')[0]
+                obj.invArt = 'art/inven/' + getLstId('art/inven/inven', invPID)!.split('.')[0]
             }
         }
 
@@ -1028,7 +1028,7 @@ export class Obj {
         // are added in. @important
 
         if (this._script) {
-            Scripting.objectEnterMap(this, globalState.currentElevation, globalState.gMap.mapID)
+            Scripting.objectEnterMap(this, globalState.currentElevation, globalState.gMap!.mapID)
         }
     }
 
@@ -1053,7 +1053,7 @@ export class Obj {
 
         // give us a new z-order
         if (Config.engine.doZOrder !== false) {
-            objectZOrder(this, curIdx)
+            objectZOrder(this, curIdx!)
         }
 
         return true
@@ -1063,7 +1063,7 @@ export class Obj {
         if (!this.anim) return
         if (this.anim === 'dead') return // corpse is frozen, never step frames
 
-        const imageInfo = globalState.imageInfo[this.art]
+        const imageInfo = globalState.imageInfo![this.art]
         if (!imageInfo) return // image metadata not yet loaded, skip this tick
 
         const time = window.performance.now()
@@ -1143,7 +1143,7 @@ export class Obj {
 
     singleAnimation(reversed?: boolean, callback?: () => void): void {
         if (reversed) {
-            this.frame = globalState.imageInfo[this.art].numFrames - 1
+            this.frame = globalState.imageInfo![this.art].numFrames - 1
         } else {
             this.frame = 0
         }
@@ -1310,10 +1310,10 @@ export class Obj {
             wall: 'pro_wall',
             misc: 'pro_misc',
         }
-        return categories[this.type]
+        return categories[this.type!]
     }
 
-    getDescription(): string {
+    getDescription(): string | null {
         if (!this.pro) {
             return null
         }
@@ -1346,23 +1346,23 @@ export class Obj {
     }
 
     get isDoor(): boolean {
-        return this.type === 'scenery' && this.pro.extra.subType === 0 // SCENERY_DOOR
+        return this.type === 'scenery' && this.pro!.extra.subType === 0 // SCENERY_DOOR
     }
 
     get isStairs(): boolean {
-        return this.type === 'scenery' && this.pro.extra.subType === 1 // SCENERY_STAIRS
+        return this.type === 'scenery' && this.pro!.extra.subType === 1 // SCENERY_STAIRS
     }
 
     get isLadder(): boolean {
         return (
             this.type === 'scenery' &&
-            (this.pro.extra.subType === 3 || // SCENERY_LADDER_BOTTOM
-                this.pro.extra.subType === 4)
+            (this.pro!.extra.subType === 3 || // SCENERY_LADDER_BOTTOM
+                this.pro!.extra.subType === 4)
         ) // SCENERY_LADDER_TOP
     }
 
     get isContainer(): boolean {
-        return this.type === 'item' && this.pro.extra.subType === 1 // SUBTYPE_CONTAINER
+        return this.type === 'item' && this.pro!.extra.subType === 1 // SUBTYPE_CONTAINER
     }
 
     // CE proto.cc _proto_action_can_pickup: any item but a container without ext flag 0x8000
@@ -1387,7 +1387,7 @@ export class Obj {
     }
 
     get canUse(): boolean {
-        if (this._script !== undefined && this._script.use_p_proc !== undefined) {
+        if (this._script !== undefined && this._script!.use_p_proc !== undefined) {
             return true
         } else if (this.isExplosive) {
             return !(this as any).armed // already armed → only Drop is shown
@@ -1400,8 +1400,8 @@ export class Obj {
                 // bytes separately as itemFlags/actionFlags/weaponFlags/attackMode, so
                 // bit 0x0800 lands in byte 2 (weaponFlags, bit 0x08). Scenery keeps the
                 // whole int32 as extendedFlags.
-                if (this.type === 'scenery') return ((this.pro.extra.extendedFlags ?? 0) & 0x0800) !== 0
-                return (this.pro.extra.weaponFlags & 0x08) !== 0
+                if (this.type === 'scenery') return ((this.pro!.extra.extendedFlags ?? 0) & 0x0800) !== 0
+                return (this.pro!.extra.weaponFlags & 0x08) !== 0
             }
         }
         return false
@@ -1445,9 +1445,9 @@ export class Obj {
 
         if (useScript !== false && this._script && this._script.use_p_proc !== undefined) {
             if (source === undefined) {
-                source = globalState.player
+                source = globalState.player!
             }
-            if (Scripting.use(this, source) === true) {
+            if (Scripting.use(this, source!) === true) {
                 dbg('object', '[Object] useObject: overridden by script')
                 return true // script overrided us
             }
@@ -1500,7 +1500,7 @@ export class Obj {
         }
 
         if (this.isExplosive) {
-            useExplosive(this, source)
+            useExplosive(this, source!)
             return true
         }
 
@@ -1527,8 +1527,8 @@ export class Obj {
             // CE _obj_use_door: closing over something in the doorway — proto.msg 597
             if (this.open) {
                 const gMap = globalState.gMap
-                const elevation = (this as any).elevation ?? gMap.currentElevation
-                if (gMap.blockingObjectAt(toTileNum(this.position), elevation, 0, this) !== null) {
+                const elevation = (this as any).elevation ?? gMap!.currentElevation
+                if (gMap!.blockingObjectAt(toTileNum(this.position), elevation, 0, this) !== null) {
                     uiLog(getProtoMsg(597) ?? 'The doorway seems to be blocked.')
                     return false
                 }
@@ -1554,19 +1554,19 @@ export class Obj {
                 // same map, new destination
                 dbg('object', `[Object] stairs: tile=(${destTile.x}, ${destTile.y}), elev=${destElev}`)
 
-                globalState.player.position = destTile
-                globalState.gMap.changeElevationFaded(destElev)
+                globalState.player!.position = destTile
+                globalState.gMap!.changeElevationFaded(destElev)
                 // CE ref: map.cc:386 mapSetElevation fires only map_update_p_proc, not map_enter_p_proc
-                globalState.gMap.updateMap()
+                globalState.gMap!.updateMap()
             } else {
                 dbg(
                     'object',
                     `[Object] stairs → ${this.extra.destinationMap} @ (${destTile.x}, ${destTile.y}), elev=${destElev}`,
                 )
-                globalState.gMap.loadMapByID(this.extra.destinationMap, destTile, destElev)
+                globalState.gMap!.loadMapByID(this.extra.destinationMap, destTile, destElev)
             }
         } else if (this.isLadder) {
-            const isTop = this.pro.extra.subType === 4
+            const isTop = this.pro!.extra.subType === 4
             // CE ref: proto_instance.cc:1512 useLadderDown/useLadderUp — reads tile and
             // elevation from the packed destinationBuiltTile field (same format as stairs);
             // builtTile -1 fails, destinationMap != 0 is a map transition (tools/fomap.py
@@ -1587,13 +1587,13 @@ export class Obj {
             }
             const transition = () => {
                 if (destMap !== 0) {
-                    globalState.gMap.loadMapByID(destMap, destTile, destElev)
+                    globalState.gMap!.loadMapByID(destMap, destTile, destElev)
                     return
                 }
-                globalState.player.position = destTile
-                globalState.gMap.changeElevationFaded(destElev)
+                globalState.player!.position = destTile
+                globalState.gMap!.changeElevationFaded(destElev)
                 // CE ref: map.cc:386 mapSetElevation fires only map_update_p_proc
-                globalState.gMap.updateMap()
+                globalState.gMap!.updateMap()
             }
 
             const actor = source ?? globalState.player
@@ -1601,19 +1601,19 @@ export class Obj {
                 // CE actions.cc _action_climb_ladder (SCENERY_TYPE_LADDER_UP): facing the
                 // ladder, a drawn weapon put away (ANIM_PUT_AWAY), ANIM_CLIMB_LADDER with its
                 // sound (actions.cc:1050), _obj_use, then the weapon taken out (ANIM_TAKE_OUT)
-                actor.orientation = hexDirectionTo(actor.position, this.position)
-                const weaponCode = critterWeaponCode(actor)
+                actor!.orientation = hexDirectionTo(actor!.position, this.position)
+                const weaponCode = critterWeaponCode(actor!)
                 const takeOut = () => {
-                    if (weaponCode > 0 && actor.hasAnimation('weapon-draw')) {
-                        playCharAnimSfx(actor, ANIM.takeOut, weaponCode)
-                        actor.staticAnimation('weapon-draw', () => actor.clearAnim())
+                    if (weaponCode > 0 && actor!.hasAnimation('weapon-draw')) {
+                        playCharAnimSfx(actor!, ANIM.takeOut, weaponCode)
+                        actor!.staticAnimation('weapon-draw', () => actor!.clearAnim())
                     }
                 }
                 const climb = () => {
-                    playCharSfx(actor, sfxBuildCharName(actor, 4 /* ANIM_CLIMB_LADDER */))
-                    if (actor.hasAnimation('climb'))
-                        actor.staticAnimation('climb', () => {
-                            actor.clearAnim()
+                    playCharSfx(actor!, sfxBuildCharName(actor!, 4 /* ANIM_CLIMB_LADDER */))
+                    if (actor!.hasAnimation('climb'))
+                        actor!.staticAnimation('climb', () => {
+                            actor!.clearAnim()
                             transition()
                             takeOut()
                         })
@@ -1622,17 +1622,17 @@ export class Obj {
                         takeOut()
                     }
                 }
-                if (weaponCode > 0 && actor.hasAnimation('weapon-holster')) {
-                    playCharAnimSfx(actor, ANIM.putAway)
-                    actor.staticAnimation('weapon-holster', climb)
+                if (weaponCode > 0 && actor!.hasAnimation('weapon-holster')) {
+                    playCharAnimSfx(actor!, ANIM.putAway)
+                    actor!.staticAnimation('weapon-holster', climb)
                 } else {
                     climb()
                 }
                 return true // updateMap() runs in transition()
-            } else if (actor.hasAnimation('use')) {
+            } else if (actor!.hasAnimation('use')) {
                 // A ladder down: the normal magic-hands use (CE _action_use_an_item_on_object)
-                actor.staticAnimation('use', () => {
-                    actor.clearAnim()
+                actor!.staticAnimation('use', () => {
+                    actor!.clearAnim()
                     transition()
                 })
                 return true
@@ -1651,7 +1651,7 @@ export class Obj {
                 uiLog((getProtoMsg(480) ?? 'You see: %s.').replace('%s', this.name ?? ''))
         }
 
-        globalState.gMap.updateMap()
+        globalState.gMap!.updateMap()
         return true
     }
 
@@ -1801,7 +1801,7 @@ export class Obj {
                 return
             }
             source.addInventoryItem(this, this.amount)
-            globalState.gMap.destroyObject(this)
+            globalState.gMap!.destroyObject(this)
         }
         const playPickup = () => {
             if (source.hasAnimation('pickUp')) {
@@ -1838,9 +1838,9 @@ export class Obj {
         this.flags = (this.flags ?? 0) & ~0x7000000 // no longer in a hand / worn
 
         globalState.audioEngine.playSfxByName('iputdown')
-        globalState.gMap.addObject(this) // add to objects
+        globalState.gMap!.addObject(this) // add to objects
         if (this.pid === PROTO_ID_LIT_FLARE && Config.engine.doFloorLighting) Lightmap.rebuildLight() // its light now on the floor
-        const idx = globalState.gMap.getObjects().length - 1 // our new index
+        const idx = globalState.gMap!.getObjects().length - 1 // our new index
         this.move({ x: source.position.x, y: source.position.y }, idx)
         return true
     }
@@ -1851,12 +1851,12 @@ export class Obj {
             uid: this.uid,
             pid: this.pid,
             pidID: this.pidID,
-            type: this.type,
+            type: this.type!,
             pro: this.pro, // XXX: if pro changes in the future, this should be cloned
             flags: this.flags,
             art: this.art,
-            frmPID: this.frmPID,
-            orientation: this.orientation,
+            frmPID: this.frmPID!,
+            orientation: this.orientation!,
             visible: this.visible,
             extra: this.extra,
             script: this.script,

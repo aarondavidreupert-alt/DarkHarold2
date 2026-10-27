@@ -1680,7 +1680,7 @@ export class Combat {
             if (attacker.crippledLeftArm && attacker.crippledRightArm) continue
             if ((attacker.crippledLeftArm || attacker.crippledRightArm) && twoHanded) continue
             const attackArt = attacker.getBase() + weapon.getAnim('attack')
-            if (!globalState.imageInfo[attackArt]) continue
+            if (!globalState.imageInfo![attackArt]) continue
             if (attacker.getSkill(weapon.weaponSkillType) < packet.minToHit) continue
             const attackType = weaponAttackType(item)
             if (!prefs.includes(attackType)) continue
@@ -1798,7 +1798,7 @@ export class Combat {
         if (inHand && inHand.pid !== undefined) return 'none'
         const defenderBiped = ((defender.pro as any)?.extra?.bodyType ?? 0) === 0
         const defenderUnarmed = defenderUnarmedNow(defender) // CE: the fid's weapon code is 0
-        const canPunch = !!globalState.imageInfo[attacker.getBase() + 'ap']
+        const canPunch = !!globalState.imageInfo![attacker.getBase() + 'ap']
         const punchRange = inHand?.weapon?.getMaximumRange(1) ?? 1
         const inReach = hexDistance(attacker.position, defender.position) <= punchRange
         if (defenderBiped && defenderUnarmed && canPunch && inReach) return 'none'
@@ -1829,7 +1829,7 @@ export class Combat {
                 weapon.mode = prev
             }
         }
-        if (!withSecondary(() => !!globalState.imageInfo[attacker.getAnimation('attack')])) return 'primary'
+        if (!withSecondary(() => !!globalState.imageInfo![attacker.getAnimation('attack')])) return 'primary'
 
         const secondaryToHit = (): number => withSecondary(() => this.getHitChance(attacker, defender, 'torso').hit)
         const safe = () => !this.combatSafetyInvalidateWeapon(attacker, weaponObj, 'secondary', defender, false)
@@ -2162,7 +2162,7 @@ export class Combat {
             if (globalState.gMap !== gMap) return onArrive()
             gMap.addObject(proj)
             proj.shift = { x: 0, y: 0 }
-            const info = globalState.imageInfo[proj.art]
+            const info = globalState.imageInfo![proj.art]
             const fps = (info?.fps || 10) + (globalState.inCombat ? Config.combat.combatSpeed : 0)
             // Shown on the start hex for one frame, then one node per frame; the last node
             // stays visible for a frame before the projectile is removed (CE hides it in
@@ -2736,7 +2736,7 @@ export class Combat {
         for (const c of this.combatants) {
             if (c.isPlayer || c.dead || !relevant(c)) continue
             if (c.hostile ? !this.wantToStop(c) : this.wantToJoin(c)) {
-                uiLog(this.getCombatMsg(103))
+                uiLog(this.getCombatMsg(103)!)
                 return
             }
         }
@@ -3014,7 +3014,7 @@ export class Combat {
         if (inHand && inHand.pid !== undefined) return 'retry'
         const defenderBiped = ((target.pro as any)?.extra?.bodyType ?? 0) === 0
         const defenderUnarmed = defenderUnarmedNow(target) // CE: the fid's weapon code is 0
-        if (defenderBiped && defenderUnarmed && globalState.imageInfo[obj.getBase() + 'ap']) return 'retry'
+        if (defenderBiped && defenderUnarmed && globalState.imageInfo![obj.getBase() + 'ap']) return 'retry'
         const r = this.aiSwitchWeapons(obj, target, again)
         return r === 'fail' ? 'retry' : r
     }
@@ -3265,7 +3265,7 @@ export class Combat {
         if (obj.crippledLeftArm && obj.crippledRightArm) return false
         const twoHanded = (((item as any).pro?.extra?.weaponFlags ?? 0) & 0x02) !== 0
         if ((obj.crippledLeftArm || obj.crippledRightArm) && twoHanded) return false
-        if (!globalState.imageInfo[obj.getBase() + weapon.getAnim('attack')]) return false
+        if (!globalState.imageInfo![obj.getBase() + weapon.getAnim('attack')]) return false
         const packet = obj.ai!.packet
         if (obj.getSkill(weapon.weaponSkillType) < packet.minToHit) return false
         return (Combat.WEAP_PREF_ORDERINGS[packet.bestWeapon] ?? []).includes(weaponAttackType(item))
@@ -3648,7 +3648,7 @@ export class Combat {
             triggerTeams.add(-1)
         }
         combatDebug(`start: triggerTeams=[${[...triggerTeams].join(',')}]`)
-        globalState.combat = new Combat(globalState.gMap.getObjects(), triggerTeams)
+        globalState.combat = new Combat(globalState.gMap!.getObjects(), triggerTeams)
         globalState.combat.gcsd = gcsd ?? null
         // CE combat.cc _combat_begin: damageLastTurn starts at 0 for every combatant
         for (const c of globalState.combat.combatants) (c as any).damageLastTurn = 0
@@ -3680,7 +3680,7 @@ export class Combat {
         })
 
         globalState.combat.nextTurn()
-        globalState.gMap.updateMap()
+        globalState.gMap!.updateMap()
     }
 
     // CE combat.cc _combat_delete_critter: out of the turn order (the current turn stays
@@ -3714,7 +3714,7 @@ export class Combat {
         if (combatActive) return
         combatActive = true
         globalState.inCombat = true
-        const c = new Combat(globalState.gMap.getObjects())
+        const c = new Combat(globalState.gMap!.getObjects())
         globalState.combat = c
         const byUid = new Map(c.combatants.map((x) => [x.uid, x] as [number, Critter]))
         // exactly the saved list (CE reads the cids back); the player is always in it
@@ -3766,7 +3766,7 @@ export class Combat {
         if (!(window as any).__test?.fastMode) globalState.audioEngine.playSfxByName('icibcxx1')
         this.player.AP?.resetAP() // CE ref: combat.cc:2811
         this.giveExps() // CE ref: combat.cc:2816
-        globalState.gMap.updateMap()
+        globalState.gMap!.updateMap()
         uiEndCombat()
     }
 

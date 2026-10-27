@@ -200,14 +200,14 @@ GameMap.prototype.loadMap = function (
 
         // Set position and orientation
         if (startingPosition !== undefined) {
-            globalState.player.position = startingPosition
+            globalState.player!.position = startingPosition
         }
         // Use default map starting position
         else {
-            globalState.player.position = map.mapObj.startPosition
+            globalState.player!.position = map.mapObj.startPosition
         }
 
-        globalState.player.orientation = map.mapObj.startOrientation
+        globalState.player!.orientation = map.mapObj.startOrientation
 
         // Set elevation: none / -1 is the map header's (CE map.cc mapLoad: gEnteringElevation
         // == -1 → gMapHeader.enteringElevation); out of bounds clamps to it as well
@@ -289,7 +289,7 @@ GameMap.prototype.loadNewMap = function (
     Scripting.reset(this.name)
 
     // reset player animation status (to idle)
-    globalState.player.clearAnim()
+    globalState.player!.clearAnim()
 
     dbg('map', 'loading map ' + mapName)
 
@@ -345,22 +345,22 @@ GameMap.prototype.loadNewMap = function (
             Scripting.setMapScript(this.mapScript)
         } catch (e) {
             this.mapScript = null
-            dbgWarn('map', 'ERROR LOADING MAP SCRIPT:', e.message)
+            dbgWarn('map', 'ERROR LOADING MAP SCRIPT:', (e as Error).message)
         }
     } else {
         this.mapScript = null
     }
 
     // warp to the default position (may be overridden by map script)
-    globalState.player.position = startingPosition || map.startPosition
-    globalState.player.orientation = map.startOrientation
+    globalState.player!.position = startingPosition || map.startPosition
+    globalState.player!.orientation = map.startOrientation
 
     if (Config.engine.doSpatials) {
         this.spatials = map.levels.map((level: any) => level.spatials)
 
         if (Config.engine.doLoadScripts) {
             // initialize spatial scripts
-            this.spatials.forEach((level: any) =>
+            this.spatials!.forEach((level: any) =>
                 level.forEach((spatial: Spatial) => {
                     const script = Scripting.loadScript(spatial.script)
                     if (script === null) {
@@ -399,7 +399,7 @@ GameMap.prototype.loadNewMap = function (
     if (Config.engine.doLoadScripts) {
         // party member NPCs get the new map script
         globalState.gParty.getPartyMembers().forEach((obj: Critter) => {
-            obj._script._mapScript = this.mapScript
+            obj._script!._mapScript = this.mapScript
         })
 
         this.doEnterNewMap(true)

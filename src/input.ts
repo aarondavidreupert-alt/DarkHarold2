@@ -366,7 +366,7 @@ export function installInputHandlers(): void {
                     // CE combat.cc _combat_attack_this out of combat: _combat with the dude as the
                     // attacker — the fight starts on his turn and the attack is its first action
                     if (!globalState.inCombat && !(target as any).dead) {
-                        Combat.start(globalState.player)
+                        Combat.start(globalState.player!)
                         if (!globalState.inCombat) return
                     }
                     playerUse(target)
@@ -539,12 +539,12 @@ export function installInputHandlers(): void {
         }
         if (isKey(k, 'elevationDown')) {
             if (globalState.currentElevation - 1 >= 0) {
-                globalState.gMap.changeElevation(globalState.currentElevation - 1, true)
+                globalState.gMap!.changeElevation(globalState.currentElevation - 1, true)
             }
         }
         if (isKey(k, 'elevationUp')) {
-            if (globalState.currentElevation + 1 < globalState.gMap.numLevels) {
-                globalState.gMap.changeElevation(globalState.currentElevation + 1, true)
+            if (globalState.currentElevation + 1 < globalState.gMap!.numLevels) {
+                globalState.gMap!.changeElevation(globalState.currentElevation + 1, true)
             }
         }
         if (isKey(k, 'showRoof')) {
@@ -560,7 +560,7 @@ export function installInputHandlers(): void {
             Config.ui.showWalls = !Config.ui.showWalls
         }
         if (isKey(k, 'talkTo')) {
-            const critter = globalState.gMap.critterAtPosition(mouseHex)
+            const critter = globalState.gMap!.critterAtPosition(mouseHex)
             if (critter) {
                 // CE ref: game_dialog.cc:732 gameDialogEnter — talking to a
                 // party member still enters the normal dialogue tree first;
@@ -574,7 +574,7 @@ export function installInputHandlers(): void {
                     // CE ref: actions.cc:1832-1860 actionTalk — walks the
                     // player to the NPC (registers a run-to animation) before
                     // the dialogue callback fires, unless already close.
-                    approachToTalk(globalState.player, critter, () => {
+                    approachToTalk(globalState.player!, critter, () => {
                         dbg('dialogue', '[Dialog] talking to ' + critter.name)
                         Scripting.talk(critter._script!, critter)
                     })
@@ -597,53 +597,53 @@ export function installInputHandlers(): void {
             }
         }
         if (isKey(k, 'moveTo')) {
-            globalState.player.walkTo(mouseHex)
+            globalState.player!.walkTo(mouseHex)
         }
         if (isKey(k, 'runTo')) {
-            globalState.player.stopSneakToRun() // CE _dude_run
-            globalState.player.walkTo(mouseHex, true)
+            globalState.player!.stopSneakToRun() // CE _dude_run
+            globalState.player!.walkTo(mouseHex, true)
         }
         if (isKey(k, 'attack')) {
-            if (!globalState.inCombat || !globalState.combat.inPlayerTurn || globalState.player.anim !== 'idle') {
+            if (!globalState.inCombat || !globalState.combat!.inPlayerTurn || globalState.player!.anim !== 'idle') {
                 dbg('combat', "[Main] can't do that yet")
                 return
             }
 
-            const kbWeapon = globalState.player.equippedWeapon
+            const kbWeapon = globalState.player!.equippedWeapon
             const kbP = globalState.player
             const kbAPCost =
                 kbWeapon === null
-                    ? unarmedAPCost(kbP, currentUnarmed(kbP).mode, false)
-                    : kbWeapon.weapon!.getAttackAPCost(kbP, undefined, kbWeapon.weapon!.isCalled())
+                    ? unarmedAPCost(kbP!, currentUnarmed(kbP!).mode, false)
+                    : kbWeapon.weapon!.getAttackAPCost(kbP!, undefined, kbWeapon.weapon!.isCalled())
 
-            if (globalState.player.AP.getAvailableCombatAP() < kbAPCost) {
-                uiLog(getProtoMsg(700))
+            if (globalState.player!.AP!.getAvailableCombatAP() < kbAPCost) {
+                uiLog(getProtoMsg(700)!)
                 return
             }
 
             for (let i = 0; i < globalState.combat!.combatants.length; i++) {
                 if (
-                    globalState.combat.combatants[i].position.x === mouseHex.x &&
-                    globalState.combat.combatants[i].position.y === mouseHex.y &&
-                    !globalState.combat.combatants[i].dead
+                    globalState.combat!.combatants[i].position.x === mouseHex.x &&
+                    globalState.combat!.combatants[i].position.y === mouseHex.y &&
+                    !globalState.combat!.combatants[i].dead
                 ) {
-                    globalState.player.AP.subtractCombatAP(kbAPCost)
+                    globalState.player!.AP!.subtractCombatAP(kbAPCost)
                     drawAP(
-                        globalState.player.AP.getAvailableCombatAP(),
-                        globalState.player.AP.getTotalMaxAP(),
-                        globalState.player.AP.move,
+                        globalState.player!.AP!.getAvailableCombatAP(),
+                        globalState.player!.AP!.getTotalMaxAP(),
+                        globalState.player!.AP!.move,
                     )
                     dbg('combat', '[Combat] attack key pressed')
-                    globalState.combat.attack(globalState.player, globalState.combat.combatants[i])
+                    globalState.combat!.attack(globalState.player!, globalState.combat!.combatants[i])
                     break
                 }
             }
         }
 
         if (isKey(k, 'playerToTargetRaycast')) {
-            const obj = globalState.gMap.objectsAtPosition(mouseHex)[0]
+            const obj = globalState.gMap!.objectsAtPosition(mouseHex)[0]
             if (obj !== undefined) {
-                const hit = globalState.gMap.hexLinecast(globalState.player.position, obj.position)
+                const hit = globalState.gMap!.hexLinecast(globalState.player!.position, obj.position)
                 if (!hit) {
                     return
                 }
@@ -652,7 +652,7 @@ export function installInputHandlers(): void {
         }
 
         if (isKey(k, 'showTargetInventory')) {
-            const obj = globalState.gMap.objectsAtPosition(mouseHex)[0]
+            const obj = globalState.gMap!.objectsAtPosition(mouseHex)[0]
             if (obj !== undefined) {
                 dbg('object', '[Main] PID: ' + obj.pid)
                 dbg('object', '[Main] inventory: ' + JSON.stringify(obj.inventory))
@@ -667,7 +667,7 @@ export function installInputHandlers(): void {
         }
 
         if (isKey(k, 'use')) {
-            const objs = globalState.gMap.objectsAtPosition(mouseHex)
+            const objs = globalState.gMap!.objectsAtPosition(mouseHex)
             for (let i = 0; i < objs.length; i++) {
                 objs[i].use()
             }
@@ -675,13 +675,13 @@ export function installInputHandlers(): void {
 
         if (Config.engine.devKeys && k === 'h') {
             // dev: teleport to the mouse hex
-            globalState.player.move(mouseHex)
+            globalState.player!.move(mouseHex)
         }
 
         if (isKey(k, 'kill')) {
-            const critter = globalState.gMap.critterAtPosition(mouseHex)
+            const critter = globalState.gMap!.critterAtPosition(mouseHex)
             if (critter) {
-                critterKill(critter, globalState.player, undefined, { animate: true })
+                critterKill(critter, globalState.player!, undefined, { animate: true })
             }
         }
 

@@ -96,8 +96,8 @@ const globalState = {
     lastFPSTime: 0, // Time since FPS counter was last updated
 
     floatMessages: [],
-    renderer: null,
-    audioEngine: null,
+    renderer: null!, // set during boot (main.ts / init.ts) before use
+    audioEngine: null!, // set during boot (main.ts / init.ts) before use
     $fpsOverlay: null,
 
     centerTile: { x: 0, y: 0 },

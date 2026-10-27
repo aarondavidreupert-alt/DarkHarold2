@@ -197,8 +197,8 @@ WebGLRenderer.prototype.drawLightSourceOverlay = function (): void {
         ctx.fillStyle = '#FFFFFF'
         ctx.strokeText(line1, c.x, c.y + 16)
         ctx.fillText(line1, c.x, c.y + 16)
-        ctx.strokeText(line2, c.x, c.y + 30)
-        ctx.fillText(line2, c.x, c.y + 30)
+        ctx.strokeText(line2!, c.x, c.y + 30)
+        ctx.fillText(line2!, c.x, c.y + 30)
     }
 
     ctx.restore()

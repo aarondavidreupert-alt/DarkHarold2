@@ -258,7 +258,7 @@ export function playerUse(obj: Obj | null) {
         // CE actions.cc actionUseSkill: no First Aid, Doctor, Lockpick, Steal, Traps,
         // Science or Repair in combat.
         if (globalState.inCombat && NO_COMBAT_SKILLS.includes(skill)) {
-            uiLog(getProtoMsg(902))
+            uiLog(getProtoMsg(902)!)
             return
         }
         // CE actionUseSkill: the target-type gates, before any walk (returns −1, no message)
@@ -324,40 +324,40 @@ export function playerUse(obj: Obj | null) {
         // walk to the destination if there is no usable object
         // Walking in combat (TODO: This should probably be in Combat...)
         if (globalState.inCombat) {
-            if (!(globalState.combat.inPlayerTurn || Config.combat.allowWalkDuringAnyTurn)) {
+            if (!(globalState.combat!.inPlayerTurn || Config.combat.allowWalkDuringAnyTurn)) {
                 dbg('combat', '[Combat] wait your turn')
                 return
             }
 
-            if (globalState.player.AP.getAvailableMoveAP() === 0) {
-                uiLog(getProtoMsg(700)) // "You don't have enough action points."
+            if (globalState.player!.AP!.getAvailableMoveAP() === 0) {
+                uiLog(getProtoMsg(700)!) // "You don't have enough action points."
                 return
             }
 
             // CE animation.cc _check_move: Ctrl held keeps the AP for one attack in the
             // current hit mode; nothing left over, no move
-            let maxWalkingDist = globalState.player.AP.getAvailableMoveAP()
+            let maxWalkingDist = globalState.player!.AP!.getAvailableMoveAP()
             if (ctrlHeld) maxWalkingDist -= currentAttackAPCost()
             if (maxWalkingDist <= 0) return
             const run = moveClickRuns(toTileNum(mouseHex))
-            if (run) globalState.player.stopSneakToRun() // CE _dude_run
-            if (!globalState.player.walkTo(mouseHex, run, undefined, maxWalkingDist)) {
+            if (run) globalState.player!.stopSneakToRun() // CE _dude_run
+            if (!globalState.player!.walkTo(mouseHex, run, undefined, maxWalkingDist)) {
                 dbg('map', '[Main] cannot walk there')
             } else {
-                if (!globalState.player.AP.subtractMoveAP(globalState.player.path.path.length - 1)) {
+                if (!globalState.player!.AP!.subtractMoveAP(globalState.player!.path.path.length - 1)) {
                     throw new Error(
                         'subtraction issue: has AP: ' +
-                            globalState.player.AP.getAvailableMoveAP() +
+                            globalState.player!.AP!.getAvailableMoveAP() +
                             ' needs AP:' +
-                            globalState.player.path.path.length +
+                            globalState.player!.path.path.length +
                             ' and maxDist was:' +
                             maxWalkingDist,
                     )
                 }
                 drawAP(
-                    globalState.player.AP.getAvailableCombatAP(),
-                    globalState.player.AP.getTotalMaxAP(),
-                    globalState.player.AP.move,
+                    globalState.player!.AP!.getAvailableCombatAP(),
+                    globalState.player!.AP!.getTotalMaxAP(),
+                    globalState.player!.AP!.move,
                 )
             }
             return // (it fell through to the unlimited walk below before 2026-10-26)
@@ -366,11 +366,11 @@ export function playerUse(obj: Obj | null) {
         // Walking out of combat
         // CE _check_move: without interrupt_walk the walk isn't cleared, so the new one
         // (ANIMATION_REQUEST_RESERVED on a busy dude) doesn't start
-        if (!Config.engine.interruptWalk && (globalState.player.anim === 'walk' || globalState.player.anim === 'run'))
+        if (!Config.engine.interruptWalk && (globalState.player!.anim === 'walk' || globalState.player!.anim === 'run'))
             return
         const run = moveClickRuns(toTileNum(mouseHex))
-        if (run) globalState.player.stopSneakToRun() // CE _dude_run
-        if (!globalState.player.walkTo(mouseHex, run)) {
+        if (run) globalState.player!.stopSneakToRun() // CE _dude_run
+        if (!globalState.player!.walkTo(mouseHex, run)) {
             dbg('map', '[Main] cannot walk there')
         }
 
@@ -384,23 +384,23 @@ export function playerUse(obj: Obj | null) {
 
         if (globalState.inCombat && !who.dead) {
             // attack a critter
-            if (!globalState.combat!.inPlayerTurn || globalState.player.inAnim()) {
+            if (!globalState.combat!.inPlayerTurn || globalState.player!.inAnim()) {
                 dbg('combat', "[Main] can't do that yet")
                 return
             }
 
             // TODO: move within range of target
 
-            const weapon = globalState.player.equippedWeapon
+            const weapon = globalState.player!.equippedWeapon
 
             // Determine AP cost for this attack up-front so we can guard before acting
-            const unarmed = weapon === null ? currentUnarmed(globalState.player) : null
+            const unarmed = weapon === null ? currentUnarmed(globalState.player!) : null
             const attackAPCost = currentAttackAPCost()
 
             // CE combat.cc _combat_attack_this → _combat_check_bad_shot: refuse with
             // combat.msg 100-106 (out of ammo, out of range, AP, aim blocked, crippled arms).
             const aimingNow = unarmed ? unarmed.aiming : weapon!.weapon!.isCalled()
-            const bad = globalState.combat!.checkBadShot(globalState.player, <Critter>obj, aimingNow)
+            const bad = globalState.combat!.checkBadShot(globalState.player!, <Critter>obj, aimingNow)
             if (bad !== 'ok') {
                 const BAD_SHOT_MSG: { [k: string]: number } = {
                     noAmmo: 101,
@@ -424,21 +424,21 @@ export function playerUse(obj: Obj | null) {
                 // Unarmed attack — an aimed punch/kick opens the called-shot window
                 // (CE INTERFACE_ITEM_ACTION_PRIMARY_AIMING / SECONDARY_AIMING).
                 const strike = (region: string) => {
-                    globalState.player.AP!.subtractCombatAP(attackAPCost)
+                    globalState.player!.AP!.subtractCombatAP(attackAPCost)
                     drawAP(
-                        globalState.player.AP!.getAvailableCombatAP(),
-                        globalState.player.AP!.getTotalMaxAP(),
-                        globalState.player.AP!.move,
+                        globalState.player!.AP!.getAvailableCombatAP(),
+                        globalState.player!.AP!.getTotalMaxAP(),
+                        globalState.player!.AP!.move,
                     )
                     dbg('combat', `[Combat] player unarmed attack (${unarmed!.mode.name}, ${region})`)
-                    globalState.combat!.attack(globalState.player, <Critter>obj, region)
+                    globalState.combat!.attack(globalState.player!, <Critter>obj, region)
                 }
                 if (unarmed!.aiming) {
                     const art = who.hasAnimation('called-shot')
                         ? who.getAnimation('called-shot')
                         : 'art/critters/hmjmpsna'
                     uiCalledShot(art, who, (region: string) => {
-                        if (globalState.player.AP!.getAvailableCombatAP() < attackAPCost) {
+                        if (globalState.player!.AP!.getAvailableCombatAP() < attackAPCost) {
                             uiLog(getProtoMsg(700)!)
                         } else {
                             strike(region)
@@ -465,45 +465,45 @@ export function playerUse(obj: Obj | null) {
 
                     uiCalledShot(art, who, (region: string) => {
                         const calledAPCost = attackAPCost
-                        if (globalState.player.AP!.getAvailableCombatAP() < calledAPCost) {
+                        if (globalState.player!.AP!.getAvailableCombatAP() < calledAPCost) {
                             uiLog(getProtoMsg(700)!) // "You don't have enough action points."
                             uiCloseCalledShot()
                             return
                         }
-                        globalState.player.AP!.subtractCombatAP(calledAPCost)
+                        globalState.player!.AP!.subtractCombatAP(calledAPCost)
                         drawAP(
-                            globalState.player.AP!.getAvailableCombatAP(),
-                            globalState.player.AP!.getTotalMaxAP(),
-                            globalState.player.AP!.move,
+                            globalState.player!.AP!.getAvailableCombatAP(),
+                            globalState.player!.AP!.getTotalMaxAP(),
+                            globalState.player!.AP!.move,
                         )
                         dbg('combat', '[Combat] player attacks %s', region)
-                        globalState.combat!.attack(globalState.player, <Critter>obj, region)
+                        globalState.combat!.attack(globalState.player!, <Critter>obj, region)
                         uiCloseCalledShot()
                     })
                 } else if (weapon.weapon!.isBurst()) {
-                    const burstAPCost = weapon.weapon!.getAttackAPCost(globalState.player, weapon.weapon!.slot()) // a primary burst (minigun) uses slot 1
-                    if (globalState.player.AP!.getAvailableCombatAP() < burstAPCost) {
+                    const burstAPCost = weapon.weapon!.getAttackAPCost(globalState.player!, weapon.weapon!.slot()) // a primary burst (minigun) uses slot 1
+                    if (globalState.player!.AP!.getAvailableCombatAP() < burstAPCost) {
                         uiLog(getProtoMsg(700)!) // "You don't have enough action points."
                         return
                     }
-                    globalState.player.AP!.subtractCombatAP(burstAPCost)
+                    globalState.player!.AP!.subtractCombatAP(burstAPCost)
                     drawAP(
-                        globalState.player.AP!.getAvailableCombatAP(),
-                        globalState.player.AP!.getTotalMaxAP(),
-                        globalState.player.AP!.move,
+                        globalState.player!.AP!.getAvailableCombatAP(),
+                        globalState.player!.AP!.getTotalMaxAP(),
+                        globalState.player!.AP!.move,
                     )
                     dbg('combat', '[Combat] burst fire at %s', who.name)
                     // Route through attack() which detects isBurst() and does the multi-roll loop
-                    globalState.combat!.attack(globalState.player, <Critter>obj, 'torso')
+                    globalState.combat!.attack(globalState.player!, <Critter>obj, 'torso')
                 } else {
-                    globalState.player.AP!.subtractCombatAP(attackAPCost)
+                    globalState.player!.AP!.subtractCombatAP(attackAPCost)
                     drawAP(
-                        globalState.player.AP!.getAvailableCombatAP(),
-                        globalState.player.AP!.getTotalMaxAP(),
-                        globalState.player.AP!.move,
+                        globalState.player!.AP!.getAvailableCombatAP(),
+                        globalState.player!.AP!.getTotalMaxAP(),
+                        globalState.player!.AP!.move,
                     )
                     dbg('combat', '[Combat] player attacks torso')
-                    globalState.combat!.attack(globalState.player, <Critter>obj, 'torso')
+                    globalState.combat!.attack(globalState.player!, <Critter>obj, 'torso')
                 }
             }
 
@@ -512,7 +512,7 @@ export function playerUse(obj: Obj | null) {
     }
 
     const callback = function () {
-        globalState.player.clearAnim()
+        globalState.player!.clearAnim()
 
         if (!obj) {
             throw Error()
@@ -541,7 +541,7 @@ export function playerUse(obj: Obj | null) {
                 dbg('map', '[Main] cannot talk to/loot that critter')
             }
         } else {
-            obj.use(globalState.player)
+            obj.use(globalState.player!)
         }
     }
 
@@ -549,7 +549,7 @@ export function playerUse(obj: Obj | null) {
         callback()
     } else {
         // CE _action_climb_ladder: a ladder up is climbed from its SE neighbour
-        globalState.player.walkInFrontOfToAct(
+        globalState.player!.walkInFrontOfToAct(
             obj.position,
             callback,
             3,
@@ -595,10 +595,10 @@ function moveClickRuns(tile: number): boolean {
 // dude's current hand and mode (primary / secondary, +1 aimed; unarmed: the punch / kick)
 function currentAttackAPCost(): number {
     const player = globalState.player
-    const weapon = player.equippedWeapon
-    const unarmed = weapon === null ? currentUnarmed(player) : null
-    if (unarmed) return unarmedAPCost(player, unarmed.mode, unarmed.aiming)
-    return weapon!.weapon!.getAttackAPCost(player, undefined, weapon!.weapon!.isCalled())
+    const weapon = player!.equippedWeapon
+    const unarmed = weapon === null ? currentUnarmed(player!) : null
+    if (unarmed) return unarmedAPCost(player!, unarmed.mode, unarmed.aiming)
+    return weapon!.weapon!.getAttackAPCost(player!, undefined, weapon!.weapon!.isCalled())
 }
 
 export function changeCursor(_image: string) {

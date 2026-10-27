@@ -223,7 +223,7 @@ export class Player extends Critter {
     position = { x: 94, y: 109 }
     orientation = 3
     gender = 'male'
-    leftHand = <WeaponObj>createObjectWithPID(9) // 10mm SMG
+    leftHand?: WeaponObj = <WeaponObj>createObjectWithPID(9) // 10mm SMG
     armor: Obj | null = null
     activeHand: 'leftHand' | 'rightHand' = 'leftHand'
 
@@ -443,7 +443,7 @@ export class Player extends Critter {
         if (signalEvents) Events.emit('playerMoved', position)
 
         // check if the player has entered an exit grid
-        const objs = globalState.gMap.objectsAtPosition(this.position)
+        const objs = globalState.gMap!.objectsAtPosition(this.position)
         for (let i = 0; i < objs.length; i++) {
             if (objs[i].type === 'misc' && objs[i].extra && objs[i].extra.exitMapID !== undefined) {
                 // walking on an exit grid
@@ -483,8 +483,8 @@ export class Player extends Critter {
                         startingElevation <= 2
                     const position = placeOnTile ? fromTileNum(tile) : undefined
                     dbg('map', `exit grid -> map ${exitMapID} elevation ${startingElevation} @ ${tile}`)
-                    if (exitMapID !== gMap.mapID || gMap.currentElevation === startingElevation) {
-                        gMap.loadMapByID(
+                    if (exitMapID !== gMap!.mapID || gMap!.currentElevation === startingElevation) {
+                        gMap!.loadMapByID(
                             exitMapID,
                             position,
                             placeOnTile ? startingElevation : undefined,
@@ -493,10 +493,10 @@ export class Player extends Critter {
                         Events.emit('mapTransition', exitMapID) // CE mapHandleTransition → wmTeleportToArea
                     } else if (position) {
                         // same map, another elevation: no reload
-                        gMap.changeElevation(startingElevation, true)
-                        globalState.player.move(position)
-                        globalState.player.orientation = rotation
-                        centerCamera(globalState.player.position)
+                        gMap!.changeElevation(startingElevation, true)
+                        globalState.player!.move(position)
+                        globalState.player!.orientation = rotation
+                        centerCamera(globalState.player!.position)
                     }
                 }
 

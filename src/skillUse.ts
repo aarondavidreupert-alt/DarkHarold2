@@ -498,7 +498,7 @@ export function performSteal(
         stealModifier -= 4 * size
 
         // CE ref: skill.cc:1043 — -25 if face to face
-        const rotDiff = Math.abs(thief.orientation - target.orientation) % 6
+        const rotDiff = Math.abs(thief.orientation! - target.orientation!) % 6
         const faceToFace = rotDiff !== 0 && rotDiff !== 1 && rotDiff !== 5
         if (faceToFace) stealModifier -= 25
     }

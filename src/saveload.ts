@@ -210,7 +210,7 @@ function captureScreenshot(): string | undefined {
 function gatherSaveData(name: string): SaveGame {
     // Saves the game and returns the savegame
 
-    const curMap = globalState.gMap.serialize()
+    const curMap = globalState.gMap!.serialize()
 
     const p = globalState.player
     return {
@@ -222,31 +222,31 @@ function gatherSaveData(name: string): SaveGame {
         screenshot: captureScreenshot(),
         gameTickTime: globalState.gameTickTime,
         player: {
-            position: p.position,
-            orientation: p.orientation,
-            inventory: p.inventory.map((obj) => obj.serialize()),
+            position: p!.position,
+            orientation: p!.orientation,
+            inventory: p!.inventory.map((obj) => obj.serialize()),
         },
         party: globalState.gParty.serialize(),
         partyLevels: globalState.gParty.serializeLevels(),
         savedMaps: { [curMap.name]: curMap, ...globalState.dirtyMapCache },
         playerState: {
-            stats: p.stats.serialize(),
-            skills: p.skills.serialize(),
-            traits: p.traits.slice(),
-            perks: p.perks.slice(),
-            pendingPerkPick: p.pendingPerkPick,
-            levelUpAvailable: p.levelUpAvailable,
-            editorLastLevel: p.editorLastLevel,
-            dudeScriptLvars: p._script ? Object.assign({}, p._script.lvars) : undefined,
-            name: p.name,
-            gender: p.gender,
-            activeHand: p.activeHand,
+            stats: p!.stats.serialize(),
+            skills: p!.skills.serialize(),
+            traits: p!.traits.slice(),
+            perks: p!.perks.slice(),
+            pendingPerkPick: p!.pendingPerkPick,
+            levelUpAvailable: p!.levelUpAvailable,
+            editorLastLevel: p!.editorLastLevel,
+            dudeScriptLvars: p!._script ? Object.assign({}, p!._script.lvars) : undefined,
+            name: p!.name,
+            gender: p!.gender,
+            activeHand: p!.activeHand,
             gameUIDisabled: globalState.gameUIDisabled,
-            isSneaking: p.isSneaking,
+            isSneaking: p!.isSneaking,
             sneakWorking: (p as any).sneakWorking ?? false,
-            leftHand: p.leftHand ? p.leftHand.serialize() : null,
-            rightHand: p.rightHand ? p.rightHand.serialize() : null,
-            armor: p.armor ? p.armor.serialize() : null,
+            leftHand: p!.leftHand ? p!.leftHand.serialize() : null,
+            rightHand: p!.rightHand ? p!.rightHand.serialize() : null,
+            armor: p!.armor ? p!.armor.serialize() : null,
             condition: Object.fromEntries(PLAYER_CONDITION_PROPS.map((k) => [k, (p as any)[k]])),
             gvars: Object.assign({}, Scripting.getGlobalVars()),
         },
@@ -333,7 +333,7 @@ export function save(name: string, slot = -1, callback?: (id: number) => void): 
     dbg(
         'saveload',
         `[SaveLoad] Saving ${1 + dirtyMapNames.length} maps (current: ${
-            globalState.gMap.name
+            globalState.gMap!.name
         } plus dirty maps: ${dirtyMapNames.join(', ')})`,
     )
 
@@ -389,7 +389,7 @@ export function load(id: number): void {
                 // nothing the save doesn't carry survives from the current session.
                 gameReset()
 
-                globalState.gMap.deserialize(savedMap)
+                globalState.gMap!.deserialize(savedMap)
                 dbg('saveload', '[SaveLoad] Finished map deserialization')
 
                 // Restore game clock (older saves omit this field).
@@ -397,31 +397,31 @@ export function load(id: number): void {
                     globalState.gameTickTime = save.gameTickTime
                 }
 
-                globalState.player.position = save.player.position
-                globalState.player.orientation = save.player.orientation
-                globalState.player.inventory = save.player.inventory.map((obj) => deserializeObj(obj))
+                globalState.player!.position = save.player.position
+                globalState.player!.orientation = save.player.orientation
+                globalState.player!.inventory = save.player.inventory.map((obj) => deserializeObj(obj))
 
                 if (save.playerState) {
                     const ps = save.playerState
                     const p = globalState.player
-                    p.stats = StatSet.deserialize(ps.stats)
-                    p.skills = SkillSet.deserialize(ps.skills)
-                    p.traits = ps.traits.slice()
-                    p.perks = ps.perks.slice()
-                    p.pendingPerkPick = ps.pendingPerkPick
-                    p.levelUpAvailable = ps.levelUpAvailable ?? false
+                    p!.stats = StatSet.deserialize(ps.stats)
+                    p!.skills = SkillSet.deserialize(ps.skills)
+                    p!.traits = ps.traits.slice()
+                    p!.perks = ps.perks.slice()
+                    p!.pendingPerkPick = ps.pendingPerkPick
+                    p!.levelUpAvailable = ps.levelUpAvailable ?? false
                     // (older saves granted the points at the level-up itself)
-                    p.editorLastLevel = ps.editorLastLevel ?? p.stats.getBase('Level')
+                    p!.editorLastLevel = ps.editorLastLevel ?? p!.stats.getBase('Level')
                     Scripting.setPendingDudeLvars(ps.dudeScriptLvars ?? null) // obj_dude reattaches at map entry
-                    p.name = ps.name
-                    p.gender = ps.gender
-                    p.activeHand = ps.activeHand as 'leftHand' | 'rightHand'
+                    p!.name = ps.name
+                    p!.gender = ps.gender
+                    p!.activeHand = ps.activeHand as 'leftHand' | 'rightHand'
                     Scripting.setGameUiDisabled(ps.gameUIDisabled ?? false) // CE interfaceLoad
-                    p.isSneaking = ps.isSneaking
+                    p!.isSneaking = ps.isSneaking
                     ;(p as any).sneakWorking = ps.sneakWorking ?? false
-                    p.leftHand = ps.leftHand ? (deserializeObj(ps.leftHand) as any) : undefined
-                    p.rightHand = ps.rightHand ? (deserializeObj(ps.rightHand) as any) : undefined
-                    p.armor = ps.armor ? deserializeObj(ps.armor) : null
+                    p!.leftHand = ps.leftHand ? (deserializeObj(ps.leftHand) as any) : undefined
+                    p!.rightHand = ps.rightHand ? (deserializeObj(ps.rightHand) as any) : undefined
+                    p!.armor = ps.armor ? deserializeObj(ps.armor) : null
                     for (const k of PLAYER_CONDITION_PROPS) {
                         if (ps.condition?.[k] !== undefined) (p as any)[k] = ps.condition[k]
                     }
@@ -478,7 +478,7 @@ export function load(id: number): void {
                 // Older saves without this field are silently skipped.
                 if (Array.isArray(save.timedEvents)) {
                     // CE queueLoad: the owner by object id (objectFindById); old saves by PID
-                    const mapObjects = [...globalState.gMap.getObjects(), ...(globalState.gMap.getSpatials() ?? [])]
+                    const mapObjects = [...globalState.gMap!.getObjects(), ...(globalState.gMap!.getSpatials() ?? [])]
                     const byUid = new Map<number, any>()
                     // (items too, in inventories and bags: a lit flare in a hand; uid -1 is only the dude's)
                     const visited = new Set<any>()
@@ -598,7 +598,7 @@ export function load(id: number): void {
                     dbg('saveload', '[SaveLoad] Restored %d timed events', save.timedEvents.length)
                 }
 
-                globalState.gMap.changeElevation(save.currentElevation, false)
+                globalState.gMap!.changeElevation(save.currentElevation, false)
 
                 // populate dirty map cache out of non-current saved maps
                 globalState.dirtyMapCache = { ...save.savedMaps }
@@ -607,7 +607,7 @@ export function load(id: number): void {
                 // CE mapLoad during a game load: start / map_enter / map_update with
                 // _loadingGame set (metarule 22), then the map music.
                 Scripting.ensureDudeScript() // obj_dude with its saved LVARs (setPendingDudeLvars)
-                globalState.gMap.runLoadGameProcs()
+                globalState.gMap!.runLoadGameProcs()
 
                 const p = globalState.player!
                 drawHP(p.getStat('HP'))

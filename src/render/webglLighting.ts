@@ -140,7 +140,7 @@ WebGLRenderer.prototype.renderLitFloorCPU = function (tileMap: TileMap, useColor
             for (let y = 0; y < 36; y++) {
                 for (let x = 0; x < 80; x++) {
                     if (isTriangleLit) {
-                        intensity_ = framebuffer[160 + 80 * y + x]
+                        intensity_ = framebuffer![160 + 80 * y + x]
                     } else {
                         // uniformly lit
                         intensity_ = Lighting.vertices[3]

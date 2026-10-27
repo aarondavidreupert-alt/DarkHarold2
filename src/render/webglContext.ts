@@ -15,28 +15,28 @@ export interface ShaderSources {
 }
 
 export class WebGLRenderer extends Renderer {
-    canvas: HTMLCanvasElement
-    gl: WebGL2RenderingContext
-    offsetLocation: WebGLUniformLocation
-    positionLocation: number
-    texCoordLocation: number
-    uScaleLocation: WebGLUniformLocation
-    uNumFramesLocation: WebGLUniformLocation
-    uFrameLocation: WebGLUniformLocation
-    uNumRowsLocation: WebGLUniformLocation
-    uRowLocation: WebGLUniformLocation
-    objectUVBuffer: WebGLBuffer
-    texCoordBuffer: WebGLBuffer
-    tileBuffer: WebGLBuffer
-    tileShader: WebGLProgram
+    canvas!: HTMLCanvasElement
+    gl!: WebGL2RenderingContext
+    offsetLocation!: WebGLUniformLocation
+    positionLocation!: number
+    texCoordLocation!: number
+    uScaleLocation!: WebGLUniformLocation
+    uNumFramesLocation!: WebGLUniformLocation
+    uFrameLocation!: WebGLUniformLocation
+    uNumRowsLocation!: WebGLUniformLocation
+    uRowLocation!: WebGLUniformLocation
+    objectUVBuffer!: WebGLBuffer
+    texCoordBuffer!: WebGLBuffer
+    tileBuffer!: WebGLBuffer
+    tileShader!: WebGLProgram
 
-    fontShader: WebGLProgram
+    fontShader!: WebGLProgram
 
-    uLightBuffer: WebGLUniformLocation
-    litOffsetLocation: WebGLUniformLocation
-    litScaleLocation: WebGLUniformLocation
-    lightBufferTexture: WebGLTexture
-    floorLightShader: WebGLProgram
+    uLightBuffer!: WebGLUniformLocation
+    litOffsetLocation!: WebGLUniformLocation
+    litScaleLocation!: WebGLUniformLocation
+    lightBufferTexture!: WebGLTexture
+    floorLightShader!: WebGLProgram
 
     tileIntensityTexture: WebGLTexture | null = null // 200x200 R8 texture for GPU path
     floorLightingMode: 'gpu' | 'cpu' = 'cpu'
@@ -115,15 +115,15 @@ export class WebGLRenderer extends Renderer {
     lastFloorZoom = -Infinity
     lastFloorTileMap: TileMap | null = null
     tileDataBuffer = new Uint8Array(200 * 200)
-    compositeTexCoordBuffer: WebGLBuffer // Y-flipped UVs for FBO composite
+    compositeTexCoordBuffer!: WebGLBuffer // Y-flipped UVs for FBO composite
     uAmbient: WebGLUniformLocation | null = null
     uCamera: WebGLUniformLocation | null = null
     uScreenResolutionLighting: WebGLUniformLocation | null = null
 
     textures: { [key: string]: WebGLTexture } = {} // WebGL texture cache
 
-    textCanvas: HTMLCanvasElement
-    textCtx: CanvasRenderingContext2D
+    textCanvas!: HTMLCanvasElement
+    textCtx!: CanvasRenderingContext2D
 
     constructor(
         public shaderSources: ShaderSources,
@@ -394,29 +394,29 @@ export class WebGLRenderer extends Renderer {
         this.gl.enable(this.gl.BLEND)
 
         // set up tile shader
-        this.tileShader = this.getProgram(this.gl, 'vertex', 'fragment')
+        this.tileShader = this.getProgram(this.gl, 'vertex', 'fragment')!
         this.gl.useProgram(this.tileShader)
 
         // set up font shader
-        this.fontShader = this.getProgram(this.gl, 'vertex', 'fragmentFont')
+        this.fontShader = this.getProgram(this.gl, 'vertex', 'fragmentFont')!
         // this.gl.useProgram(this.fontShader)
 
         // set up uniforms/attributes
         this.positionLocation = gl.getAttribLocation(this.tileShader, 'a_position')
-        this.offsetLocation = gl.getUniformLocation(this.tileShader, 'u_offset')
+        this.offsetLocation = gl.getUniformLocation(this.tileShader, 'u_offset')!
 
         const resolutionLocation = gl.getUniformLocation(this.tileShader, 'u_resolution')
         gl.uniform2f(resolutionLocation, SCREEN_WIDTH, SCREEN_HEIGHT)
         this.uTileResolution = resolutionLocation
 
         this.texCoordLocation = gl.getAttribLocation(this.tileShader, 'a_texCoord')
-        this.uNumFramesLocation = gl.getUniformLocation(this.tileShader, 'u_numFrames')
-        this.uFrameLocation = gl.getUniformLocation(this.tileShader, 'u_frame')
+        this.uNumFramesLocation = gl.getUniformLocation(this.tileShader, 'u_numFrames')!
+        this.uFrameLocation = gl.getUniformLocation(this.tileShader, 'u_frame')!
         this.uNumRowsLocation = gl.getUniformLocation(this.tileShader, 'u_numRows')!
         this.uRowLocation = gl.getUniformLocation(this.tileShader, 'u_row')!
 
         //this.uOffsetLocation = gl.getUniformLocation(this.tileShader, "u_uOffset")
-        this.uScaleLocation = gl.getUniformLocation(this.tileShader, 'u_scale')
+        this.uScaleLocation = gl.getUniformLocation(this.tileShader, 'u_scale')!
 
         // provide texture coordinates for the rectangle.
         this.texCoordBuffer = gl.createBuffer()
@@ -558,16 +558,16 @@ export class WebGLRenderer extends Renderer {
 
         // set up floor light shader
         if (Config.engine.doFloorLighting) {
-            this.floorLightShader = this.getProgram(this.gl, 'vertex', 'fragmentLighting')
+            this.floorLightShader = this.getProgram(this.gl, 'vertex', 'fragmentLighting')!
             gl.useProgram(this.floorLightShader)
             // Colour cycling in the CPU floor path — same unit-7 mask as the tile shader.
             gl.uniform1i(gl.getUniformLocation(this.floorLightShader, 'u_cycleMask'), 7)
             this.uFloorCycleTime = gl.getUniformLocation(this.floorLightShader, 'u_cycleTime')
             this.uFloorUseCycle = gl.getUniformLocation(this.floorLightShader, 'u_useCycleMask')
             if (this.uFloorUseCycle) gl.uniform1i(this.uFloorUseCycle, 0)
-            this.litOffsetLocation = gl.getUniformLocation(this.floorLightShader, 'u_offset')
-            this.litScaleLocation = gl.getUniformLocation(this.floorLightShader, 'u_scale')
-            this.uLightBuffer = gl.getUniformLocation(this.floorLightShader, 'u_lightBuffer')
+            this.litOffsetLocation = gl.getUniformLocation(this.floorLightShader, 'u_offset')!
+            this.litScaleLocation = gl.getUniformLocation(this.floorLightShader, 'u_scale')!
+            this.uLightBuffer = gl.getUniformLocation(this.floorLightShader, 'u_lightBuffer')!
             const litResolutionLocation = gl.getUniformLocation(this.floorLightShader, 'u_resolution')
             const litPositionLocation = gl.getAttribLocation(this.floorLightShader, 'a_position')
 
@@ -669,26 +669,26 @@ export class WebGLRenderer extends Renderer {
         return buffer
     }
 
-    getShader(gl: WebGLRenderingContext, id: keyof ShaderSources): WebGLShader {
+    getShader(gl: WebGLRenderingContext, id: keyof ShaderSources): WebGLShader | null {
         const source = this.shaderSources[id]
         const shader = gl.createShader(id.includes('fragment') ? gl.FRAGMENT_SHADER : gl.VERTEX_SHADER)
-        gl.shaderSource(shader, source)
-        gl.compileShader(shader)
+        gl.shaderSource(shader!, source)
+        gl.compileShader(shader!)
 
-        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-            dbg('renderer', 'An error occurred compiling the shaders: ' + gl.getShaderInfoLog(shader))
+        if (!gl.getShaderParameter(shader!, gl.COMPILE_STATUS)) {
+            dbg('renderer', 'An error occurred compiling the shaders: ' + gl.getShaderInfoLog(shader!))
             return null
         }
 
         return shader
     }
 
-    getProgram(gl: WebGLRenderingContext, vid: keyof ShaderSources, fid: keyof ShaderSources): WebGLProgram {
+    getProgram(gl: WebGLRenderingContext, vid: keyof ShaderSources, fid: keyof ShaderSources): WebGLProgram | null {
         const fsh = this.getShader(gl, fid)
         const vsh = this.getShader(gl, vid)
         const program = gl.createProgram()
-        gl.attachShader(program, vsh)
-        gl.attachShader(program, fsh)
+        gl.attachShader(program, vsh!)
+        gl.attachShader(program, fsh!)
         gl.linkProgram(program)
 
         if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {

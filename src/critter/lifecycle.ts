@@ -186,7 +186,7 @@ export function critterKill(
     // Let a running knockdown finish first. (Its callback stays set after the last
     // frame, so inAnim() can't tell; compare against the frame count.)
     const whenReady = (fn: () => void) => {
-        const frames = globalState.imageInfo[obj.art]?.numFrames ?? 0
+        const frames = globalState.imageInfo![obj.art]?.numFrames ?? 0
         if (fallAnim !== null && obj.frame < frames - 1) obj.animCallback = fn
         else fn()
     }
@@ -332,7 +332,7 @@ function moveStraight(obj: Critter, anim: string, path: Point[], then: () => voi
         true,
     )
     if (slideDone) return
-    const fps = globalState.imageInfo[obj.art]?.fps || 10
+    const fps = globalState.imageInfo![obj.art]?.fps || 10
     let from = { ...obj.position }
     let frame = 0
     let moved = false

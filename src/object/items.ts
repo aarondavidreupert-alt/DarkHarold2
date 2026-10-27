@@ -41,17 +41,17 @@ export class Item extends Obj {
         if (this.pro === null) {
             return
         }
-        this.name = getMessage('pro_item', this.pro.textID)
+        this.name = getMessage('pro_item', this.pro!.textID)!
 
         const invPID = this.pro.extra.invFRM & 0xffff
         if (invPID !== 0xffff) {
-            this.invArt = 'art/inven/' + getLstId('art/inven/inven', invPID).split('.')[0]
+            this.invArt = 'art/inven/' + getLstId('art/inven/inven', invPID)!.split('.')[0]
         }
     }
 }
 
 export class WeaponObj extends Item {
-    weapon?: Weapon = null
+    weapon?: Weapon | null = null
 
     // CE ref: item.cc:357 _item_identical — two weapons stack only if their loaded
     // state (ammo PID + remaining rounds) matches. Prevents loaded and unloaded

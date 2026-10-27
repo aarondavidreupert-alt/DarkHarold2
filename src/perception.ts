@@ -23,7 +23,7 @@ import type { Critter, Obj } from './object.js'
 
 // CE actions.cc _can_see: the target is in front of the critter (its facing ±1).
 export function canSee(obj: Obj, target: Obj): boolean {
-    const dir = Math.abs(obj.orientation - hexDirectionTo(obj.position, target.position))
+    const dir = Math.abs(obj.orientation! - hexDirectionTo(obj.position, target.position))
     return [0, 1, 5].indexOf(dir) !== -1
 }
 

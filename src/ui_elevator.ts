@@ -128,7 +128,7 @@ export function uiElevator(elevator: Elevator) {
     let currentFloorIdx = 0
     for (let i = 0; i < elevator.buttonCount; i++) {
         const b = elevator.buttons[i]
-        if (b.mapID === globalState.gMap.mapID && (Number(b.level) || 0) === globalState.currentElevation) {
+        if (b.mapID === globalState.gMap!.mapID && (Number(b.level) || 0) === globalState.currentElevation) {
             currentFloorIdx = i
             break
         }
@@ -146,15 +146,15 @@ export function uiElevator(elevator: Elevator) {
             const position = fromTileNum(elevator.buttons[targetFloorIdx].tileNum)
 
             const proceed = (): void => {
-                if (mapID !== globalState.gMap.mapID) {
+                if (mapID !== globalState.gMap!.mapID) {
                     // different map
                     dbg('map', `[Elevator] → map ${mapID}, level ${level} @ (${position.x}, ${position.y})`)
-                    globalState.gMap.loadMapByID(mapID, position, level)
+                    globalState.gMap!.loadMapByID(mapID, position, level)
                 } else if (level !== globalState.currentElevation) {
                     // same map, different elevation
                     dbg('map', `[Elevator] → level ${level} @ (${position.x}, ${position.y})`)
-                    globalState.player.move(position)
-                    globalState.gMap.changeElevationFaded(level, true)
+                    globalState.player!.move(position)
+                    globalState.gMap!.changeElevationFaded(level, true)
                 }
 
                 // CE ref: scripts.cc:926 scriptsHandleRequests SCRIPT_REQUEST_ELEVATOR

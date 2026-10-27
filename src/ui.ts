@@ -182,7 +182,7 @@ export function swapHands(): void {
     const p = globalState.player as any
     const player = globalState.player
     const nextHand: 'leftHand' | 'rightHand' = p.activeHand === 'leftHand' ? 'rightHand' : 'leftHand'
-    player.playWeaponSwapAnim(() => {
+    player!.playWeaponSwapAnim(() => {
         p.activeHand = nextHand
         uiDrawWeapon()
     })
@@ -194,7 +194,7 @@ export function swapHands(): void {
 // CE interface.cc interfaceCycleItemAction — the N key and a right-click on the item
 // button: a weapon's modes, or the unarmed hand's punch / kick moves.
 export function cycleActiveItemAction(): void {
-    const wep = globalState.player.equippedWeapon
+    const wep = globalState.player!.equippedWeapon
     if (!wep || !wep.weapon) {
         const player = globalState.player!
         const activeHand: 'leftHand' | 'rightHand' = (player as any).activeHand ?? 'leftHand'
@@ -231,7 +231,7 @@ export function initUI() {
     function reloadWeapon(weaponObj: Obj): boolean {
         const maxAmmo = ammoGetCapacity(weaponObj)
         if (maxAmmo <= 0 || ammoGetQuantity(weaponObj) >= maxAmmo) return false
-        const inv = globalState.player.inventory
+        const inv = globalState.player!.inventory
         let loaded = false
         while (weaponAttemptReload(weaponObj, inv) !== -1) loaded = true
         return loaded
@@ -240,12 +240,12 @@ export function initUI() {
     $id('attackButtonContainer').onclick = () => {
         if (attackButtonDisabled()) return // CE buttonDisable(gSingleAttackButton)
         // Reload mode: immediately reload from inventory (AP cost in combat)
-        const wep = globalState.player.equippedWeapon
+        const wep = globalState.player!.equippedWeapon
         if (wep?.weapon?.mode === 'reload') {
             // CE interface.cc _intface_use_item (RELOAD): in combat nothing happens without the
             // AP; the AP go only when something loaded. _intface_item_reload plays the weapon's
             // ready sound.
-            const ap = globalState.inCombat ? globalState.player.AP : null
+            const ap = globalState.inCombat ? globalState.player!.AP : null
             const reloadAP = wep.weapon.getReloadAPCost() // CE ref: item.cc:1640
             if (ap && ap.getAvailableCombatAP() < reloadAP) return
             if (reloadWeapon(wep)) {
@@ -304,7 +304,7 @@ export function initUI() {
 
     $id('endTurnButton').onclick = () => {
         if (globalState.inCombat && globalState.combat!.inPlayerTurn) {
-            if (globalState.player.anim !== null && globalState.player.anim !== 'idle') {
+            if (globalState.player!.anim !== null && globalState.player!.anim !== 'idle') {
                 dbg('combat', "[Combat] can't end turn while player is in an animation")
                 return
             }
@@ -354,8 +354,8 @@ export function initUI() {
     makeScrollable($id('displayLog'))
     makeScrollable($id('dialogueBoxReply'), 30)
 
-    drawHP(globalState.player.getStat('HP'))
-    drawAC(globalState.player.getStat('AC'))
+    drawHP(globalState.player!.getStat('HP'))
+    drawAC(globalState.player!.getStat('AC'))
     uiDrawWeapon()
 }
 
