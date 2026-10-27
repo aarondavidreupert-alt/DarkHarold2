@@ -27,7 +27,7 @@ const DAM_KNOCKED_OUT = 0x01
 const DAM_KNOCKED_DOWN = 0x02
 
 const samePos = (a: Point, b: Point) => a.x === b.x && a.y === b.y
-const flagsOf = (o: Obj) => ((o as any).flags ?? 0) >>> 0
+const flagsOf = (o: Obj) => (o.flags ?? 0) >>> 0
 
 export function nextShootObstacle(source: Obj, from: Point, to: Point, prev: Obj | null): Obj | null {
     return globalState.gMap?.straightPathObstacle(source, from, to, 1, prev) ?? null

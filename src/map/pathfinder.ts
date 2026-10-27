@@ -26,11 +26,11 @@ const BODY_TYPE_ROBOTIC = 2
 // critters through any unlocked door if biped or robotic and not a gecko.
 export function canUseDoor(critter: Obj, door: Obj): boolean {
     if (critter === globalState.player) {
-        if ((((door as any).pro?.extra?.walkthroughFlag ?? 0) & 0x04) === 0) return false
+        if (((door.pro?.extra?.walkthroughFlag ?? 0) & 0x04) === 0) return false
     }
     if (critter.type !== 'critter') return false
     if (door.type !== 'scenery' || door.subtype !== 'door') return false
-    const bodyType = (critter as any).pro?.extra?.bodyType ?? 0
+    const bodyType = critter.pro?.extra?.bodyType ?? 0
     if (bodyType !== BODY_TYPE_BIPED && bodyType !== BODY_TYPE_ROBOTIC) return false
     if (door.locked) return false // objectIsLocked
     if (((critter as any).killType ?? 0) === KILL_TYPE_GECKO) return false
@@ -73,14 +73,14 @@ function blockingMap(
         if (!o.position || o === mover) continue
         const { x, y } = o.position
         if (x < 0 || x >= W || y < 0 || y >= W) continue
-        const pid = (o as any).pid as number | undefined
+        const pid = o.pid as number | undefined
         if (pid !== undefined && pid >= FIRST_RADIOACTIVE_GOO_PID && pid <= LAST_RADIOACTIVE_GOO_PID) goo.add(y * W + x)
         if (shoot === 'sight') {
-            const flags = ((o as any).flags ?? 0) >>> 0
+            const flags = (o.flags ?? 0) >>> 0
             if (
                 (o.type === 'scenery' || o.type === 'wall') &&
                 (flags & 0x01) === 0 &&
-                (o as any).visible !== false &&
+                o.visible !== false &&
                 (flags & 0x20000000) === 0 &&
                 !block.has(y * W + x)
             )
@@ -89,9 +89,9 @@ function blockingMap(
         }
         if (shoot === 'ai' && o.type === 'critter') continue
         if (shoot && shoot !== 'ai') {
-            const flags = ((o as any).flags ?? 0) >>> 0
+            const flags = (o.flags ?? 0) >>> 0
             const kind = o.type === 'scenery' || o.type === 'wall' || (o.type === 'critter' && !(o as any).dead)
-            if (!kind || (flags & 0x01) !== 0 || (o as any).visible === false) continue // OBJECT_HIDDEN
+            if (!kind || (flags & 0x01) !== 0 || o.visible === false) continue // OBJECT_HIDDEN
             const noBlock = (flags & 0x10) !== 0
             if (!(noBlock && (flags & 0x80000000) !== 0) && !block.has(y * W + x)) block.set(y * W + x, o)
             if (!noBlock && (flags & 0x800) !== 0) {
@@ -105,7 +105,7 @@ function blockingMap(
         }
         if (!o.blocks()) continue
         if (!block.has(y * W + x)) block.set(y * W + x, o)
-        if ((((o as any).flags ?? 0) & 0x800) !== 0) {
+        if (((o.flags ?? 0) & 0x800) !== 0) {
             // OBJECT_MULTIHEX
             for (let r = 0; r < 6; r++) {
                 const n = hexInDirection(o.position, r)
@@ -129,7 +129,7 @@ export function pathfinderFindPath(
     const W = HEX_GRID_SIZE
     const fromTile = from.y * W + from.x
     const toTile = to.y * W + to.x
-    const elevation = (mover as any)?.elevation ?? globalState.gMap?.currentElevation ?? 0
+    const elevation = mover?.elevation ?? globalState.gMap?.currentElevation ?? 0
     const { block, goo } = blockingMap(mover, elevation, shoot)
 
     if (goalMustBeFree && block.has(toTile)) return []

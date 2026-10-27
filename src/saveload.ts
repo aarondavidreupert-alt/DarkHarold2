@@ -515,13 +515,13 @@ export function load(id: number): void {
                         } else if (userdata === 'sneak') {
                             // CE ref: critter.cc:1194 sneakEventProcess — restore periodic sneak roll timer.
                             const playerForSneak = globalState.player
-                            if (playerForSneak && (playerForSneak as any).isSneaking) {
+                            if (playerForSneak && playerForSneak.isSneaking) {
                                 Scripting.timeEventList.push({
                                     obj: playerForSneak,
                                     ticks,
                                     userdata,
                                     fn: () => {
-                                        if ((playerForSneak as any).isSneaking) scheduleSneakEvent(playerForSneak)
+                                        if (playerForSneak.isSneaking) scheduleSneakEvent(playerForSneak)
                                     },
                                     leaveMap: () => sneakClear(playerForSneak),
                                 })
@@ -588,7 +588,7 @@ export function load(id: number): void {
                     // CE ref: critter.cc sneakEventProcess — if player loaded with isSneaking=true
                     // but no sneak timer (old save format), re-arm the sneak event now.
                     const playerForSneak2 = globalState.player
-                    if (playerForSneak2 && (playerForSneak2 as any).isSneaking) {
+                    if (playerForSneak2 && playerForSneak2.isSneaking) {
                         const hasSneakEvent = Scripting.timeEventList.some(
                             (e) => e.obj === playerForSneak2 && e.userdata === 'sneak',
                         )

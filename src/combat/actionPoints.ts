@@ -76,7 +76,7 @@ export class ActionPoints {
         this.combat -= value - fromFree
         // the walk just set up is paid for; CE animation.cc _object_move charges each hex as it is
         // walked, so a walk that ends early gets the rest back (refundWalk)
-        const path = (critter as any).path
+        const path = critter.path
         if (path) path.paid = { hexes, perHex, free: fromFree, combat: value - fromFree }
         return true
     }

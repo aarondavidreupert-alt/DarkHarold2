@@ -73,7 +73,7 @@ function isDude(c: Critter): boolean {
 }
 
 function hasTrait(c: Critter, name: string): boolean {
-    return isDude(c) && ((c as any).traits ?? []).includes(name)
+    return isDude(c) && (c.traits ?? []).includes(name)
 }
 
 function gvarForPid(pid: number): number {
@@ -162,7 +162,7 @@ function performDrugEffect(critter: Critter, stats: number[], mods: number[], is
         }
 
         // CE: an HP change ends the critter's fleeing (CRITTER_MANUEVER_FLEEING)
-        if (stat === STAT_CURRENT_HIT_POINTS) (critter as any).fleeing = false
+        if (stat === STAT_CURRENT_HIT_POINTS) critter.fleeing = false
         if (stat === STAT_CURRENT_HIT_POINTS && !isDude(critter) && critter.getStat('HP') + delta <= 0) {
             const fmt = itemMsg(600) ?? '%s succumbs to the adverse effects of chems.'
             uiLog(fmt.replace('%s', critter.name ?? ''))

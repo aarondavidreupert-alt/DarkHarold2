@@ -183,16 +183,16 @@ const PLAYER_STATS = ['STR', 'PER', 'END', 'CHA', 'INT', 'AGI', 'LUK', 'HP', 'Ma
 
 function capture(): Snapshot {
     const map = globalState.gMap
-    const player = globalState.player as any
+    const player = globalState.player
     const lvars: Snapshot['lvars'] = {}
     const tiles: Snapshot['tiles'] = {}
     const goals: Snapshot['goals'] = {}
     for (const o of map ? map.getObjects() : []) {
         const path = (o as any).path
-        if (path?.target) goals[label(o)] = `${(o as any).anim}@${toTileNum(path.target)}`
-        const s = (o as any)._script
+        if (path?.target) goals[label(o)] = `${o.anim}@${toTileNum(path.target)}`
+        const s = o._script
         if (s && s.lvars) lvars[label(o)] = { ...s.lvars }
-        if ((s || (o as any).isPlayer) && (o as any).position) tiles[label(o)] = toTileNum((o as any).position)
+        if ((s || (o as any).isPlayer) && o.position) tiles[label(o)] = toTileNum(o.position)
     }
     const mapScript = (map?.name ?? '').toLowerCase()
     const inv: Snapshot['inv'] = {}
@@ -470,12 +470,12 @@ const OBJECT_SKILLS = [6, 7, 9, 11, 12, 13]
  *  engine fallback; a dialogue a script starts is ended at once. */
 async function crawlObjects(mapName: string, trace: string[]): Promise<number> {
     const map = globalState.gMap
-    const player = globalState.player as any
+    const player = globalState.player
     if (!map || !player) return 0
     let steps = 0
     for (const obj of map.getObjects().slice()) {
-        const s: any = (obj as any)._script
-        if (!s || (obj as any).isPlayer || !(obj as any).position) continue
+        const s: any = obj._script
+        if (!s || (obj as any).isPlayer || !obj.position) continue
         const isCritter = obj instanceof Critter
         const id = `${mapName}/${s.scriptName ?? '?'}#${label(obj)}`
         const actions: [string, () => void][] = []
@@ -540,7 +540,7 @@ async function crawlTime(mapName: string, trace: string[]): Promise<number> {
                 steps++
             }
             const critters = (globalState.gMap?.getObjects() ?? []).filter(
-                (o): o is Critter => o instanceof Critter && !!o._script && !o.dead && !(o as any).isPlayer,
+                (o): o is Critter => o instanceof Critter && !!o._script && !o.dead && !o.isPlayer,
             )
             for (const c of critters) {
                 if (globalState.gMap?.name !== mapName) return steps
@@ -674,23 +674,23 @@ export async function runStoryCrawler(options: StoryOptions = {}): Promise<Story
     const baseline = {
         gvars: { ...Scripting.getGlobalVars() },
         mvars: JSON.parse(JSON.stringify(Scripting.getMapVars() ?? {})),
-        xp: (globalState.player as any).stats.getBase('Experience') as number,
-        hp: (globalState.player as any).stats.getBase('HP') as number,
-        caps: Scripting.itemGetTotalCaps(globalState.player as any),
-        inventory: (globalState.player as any).inventory.map(cloneItem) as any[],
+        xp: globalState.player.stats.getBase('Experience') as number,
+        hp: globalState.player.stats.getBase('HP') as number,
+        caps: Scripting.itemGetTotalCaps(globalState.player),
+        inventory: globalState.player.inventory.map(cloneItem) as any[],
     }
     try {
         for (const mapName of opts.maps) {
             Scripting.setGlobalVars(baseline.gvars)
             Scripting.setMapVars(JSON.parse(JSON.stringify(baseline.mvars)))
-            ;(globalState.player as any).stats.setBase('Experience', baseline.xp)
-            ;(globalState.player as any).stats.setBase('HP', baseline.hp)
+            globalState.player.stats.setBase('Experience', baseline.xp)
+            globalState.player.stats.setBase('HP', baseline.hp)
             // what the last map's purchases and scripts added or took
-            ;(globalState.player as any).inventory = baseline.inventory.map(cloneItem)
+            globalState.player.inventory = baseline.inventory.map(cloneItem)
             // timers the last map's scripts set would fire in this map's time pass
             Scripting.timeEventList.length = 0
-            const capsDelta = baseline.caps - Scripting.itemGetTotalCaps(globalState.player as any)
-            if (capsDelta !== 0) Scripting.itemCapsAdjust(globalState.player as any, capsDelta)
+            const capsDelta = baseline.caps - Scripting.itemGetTotalCaps(globalState.player)
+            if (capsDelta !== 0) Scripting.itemCapsAdjust(globalState.player, capsDelta)
             const loadDraws = randomDraws
             if (!(await loadMapQuietly(mapName))) {
                 console.warn(`[AutoCrawler] story: ${mapName} did not load`)

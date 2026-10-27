@@ -371,7 +371,7 @@ export class Renderer {
             const _ctrX = Math.round(globalState.cameraPosition.x + getWorldViewWidth() / 2)
             const _ctrY = Math.round(globalState.cameraPosition.y + getWorldViewHeight() / 2)
             this.renderText('ctr: ' + _ctrX + ',' + _ctrY + '  zoom:' + (globalState.cameraZoom || 1).toFixed(2), 5, 45)
-            const _b = (window as any).mapContentBounds
+            const _b = window.mapContentBounds
             if (_b) {
                 const _z = getZoom()
                 const _cam = globalState.cameraPosition

@@ -110,7 +110,7 @@ function getWeaponSkillFromPro(weapon: WeaponObj, slot: 1 | 2 = 1): string {
             skill = 'Energy Weapons'
         } else {
             // (the flag, not the anim code: the Flame Breath, pid 427, has the big-gun anim but not the flag)
-            if (((weapon.pro.extra as any).weaponFlags ?? 0) & BIG_GUN_FLAG) {
+            if ((weapon.pro.extra.weaponFlags ?? 0) & BIG_GUN_FLAG) {
                 skill = 'Big Guns'
             }
         }
@@ -245,7 +245,7 @@ export class Weapon {
         const maxAmmo = ammoGetCapacity(item)
         const canReload = maxAmmo > 0 && ammoGetQuantity(item) < maxAmmo
         // CE item.cc critterCanAim: the player's Fast Shot trait forbids aimed attacks.
-        const player = globalState.player as any
+        const player = globalState.player
         const fastShot =
             !!player &&
             (player.traits ?? []).includes('Fast Shot') &&
@@ -273,13 +273,13 @@ export class Weapon {
 
     /** The proto attack mode (0 none … 8 flame) of a slot (default: the current one). */
     attackModeOf(slot?: 1 | 2): number {
-        const modes = (this.weapon as any).pro?.extra?.attackMode ?? 0
+        const modes = this.weapon.pro?.extra?.attackMode ?? 0
         return (slot ?? this.slot()) === 2 ? (modes >> 4) & 0xf : modes & 0xf
     }
 
     /** CE weaponGetSkillForHitMode for the current action's attack. */
     skillForMode(): string {
-        if ((this.weapon as any).pid === undefined) return this.weaponSkillType
+        if (this.weapon.pid === undefined) return this.weaponSkillType
         const slot = this.slot()
         if (slot === 1) return this.weaponSkillType
         return getWeaponSkillFromPro(this.weapon as WeaponObj, 2)
@@ -291,7 +291,7 @@ export class Weapon {
     private canAim(slot: 1 | 2): boolean {
         const mode = this.attackModeOf(slot)
         if (mode === 7 || mode === 8) return false
-        const dmg = damageType[(this.weapon as any).pro?.extra?.dmgType ?? 0]
+        const dmg = damageType[this.weapon.pro?.extra?.dmgType ?? 0]
         if (dmg === 'Explosive' || dmg === 'Fire' || dmg === 'EMP') return false
         return !(dmg === 'Plasma' && mode === 5)
     }
@@ -336,9 +336,9 @@ export class Weapon {
         const s = slot ?? this.slot()
         let ap = this.getAPCost(s)
         if (critter.isPlayer) {
-            const traits: string[] = (critter as any).traits ?? []
-            const isItem = (this.weapon as any).pid !== undefined
-            const modes = isItem ? ((this.weapon as any).pro?.extra?.attackMode ?? 0) : 0
+            const traits: string[] = critter.traits ?? []
+            const isItem = this.weapon.pid !== undefined
+            const modes = isItem ? (this.weapon.pro?.extra?.attackMode ?? 0) : 0
             const mode = s === 2 ? (modes >> 4) & 0xf : modes & 0xf
             const attackType = !isItem
                 ? 'unarmed'

@@ -271,7 +271,7 @@ export function uiBarterMode(merchant: Critter) {
             if (!c || c.visible === false) continue
             playerBarter = Math.max(playerBarter, c.getSkill?.('Barter') ?? 0)
         }
-        const npcBarter = (merchant as any).getSkill?.('Barter') ?? 0
+        const npcBarter = merchant.getSkill?.('Barter') ?? 0
 
         // Reaction modifier from merchant LVAR 0 (CE ref: reaction.cc:18)
         const reactionVal = (merchant as any)._script?.lvars?.[0] ?? 0
@@ -449,14 +449,12 @@ export function uiBarterMode(merchant: Critter) {
     async function uiBarterMove(data: string, where: 'left' | 'right' | 'leftInv' | 'rightInv') {
         dbg('script', `[Barter] move ${data} to ${where}`)
 
-        const from = (
-            {
-                p: playerList(),
-                m: merchantList(),
-                l: playerBarterTable,
-                r: merchantBarterTable,
-            } as any
-        )[data[0]]
+        const from = {
+            p: playerList(),
+            m: merchantList(),
+            l: playerBarterTable,
+            r: merchantBarterTable,
+        }[data[0]]
 
         if (from === undefined) {
             throw new Error('uiBarterMove: wrong data: ' + data)

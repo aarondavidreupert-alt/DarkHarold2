@@ -225,7 +225,7 @@ export function primaryActionIcon(obj: Obj): string {
     return icon('lookn')
 }
 function critterProtoFlags(c: Critter): number {
-    return ((c.pro as any)?.extra?.flags ?? 0) >>> 0
+    return (c.pro?.extra?.flags ?? 0) >>> 0
 }
 
 // CE object.cc _obj_action_can_talk_to: a critter that is active (alive, not knocked
@@ -253,9 +253,9 @@ function actionCheckPush(pusher: Critter, target: Critter): boolean {
     if (hexDistance(pusher.position, target.position) > 12) return false
     if (!target._script || target._script.push_p_proc === undefined) return false
     if (globalState.inCombat) {
-        const whoHitPusher = (pusher as any).whoHitMe
+        const whoHitPusher = pusher.whoHitMe
         if (target.teamNum === pusher.teamNum && target === whoHitPusher) return false
-        const whoHitTarget = (target as any).whoHitMe as Critter | null
+        const whoHitTarget = target.whoHitMe as Critter | null
         if (whoHitTarget && whoHitTarget.teamNum === pusher.teamNum) return false
     }
     return true

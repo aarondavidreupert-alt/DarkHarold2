@@ -71,7 +71,7 @@ export function explosionRingCritters(
         const obstacle = gMap.blockingObjectAt(toTileNum(tile), elevation, 0, centerObj)
         if (obstacle === null || obstacle.type !== 'critter') continue
         const c = obstacle as Critter
-        if (c.dead || ((((c as any).flags ?? 0) >>> 0) & OBJECT_SHOOT_THRU) !== 0) continue
+        if (c.dead || (((c.flags ?? 0) >>> 0) & OBJECT_SHOOT_THRU) !== 0) continue
         if (combatIsShotBlocked(c, c.position, center, null).blocked) continue
         if (!victims.includes(c)) victims.push(c)
     }
@@ -90,7 +90,7 @@ export function computeExplosionDamage(
     if (damage > 0)
         damage -= Math.trunc(((defender.getStat('DR Explosive') + defender.getArmorDR('Explosive')) * damage) / 100)
     if (damage < 0) damage = 0
-    const multihex = ((((defender as any).flags ?? 0) >>> 0) & 0x800) !== 0
+    const multihex = (((defender.flags ?? 0) >>> 0) & 0x800) !== 0
     return { damage, knockback: multihex ? 0 : Math.trunc(damage / 10) }
 }
 

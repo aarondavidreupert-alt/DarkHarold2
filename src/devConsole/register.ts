@@ -14,6 +14,9 @@ import { registerEggCommands } from './egg.js'
 import { registerLightingCommands } from './lighting.js'
 import { registerCacheAndOutlineCommands, registerToggleCommands } from './toggles.js'
 
+// console commands are free-form globals (play.html#dev)
+const devWindow = window as unknown as Record<string, unknown>
+
 /** play.html#dev (or #...&dev): the developer console commands are registered. */
 export function devConsoleEnabled(): boolean {
     return /(?:^#|&)dev(?:&|$)/.test(location.hash)
@@ -27,16 +30,16 @@ export function registerDevConsole(): void {
     registerCacheAndOutlineCommands()
 
     // the scroll-limit editor (render/camera.ts, wiki/scroll_clamping.md)
-    ;(window as any).scrollDebug = scrollDebug
-    ;(window as any).blackBar = blackBar
-    ;(window as any).borderSave = borderSave
-    ;(window as any).clearBorder = clearBorder
+    devWindow.scrollDebug = scrollDebug
+    devWindow.blackBar = blackBar
+    devWindow.borderSave = borderSave
+    devWindow.clearBorder = clearBorder
 
     // giveCar([fuel]) — test helper for the car (worldmap/Worldmap.ts, wiki/car_system.md)
-    ;(window as any).giveCar = Worldmap.giveCar
+    devWindow.giveCar = Worldmap.giveCar
 
     // debug exposure for console inspection
-    ;(window as any).debugLightmap = Lightmap
-    ;(window as any).debugRenderer = globalState.renderer
-    ;(window as any).debugGlobalState = globalState
+    devWindow.debugLightmap = Lightmap
+    devWindow.debugRenderer = globalState.renderer
+    devWindow.debugGlobalState = globalState
 }

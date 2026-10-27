@@ -338,7 +338,7 @@ export function uiGetTimer(item: Obj): Promise<number> {
         }
         const sfx = (name: string) => {
             try {
-                ;(globalState as any).audioEngine?.playSfxByName(name)
+                globalState.audioEngine?.playSfxByName(name)
             } catch (e) {
                 void e
             }

@@ -52,7 +52,7 @@ export function mapKey(mapName: string, elevation: number): string {
 export function snapshotCurrentMapObjects(): void {
     const map = globalState.gMap
     if (!map || !map.name) return
-    const numLevels: number = (map as any).numLevels ?? 1
+    const numLevels: number = map.numLevels ?? 1
     for (let level = 0; level < numLevels; level++) {
         let objs: any[] = []
         try {

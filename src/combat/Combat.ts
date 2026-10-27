@@ -229,7 +229,7 @@ const CF_TABLE: readonly (readonly number[])[] = [
 // CE item.cc weaponGetCriticalFailureType — the proto's criticalFailureType (DH2
 // `critFail`); no weapon (or -1) is row 0.
 function weaponCriticalFailureType(weaponObj: Obj | null): number {
-    const t = (weaponObj as any)?.pro?.extra?.critFail
+    const t = weaponObj?.pro?.extra?.critFail
     return typeof t === 'number' && t >= 0 && t < CF_TABLE.length ? t : 0
 }
 
@@ -306,7 +306,7 @@ interface Attack {
 // (critterGetDamageType) — Normal for most, plasma / electrical for a few creatures
 const DAMAGE_TYPE_NAMES = ['Normal', 'Laser', 'Fire', 'Plasma', 'Electrical', 'EMP', 'Explosive']
 function unarmedDamageType(critter: Critter): string {
-    return DAMAGE_TYPE_NAMES[(critter as any).pro?.extra?.damageType ?? 0] ?? 'Normal'
+    return DAMAGE_TYPE_NAMES[critter.pro?.extra?.damageType ?? 0] ?? 'Normal'
 }
 
 // CE combat.cc attackInit
@@ -444,7 +444,7 @@ function aiHurtTooMuch(obj: Critter, packet: AiPacket): boolean {
 // / ghoul / child with INT >= 3 — a healing item when HP is at the chem_use ratio.
 function aiCanUseItem(obj: Critter, item: Obj, packet: AiPacket): boolean {
     if (packet.chemPrimaryDesire.includes(item.pid)) return true
-    if (((obj.pro as any)?.extra?.bodyType ?? 0) !== 0) return false
+    if ((obj.pro?.extra?.bodyType ?? 0) !== 0) return false
     const kt = obj.killType ?? 0
     if (kt !== 0 && kt !== 1 && kt !== 2 && kt !== 3 && kt !== 4) return false
     if (obj.getStat('INT') < 3) return false
@@ -485,8 +485,8 @@ function aiHaveAmmo(weaponObj: Obj | null): boolean {
     if (!weaponObj) return true // unarmed — always valid
     // CE combat_ai.cc aiHaveAmmo: the Solar Scorcher only works in daylight (ambient > 95 %)
     if (weaponObj.pid === 390) return GameTime.getAmbientLight() > 65536 * 0.95 // PROTO_ID_SOLAR_SCORCHER
-    if (ammoGetCapacity(weaponObj as any) === 0) return true // melee/unarmed — no ammo needed
-    return ammoGetQuantity(weaponObj as any) > 0
+    if (ammoGetCapacity(weaponObj) === 0) return true // melee/unarmed — no ammo needed
+    return ammoGetQuantity(weaponObj) > 0
 }
 
 // CE combat_ai.cc aiHaveAmmo(critter, weapon, &ammo): the Solar Scorcher in daylight;
@@ -498,8 +498,8 @@ function aiFindAmmo(critter: Critter, weaponObj: Obj): { ok: boolean; ammo: Obj 
     for (const item of critter.inventory.slice()) {
         if (item.subtype !== 'ammo') continue
         if (weaponCanBeReloadedWith(weaponObj, item)) return { ok: true, ammo: item }
-        const animCode = (weaponObj as any).pro?.extra?.animCode ?? 0
-        const right = (critter as any).rightHand as Obj | null
+        const animCode = weaponObj.pro?.extra?.animCode ?? 0
+        const right = critter.rightHand as Obj | null
         if (right && (animCode === 0 || Combat.weaponRange(critter, right) < 3)) invenUnwield(critter, 'rightHand')
     }
     return { ok: false, ammo: null }
@@ -509,15 +509,15 @@ function aiFindAmmo(critter: Critter, weaponObj: Obj): { ok: boolean; ammo: Obj 
 // full is reloaded from the inventory (aiHaveAmmo); a party member's reload sounds the
 // weapon's READY. Called at the end of combat and after a barter.
 export function aiAttemptWeaponReload(c: Critter): void {
-    const w = (c as any).rightHand as Obj | null
+    const w = c.rightHand as Obj | null
     if (!w || w.pid === undefined) return
-    const cap = ammoGetCapacity(w as any)
-    if (ammoGetQuantity(w as any) >= cap) return
+    const cap = ammoGetCapacity(w)
+    if (ammoGetQuantity(w) >= cap) return
     const ammo = aiFindAmmo(c, w).ammo
     if (!ammo) return
-    const rc = weaponReload(w as any, ammo as any)
+    const rc = weaponReload(w, ammo)
     if (rc === 0) ammoUseTopBox(ammo, c.inventory)
-    if (rc !== -1 && globalState.gParty?.isPartyMember(c) && !(window as any).__test?.fastMode) {
+    if (rc !== -1 && globalState.gParty?.isPartyMember(c) && !window.__test?.fastMode) {
         globalState.audioEngine?.playSfxByName?.(sfxBuildWeaponName(0, w, false, null).toLowerCase(), c)
     }
 }
@@ -572,9 +572,9 @@ export class Combat {
                 obj.AP = new ActionPoints(obj)
                 // CE combat.cc _combatInitAIInfoList (_combat_begin): friendlyDead, lastTarget
                 // and lastItem start empty (lastMove is set by CE but never read)
-                ;(obj as any).aiFriendlyDead = null
-                ;(obj as any).aiLastTarget = null
-                ;(obj as any).aiLastItem = null
+                obj.aiFriendlyDead = null
+                obj.aiLastTarget = null
+                obj.aiLastItem = null
                 return true
             }
 
@@ -583,7 +583,7 @@ export class Combat {
 
         // CE combat.cc _combat_begin: whoHitMe starts empty for every critter on the elevation
         // (sequenceInit / team combat then set the attacker's and defender's)
-        for (const o of objects) if (o instanceof Critter) (o as any).whoHitMe = null
+        for (const o of objects) if (o instanceof Critter) o.whoHitMe = null
 
         // The first round's order comes from sequenceInit (Combat.start); later rounds
         // are sorted by Sequence (combatSequence).
@@ -599,7 +599,7 @@ export class Combat {
         // Stop the player from walking combat is initiating
         this.player.clearAnim()
 
-        if (!(window as any).__test?.fastMode) globalState.audioEngine.playSfxByName('icombat1')
+        if (!window.__test?.fastMode) globalState.audioEngine.playSfxByName('icombat1')
         uiStartCombat()
     }
 
@@ -660,8 +660,8 @@ export class Combat {
         let roll: RollResult
         const chance = this.getHitChance(attacker, a.defender, a.hitLocation)
         if (isBurst) {
-            let q = ammoGetQuantity(weaponObj as any)
-            const burst = weaponGetBurstRounds(weaponObj as any)
+            let q = ammoGetQuantity(weaponObj)
+            const burst = weaponGetBurstRounds(weaponObj)
             if (burst < q) q = burst
             roundsSpent = q
             const spray = this.computeSpray(attacker, a.defender, q, range, !!weapon?.isContinuous?.())
@@ -702,8 +702,7 @@ export class Combat {
                 roll = RollResult.CriticalSuccess
             }
         }
-        a.ammoQuantity =
-            weaponObj && ammoGetCapacity(weaponObj as any) > 0 ? (attackType === 'ranged' ? roundsSpent : 1) : 0
+        a.ammoQuantity = weaponObj && ammoGetCapacity(weaponObj) > 0 ? (attackType === 'ranged' ? roundsSpent : 1) : 0
         // CE item.cc _item_w_compute_ammo_cost: the Super Cattle Prod and the Mega Power Fist use
         // two charges a hit
         if (a.ammoQuantity > 0 && (weaponObj?.pid === 399 || weaponObj?.pid === 407)) a.ammoQuantity *= 2
@@ -769,22 +768,22 @@ export class Combat {
         return (
             attacker.hasPerk('Silent Death') &&
             !isHitFromFront(attacker, defender) &&
-            !!(attacker as any).isSneaking &&
-            (defender as any).whoHitMe !== attacker
+            !!attacker.isSneaking &&
+            defender.whoHitMe !== attacker
         )
     }
 
     // CE combat.cc attackComputeEnhancedKnockout: PERK_WEAPON_ENHANCED_KNOCKOUT knocks out
     // with d100 <= ST − 8.
     private computeEnhancedKnockout(a: Attack): void {
-        if (((a.weapon as any)?.pro?.extra?.perk ?? -1) !== PERK_WEAPON_ENHANCED_KNOCKOUT) return
+        if ((a.weapon?.pro?.extra?.perk ?? -1) !== PERK_WEAPON_ENHANCED_KNOCKOUT) return
         if (randomBetween(1, 100) > a.attacker.getStat('STR') - 8) return
         const defWeapon = a.defender.isPlayer ? null : this.rightHandWeapon(a.defender)
         if ((attackFindInvalidFlags(a.defender, defWeapon) & 1) === 0) a.defenderFlags |= DAM_KNOCKED_OUT
     }
 
     private rightHandWeapon(c: Critter): Obj | null {
-        const w = (c as any).rightHand
+        const w = c.rightHand
         return w && w.pid !== undefined ? w : null
     }
 
@@ -793,7 +792,7 @@ export class Combat {
     // player) gives the multiplier and flags; a failed stat roll adds the massive flags.
     computeCriticalHit(a: Attack): number {
         const defender = a.defender
-        if (((defender.pro as any)?.extra?.flags ?? 0) & CRITTER_INVULNERABLE) return 2
+        if ((defender.pro?.extra?.flags ?? 0) & CRITTER_INVULNERABLE) return 2
         a.attackerFlags |= DAM_CRITICAL
         const chance = randomBetween(1, 100) + a.attacker.getStat('Better Criticals')
         const effect = chance <= 20 ? 0 : chance <= 45 ? 1 : chance <= 70 ? 2 : chance <= 90 ? 3 : chance <= 100 ? 4 : 5
@@ -806,8 +805,7 @@ export class Combat {
             a.criticalMessageId = desc[6]
         }
         if ((a.defenderFlags & DAM_CRIP_RANDOM) !== 0) a.defenderFlags = doRandomCripple(a.defenderFlags)
-        if (((a.weapon as any)?.pro?.extra?.perk ?? -1) === PERK_WEAPON_ENHANCED_KNOCKOUT)
-            a.defenderFlags |= DAM_KNOCKED_OUT
+        if ((a.weapon?.pro?.extra?.perk ?? -1) === PERK_WEAPON_ENHANCED_KNOCKOUT) a.defenderFlags |= DAM_KNOCKED_OUT
         const defWeapon = defender.isPlayer ? null : this.rightHandWeapon(defender)
         a.defenderFlags &= ~attackFindInvalidFlags(defender, defWeapon)
         combatDebug(`crit hit: roll=${chance} effect=${effect} flags=0x${a.defenderFlags.toString(16)} DM=${desc[0]}`)
@@ -820,7 +818,7 @@ export class Combat {
     private computeCriticalFailure(a: Attack): void {
         const attacker = a.attacker
         a.attackerFlags &= ~DAM_HIT
-        if (((attacker.pro as any)?.extra?.flags ?? 0) & CRITTER_INVULNERABLE) return
+        if ((attacker.pro?.extra?.flags ?? 0) & CRITTER_INVULNERABLE) return
         if (attacker.isPlayer && Math.floor((globalState.gameTickTime ?? 0) / GameTime.TICKS_PER_DAY) < 6) return
         const attackType = attackTypeOf(a.weapon)
         const typeIndex = weaponCriticalFailureType(a.weapon)
@@ -840,7 +838,7 @@ export class Combat {
         }
         if ((a.attackerFlags & DAM_LOSE_TURN) !== 0 && attacker.AP) attacker.AP.combat = 0
         if ((a.attackerFlags & DAM_LOSE_AMMO) !== 0) {
-            if (attackType === 'ranged') a.ammoQuantity = ammoGetQuantity(a.weapon as any)
+            if (attackType === 'ranged') a.ammoQuantity = ammoGetQuantity(a.weapon)
             else a.attackerFlags &= ~DAM_LOSE_AMMO
         }
         if ((a.attackerFlags & DAM_CRIP_RANDOM) !== 0) a.attackerFlags = doRandomCripple(a.attackerFlags)
@@ -913,11 +911,9 @@ export class Combat {
             DT = Math.trunc((20 * DT) / 100)
             DR = Math.trunc((20 * DR) / 100)
         } else {
-            const penetrate = unarmed
-                ? !!mode?.penetrate
-                : (weaponObj as any)?.pro?.extra?.perk === PERK_WEAPON_PENETRATE
+            const penetrate = unarmed ? !!mode?.penetrate : weaponObj?.pro?.extra?.perk === PERK_WEAPON_PENETRATE
             if (penetrate) DT = Math.trunc((20 * DT) / 100)
-            if (attacker.isPlayer && ((attacker as any).traits ?? []).includes('Finesse')) DR += 30
+            if (attacker.isPlayer && (attacker.traits ?? []).includes('Finesse')) DR += 30
         }
         const attackType = attackTypeOf(weaponObj)
         const damageBonus =
@@ -955,7 +951,7 @@ export class Combat {
         }
 
         let knockback = 0
-        const multihex = ((((target as any).flags ?? 0) >>> 0) & 0x800) !== 0 // OBJECT_MULTIHEX
+        const multihex = (((target.flags ?? 0) >>> 0) & 0x800) !== 0 // OBJECT_MULTIHEX
         if (
             withKnockback &&
             !multihex &&
@@ -963,7 +959,7 @@ export class Combat {
                 weaponObj === null ||
                 weaponObj.pid === undefined ||
                 attackType === 'melee') &&
-            !(((target.pro as any)?.extra?.flags ?? 0) & CRITTER_NO_KNOCKBACK)
+            !((target.pro?.extra?.flags ?? 0) & CRITTER_NO_KNOCKBACK)
         ) {
             let should = true
             let stonewall = false
@@ -972,7 +968,7 @@ export class Combat {
                 if (randomBetween(0, 100) < 50) should = false
             }
             if (should) {
-                const divisor = ((weaponObj as any)?.pro?.extra?.perk ?? -1) === PERK_WEAPON_KNOCKBACK ? 5 : 10
+                const divisor = (weaponObj?.pro?.extra?.perk ?? -1) === PERK_WEAPON_KNOCKBACK ? 5 : 10
                 knockback = Math.trunc(damage / divisor)
                 if (stonewall) knockback = Math.trunc(knockback / 2)
             }
@@ -1036,7 +1032,7 @@ export class Combat {
 
     // Visual only: one explosion sprite at the impact (misc proto 14, as Obj.explode uses).
     private spawnExplosionSprite(pos: Point): void {
-        if ((window as any).__test?.fastMode) return
+        if (window.__test?.fastMode) return
         const sprite = createObjectWithPID(makePID(5 /* misc */, 14 /* Explosion */), -1)
         sprite.position = { x: pos.x, y: pos.y }
         lazyLoadImage(sprite.art, () => {
@@ -1059,7 +1055,7 @@ export class Combat {
         // other as who-hit-me when the fight starts with this attack.
         if (!target.isPlayer && !target.hostile && target.teamNum !== this.player.teamNum) {
             target.hostile = true
-            if (!(target as any).whoHitMe) critterSetWhoHitMe(target, obj)
+            if (!target.whoHitMe) critterSetWhoHitMe(target, obj)
         }
         // turn to face the target
         const hex = hexNearestNeighbor(obj.position, target.position)
@@ -1096,7 +1092,7 @@ export class Combat {
         // the party's attack_who), and every attacker its last target
         if (obj.isPlayer) critterSetWhoHitMe(obj, a.defender)
         // (aiInfoSetLastTarget: a dead target is stored as none, oneself not at all)
-        if (a.defender !== obj) (obj as any).aiLastTarget = a.defender?.dead ? null : a.defender
+        if (a.defender !== obj) obj.aiLastTarget = a.defender?.dead ? null : a.defender
         if (gcsd) {
             // CE _combat_attack: the attack_complex bonuses and clamps, on every attack of the
             // first combatant's turn (_gcsd is cleared when that turn ends, beginTurn)
@@ -1111,7 +1107,7 @@ export class Combat {
         // display wait for the action frame.
         const rawAttackSoundID = weaponObj?.pro?.extra?.soundID
         const attackSoundChar = typeof rawAttackSoundID === 'number' ? String.fromCharCode(rawAttackSoundID) : null
-        if (attackSoundChar && !(window as any).__test?.fastMode) {
+        if (attackSoundChar && !window.__test?.fastMode) {
             // CE sfxBuildWeaponName(WEAPON_SOUND_EFFECT_ATTACK): a missing file stays silent
             globalState.audioEngine.playSfxByName(
                 sfxBuildWeaponName(1, weaponObj, weaponSecondaryMode(weaponObj), null).toLowerCase(),
@@ -1130,7 +1126,7 @@ export class Combat {
         a.unarmedAnim = unarmedAnim
         // CE ref: actions.cc:625 — punches and kicks use sfxBuildCharName(attacker,
         // anim, UNUSED) instead of a weapon sound.
-        if (fist && !(window as any).__test?.fastMode) playCharAnimSfx(obj, unarmedAnim)
+        if (fist && !window.__test?.fastMode) playCharAnimSfx(obj, unarmedAnim)
 
         // FA3 — CE ref: animation.cc / combat.cc _action_melee/_action_ranged: the hit,
         // impact sound and target reaction happen on the attacker's FRM action frame,
@@ -1225,8 +1221,8 @@ export class Combat {
         const intended = a.oops
 
         // Rounds leave the magazine (CE _combat_attack: ammo − attack->ammoQuantity).
-        if (weaponObj && a.ammoQuantity > 0 && ammoGetCapacity(weaponObj as any) > 0) {
-            ammoSetQuantity(weaponObj as any, Math.max(0, ammoGetQuantity(weaponObj as any) - a.ammoQuantity))
+        if (weaponObj && a.ammoQuantity > 0 && ammoGetCapacity(weaponObj) > 0) {
+            ammoSetQuantity(weaponObj, Math.max(0, ammoGetQuantity(weaponObj) - a.ammoQuantity))
             if (obj.isPlayer) uiDrawWeapon()
         }
 
@@ -1237,7 +1233,7 @@ export class Combat {
 
         const impact = (): void => {
             if (hit) {
-                if (!(window as any).__test?.fastMode) {
+                if (!window.__test?.fastMode) {
                     // CE ref: actions.cc:637 — an unarmed hit sounds sfxBuildCharName(attacker,
                     // anim, CONTACT); a weapon its HIT sound.
                     if (a.unarmedAnim >= 0) playCharAnimSfx(obj, a.unarmedAnim, CHARACTER_SOUND_EFFECT.contact)
@@ -1253,7 +1249,7 @@ export class Combat {
                         )
                 }
             } else {
-                if (!(window as any).__test?.fastMode && isRangedType) audio.playSfxByName('cmbtflx', intended)
+                if (!window.__test?.fastMode && isRangedType) audio.playSfxByName('cmbtflx', intended)
                 // CE actions.cc: a miss dodges unless prone; a ranged miss only when the
                 // weapon has no visible projectile. Melee dodges play their sound.
                 if (
@@ -1408,11 +1404,11 @@ export class Combat {
             return s.replace(/%[sd]/g, () => String(args[i++] ?? ''))
         }
         const player = globalState.player
-        const male = (c: Critter) => (c.isPlayer ? (c as any).gender !== 'female' : (c.getStat('Gender') ?? 0) === 0)
+        const male = (c: Critter) => (c.isPlayer ? c.gender !== 'female' : (c.getStat('Gender') ?? 0) === 0)
         const attacker = a.attacker
 
         if (attacker.isPlayer && a.weapon && a.weapon.pid !== undefined) {
-            let strengthRequired = (a.weapon as any).pro?.extra?.minST ?? 0
+            let strengthRequired = a.weapon.pro?.extra?.minST ?? 0
             if (attacker.hasPerk('Weapon Handling')) strengthRequired -= 3
             if (strengthRequired > attacker.getStat('STR')) uiLog(msg(107))
         }
@@ -1518,7 +1514,7 @@ export class Combat {
     // CE combat.cc combatCopyDamageAmountDescription
     private damageAmountDescription(c: Critter, damage: number): string {
         const msg = (id: number) => this.getCombatMsg(id) || ''
-        const male = c.isPlayer ? (c as any).gender !== 'female' : (c.getStat('Gender') ?? 0) === 0
+        const male = c.isPlayer ? c.gender !== 'female' : (c.getStat('Gender') ?? 0) === 0
         let id = c.isPlayer ? (male ? 500 : 550) : male ? 600 : 700
         const name = c.isPlayer ? msg(id + 6) : (c.name ?? '')
         id += damage === 0 ? 27 : damage === 1 ? 23 : 13
@@ -1532,7 +1528,7 @@ export class Combat {
     private damageFlagsDescription(flags: number, c: Critter): string {
         if (flags === 0) return ''
         const msg = (id: number) => this.getCombatMsg(id) || ''
-        const male = c.isPlayer ? (c as any).gender !== 'female' : (c.getStat('Gender') ?? 0) === 0
+        const male = c.isPlayer ? c.gender !== 'female' : (c.getStat('Gender') ?? 0) === 0
         const num = c.isPlayer ? (male ? 200 : 250) : male ? 300 : 400
         if ((flags & DAM_DEAD) !== 0) return msg(108) + msg(num + 7)
         const bits: number[] = []
@@ -1638,7 +1634,7 @@ export class Combat {
         const player = globalState.player
         return (
             !!player &&
-            (((player as any).traits?.includes('Jinxed') ?? false) ||
+            ((player.traits?.includes('Jinxed') ?? false) ||
                 player.hasPerk('Jinxed') ||
                 obj.hasPerk('Pariah Dog') ||
                 target.hasPerk('Pariah Dog'))
@@ -1663,7 +1659,7 @@ export class Combat {
     // PROTO_ID_0x1000098 search. Static: the party-member control screen uses it too
     // (checkAP false, no defender).
     static aiSearchInvenWeap(attacker: Critter, defender: Critter | null, checkAP = true): Obj | null {
-        const bodyType = (attacker.pro as any)?.extra?.bodyType ?? 0
+        const bodyType = attacker.pro?.extra?.bodyType ?? 0
         if (bodyType !== 0 && bodyType !== 1 && attacker.pid !== 0x1000098) return null
         const packet = attacker.ai?.packet ?? new AI(attacker).packet
         const prefs = Combat.WEAP_PREF_ORDERINGS[packet.bestWeapon] ?? []
@@ -1676,7 +1672,7 @@ export class Combat {
             if (checkAP && weapon.getAPCost(1) > ap) continue
             // _ai_can_use_weapon: arms good enough, the attack FRM, enough skill, and the
             // attack type is one the packet's best_weapon allows
-            const twoHanded = (((item as any).pro?.extra?.weaponFlags ?? 0) & 0x02) !== 0
+            const twoHanded = ((item.pro?.extra?.weaponFlags ?? 0) & 0x02) !== 0
             if (attacker.crippledLeftArm && attacker.crippledRightArm) continue
             if ((attacker.crippledLeftArm || attacker.crippledRightArm) && twoHanded) continue
             const attackArt = attacker.getBase() + weapon.getAnim('attack')
@@ -1685,8 +1681,7 @@ export class Combat {
             const attackType = weaponAttackType(item)
             if (!prefs.includes(attackType)) continue
             // CE _ai_search_inven_weap: an empty ranged weapon only with ammo for it (aiHaveAmmo)
-            if (attackType === 'ranged' && ammoGetQuantity(item as any) === 0 && !aiFindAmmo(attacker, item).ok)
-                continue
+            if (attackType === 'ranged' && ammoGetQuantity(item) === 0 && !aiFindAmmo(attacker, item).ok) continue
             best = Combat.aiBestWeapon(attacker, packet, best, item, defender)
         }
         return best
@@ -1698,7 +1693,7 @@ export class Combat {
         if (!globalState.gParty?.isPartyMember(critter)) return null
         const DAMAGE_TYPES = ['Normal', 'Laser', 'Fire', 'Plasma', 'Electrical', 'EMP', 'Explosive']
         const score = (a: Obj): number => {
-            const ex = (a as any).pro?.extra ?? {}
+            const ex = a.pro?.extra ?? {}
             let v = ex.AC ?? 0
             for (const t of DAMAGE_TYPES) v += (ex.stats?.['DR ' + t] ?? 0) + (ex.stats?.['DT ' + t] ?? 0)
             return v
@@ -1741,7 +1736,7 @@ export class Combat {
                 const order = reach ? prefs.indexOf('unarmed') : -1
                 return { avg: 0, order: order === -1 ? 999 : order, cost: 0, hidden: false }
             }
-            const ex = (w as any).pro?.extra ?? {}
+            const ex = w.pro?.extra ?? {}
             let avg = Math.trunc(((ex.minDmg ?? 0) + (ex.maxDmg ?? 0)) / 2)
             const dmgType = (w as any).weapon?.getDamageType?.() ?? 'Normal'
             const attackType = weaponAttackType(w)
@@ -1796,7 +1791,7 @@ export class Combat {
     ): 'none' | 'wielded' | 'animating' {
         const inHand = attacker.equippedWeapon
         if (inHand && inHand.pid !== undefined) return 'none'
-        const defenderBiped = ((defender.pro as any)?.extra?.bodyType ?? 0) === 0
+        const defenderBiped = (defender.pro?.extra?.bodyType ?? 0) === 0
         const defenderUnarmed = defenderUnarmedNow(defender) // CE: the fid's weapon code is 0
         const canPunch = !!globalState.imageInfo![attacker.getBase() + 'ap']
         const punchRange = inHand?.weapon?.getMaximumRange(1) ?? 1
@@ -1804,7 +1799,7 @@ export class Combat {
         if (defenderBiped && defenderUnarmed && canPunch && inReach) return 'none'
         const weapon = Combat.aiSearchInvenWeap(attacker, defender)
         if (!weapon) return 'none'
-        ;(attacker as any).activeHand = 'rightHand'
+        attacker.activeHand = 'rightHand'
         dbg('ai', `[AI] ${actorName(attacker)} wields ${weapon.name} (CE _ai_switch_weapons)`)
         // _inven_wield(attacker, weapon, HAND_RIGHT), animated
         return invenWieldAnimated(attacker, weapon, 'rightHand', again) ? 'animating' : 'wielded'
@@ -1914,7 +1909,7 @@ export class Combat {
             return Math.trunc((dr * (maxDamage - dt)) / 100) > 0
         }
         const isTeamMate = (c: Critter) =>
-            c.teamNum === team && c !== attacker && c !== defender && !c.dead && c !== (c as any).whoHitMe
+            c.teamNum === team && c !== attacker && c !== defender && !c.dead && c !== c.whoHitMe
 
         // weaponGetDamageRadius: rockets (single-fire Explosive) 3, grenades 2.
         const attackType = weaponAttackType(weaponObj)
@@ -2023,7 +2018,7 @@ export class Combat {
             curr = critter.position
         }
         const SHOOT_THRU = 0x80000000
-        if (!success || critter === null || ((((critter as any).flags ?? 0) >>> 0) & SHOOT_THRU) === 0) return false
+        if (!success || critter === null || (((critter.flags ?? 0) >>> 0) & SHOOT_THRU) === 0) return false
         return false // unreachable in practice (see above)
     }
 
@@ -2063,7 +2058,7 @@ export class Combat {
             accidental = gMap.blockingObjectAt(toTileNum(tile), defender.elevation, 0, null)
         }
         const SHOOT_THRU = 0x80000000
-        if (accidental === null || ((((accidental as any).flags ?? 0) >>> 0) & SHOOT_THRU) !== 0) {
+        if (accidental === null || (((accidental.flags ?? 0) >>> 0) & SHOOT_THRU) !== 0) {
             return { tile, victim: null, landing: tile }
         }
         // A wall or scenery blocker: a thrown item comes to rest on the hex before it.
@@ -2082,7 +2077,7 @@ export class Combat {
     // The proto pid of the weapon's projectile when it has a visible one (CE
     // _action_ranged: weaponGetProjectilePid, projectileProto->fid != -1).
     private projectilePid(weaponObj: Obj): number | null {
-        const pid = (weaponObj as any).pro?.extra?.projPID
+        const pid = weaponObj.pro?.extra?.projPID
         if (pid === undefined || pid === null || pid < 0) return null
         const pro = loadPRO(pid, pid & 0xffff)
         if (!pro || pro.frmPID === undefined || pro.frmPID === -1) return null
@@ -2148,7 +2143,7 @@ export class Combat {
     // is removed and `onArrive` applies the impact.
     private flyProjectile(attacker: Critter, target: Critter, dest: Point, pid: number, onArrive: () => void): void {
         const gMap = globalState.gMap
-        if (!gMap || (window as any).__test?.fastMode) return onArrive()
+        if (!gMap || window.__test?.fastMode) return onArrive()
         const rotation = hexDirectionTo(attacker.position, target.position)
         const start = hexInDirection(attacker.position, rotation)
         const nodes = start ? this.straightPathNodes(start, dest) : []
@@ -2194,7 +2189,7 @@ export class Combat {
     // and are gone.
     private takeThrownItem(attacker: Critter, weaponObj: Obj): Obj | null {
         if (weaponObj.pid === undefined) return null
-        const a = attacker as any
+        const a = attacker
         let item: Obj
         if ((weaponObj.amount ?? 1) > 1) {
             weaponObj.amount -= 1
@@ -2254,7 +2249,7 @@ export class Combat {
             (attacker.isPlayer || attacker.teamNum === player.teamNum) &&
             !obj._script?._didOverride
         ) {
-            this.combatExps += (obj.pro?.extra as any)?.XPValue ?? 0
+            this.combatExps += obj.pro?.extra?.XPValue ?? 0
         }
     }
 
@@ -2349,7 +2344,7 @@ export class Combat {
                 return targets[0]
             case 'whomever':
             case 'whomever_attacking_me': {
-                const whoHitMe = (obj as any).whoHitMe
+                const whoHitMe = obj.whoHitMe
                 if (whoHitMe instanceof Critter && !whoHitMe.dead && targets.includes(whoHitMe)) {
                     return whoHitMe
                 }
@@ -2408,7 +2403,7 @@ export class Combat {
         }
 
         if (depth === 1) {
-            ;(obj as any)._aiTurn = {
+            obj._aiTurn = {
                 phase: 'start',
                 target: null,
                 attempts: 0,
@@ -2426,7 +2421,7 @@ export class Combat {
                 `[AI] ${actorName(obj)} turn start — AP: ${AP.getAvailableCombatAP()}, packet: ${obj.ai?.packet.name ?? '?'}`,
             )
             // CE: a critter other than the player fights with its right-hand item
-            const a = obj as any
+            const a = obj
             if (!obj.isPlayer && a.rightHand?.pid !== undefined && a.activeHand !== 'rightHand') {
                 a.activeHand = 'rightHand'
                 obj.setIdleArt()
@@ -2439,7 +2434,7 @@ export class Combat {
                 if (obj._script?._didOverride) return this.nextTurn()
             }
         }
-        const st: AiTurnState = (obj as any)._aiTurn
+        const st: AiTurnState = obj._aiTurn
         if (AP.getAvailableMoveAP() <= 0) return this.nextTurn()
         const packet = obj.ai!.packet
 
@@ -2447,7 +2442,7 @@ export class Combat {
             case 'start': {
                 st.target = this.aiDangerSource(obj)
                 const minHp = aiMinHp(obj, packet)
-                if ((obj as any).fleeing || aiHurtTooMuch(obj, packet) || obj.getStat('HP') < minHp) {
+                if (obj.fleeing || aiHurtTooMuch(obj, packet) || obj.getStat('HP') < minHp) {
                     dbg('ai', `[AI] ${actorName(obj)}: FLEEING: I'm Hurt!`)
                     eventLogPush({
                         actor: actorName(obj),
@@ -2515,12 +2510,12 @@ export class Combat {
             ignoreFleeing =
                 packet.disposition !== 'berserk' && packet.disposition !== 'none' && packet.distance !== 'charge'
             if (attackWho === 'whomever_attacking_me' && player) {
-                const last = (obj as any).aiLastTarget as Critter | undefined
+                const last = obj.aiLastTarget as Critter | undefined
                 if (
                     alive(last) &&
                     last.teamNum !== obj.teamNum &&
-                    (last as any).aiLastTarget === player &&
-                    !(ignoreFleeing && (last as any).fleeing)
+                    last.aiLastTarget === player &&
+                    !(ignoreFleeing && last.fleeing)
                 )
                     return last
                 const sorted = this.combatants.filter(
@@ -2528,8 +2523,8 @@ export class Combat {
                         c !== obj &&
                         alive(c) &&
                         c.teamNum !== obj.teamNum &&
-                        (c as any).aiLastTarget === player &&
-                        !(ignoreFleeing && (c as any).fleeing),
+                        c.aiLastTarget === player &&
+                        !(ignoreFleeing && c.fleeing),
                 )
                 sorted.sort((a, b) => hexDistance(obj.position, a.position) - hexDistance(obj.position, b.position))
                 for (const c of sorted) {
@@ -2540,12 +2535,11 @@ export class Combat {
                         return c
                 }
             }
-            if (attackWho === 'strongest' || attackWho === 'weakest' || attackWho === 'closest')
-                (obj as any).whoHitMe = null
+            if (attackWho === 'strongest' || attackWho === 'weakest' || attackWho === 'closest') obj.whoHitMe = null
         }
 
         const targets: (Critter | null)[] = [null, null, null, null]
-        const whoHitMe: Critter | null = (obj as any).whoHitMe ?? null
+        const whoHitMe: Critter | null = obj.whoHitMe ?? null
         if (whoHitMe && whoHitMe !== obj) {
             if (!whoHitMe.dead) {
                 if (attackWho === 'whomever' || attackWho === null) return whoHitMe
@@ -2559,7 +2553,7 @@ export class Combat {
             .sort((a, b) => hexDistance(obj.position, a.position) - hexDistance(obj.position, b.position))
         for (const c of byDistance) {
             if (c === obj) continue
-            const hit: Critter | null = (c as any).whoHitMe ?? null
+            const hit: Critter | null = c.whoHitMe ?? null
             // CE aiFindAttackers: a dead team-mate still points at its killer (slot 2)
             if (!targets[1] && !c.dead && hit === obj) {
                 targets[1] = c
@@ -2581,7 +2575,7 @@ export class Combat {
                 continue
             }
         }
-        const list = targets.filter((t): t is Critter => !!t && !(ignoreFleeing && (t as any).fleeing))
+        const list = targets.filter((t): t is Critter => !!t && !(ignoreFleeing && t.fleeing))
         // CE _compare_strength sorts "strongest" by rating ascending and _compare_weakness
         // "weakest" descending — a vanilla oddity CE keeps (its comments say "melee then
         // ranged" / "ranged then melee")
@@ -2604,7 +2598,7 @@ export class Combat {
     // or it has a danger source; not when hidden, elsewhere, out cold, disengaging or
     // fleeing.
     private wantToJoin(c: Critter): boolean {
-        const a = c as any
+        const a = c
         if (c.visible === false || (((a.flags ?? 0) >>> 0) & 0x01) !== 0) return false // OBJECT_HIDDEN
         if (globalState.player && c.elevation !== globalState.player.elevation) return false
         if ((c.injuryFlags & (DAM_DEAD | DAM_KNOCKED_OUT)) !== 0 || c.dead) return false
@@ -2617,7 +2611,7 @@ export class Combat {
 
     // CE combat_ai.cc _combatai_want_to_stop
     private wantToStop(c: Critter): boolean {
-        const a = c as any
+        const a = c
         if (a.disengaging) return true
         if ((c.injuryFlags & (DAM_KNOCKED_OUT | DAM_DEAD)) !== 0 || c.dead) return true
         if (a.fleeing) return true
@@ -2630,11 +2624,11 @@ export class Combat {
     // death to move away from.
     private notifyOnlookers(victim: Critter): void {
         for (const c of this.combatants) {
-            const a = c as any
+            const a = c
             if (a.engaging || c === victim || c.isPlayer || c.dead) continue
             if (!this.isWithinPerception(c, victim)) continue
             a.engaging = true
-            if (victim.dead && !this.isWithinPerception(c, (victim as any).whoHitMe ?? null)) a.aiFriendlyDead = victim
+            if (victim.dead && !this.isWithinPerception(c, victim.whoHitMe ?? null)) a.aiFriendlyDead = victim
         }
     }
 
@@ -2642,7 +2636,7 @@ export class Combat {
     // player become ENGAGING.
     private notifyFriends(who: Critter): void {
         for (const c of this.combatants) {
-            const a = c as any
+            const a = c
             if (a.engaging || c === who || c.dead || c.teamNum !== who.teamNum) continue
             if (this.isWithinPerception(c, who)) a.engaging = true
         }
@@ -2658,17 +2652,17 @@ export class Combat {
             if (c.isPlayer || c.dead || c.hostile) continue
             if (this.wantToJoin(c)) {
                 c.hostile = true
-                ;(c as any).engaging = false // maneuver = NONE
-                ;(c as any).disengaging = false
+                c.engaging = false // maneuver = NONE
+                c.disengaging = false
                 joiners.push(c)
                 combatDebug(`${actorName(c)} joins the fight`)
             }
         }
         for (const c of this.combatants) {
             if (c.isPlayer || c.dead || !c.hostile) continue
-            if ((c.injuryFlags & DAM_KNOCKED_OUT) !== 0 || (c as any).disengaging) {
+            if ((c.injuryFlags & DAM_KNOCKED_OUT) !== 0 || c.disengaging) {
                 c.hostile = false
-                ;(c as any).engaging = false
+                c.engaging = false
                 combatDebug(`${actorName(c)} leaves the fight`)
             }
         }
@@ -2718,7 +2712,7 @@ export class Combat {
         if (active.length <= 1) return true
         for (const c of active) {
             if (c.teamNum !== team) return false
-            const hit: Critter | null = (c as any).whoHitMe ?? null
+            const hit: Critter | null = c.whoHitMe ?? null
             if (hit && hit.teamNum === team) return false
         }
         return true
@@ -2730,7 +2724,7 @@ export class Combat {
     attemptEnd(): void {
         const team = this.player.teamNum
         const relevant = (c: Critter) => {
-            const hit: Critter | null = (c as any).whoHitMe ?? null
+            const hit: Critter | null = c.whoHitMe ?? null
             return c.teamNum !== team || (!!hit && hit.teamNum === c.teamNum)
         }
         for (const c of this.combatants) {
@@ -2769,7 +2763,7 @@ export class Combat {
     }
 
     static weaponRange(critter: Critter, weaponObj: Obj | null): number {
-        if (!weaponObj || weaponObj.pid === undefined) return ((critter.pro as any)?.extra?.flags ?? 0) & 0x2000 ? 2 : 1
+        if (!weaponObj || weaponObj.pid === undefined) return (critter.pro?.extra?.flags ?? 0) & 0x2000 ? 2 : 1
         let range = (weaponObj as any).weapon.getMaximumRange()
         if (attackTypeOf(weaponObj) === 'throw') {
             let st = critter.getStat('STR')
@@ -2786,7 +2780,7 @@ export class Combat {
         const real = !!wObj && wObj.pid !== undefined
         if (real) {
             if (attacker.crippledLeftArm && attacker.crippledRightArm) return 'bothArmsCrippled'
-            const twoHanded = (((wObj as any).pro?.extra?.weaponFlags ?? 0) & 0x02) !== 0 // WEAPON_TWO_HAND
+            const twoHanded = ((wObj.pro?.extra?.weaponFlags ?? 0) & 0x02) !== 0 // WEAPON_TWO_HAND
             if ((attacker.crippledLeftArm || attacker.crippledRightArm) && twoHanded) return 'armCrippled'
         }
         const cost = !wObj
@@ -2795,7 +2789,7 @@ export class Combat {
         if (cost > (attacker.AP?.getAvailableCombatAP() ?? 0)) return 'notEnoughAp'
         const range = this.attackRange(attacker, wObj)
         if (range < objectDistance(attacker, attacker.position, defender)) return 'outOfRange' // objectGetDistanceBetween
-        if (real && ammoGetCapacity(wObj as any) > 0 && ammoGetQuantity(wObj as any) === 0) return 'noAmmo'
+        if (real && ammoGetCapacity(wObj) > 0 && ammoGetQuantity(wObj) === 0) return 'noAmmo'
         const at = attackTypeOf(wObj)
         if (
             (at === 'ranged' || at === 'throw' || range > 1) &&
@@ -2819,7 +2813,7 @@ export class Combat {
         if (!st.whoHitSet) {
             st.whoHitSet = true
             critterSetWhoHitMe(obj, target) // _critter_set_who_hit_me(attacker, defender)
-            ;(obj as any).aiLastTarget = target
+            obj.aiLastTarget = target
             const r = this.aiWieldOrRetrieve(obj, target, again)
             if (r !== 'retry') return r
         }
@@ -2947,7 +2941,7 @@ export class Combat {
     // location, pay the AP and attack.
     private aiAttack(obj: Critter, target: Critter, then: () => void): boolean {
         // CE _ai_attack: a fleeing critter doesn't attack (CRITTER_MANUEVER_FLEEING → −1)
-        if ((obj as any).fleeing) return false
+        if (obj.fleeing) return false
         const wObj = obj.equippedWeapon
         const region = this.aiCalledShot(obj, target)
         const aimed = region !== 'torso'
@@ -3012,7 +3006,7 @@ export class Combat {
         if (wielded !== 'none') return wielded === 'animating' ? 'acting' : 'retry'
         const inHand = obj.equippedWeapon
         if (inHand && inHand.pid !== undefined) return 'retry'
-        const defenderBiped = ((target.pro as any)?.extra?.bodyType ?? 0) === 0
+        const defenderBiped = (target.pro?.extra?.bodyType ?? 0) === 0
         const defenderUnarmed = defenderUnarmedNow(target) // CE: the fid's weapon code is 0
         if (defenderBiped && defenderUnarmed && globalState.imageInfo![obj.getBase() + 'ap']) return 'retry'
         const r = this.aiSwitchWeapons(obj, target, again)
@@ -3025,7 +3019,7 @@ export class Combat {
     private aiSwitchWeapons(obj: Critter, target: Critter, again: () => void): 'acting' | 'retry' | 'fail' {
         const best = Combat.aiSearchInvenWeap(obj, target)
         if (best) {
-            ;(obj as any).activeHand = 'rightHand'
+            obj.activeHand = 'rightHand'
             dbg('ai', `[AI] ${actorName(obj)} wields ${best.name} (CE _ai_switch_weapons)`)
             // _inven_wield(attacker, weapon, HAND_RIGHT): the put-away and take-out play first
             if (invenWieldAnimated(obj, best, 'rightHand', again)) return 'acting'
@@ -3038,7 +3032,7 @@ export class Combat {
             const wield = (): void => {
                 const got = inventoryCopyOf(obj, found)
                 if (got) {
-                    ;(obj as any).activeHand = 'rightHand'
+                    obj.activeHand = 'rightHand'
                     invenWield(obj, got, 'rightHand')
                 }
                 again()
@@ -3050,7 +3044,7 @@ export class Combat {
         // hand for the rest of the turn (doAITurn restores the right hand next turn).
         // weaponGetActionPointCost(attacker, HIT_MODE_PUNCH, false)
         if (obj.AP!.getAvailableCombatAP() < unarmedAPCost(obj, PUNCH, false)) return 'fail'
-        const a = obj as any
+        const a = obj
         if (!obj.isPlayer && a[a.activeHand ?? 'leftHand']?.pid !== undefined) {
             const other = (a.activeHand ?? 'leftHand') === 'leftHand' ? 'rightHand' : 'leftHand'
             if (!a[other] || a[other].pid === undefined) {
@@ -3075,7 +3069,7 @@ export class Combat {
         const floorAmmo = this.aiSearchEnviron(obj, 'ammo', target)
         if (floorAmmo && this.aiRetrieveObject(obj, floorAmmo, again)) return 'acting'
         const soundId = (wObj as any).pro?.extra?.soundID
-        if (typeof soundId === 'number' && !(window as any).__test?.fastMode) {
+        if (typeof soundId === 'number' && !window.__test?.fastMode) {
             globalState.audioEngine.playWeaponSfx(String.fromCharCode(soundId), 'empty', undefined, obj)
         }
         uiLog(`${obj.name} ${getMessage('misc', 5001) ?? 'is out of ammo for the'} ${wObj.name}.`)
@@ -3091,15 +3085,15 @@ export class Combat {
 
     private aiReload(obj: Critter, wObj: Obj, ammo: Obj, then: () => void): void {
         // CE combat_ai.cc aiAttemptWeaponReload: one box; an emptied box is used up
-        const before = ammoGetQuantity(wObj as any)
-        if (weaponReload(wObj as any, ammo as any) === 0) ammoUseTopBox(ammo, obj.inventory)
-        const loaded = ammoGetQuantity(wObj as any) - before
+        const before = ammoGetQuantity(wObj)
+        if (weaponReload(wObj, ammo) === 0) ammoUseTopBox(ammo, obj.inventory)
+        const loaded = ammoGetQuantity(wObj) - before
         const AP = obj.AP!
         const cost = (wObj as any).weapon?.getReloadAPCost?.() ?? 2
         if (AP.getAvailableCombatAP() < cost) AP.combat = 0
         else AP.subtractCombatAP(cost)
-        const soundId = (wObj as any).pro?.extra?.soundID
-        if (typeof soundId === 'number' && !(window as any).__test?.fastMode) {
+        const soundId = wObj.pro?.extra?.soundID
+        if (typeof soundId === 'number' && !window.__test?.fastMode) {
             globalState.audioEngine.playWeaponSfx(String.fromCharCode(soundId), 'reload', undefined, obj)
         }
         combatDebug(`AI ${obj.name}: reloaded ${loaded} rounds`)
@@ -3116,7 +3110,7 @@ export class Combat {
 
     // CE combat_ai.cc _ai_check_drugs, one step per call (each drug is its own action).
     private aiCheckDrugsStep(obj: Critter, st: AiTurnState, again: () => void): boolean {
-        if (((obj.pro as any)?.extra?.bodyType ?? 0) !== 0) return false // BODY_TYPE_BIPED
+        if ((obj.pro?.extra?.bodyType ?? 0) !== 0) return false // BODY_TYPE_BIPED
         const packet = obj.ai!.packet
         const AP = obj.AP!
         let hpRatio = 50
@@ -3180,15 +3174,13 @@ export class Combat {
         }
         // An item fetched last turn (aiInfoGetLastItem), or nothing usable carried: look
         // for a usable item on the floor.
-        const last: Obj | null = (obj as any).aiLastItem ?? null
-        if (last && !globalState.gMap!.getObjects().includes(last)) (obj as any).aiLastItem = null
-        if (((obj as any).aiLastItem || (!st.drugUsed && st.healSearchDone)) && !st.envSearched) {
+        const last: Obj | null = obj.aiLastItem ?? null
+        if (last && !globalState.gMap!.getObjects().includes(last)) obj.aiLastItem = null
+        if ((obj.aiLastItem || (!st.drugUsed && st.healSearchDone)) && !st.envSearched) {
             st.envSearched = true
             const item =
-                (obj as any).aiLastItem ??
-                this.aiSearchEnviron(obj, 'drug', null) ??
-                this.aiSearchEnviron(obj, 'misc', null)
-            ;(obj as any).aiLastItem = null
+                obj.aiLastItem ?? this.aiSearchEnviron(obj, 'drug', null) ?? this.aiSearchEnviron(obj, 'misc', null)
+            obj.aiLastItem = null
             if (
                 item &&
                 this.aiRetrieveObject(obj, item, () => {
@@ -3234,7 +3226,7 @@ export class Combat {
         kind: 'weapon' | 'ammo' | 'drug' | 'misc',
         target: Critter | null,
     ): Obj | null {
-        if (((obj.pro as any)?.extra?.bodyType ?? 0) !== 0) return null
+        if ((obj.pro?.extra?.bodyType ?? 0) !== 0) return null
         const gMap = globalState.gMap
         if (!gMap) return null
         const reach = obj.getStat('PER') + 5
@@ -3249,7 +3241,7 @@ export class Combat {
             if (kind === 'weapon' && type === 'weapon') {
                 if (this.aiCanUseWeapon(obj, item)) return item
             } else if (kind === 'ammo' && item.subtype === 'ammo') {
-                if (inHand && inHand.pid !== undefined && findReloadAmmo(inHand as any, [item] as any)) return item
+                if (inHand && inHand.pid !== undefined && findReloadAmmo(inHand, [item])) return item
             } else if ((kind === 'drug' && type === 'drug') || (kind === 'misc' && type === 'misc')) {
                 if (aiCanUseItem(obj, item, packet)) return item
             }
@@ -3263,7 +3255,7 @@ export class Combat {
         const weapon: any = (item as any).weapon
         if (!weapon) return false
         if (obj.crippledLeftArm && obj.crippledRightArm) return false
-        const twoHanded = (((item as any).pro?.extra?.weaponFlags ?? 0) & 0x02) !== 0
+        const twoHanded = ((item.pro?.extra?.weaponFlags ?? 0) & 0x02) !== 0
         if ((obj.crippledLeftArm || obj.crippledRightArm) && twoHanded) return false
         if (!globalState.imageInfo![obj.getBase() + weapon.getAnim('attack')]) return false
         const packet = obj.ai!.packet
@@ -3281,7 +3273,7 @@ export class Combat {
             const take = (): void => {
                 obj.addInventoryItem(item, item.amount)
                 gMap.destroyObject(item)
-                if (!(window as any).__test?.fastMode) globalState.audioEngine.playSfxByName('ipickup1')
+                if (!window.__test?.fastMode) globalState.audioEngine.playSfxByName('ipickup1')
                 obj.clearAnim()
                 then()
             }
@@ -3336,7 +3328,7 @@ export class Combat {
         // CE _ai_move_steps_closer: the "move" taunt comes first
         if (taunt) this.maybeTaunt(obj, 'move')
         const gMap = globalState.gMap!
-        const elevation = (obj as any).elevation ?? gMap.currentElevation
+        const elevation = obj.elevation ?? gMap.currentElevation
         // No path to the target's tile: the first critter in the way (_obj_ai_blocking_at's
         // _moveBlockObj) becomes the one to move to
         let goal: Critter = target
@@ -3413,11 +3405,11 @@ export class Combat {
         if (!threat) return false
         const packet = obj.ai!.packet
         if (hexDistance(obj.position, threat.position) < packet.maxDist) {
-            ;(obj as any).fleeing = true
+            obj.fleeing = true
             this.maybeTaunt(obj, 'run')
             return this.aiMoveAway(obj, threat, obj.AP!.getAvailableMoveAP(), true, then)
         }
-        ;(obj as any).disengaging = true
+        obj.disengaging = true
         return false
     }
 
@@ -3434,7 +3426,7 @@ export class Combat {
                     !c.dead &&
                     c !== source &&
                     c.teamNum === source.teamNum &&
-                    (c as any).aiLastTarget === target &&
+                    c.aiLastTarget === target &&
                     this.combataiRating(c) >= rating,
             )
             .sort((a, b) => hexDistance(source.position, a.position) - hexDistance(source.position, b.position))
@@ -3478,7 +3470,7 @@ export class Combat {
         const player = globalState.player
         switch (packet.distance) {
             case 'stay_close':
-                if (player && (obj as any).whoHitMe !== player) {
+                if (player && obj.whoHitMe !== player) {
                     const d = hexDistance(obj.position, player.position)
                     if (d > 5 && this.aiMoveStepsCloser(obj, player, d - 5, false, then)) return true
                 }
@@ -3614,7 +3606,7 @@ export class Combat {
         let best: Critter | null = null
         for (const c of this.combatants) {
             if (c === obj || c.dead || c.teamNum !== obj.teamNum) continue
-            if (inCombat && (!this.isActiveCombatant(c) || !(c as any).whoHitMe)) continue
+            if (inCombat && (!this.isActiveCombatant(c) || !c.whoHitMe)) continue
             if (!best || hexDistance(obj.position, c.position) < hexDistance(obj.position, best.position)) best = c
         }
         return best
@@ -3651,7 +3643,7 @@ export class Combat {
         globalState.combat = new Combat(globalState.gMap!.getObjects(), triggerTeams)
         globalState.combat.gcsd = gcsd ?? null
         // CE combat.cc _combat_begin: damageLastTurn starts at 0 for every combatant
-        for (const c of globalState.combat.combatants) (c as any).damageLastTurn = 0
+        for (const c of globalState.combat.combatants) c.damageLastTurn = 0
 
         if (teamCombat) {
             // CE combat_ai.cc _caiSetupTeamCombat (worldmap encounters only): every
@@ -3661,11 +3653,11 @@ export class Combat {
             const [attackerTeamObj, targetTeamObj] = teamCombat
             for (const critter of c.combatants) {
                 if (critter.dead || critter.isPlayer) continue
-                ;(critter as any).engaging = true
+                critter.engaging = true
                 if (critter.teamNum === attackerTeamObj.teamNum) {
-                    ;(critter as any).whoHitMe = c.nearestOfTeamPublic(critter, targetTeamObj.teamNum)
+                    critter.whoHitMe = c.nearestOfTeamPublic(critter, targetTeamObj.teamNum)
                 } else if (critter.teamNum === targetTeamObj.teamNum) {
-                    ;(critter as any).whoHitMe = c.nearestOfTeamPublic(critter, attackerTeamObj.teamNum)
+                    critter.whoHitMe = c.nearestOfTeamPublic(critter, attackerTeamObj.teamNum)
                 }
             }
         }
@@ -3763,7 +3755,7 @@ export class Combat {
         this.dudeWakeUp()
 
         // CE ref: interface.cc:1455 interfaceBarEndButtonsHide — plays icibcxx1 when buttons close
-        if (!(window as any).__test?.fastMode) globalState.audioEngine.playSfxByName('icibcxx1')
+        if (!window.__test?.fastMode) globalState.audioEngine.playSfxByName('icibcxx1')
         this.player.AP?.resetAP() // CE ref: combat.cc:2811
         this.giveExps() // CE ref: combat.cc:2816
         globalState.gMap!.updateMap()
@@ -3777,13 +3769,13 @@ export class Combat {
         // CE combat.cc _combat_over: who hit whom is forgotten for every critter on the elevation
         for (const o of globalState.gMap?.getObjects() ?? []) if (o.type === 'critter') (o as any).whoHitMe = null
         for (const c of this.combatants) {
-            ;(c as any).fleeing = false
-            ;(c as any).disengaging = false
-            ;(c as any).damageLastTurn = 0
-            ;(c as any).aiFriendlyDead = null
-            ;(c as any).aiLastItem = null
-            ;(c as any).engaging = false
-            ;(c as any)._aiTurn = undefined
+            c.fleeing = false
+            c.disengaging = false
+            c.damageLastTurn = 0
+            c.aiFriendlyDead = null
+            c.aiLastItem = null
+            c.engaging = false
+            c._aiTurn = undefined
             if (c.isPlayer || c.dead) continue
             aiAttemptWeaponReload(c)
         }
@@ -3810,7 +3802,7 @@ export class Combat {
         globalState.combat = null
         globalState.inCombat = false
         this.dudeWakeUp()
-        if (!(window as any).__test?.fastMode) globalState.audioEngine.playSfxByName('icibcxx1')
+        if (!window.__test?.fastMode) globalState.audioEngine.playSfxByName('icibcxx1')
         this.player.AP?.resetAP() // CE ref: combat.cc:2811
         this.giveExps() // CE ref: combat.cc:2816
         globalState.gMap?.updateMap()
@@ -3837,11 +3829,11 @@ export class Combat {
         const LIGHT_THRU = 0x20000000
         for (const pos of interior) {
             for (const o of mapObjects) {
-                const t = (o as any).type
+                const t = o.type
                 if (t !== 'wall' && t !== 'scenery') continue
-                if ((o as any).position?.x !== pos.x || (o as any).position?.y !== pos.y) continue
-                const flags = (o as any).flags ?? 0
-                if ((o as any).visible === false || (flags & 0x01) !== 0) continue // CE OBJECT_HIDDEN = 0x01
+                if (o.position?.x !== pos.x || o.position?.y !== pos.y) continue
+                const flags = o.flags ?? 0
+                if (o.visible === false || (flags & 0x01) !== 0) continue // CE OBJECT_HIDDEN = 0x01
                 if ((flags & LIGHT_THRU) !== 0) continue
                 return false
             }
@@ -3858,7 +3850,7 @@ export class Combat {
         if (this.joinQueue !== null) return this.nextJoinTurn()
 
         // CE combat.cc _combat_turn: the player's damageLastTurn resets once the input ends.
-        if (this.combatants[this.whoseTurn]?.isPlayer) (this.player as any).damageLastTurn = 0
+        if (this.combatants[this.whoseTurn]?.isPlayer) this.player.damageLastTurn = 0
 
         this.turnNum++
         this.whoseTurn++
@@ -3923,7 +3915,7 @@ export class Combat {
             drawAC(this.player.getStat('AC'))
             // CE ref: combat.cc:3276 / interface.cc interfaceBarEndButtonsRenderGreenLights —
             // green lights + icombat2 when player's turn begins (buttons enabled)
-            if (!(window as any).__test?.fastMode) globalState.audioEngine.playSfxByName('icombat2')
+            if (!window.__test?.fastMode) globalState.audioEngine.playSfxByName('icombat2')
             uiEndButtonsGreenLights()
             eventLogPush({
                 actor: actorName(this.player),
@@ -3937,7 +3929,7 @@ export class Combat {
             drawAP(0, this.player.AP!.getTotalMaxAP(), 0, false)
             // CE ref: interface.cc interfaceBarEndButtonsRenderRedLights —
             // red lights + icombat1 during AI turns (buttons disabled)
-            if (!(window as any).__test?.fastMode) globalState.audioEngine.playSfxByName('icombat1')
+            if (!window.__test?.fastMode) globalState.audioEngine.playSfxByName('icombat1')
             uiEndButtonsRedLights()
             const critter = this.combatants[this.whoseTurn]
             // CE: only combatants act — party members too join first (_combat_add_noncoms,
@@ -3946,10 +3938,10 @@ export class Combat {
             if (!critter.hostile) {
                 // A bystander still runs the friendlyDead step of CE _combat_ai: away from
                 // a body it saw fall without seeing the killer (_combatai_notify_onlookers).
-                const fd: Critter | null = (critter as any).aiFriendlyDead ?? null
+                const fd: Critter | null = critter.aiFriendlyDead ?? null
                 if (fd && !critter.isPlayer) {
                     critter.AP!.resetAP()
-                    if (hexDistance(critter.position, fd.position) >= 10) (critter as any).aiFriendlyDead = null
+                    if (hexDistance(critter.position, fd.position) >= 10) critter.aiFriendlyDead = null
                     else if (this.aiMoveAway(critter, fd, 10, false, () => this.nextTurn())) return
                 }
                 return this.nextTurn()
@@ -3989,7 +3981,7 @@ export class Combat {
         if (c.isPlayer && c.hasPerk(perkNameById(93) ?? 'HtH Evade')) {
             const armed = (h: any) =>
                 !!h && h.pid !== undefined && h.subtype === 'weapon' && (h.weapon?.getAnim?.('idle') ?? 'aa') !== 'aa'
-            if (!armed((c as any).leftHand) && !armed((c as any).rightHand)) {
+            if (!armed(c.leftHand) && !armed(c.rightHand)) {
                 apMult = 2
                 evade = Math.trunc(c.getSkill('Unarmed') / 12)
             }
@@ -4063,12 +4055,12 @@ export class Combat {
                     obj.outline = sameTeam ? 'green' : 'red'
                 } else {
                     let range = player.getStat('PER') * 5
-                    if ((((obj as any).flags ?? 0) & 0x20000) !== 0) range = Math.trunc(range / 2)
+                    if (((obj.flags ?? 0) & 0x20000) !== 0) range = Math.trunc(range / 2)
                     obj.outline = hexDistance(player.position, obj.position) <= range ? 'unseen' : null
                 }
                 continue
             }
-            obj.outline = sameTeam ? 'green' : (obj as any).hostile ? 'red' : 'blue'
+            obj.outline = sameTeam ? 'green' : obj.hostile ? 'red' : 'blue'
         }
     }
 }

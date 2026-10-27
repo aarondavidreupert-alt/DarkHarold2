@@ -3,6 +3,9 @@
 
 import globalState from '../globalState.js'
 
+// console commands are free-form globals (play.html#dev)
+const devWindow = window as unknown as Record<string, unknown>
+
 export function registerEventLogCommands(): void {
     // Convenience alias so DevTools users can grab the structured event log
     // without typing globalState.eventLog every time.
@@ -14,7 +17,7 @@ export function registerEventLogCommands(): void {
     // tier "summary"    — round/turn/actor/action/result/damage only
     // tier "full"       — all useful fields, formula internals omitted (default)
     // tier "diagnostic" — every field, unfiltered
-    ;(window as any).exportEventLog = (tier: 'summary' | 'full' | 'diagnostic' = 'full') => {
+    devWindow.exportEventLog = (tier: 'summary' | 'full' | 'diagnostic' = 'full') => {
         const SUMMARY_FIELDS = new Set(['round', 'turn', 'actor', 'action', 'result', 'damage'])
         const FULL_OMIT = new Set(['RD', 'DT', 'DR', 'CD', 'ammoX', 'ammoY', 'critMultiplier', 'critChance'])
 

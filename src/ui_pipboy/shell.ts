@@ -458,7 +458,7 @@ export function critterCanDudeRest(): boolean {
         if (o.type !== 'critter' || o === player) continue
         const c = o as Critter
         if (c.dead) continue
-        if ((c as any).whoHitMe !== player && (!restricted || c.teamNum === player.teamNum)) continue
+        if (c.whoHitMe !== player && (!restricted || c.teamNum === player.teamNum)) continue
         return false
     }
     return true

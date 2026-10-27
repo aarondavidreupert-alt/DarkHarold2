@@ -19,7 +19,7 @@ import * as Scripting from './scripting.js'
 import { SKILL_NAMES } from './skills.js'
 
 function emitSkillRoll(skillName: string, user: Critter, chance: number, roll: RollResult, d100: number): void {
-    const actorName: string = (user as any).name ?? (user.isPlayer ? 'you' : 'critter')
+    const actorName: string = user.name ?? (user.isPlayer ? 'you' : 'critter')
     const result =
         roll === RollResult.CriticalSuccess
             ? 'critical-success'
@@ -144,8 +144,7 @@ export function skillRoll(critter: Critter, skill: string, modifier: number, out
         }
     }
     let skillValue = critter.getSkill(skill)
-    if (critter.isPlayer && skill === 'Steal' && (critter as any).isSneaking && (critter as any).sneakWorking)
-        skillValue += 30
+    if (critter.isPlayer && skill === 'Steal' && critter.isSneaking && critter.sneakWorking) skillValue += 30
     const chance = skillValue + modifier
     const { roll, delta } = randomRoll(chance, critter.getStat('Critical Chance'))
     emitSkillRoll(skill, critter, chance, roll, chance - delta)
@@ -177,9 +176,9 @@ const DAMAGE_FLAGS = [
 
 const isCritter = (o: Obj | null): o is Critter => !!o && o.type === 'critter'
 const BODY_TYPE_ROBOTIC = 2
-const isRobotic = (o: Obj): boolean => isCritter(o) && ((o.pro as any)?.extra?.bodyType ?? 0) === BODY_TYPE_ROBOTIC
+const isRobotic = (o: Obj): boolean => isCritter(o) && (o.pro?.extra?.bodyType ?? 0) === BODY_TYPE_ROBOTIC
 // critter.cc critterIsCrippled: any DAM_CRIP bit (the limbs and DAM_BLIND)
-const isCrippled = (o: Obj): boolean => isCritter(o) && DAMAGE_FLAGS.some((f) => (o as any)[f])
+const isCrippled = (o: Obj): boolean => isCritter(o) && DAMAGE_FLAGS.some((f) => o[f])
 
 // critter.cc critterAdjustHitPoints: HP + amount, capped at the maximum
 function adjustHitPoints(target: Critter, hp: number): void {
@@ -217,7 +216,7 @@ export function skillUse(
     let minimumHpToHeal = 0
     let maximumHpToHeal = 0
     if (obj.isPlayer && (skill === 'First Aid' || skill === 'Doctor')) {
-        const healerRank = ((obj as any).perks as string[] | undefined)?.filter((p) => p === 'Healer').length ?? 0
+        const healerRank = (obj.perks as string[] | undefined)?.filter((p) => p === 'Healer').length ?? 0
         minimumHpToHeal = 4 * healerRank
         maximumHpToHeal = 10 * healerRank
     }
@@ -237,7 +236,7 @@ export function skillUse(
             uiLog(skillMsg(500).replace('%d', String(Math.min(hp, maximumHp - currentHp))))
         }
         result.hpHealed = Math.min(hp, maximumHp - currentHp)
-        ;(t as any).fleeing = false // maneuver &= ~CRITTER_MANUEVER_FLEEING
+        t.fleeing = false // maneuver &= ~CRITTER_MANUEVER_FLEEING
         if (t.isPlayer) drawHP(t.getStat('HP'))
     }
 
@@ -245,13 +244,13 @@ export function skillUse(
     const healDamageFlags = (): void => {
         const t = target as Critter
         DAMAGE_FLAGS.forEach((flag, index) => {
-            if (!(t as any)[flag]) return
+            if (!t[flag]) return
             damageHealingAttempts++
             const roll = skillRoll(obj, skill, criticalChance)
             let prefix: number
             if (rollIsSuccess(roll)) {
-                ;(t as any)[flag] = false
-                ;(t as any).fleeing = false
+                t[flag] = false
+                t.fleeing = false
                 prefix = t.isPlayer ? 520 : 521 // You heal your / the %s.
                 skillUpdateLastUse(id)
                 successCount = 1
@@ -440,7 +439,7 @@ export function scheduleSneakEvent(player: any): void {
         ticks,
         userdata: 'sneak',
         fn: () => {
-            if ((player as any).isSneaking) scheduleSneakEvent(player)
+            if (player.isSneaking) scheduleSneakEvent(player)
         },
         leaveMap: () => sneakClear(player),
     })
@@ -456,7 +455,7 @@ export function sneakClear(player: any): boolean {
 
 function toggleSneak(user: Critter): void {
     if (!user.isPlayer) return
-    const player = user as any
+    const player = user
     if (player.isSneaking) {
         player.isSneaking = false
         player.sneakWorking = false
@@ -494,7 +493,7 @@ export function performSteal(
     const hasPickpocket = thief.isPlayer && (thief.hasPerk?.('Pickpocket') ?? false)
     if (!hasPickpocket) {
         // CE ref: skill.cc:1039 — -4% per item size
-        const size = (item.pro?.extra as any)?.size ?? 0
+        const size = item.pro?.extra?.size ?? 0
         stealModifier -= 4 * size
 
         // CE ref: skill.cc:1043 — -25 if face to face

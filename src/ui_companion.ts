@@ -275,10 +275,10 @@ function useBestWeapon(companion: Critter): boolean {
         ;(weapon as any).flags = (((weapon as any).flags ?? 0) | 0x2000000) >>> 0
         c.rightHand = weapon
         c.activeHand = 'rightHand'
-        const cap = ammoGetCapacity(weapon as any)
-        if (cap > 0 && ammoGetQuantity(weapon as any) < cap) {
-            const ammo = findReloadAmmo(weapon as any, companion.inventory as any)
-            if (ammo && weaponReload(weapon as any, ammo as any) === 0) ammoUseTopBox(ammo, companion.inventory)
+        const cap = ammoGetCapacity(weapon)
+        if (cap > 0 && ammoGetQuantity(weapon) < cap) {
+            const ammo = findReloadAmmo(weapon, companion.inventory)
+            if (ammo && weaponReload(weapon, ammo) === 0) ammoUseTopBox(ammo, companion.inventory)
         }
         dbg('ai', `[Companion] ${companion.name} wields ${weapon.name}`)
         showAIUpdateMsg(companion)
@@ -295,8 +295,8 @@ function useBestArmor(companion: Critter): void {
         const armor = Combat.aiSearchInvenArmor(companion)
         if (armor) {
             const old = companion.getEquippedArmor()
-            if (old) (old as any).flags = (((old as any).flags ?? 0) & ~0x4000000) >>> 0
-            ;(armor as any).flags = (((armor as any).flags ?? 0) | 0x4000000) >>> 0 // OBJECT_WORN
+            if (old) old.flags = ((old.flags ?? 0) & ~0x4000000) >>> 0
+            armor.flags = ((armor.flags ?? 0) | 0x4000000) >>> 0 // OBJECT_WORN
             armorPerkSwap(companion, old, armor)
             dbg('ai', `[Companion] ${companion.name} wears ${armor.name}`)
         }
@@ -357,7 +357,7 @@ function makeStandingPreview(critter: Critter): HTMLCanvasElement {
         imageRendering: 'pixelated',
         pointerEvents: 'none',
     })
-    const art = (critter as any).getAnimation?.('idle') ?? critter.art
+    const art = critter.getAnimation?.('idle') ?? critter.art
     const info = art ? globalState.imageInfo?.[art] : undefined
     if (!info) return canvas
     const direction = Math.min(3, info.frameOffsets.length - 1) // ROTATION_SW
@@ -398,7 +398,7 @@ function makeStandingPreview(critter: Critter): HTMLCanvasElement {
 // CE game_dialog.cc _gdCanBarter: a critter without CRITTER_BARTER (proto flag 0x02) can't
 // trade — proto.msg 913 "This critter can't carry anything." for a party member (903 otherwise)
 function canBarter(critter: Critter): boolean {
-    if ((((critter.pro as any)?.extra?.flags ?? 0) & 0x02) !== 0) return true
+    if (((critter.pro?.extra?.flags ?? 0) & 0x02) !== 0) return true
     uiSetDialogueReply(getProtoMsg(globalState.gParty?.isPartyMember(critter) ? 913 : 903) ?? '')
     return false
 }
@@ -425,7 +425,7 @@ export function uiCompanionControl(companion: Critter): void {
         panel.innerHTML = ''
         panel.style.backgroundImage = "url('" + assetUrl('art/intrface/control.png') + "')"
         panel.style.backgroundSize = '100% 100%'
-        ;(panel.style as any).imageRendering = 'pixelated'
+        panel.style.imageRendering = 'pixelated'
 
         // Stat readout. CE ref: game_dialog.cc:3542 partyMemberControlWindowUpdate — font 101,
         // green: right-hand item (or proto.msg 10) at (112,20), worn armor at (112,49), the
@@ -434,7 +434,7 @@ export function uiCompanionControl(companion: Critter): void {
         // carries the captions.)
         const GREEN = '#00f800'
         const none = getProtoMsg(10) ?? 'None'
-        const right = (companion as any).rightHand
+        const right = companion.rightHand
         const rightItem = right && right.pid !== undefined ? right : null
         const armor = companion.getEquippedArmor?.()
         panel.appendChild(makeLabel(112, 20, rightItem?.name ?? none, GREEN))
@@ -456,7 +456,7 @@ export function uiCompanionControl(companion: Critter): void {
         panel.appendChild(makeLabel(240, 131, `${weight}/${carry}`, weight > carry ? '#f80000' : GREEN))
         panel.appendChild(makeLabel(240, 148, String(companion.getStat('Melee')), GREEN))
         const maxAP = companion.getStat('AP')
-        const ap = globalState.inCombat ? ((companion as any).AP?.getAvailableCombatAP?.() ?? maxAP) : maxAP
+        const ap = globalState.inCombat ? (companion.AP?.getAvailableCombatAP?.() ?? maxAP) : maxAP
         panel.appendChild(makeLabel(240, 167, `${ap}/${maxAP}`, GREEN))
 
         const packet = getCompanionEffectivePacket(companion)
@@ -572,7 +572,7 @@ export function uiCompanionCustomize(companion: Critter): void {
         panel.innerHTML = ''
         panel.style.backgroundImage = "url('" + assetUrl('art/intrface/custom.png') + "')"
         panel.style.backgroundSize = '100% 100%'
-        ;(panel.style as any).imageRendering = 'pixelated'
+        panel.style.imageRendering = 'pixelated'
 
         const packet = getCompanionEffectivePacket(companion)
 
@@ -608,7 +608,7 @@ export function uiCompanionCustomize(companion: Critter): void {
             const value =
                 btn.category === 'runAwayMode'
                     ? aiGetRunAwayMode(packet, companion.getStat('Max HP'))
-                    : (packet as any)[btn.category]
+                    : packet[btn.category]
             const opt = (CUSTOM_OPTIONS[btn.category] as { value: unknown; label: string }[]).find(
                 (o) => o.value === value,
             )

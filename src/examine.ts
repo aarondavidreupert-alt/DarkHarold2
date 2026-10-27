@@ -90,7 +90,7 @@ export function objExamine(viewer: Critter, target: Obj): string[] {
         if (target !== player && player.hasPerk('Awareness') && !target.dead) {
             const biped = ((target.pro?.extra?.bodyType ?? 0) as number) === 0
             const hpMsg = protoMsg(biped ? 535 + target.getStat('Gender') : 537)
-            const item2: Obj | null = (target as any).rightHand ?? null
+            const item2: Obj | null = target.rightHand ?? null
             const weapon = item2 && item2.subtype === 'weapon' ? item2 : null
             if (weapon) {
                 if (ammoGetCaliber(weapon) !== 0) {

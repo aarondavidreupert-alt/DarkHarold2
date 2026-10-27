@@ -544,7 +544,7 @@ export class GameMap {
     // CE object flags (obj_types.h). OBJECT_HIDDEN is 0x01 — DH2 also tracks
     // script-driven hiding as `visible === false` (set_obj_visibility).
     static isHiddenObj(o: Obj): boolean {
-        return o.visible === false || (((o as any).flags ?? 0) & 0x01) !== 0
+        return o.visible === false || ((o.flags ?? 0) & 0x01) !== 0
     }
 
     // CE ref: sfall_opcodes.cc:914-934 BlockType / get_blocking_func — dispatches to one
@@ -572,7 +572,7 @@ export class GameMap {
             LIGHT_THRU = 0x20000000,
             SHOOT_THRU = 0x80000000
         const isBlockerType = (o: Obj) => o.type === 'critter' || o.type === 'scenery' || o.type === 'wall'
-        const flagsOf = (o: Obj) => ((o as any).flags ?? 0) >>> 0
+        const flagsOf = (o: Obj) => (o.flags ?? 0) >>> 0
         const neighbourMultihex = (pred: (o: Obj) => boolean): Obj | null => {
             for (const nb of hexNeighbors(pos)) {
                 for (const o of at(nb)) {
@@ -651,7 +651,7 @@ export class GameMap {
         const test = (p: Point): Obj | null => {
             const o = this.blockingObjectAt(toTileNum(p), elev, blockType, source, aiState)
             if (o === null || o === prev) return null
-            if (shoot && ((((o as any).flags ?? 0) >>> 0) & 0x80000000) !== 0) return null
+            if (shoot && (((o.flags ?? 0) >>> 0) & 0x80000000) !== 0) return null
             return o
         }
 
@@ -720,10 +720,10 @@ export class GameMap {
         for (let i = 0; i < line.length; i++) {
             const objs = this.objectsAtPosition(line[i])
             for (const o of objs) {
-                const flags = (o as any).flags ?? 0
+                const flags = o.flags ?? 0
                 if (GameMap.isHiddenObj(o)) continue
                 if ((flags & SHOOT_THRU) !== 0) continue
-                if ((o as any).type === 'critter' && (o as any).dead) continue
+                if (o.type === 'critter' && (o as any).dead) continue
                 if (!o.blocks()) continue
                 return o
             }

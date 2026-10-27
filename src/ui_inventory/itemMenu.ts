@@ -36,7 +36,7 @@ export type ItemMenuAction = 'look' | 'use' | 'drop' | 'unload' | 'cancel'
 // drugs can always be used on someone); a lit flare or an armed explosive can't be used
 function canUseOrUseOn(item: Obj): boolean {
     if (item.pid === 205 || item.pid === 206 || item.pid === 209) return false // lit flare, armed explosives
-    const flags = (item.pro?.extra as any)?.weaponFlags ?? 0
+    const flags = item.pro?.extra?.weaponFlags ?? 0
     return (flags & 0x08) !== 0 || (flags & 0x10) !== 0 || item.subtype === 'drug' || item.canUse
 }
 

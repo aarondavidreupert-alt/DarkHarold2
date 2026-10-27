@@ -196,7 +196,7 @@ export function gameMode(): number {
     }
     if (globalState.inCombat) {
         mode |= M.COMBAT
-        if ((globalState.combat as any)?.inPlayerTurn) mode |= M.PCOMBAT
+        if (globalState.combat?.inPlayerTurn) mode |= M.PCOMBAT
     }
     return (mode | special) >>> 0
 }

@@ -147,7 +147,7 @@ export function drawAutomapInto(canvas: HTMLCanvasElement, opts: RenderOptions =
         SPECIAL = '#f89040'
     const colorForLive = (obj: any): string | null => {
         if (obj.type === 'critter') {
-            if ((obj as any).isPlayer) return null // the marker below
+            if (obj.isPlayer) return null // the marker below
             return opts.scanner && !obj.dead && obj.visible !== false ? DUDE : null
         }
         if (obj.pid === 0x2000031) return SPECIAL

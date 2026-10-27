@@ -270,7 +270,7 @@ function cycleMouseMode(): void {
         // command (arrow) → attack (crosshair). CE ref: game_mouse.cc
         // gameMouseCycleMode — the crosshair is skipped (back to move) outside
         // combat, and in combat while the active item isn't a weapon.
-        const player = globalState.player as any
+        const player = globalState.player
         const activeItem = player?.[player?.activeHand ?? 'leftHand'] as Obj | undefined
         const skipCrosshair =
             !globalState.inCombat || (activeItem !== undefined && activeItem !== null && !objectIsWeapon(activeItem))
@@ -658,7 +658,7 @@ export function installInputHandlers(): void {
                 dbg('object', '[Main] inventory: ' + JSON.stringify(obj.inventory))
                 // CE ref: proto_instance.cc _obj_use_container — run use_p_proc on
                 // the container; only open loot if the script did not override.
-                if ((obj as any).isContainer && obj._script) {
+                if (obj.isContainer && obj._script) {
                     const overrode = Scripting.use(obj, globalState.player!)
                     if (overrode === true) return
                 }

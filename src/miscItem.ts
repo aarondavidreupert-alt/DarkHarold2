@@ -133,7 +133,7 @@ export function miscItemTurnOn(item: Obj, owner: Critter | null): void {
         logItemMsg(6, '%s is on.', item)
         if (!stealthBoy) {
             const fmt = getMessage('item', 8) ?? 'You pass the Geiger counter over you body. The rem counter reads: %d'
-            uiLog(fmt.replace('%d', String((owner as any).radiationLevel ?? 0)))
+            uiLog(fmt.replace('%d', String(owner.radiationLevel ?? 0)))
         }
     }
     dbg('object', 'miscItem: %s turned on (%d charges)', item.name || item.pid, item.miscCharges ?? 0)
@@ -141,7 +141,7 @@ export function miscItemTurnOn(item: Obj, owner: Critter | null): void {
 
 // CE item.cc miscItemGetCharges (a missing count is the proto's)
 export function miscItemGetCharges(item: Obj): number {
-    if (item.miscCharges === undefined) item.miscCharges = (item.pro?.extra as any)?.charges ?? 0
+    if (item.miscCharges === undefined) item.miscCharges = item.pro?.extra?.charges ?? 0
     return item.miscCharges ?? 0
 }
 

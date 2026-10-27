@@ -65,11 +65,11 @@ export function uiLoot(object: Obj) {
     // CE inventory.cc inventoryOpenLooting pre-checks: a CRITTER_NO_STEAL critter →
     // inventry.msg 50; then the target's pickup_p_proc (source = the looter), whose
     // script_overrides keeps the window closed.
-    if (object.type === 'critter' && (((object.pro as any)?.extra?.flags ?? 0) & 0x20) !== 0) {
+    if (object.type === 'critter' && ((object.pro?.extra?.flags ?? 0) & 0x20) !== 0) {
         uiLog(getMessage('inventry', 50) ?? "You can't find anything to take from that.")
         return
     }
-    if ((object._script as any)?.pickup_p_proc && globalState.player) {
+    if (object._script?.pickup_p_proc && globalState.player) {
         let overridden = false
         try {
             overridden = Scripting.pickup(object, globalState.player)
@@ -92,7 +92,7 @@ export function uiLoot(object: Obj) {
     async function uiLootMove(data: string /* "l"|"r" */, where: 'left' | 'right') {
         dbg('inventory', `[Loot] move ${data} to ${where}`)
 
-        const from = ({ l: leftList(), r: rightList() } as any)[data[0]]
+        const from = { l: leftList(), r: rightList() }[data[0]]
 
         if (from === undefined) {
             throw new Error('uiLootMove: wrong data: ' + data)

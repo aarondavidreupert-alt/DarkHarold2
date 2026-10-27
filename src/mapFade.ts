@@ -39,7 +39,7 @@ function busy(): boolean {
     return (
         globalState.isLoading ||
         Object.values(globalState.lazyAssetLoadingQueue ?? {}).some((v) => v !== undefined) ||
-        ((heart as any)._imagesLoading?.length ?? 0) > 0
+        (heart._imagesLoading?.length ?? 0) > 0
     )
 }
 
@@ -75,10 +75,10 @@ export function endMapFade(): void {
     const my = token
     const start = performance.now()
     let quietFrames = 0
-    let lastFrames = (heart as any)._numFrames ?? 0
+    let lastFrames = heart._numFrames ?? 0
     const poll = () => {
         if (my !== token || !overlay) return // a newer map change took over
-        const frames = (heart as any)._numFrames ?? 0
+        const frames = heart._numFrames ?? 0
         if (busy()) quietFrames = 0
         else if (frames !== lastFrames) quietFrames++
         lastFrames = frames

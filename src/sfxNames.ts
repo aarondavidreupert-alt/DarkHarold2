@@ -134,13 +134,13 @@ export function sfxBuildWeaponName(
     target: Obj | null | undefined,
 ): string {
     const typeCode = 'RAOFH'[effectType] ?? 'A'
-    const sid = (weapon as any)?.pro?.extra?.soundID
+    const sid = weapon?.pro?.extra?.soundID
     const weaponCode = typeof sid === 'number' ? String.fromCharCode(sid) : 'A'
     const variant = (effectType === 1 || effectType === 4) && secondaryMode ? 2 : 1
-    const dmg = (weapon as any)?.pro?.extra?.dmgType
+    const dmg = weapon?.pro?.extra?.dmgType
     let material = 'X'
     if (effectType === 4 && target && dmg !== 3 /* plasma */ && dmg !== 5 /* EMP */ && dmg !== 6 /* explosion */) {
-        const extra = (target as any).pro?.extra
+        const extra = target.pro?.extra
         const m =
             target.type === 'wall'
                 ? extra?.material

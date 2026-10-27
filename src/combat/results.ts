@@ -60,7 +60,7 @@ export function results(c: Critter): number {
 }
 
 function protoFlags(c: Critter): number {
-    return ((c.pro as any)?.extra?.flags ?? 0) >>> 0
+    return (c.pro?.extra?.flags ?? 0) >>> 0
 }
 
 // CE critter.cc _critter_is_prone: knocked out or down.

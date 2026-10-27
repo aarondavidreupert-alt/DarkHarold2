@@ -207,14 +207,12 @@ export function uiCompanionTrade(companion: Critter): void {
     }
 
     async function uiMove(data: string, where: 'left' | 'right' | 'leftInv' | 'rightInv'): Promise<void> {
-        const from = (
-            {
-                p: playerList(),
-                m: companionList(),
-                l: playerBarterTable,
-                r: companionBarterTable,
-            } as any
-        )[data[0]]
+        const from = {
+            p: playerList(),
+            m: companionList(),
+            l: playerBarterTable,
+            r: companionBarterTable,
+        }[data[0]]
         if (from === undefined) throw new Error('uiCompanionTrade.uiMove: wrong data: ' + data)
 
         const idx = parseInt(data.slice(1))

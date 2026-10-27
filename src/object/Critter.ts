@@ -93,6 +93,24 @@ export class Critter extends Obj {
     leftHand?: WeaponObj // Left-hand object slot
     rightHand?: WeaponObj // Right-hand object slot
 
+    // State the combat AI, skills and the player add at run time. Declared without initialisers,
+    // so the compiled class is unchanged; only the type knows them.
+    whoHitMe?: Critter | null // CE critter.combat.whoHitMe (combat/whoHitMe.ts)
+    aiLastTarget?: Critter | null
+    aiLastItem?: Obj | null
+    aiFriendlyDead?: Critter | null
+    fleeing?: boolean // CE CRITTER_MANUEVER_FLEEING
+    engaging?: boolean // CE CRITTER_MANUEVER_ENGAGING
+    disengaging?: boolean // CE CRITTER_MANUEVER_DISENGAGING
+    damageLastTurn?: number // CE critter.combat.damageLastTurn
+    _aiTurn?: any
+    isSneaking?: boolean // the player's Sneak (skillUse.ts)
+    sneakWorking?: boolean
+    gender?: string // the player's (Player sets it)
+    armor?: Obj | null // the player's armour slot (Player sets it)
+    activeHand?: 'leftHand' | 'rightHand' // the player's (Player sets it)
+    traits?: string[] // the player's (Player sets it)
+
     type: ObjType = 'critter'
     anim = 'idle'
     path: any = null // Holds pathfinding objects
@@ -295,7 +313,7 @@ export class Critter extends Obj {
         }
         // CE: a critter other than the player acts with its right-hand item
         // (critterGetItem2 — the fid's weapon code, HIT_MODE_RIGHT_WEAPON_*).
-        if (!this.isPlayer && (this.rightHand as any)?.pid !== undefined) (this as any).activeHand = 'rightHand'
+        if (!this.isPlayer && this.rightHand?.pid !== undefined) this.activeHand = 'rightHand'
 
         // set them in their proper idle state for the weapon
         this.art = this.getAnimation('idle')
@@ -337,9 +355,9 @@ export class Critter extends Obj {
 
     // CE animation.cc _dude_run: the dude's run command ends Sneak (unless Silent Running)
     stopSneakToRun(): void {
-        if (!this.isPlayer || !(this as any).isSneaking || this.hasPerk('Silent Running')) return
-        ;(this as any).isSneaking = false
-        ;(this as any).sneakWorking = false
+        if (!this.isPlayer || !this.isSneaking || this.hasPerk('Silent Running')) return
+        this.isSneaking = false
+        this.sneakWorking = false
         Scripting.timeEventList.splice(
             0,
             Scripting.timeEventList.length,
@@ -375,10 +393,7 @@ export class Critter extends Obj {
         ) {
             spatialsBusy = true
             try {
-                const hitSpatials = hitSpatialTrigger(
-                    position,
-                    (this as any).elevation ?? globalState.gMap!.currentElevation,
-                )
+                const hitSpatials = hitSpatialTrigger(position, this.elevation ?? globalState.gMap!.currentElevation)
                 for (let i = 0; i < hitSpatials.length; i++) {
                     const spatial = hitSpatials[i]
                     dbg(
@@ -405,7 +420,7 @@ export class Critter extends Obj {
             isPlayer: this.isPlayer,
             perks: this.perks,
             // CE traitGetSkillModifier — the dude's traits (Gifted, Good Natured) apply always
-            traits: this.isPlayer ? (this as any).traits : undefined,
+            traits: this.isPlayer ? this.traits : undefined,
             // CE perkGetSkillModifier: Ghost reads objectGetLightIntensity(gDude).
             lightIntensity:
                 skill === 'Sneak' && this.perks.includes('Ghost') && globalState.player
@@ -435,10 +450,10 @@ export class Critter extends Obj {
     getEquippedArmor(): Obj | null {
         // Player stores armor in a dedicated slot; NPCs wear only the inventory armor
         // flagged OBJECT_WORN (CE inventory.cc critterGetArmor) — carried armor gives nothing.
-        const self = this as any
+        const self = this
         if (self.armor !== undefined) return self.armor
         for (const item of this.inventory) {
-            if ((((item as any).flags ?? 0) & 0x4000000) !== 0) return item // OBJECT_WORN
+            if (((item.flags ?? 0) & 0x4000000) !== 0) return item // OBJECT_WORN
         }
         return null
     }
@@ -529,7 +544,7 @@ export class Critter extends Obj {
             }
         }
         if (running && (this.crippledLeftLeg || this.crippledRightLeg)) running = false
-        if (running && this.isPlayer && (this as any).isSneaking && !this.hasPerk('Silent Running')) running = false
+        if (running && this.isPlayer && this.isSneaking && !this.hasPerk('Silent Running')) running = false
 
         // Critters without a walk/run FRM (spore plants, floaters' stand-only art) can't
         // move: CE _object_move does nothing when artLock(sad->fid) fails (animation.cc).

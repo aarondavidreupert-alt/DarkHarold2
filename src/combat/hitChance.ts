@@ -63,8 +63,8 @@ export function accountForPartialCover(obj: Critter, target: Critter, from: Poin
 // multihex object (OBJECT_MULTIHEX 0x800), never below 0.
 export function objectDistance(a: Obj, from: Point, b: Obj, to: Point = b.position): number {
     let d = hexDistance(from, to)
-    if (((((a as any).flags ?? 0) >>> 0) & 0x800) !== 0) d -= 1
-    if (((((b as any).flags ?? 0) >>> 0) & 0x800) !== 0) d -= 1
+    if ((((a.flags ?? 0) >>> 0) & 0x800) !== 0) d -= 1
+    if ((((b.flags ?? 0) >>> 0) & 0x800) !== 0) d -= 1
     return Math.max(0, d)
 }
 
@@ -78,7 +78,7 @@ export function getHitDistanceModifier(
     from: Point = obj.position,
     useDistance = true,
 ): number {
-    const weaponPerk = (weapon as any)?.pro?.extra?.perk
+    const weaponPerk = weapon?.pro?.extra?.perk
     let perceptionBonusMult = 2
     let minEffectiveDist = 0
     if (weaponPerk === PERK_WEAPON_LONG_RANGE) perceptionBonusMult = 4
@@ -134,7 +134,7 @@ function darknessPenalty(target: Critter): number {
 export function weaponAttackType(weaponObj: Obj | null): 'unarmed' | 'melee' | 'throw' | 'ranged' | 'none' {
     const weapon = (weaponObj as any)?.weapon
     if (!weaponObj || !weapon) return 'unarmed'
-    const modes = (weaponObj as any).pro?.extra?.attackMode ?? 0
+    const modes = weaponObj.pro?.extra?.attackMode ?? 0
     const index = weapon.usesSecondary?.() ? (modes >> 4) & 0xf : modes & 0xf
     const types = ['none', 'unarmed', 'unarmed', 'melee', 'melee', 'throw', 'ranged', 'ranged', 'ranged'] as const
     return types[index] ?? 'none'
@@ -169,7 +169,7 @@ export function getHitChance(
         // CE weaponGetSkillValue: the skill of the hit mode (a spear's throw uses Throwing)
         const skill = weapon!.skillForMode?.() ?? weapon!.weaponSkillType
         toHit = skill === undefined ? 0 : obj.getSkill(skill)
-        const extra = (weaponObj as any).pro?.extra ?? {}
+        const extra = weaponObj.pro?.extra ?? {}
 
         if (isRanged) {
             distanceMod = getHitDistanceModifier(obj, target, weaponObj!, from, useDistance)
@@ -179,7 +179,7 @@ export function getHitChance(
         }
 
         // One Hander trait (player): -40 with two-handed weapons, +20 otherwise.
-        if (obj.isPlayer && (obj as any).traits?.includes('One Hander')) {
+        if (obj.isPlayer && obj.traits?.includes('One Hander')) {
             const twoHanded = ((extra.weaponFlags ?? 0) & 0x02) !== 0 // WEAPON_TWO_HAND 0x200
             toHit += twoHanded ? -40 : 20
         }
@@ -203,16 +203,16 @@ export function getHitChance(
     const regionPenalty = CriticalEffects.regionHitChanceDecTable[region] ?? 0
     toHit -= isRanged ? regionPenalty : Math.trunc(regionPenalty / 2)
 
-    if (((((target as any).flags ?? 0) >>> 0) & 0x800) !== 0) toHit += 15 // OBJECT_MULTIHEX
+    if ((((target.flags ?? 0) >>> 0) & 0x800) !== 0) toHit += 15 // OBJECT_MULTIHEX
 
     // Darkness, player attacker only; PERK_WEAPON_NIGHT_SIGHT ignores it.
-    if (obj.isPlayer && (weaponObj as any)?.pro?.extra?.perk !== PERK_WEAPON_NIGHT_SIGHT) {
+    if (obj.isPlayer && weaponObj?.pro?.extra?.perk !== PERK_WEAPON_NIGHT_SIGHT) {
         toHit -= darknessPenalty(target)
     }
 
     // CE attackDetermineToHit: attack_complex's accuracy bonus (_gcsd) for every to-hit during
     // the first combatant's turn, before the 95 cap (spray lines and AI decisions included)
-    toHit += (globalState.combat as any)?.gcsd?.accuracyBonus ?? 0
+    toHit += globalState.combat?.gcsd?.accuracyBonus ?? 0
 
     if (obj.isBlinded) toHit -= 25
     if (((target.injuryFlags ?? 0) & 0x03) !== 0) toHit += 40 // DAM_KNOCKED_OUT | DAM_KNOCKED_DOWN

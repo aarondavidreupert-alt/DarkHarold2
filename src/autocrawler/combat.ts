@@ -56,7 +56,7 @@ async function crawlOneCritter(critter: Critter): Promise<CombatCritterResult> {
     critter.hostile = true
 
     // Snapshot fastMode before the try block so the finally clause can restore it.
-    const _prevFastMode: boolean = (window as any).__test?.fastMode ?? false
+    const _prevFastMode: boolean = window.__test?.fastMode ?? false
 
     // Restore HP and hostile flags no matter which return path is taken.
     try {
@@ -73,8 +73,8 @@ async function crawlOneCritter(critter: Critter): Promise<CombatCritterResult> {
         const logLenBefore = globalState.eventLog.length
 
         // Enable fastMode so animations complete in zero real time during the crawl.
-        ;(window as any).__test = (window as any).__test ?? {}
-        ;(window as any).__test.fastMode = true
+        window.__test = window.__test ?? {}
+        window.__test.fastMode = true
 
         // Start combat in NPC-initiated mode (forceTurn = critter).
         // This limits team enrollment to: player's team + critter's team.
@@ -110,7 +110,7 @@ async function crawlOneCritter(critter: Critter): Promise<CombatCritterResult> {
         )
         if (!gotPlayerTurn) {
             result.status = 'stuck-player-turn-timeout'
-            const _ptActive = (globalState.combat as any)?.combatants?.[(globalState.combat as any)?.whoseTurn]
+            const _ptActive = globalState.combat?.combatants?.[globalState.combat?.whoseTurn]
             if (_ptActive) {
                 console.warn(
                     `[AutoCrawler] stuck-player-turn-timeout: active uid=${_ptActive.uid} name="${_ptActive.name}" inAnim=${_ptActive.inAnim?.()}`,
@@ -151,7 +151,7 @@ async function crawlOneCritter(critter: Critter): Promise<CombatCritterResult> {
         )
         if (!aiDone) {
             result.status = 'stuck-ai-turn-timeout'
-            const _aiActive = (globalState.combat as any)?.combatants?.[(globalState.combat as any)?.whoseTurn]
+            const _aiActive = globalState.combat?.combatants?.[globalState.combat?.whoseTurn]
             if (_aiActive) {
                 console.warn(
                     `[AutoCrawler] stuck-ai-turn-timeout: active uid=${_aiActive.uid} name="${_aiActive.name}" inAnim=${_aiActive.inAnim?.()}`,
@@ -163,7 +163,7 @@ async function crawlOneCritter(critter: Critter): Promise<CombatCritterResult> {
 
         // Check for AI recursion bail-outs in the entries added during this encounter.
         const newEntries = globalState.eventLog.slice(logLenBefore)
-        result.aiBailout = newEntries.some((e) => (e as any).action === 'ai-bailout')
+        result.aiBailout = newEntries.some((e) => e.action === 'ai-bailout')
         if (result.aiBailout) {
             result.notes = (result.notes ? result.notes + '; ' : '') + 'AI recursion bail-out detected'
         }
@@ -181,7 +181,7 @@ async function crawlOneCritter(critter: Critter): Promise<CombatCritterResult> {
         result.durationMs = performance.now() - t0
         return result
     } finally {
-        if ((window as any).__test) (window as any).__test.fastMode = _prevFastMode
+        if (window.__test) window.__test.fastMode = _prevFastMode
         player.stats.setBase('HP', prevHP)
         for (const snap of hostileSnapshots) snap.c.hostile = snap.was
     }

@@ -129,7 +129,7 @@ export class Party {
     addPartyMember(obj: Critter) {
         if (this.party.some((m) => m === obj || m.pid === obj.pid)) return
         if (this.party.length >= loadPartyDescs().length + 20) return
-        dbg('party', `party member ${(obj as any).name ?? obj.pid} added`)
+        dbg('party', `party member ${obj.name ?? obj.pid} added`)
         this.party.push(obj)
         // CE: critterSetTeam(object, 0) — party members join the player's team.
         const player = globalState.player as Critter | null
@@ -196,7 +196,7 @@ export class Party {
     }
 
     removePartyMember(obj: Critter) {
-        dbg('party', `party member ${(obj as any).name ?? obj.pid} removed`)
+        dbg('party', `party member ${obj.name ?? obj.pid} removed`)
         if (!arrayRemove(this.party, obj)) throw Error('Could not remove party member')
         Events.emit('partyChanged', { obj }) // CE partyMemberRemove → _gdialogUpdatePartyStatus
     }

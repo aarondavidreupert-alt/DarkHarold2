@@ -292,10 +292,10 @@ export function updateIndicatorBar(): void {
     // Determine active badges in CE enum order.
     const active = new Set<string>()
     // CE interface.cc:2323 — dudeHasState(DUDE_STATE_ADDICTED)
-    if ((player as any).addictedState === true) active.add('ADDICT')
-    if ((player as any).isSneaking) active.add('SNEAK')
-    if ((player as any).levelUpAvailable === true) active.add('LEVEL') // CE DUDE_STATE_LEVEL_UP_AVAILABLE
-    if (((player as any).poisonLevel ?? 0) > 0) active.add('POISONED')
+    if (player.addictedState === true) active.add('ADDICT')
+    if (player.isSneaking) active.add('SNEAK')
+    if (player.levelUpAvailable === true) active.add('LEVEL') // CE DUDE_STATE_LEVEL_UP_AVAILABLE
+    if ((player.poisonLevel ?? 0) > 0) active.add('POISONED')
     // CE: critterGetRadiation(gDude) > RADATION_INDICATOR_THRESHOLD (65) — strictly greater
     if (((player as any).radiationLevel ?? 0) > 65) active.add('RADIATED')
 
@@ -459,8 +459,8 @@ export function uiDrawWeapon(): void {
     const $typeImg = $img('attackButtonType')
     if (!weapon || !weapon.weapon) {
         const player = globalState.player!
-        const activeHand: 'leftHand' | 'rightHand' = (player as any).activeHand ?? 'leftHand'
-        const activeItem = (player as any)[activeHand] as Obj | undefined
+        const activeHand: 'leftHand' | 'rightHand' = player.activeHand ?? 'leftHand'
+        const activeItem = player[activeHand] as Obj | undefined
 
         // CE ref: interface.cc:1067-1078,1116-1127 interfaceUpdateItems() — a
         // non-weapon item in the active hand shows its own icon in the HUD
@@ -558,12 +558,12 @@ export function uiUpdateAmmoBar(weapon: WeaponObj | null): void {
     // CE ref: interface.cc:1355 interfaceBarRefreshMainAction — ratio = current/max * 70
     // (weapon ammo, or a misc item's charges); interfaceUpdateAmmoBar rounds it down to even.
     let ratio = 0
-    const extra = (weapon as any)?.pro?.extra
+    const extra = weapon?.pro?.extra
     if (extra?.maxAmmo > 0) {
         ratio = Math.trunc((ammoGetQuantity(weapon) / extra.maxAmmo) * 70)
     } else if (extra?.charges > 0) {
         // misc proto `charges` = CE miscItemGetMaxCharges
-        ratio = Math.trunc((((weapon as any)?.miscCharges ?? 0) / extra.charges) * 70)
+        ratio = Math.trunc(((weapon?.miscCharges ?? 0) / extra.charges) * 70)
     }
     ratio = Math.max(0, Math.min(70, ratio))
     if ((ratio & 1) !== 0) ratio -= 1
@@ -645,7 +645,7 @@ export function uiStartCombat(): void {
     // CE ref: interface.cc interfaceBarEndButtonsShow / RenderRedLights:
     // animate end-turn panel open (frames 0→4), then show buttons with red lights.
     // The panel opening sounds iciboxx1.
-    if (_endAnimFrame !== END_ANIM_FRAMES - 1 && !(window as any).__test?.fastMode)
+    if (_endAnimFrame !== END_ANIM_FRAMES - 1 && !window.__test?.fastMode)
         globalState.audioEngine?.playSfxByName?.('iciboxx1')
     stepEndAnim(1, () => {
         showv($id('endTurnButton'))
@@ -715,8 +715,8 @@ export function uiShowCombatHover(target: Obj, screenX: number, screenY: number)
     // CE _combat_to_hit: " X " whenever _combat_check_bad_shot refuses (dead, crippled arms, AP,
     // range, ammo, blocked aim) for the current hit mode
     const weapon = player.equippedWeapon
-    const real = !!weapon && (weapon as any).pid !== undefined
-    const aiming = real ? !!(weapon as any).weapon?.isCalled?.() : !!currentUnarmed(player)?.aiming
+    const real = !!weapon && weapon.pid !== undefined
+    const aiming = real ? !!weapon.weapon?.isCalled?.() : !!currentUnarmed(player)?.aiming
     const shotOk =
         !!globalState.combat && isCritter && globalState.combat.checkBadShot(player, target as Critter, aiming) === 'ok'
     if (isCritter && shotOk && globalState.combat) {

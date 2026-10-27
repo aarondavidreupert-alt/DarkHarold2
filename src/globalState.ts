@@ -233,5 +233,5 @@ const globalState = {
 export default globalState
 
 if (typeof window !== 'undefined') {
-    ;(window as any).globalState = globalState
+    window.globalState = globalState
 }

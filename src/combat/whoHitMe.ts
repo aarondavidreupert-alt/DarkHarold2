@@ -35,7 +35,7 @@ export function critterSetWhoHitMe(a1: Critter, a2: Critter | null): void {
     if (!a1 || a1.type !== 'critter') return
     if (a2 !== null && a2.type !== 'critter') return
     if (a2 === null || a1.teamNum !== a2.teamNum || (intRollFails(a1) && (!isPartyMember(a1) || !isPartyMember(a2)))) {
-        ;(a1 as any).whoHitMe = a2
+        a1.whoHitMe = a2
         if (a2 !== null && a2.isPlayer) {
             const script: any = a1._script
             if (script) {
@@ -53,18 +53,18 @@ export function combatAiRating(obj: Critter | null): number {
     if (obj.dead || ((obj.injuryFlags ?? 0) & 0x01) !== 0) return 0
     let damage = obj.getStat('Melee') // STAT_MELEE_DAMAGE
     for (const hand of ['rightHand', 'leftHand'] as const) {
-        const item: any = (obj as any)[hand]
+        const item: any = obj[hand]
         const max = item?.subtype === 'weapon' ? item.pro?.extra?.maxDmg : undefined
         if (typeof max === 'number' && damage < max) damage = max
     }
     // STAT_ARMOR_CLASS: with the unused-AP bonus while it isn't the critter's turn
-    return damage + obj.getStat('AC') + obj.getArmorAC() + ((globalState.combat as any)?.unusedApAC?.(obj) ?? 0)
+    return damage + obj.getStat('AC') + obj.getArmorAC() + (globalState.combat?.unusedApAC?.(obj) ?? 0)
 }
 
 // CE combat_ai.cc _combatai_check_retaliation — switch to the new attacker if it
 // rates higher than whoever hit us before.
 export function combatAiCheckRetaliation(a1: Critter, a2: Critter): void {
-    const prev: Critter | null = (a1 as any).whoHitMe ?? null
+    const prev: Critter | null = a1.whoHitMe ?? null
     if (prev) {
         if (combatAiRating(a2) > combatAiRating(prev)) critterSetWhoHitMe(a1, a2)
     } else {

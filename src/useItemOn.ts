@@ -146,7 +146,7 @@ function removeOne(user: Critter, item: Obj): void {
         else user.inventory.splice(idx, 1)
         return
     }
-    const u = user as any
+    const u = user
     if (item.amount > 1) {
         item.amount--
         return

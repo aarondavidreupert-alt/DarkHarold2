@@ -119,7 +119,7 @@ export function critterKill(
     obj.critDeath = false
     // CE critter.cc critterKill: unless the proto has CRITTER_FLAT, the body stops blocking
     // (OBJECT_NO_BLOCK) and _obj_toggle_flat makes it OBJECT_FLAT — drawn first on its tile
-    if ((((obj.pro as any)?.extra?.flags ?? 0) & 0x800) === 0) {
+    if (((obj.pro?.extra?.flags ?? 0) & 0x800) === 0) {
         obj.flags = ((obj.flags ?? 0) | 0x10 | 0x08) >>> 0
         const gm = globalState.gMap
         const level = gm?.objects?.[obj.elevation ?? gm.currentElevation]
@@ -150,7 +150,7 @@ export function critterKill(
         obj.anim = 'dead'
         // CE actions.cc _show_death: electrified / exploded to nothing drops everything
         // carried (unless CRITTER_SPECIAL_DEATH or CRITTER_NO_DROP).
-        const protoFlags = (obj.pro as any)?.extra?.flags ?? 0
+        const protoFlags = obj.pro?.extra?.flags ?? 0
         if (
             (deathAnim === ANIM_ELECTRIFIED_TO_NOTHING || deathAnim === ANIM_EXPLODED_TO_NOTHING) &&
             (protoFlags & (CRITTER_SPECIAL_DEATH | CRITTER_NO_DROP)) === 0
@@ -165,7 +165,7 @@ export function critterKill(
 
         // Corpse auto-cleanup: remove empty corpses after a configurable timeout.
         // Corpses with loot are left on the map so the player can still loot them.
-        const timeout = (Config.engine as any).corpseTimeout as number | undefined
+        const timeout = Config.engine.corpseTimeout as number | undefined
         if (timeout && timeout > 0 && globalState.gMap) {
             const map = globalState.gMap
             setTimeout(() => {
@@ -439,7 +439,7 @@ export function itemDropAll(obj: Critter): void {
         for (let k = 1; k < n; k++) {
             const piece = giveNewUid(item.clone())
             piece.amount = 1
-            if (item.subtype === 'ammo') piece.ammoQuantity = ammoGetCapacity(item as any)
+            if (item.subtype === 'ammo') piece.ammoQuantity = ammoGetCapacity(item)
             pieces.push(piece)
         }
     }
@@ -485,11 +485,11 @@ export function critterDamage(
     if ((flags & DAM_DEAD) !== 0) obj.critDeath = true
 
     // CE combat.cc _damage_object: an invulnerable critter (CRITTER_INVULNERABLE) takes nothing
-    const invulnerable = ((((obj.pro as any)?.extra?.flags ?? 0) >>> 0) & 0x400) !== 0
+    const invulnerable = (((obj.pro?.extra?.flags ?? 0) >>> 0) & 0x400) !== 0
     if (damage > 0 && !invulnerable) {
         obj.stats.modifyBase('HP', -damage)
         // CE combat.cc _damage_object: combat.damageLastTurn += damage
-        ;(obj as any).damageLastTurn = ((obj as any).damageLastTurn ?? 0) + damage
+        obj.damageLastTurn = (obj.damageLastTurn ?? 0) + damage
         // CE _damage_object: damage_p_proc only for damage that landed, not with a4 set, and
         // not when the victim and the attacker are both in the party (the dude included)
         const inParty = (c: Critter | undefined) => !!c && (c.isPlayer || !!globalState.gParty?.isPartyMember(c))
@@ -502,8 +502,7 @@ export function critterDamage(
     }
     if (!useAnim || wasProne) return
 
-    const knockback =
-        (((obj.pro as any)?.extra?.flags ?? 0) & CRITTER_NO_KNOCKBACK) !== 0 ? 0 : (killOptions.knockback ?? 0)
+    const knockback = ((obj.pro?.extra?.flags ?? 0) & CRITTER_NO_KNOCKBACK) !== 0 ? 0 : (killOptions.knockback ?? 0)
     const rotation = killOptions.knockbackRotation ?? 0
     const hitFromFront = killOptions.hitFromFront ?? isHitFromFrontOf(obj, source)
     const done = () => {

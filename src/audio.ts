@@ -28,7 +28,7 @@ import { getHourMilitary } from './gametime.js'
 // Has the page had a user gesture yet? (browser autoplay policy; true where the
 // UserActivation API is missing)
 function audioUnlocked(): boolean {
-    return (navigator as any).userActivation?.hasBeenActive ?? true
+    return navigator.userActivation?.hasBeenActive ?? true
 }
 
 // Bump when the pipeline's SFX/speech output changes, so browsers drop cached copies
@@ -127,7 +127,7 @@ export class HTMLAudioEngine implements AudioEngine {
 
     private getCtx(): AudioContext {
         if (!this.ctx) {
-            const Ctor = (window as any).AudioContext ?? (window as any).webkitAudioContext
+            const Ctor = window.AudioContext ?? window.webkitAudioContext
             this.ctx = new Ctor() as AudioContext
             // Build gain chain: source → sfxGainNode → masterGainNode → destination
             this.sfxGainNode = this.ctx.createGain()

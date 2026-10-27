@@ -23,7 +23,7 @@ const MAX_SPATIAL_DISTANCE = 5
 export function elevatorSpatialFor(obj: Obj): any | null {
     if (!Config.ui.elevatorUse || obj.type !== 'scenery' || !globalState.gMap || !obj.position) return null
     const art = ((obj as any).art ?? '').split('/').pop().toLowerCase()
-    if (!art.startsWith('elev') && !ELEVATOR_DOOR_PIDS.has((obj as any).pidID)) return null
+    if (!art.startsWith('elev') && !ELEVATOR_DOOR_PIDS.has(obj.pidID)) return null
     let best: any = null
     let bestDist = Infinity
     for (const s of globalState.gMap.getSpatials(obj.elevation) ?? []) {

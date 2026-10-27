@@ -17,6 +17,9 @@ import { hexDistance, hexIsInFrontOf, hexIsToRightOf } from '../geometry.js'
 import globalState from '../globalState.js'
 import { isCEOccludingWall, isCEOccludingWallLiteral, isBBoxOccludingWall, WebGLRenderer } from '../webglrenderer.js'
 
+// console commands are free-form globals (play.html#dev)
+const devWindow = window as unknown as Record<string, unknown>
+
 // DH2 console commands (no CE equivalent): egg transparency, roof peek, object inspector.
 // Moved out of main.ts (window.onload). See wiki/extended_flags.md §8.
 
@@ -34,7 +37,7 @@ export function registerEggCommands(): void {
     //                            within eggRadius, no wall transparency
     // setEggAlpha(0.3)         — set the outer/flat alpha (0=invisible, 1=opaque, default 0.4)
     // setEggRadius(6)          — set max hex distance for egg effect (default 8)
-    ;(window as any).setEggMode = (mode: 'alpha' | 'dh2-egg' | 'ce-egg' | 'bbox' | 'beta') => {
+    devWindow.setEggMode = (mode: 'alpha' | 'dh2-egg' | 'ce-egg' | 'bbox' | 'beta') => {
         if (mode !== 'alpha' && mode !== 'dh2-egg' && mode !== 'ce-egg' && mode !== 'bbox' && mode !== 'beta') {
             console.log(
                 "Usage: setEggMode('alpha'), setEggMode('dh2-egg'), setEggMode('ce-egg'), setEggMode('bbox'), or setEggMode('beta')",
@@ -44,7 +47,7 @@ export function registerEggCommands(): void {
         Config.ui.eggMode = mode
         console.log(`[Egg] mode="${mode}"  alpha=${Config.ui.eggAlpha ?? 0.4}  radius=${Config.ui.eggRadius ?? 8}`)
     }
-    ;(window as any).setEggAlpha = (a: number) => {
+    devWindow.setEggAlpha = (a: number) => {
         Config.ui.eggAlpha = Math.max(0, Math.min(1, a))
         console.log(`[Egg] alpha=${Config.ui.eggAlpha}`)
     }
@@ -52,17 +55,17 @@ export function registerEggCommands(): void {
     // (north of), not just under. Roofs draw 96px up, so a building you're behind
     // occludes you with a roof whose tile is ~south of you; CE only hides the roof
     // over your own tile. Default on. Set false for CE-exact behavior.
-    ;(window as any).setRoofPeek = (on: boolean) => {
+    devWindow.setRoofPeek = (on: boolean) => {
         Config.ui.roofPeek = on !== false
         console.log(
             `[Roof] peek-behind = ${Config.ui.roofPeek} (${Config.ui.roofPeek ? 'reveal character behind buildings' : 'CE-exact: only hide roof over own tile'})`,
         )
     }
-    ;(window as any).setEggRadius = (r: number) => {
+    devWindow.setEggRadius = (r: number) => {
         Config.ui.eggRadius = Math.max(1, r)
         console.log(`[Egg] radius=${Config.ui.eggRadius}`)
     }
-    ;(window as any).debugEgg = () => {
+    devWindow.debugEgg = () => {
         const r = globalState.renderer as WebGLRenderer
         // Quick sanity check that proto/pro.json's wall extendedFlags data
         // actually made it into the cached proMap — if every sampled wall
@@ -105,7 +108,7 @@ export function registerEggCommands(): void {
     // the byte-for-byte literal CE port ('ce-egg'), and the screen-space
     // bbox/depth test ('bbox') — see wiki/extended_flags.md §8 for what differs and why.
     // Example: wall pos=21718 extFlags=0x2000 fOD=false fDO=true rOD=false rDO=true → egg=true ceLiteral=false bbox=false (DIFF)
-    ;(window as any).eggDebug = () => {
+    devWindow.eggDebug = () => {
         const player = globalState.player
         if (!player) {
             console.log('[EggDebug] no player')
@@ -123,7 +126,7 @@ export function registerEggCommands(): void {
             return
         }
         for (const obj of nearby) {
-            const extFlags: number = (obj as any).pro?.extra?.extendedFlags ?? 0
+            const extFlags: number = obj.pro?.extra?.extendedFlags ?? 0
             const fOD = hexIsInFrontOf(obj.position, player.position)
             const fDO = hexIsInFrontOf(player.position, obj.position)
             const rOD = hexIsToRightOf(obj.position, player.position)
@@ -142,7 +145,7 @@ export function registerEggCommands(): void {
 
     // inspectPos(tileNum) — dump every object at a map position with all flag fields.
     // Example: inspectPos(22925)
-    ;(window as any).inspectPos = (tileNum: number) => {
+    devWindow.inspectPos = (tileNum: number) => {
         if (!globalState.gMap) {
             console.log('[inspectPos] no map loaded')
             return
@@ -172,10 +175,10 @@ export function registerEggCommands(): void {
             console.log(`[inspectPos] → ${obj.type}`, {
                 type: obj.type,
                 pos: tileNum,
-                frmPID: (obj as any).frmPID ?? null,
+                frmPID: obj.frmPID ?? null,
                 ...flagsFrom(obj, ''),
-                ...flagsFrom((obj as any).pro, 'pro.'),
-                ...flagsFrom((obj as any).pro?.extra, 'pro.extra.'),
+                ...flagsFrom(obj.pro, 'pro.'),
+                ...flagsFrom(obj.pro?.extra, 'pro.extra.'),
             })
         }
     }

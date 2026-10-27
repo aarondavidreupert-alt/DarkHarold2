@@ -25,11 +25,14 @@ import {
     LightOverlayMode,
 } from '../webglrenderer.js'
 
+// console commands are free-form globals (play.html#dev)
+const devWindow = window as unknown as Record<string, unknown>
+
 // DH2 console commands (no CE equivalent): lighting modes and lighting diagnostics.
 // Moved out of main.ts (window.onload). See wiki/lighting.md and wiki/alignment.md.
 
 export function registerLightingCommands(): void {
-    ;(window as any).setLightingMode = (mode: 'gpu' | 'cpu') => {
+    devWindow.setLightingMode = (mode: 'gpu' | 'cpu') => {
         Config.engine.floorLightingMode = mode
         ;(globalState.renderer as WebGLRenderer).setLightingMode(mode)
         dbg('map', '[Lighting] switched to:', mode)
@@ -47,7 +50,7 @@ export function registerLightingCommands(): void {
     //                                        (distance-only baseline)".
     // This controls light *propagation/blocking*, not floor rendering — see setLightingMode()
     // above for the GPU/CPU floor-render backend switch (a separate, unrelated layer).
-    ;(window as any).setLightPropagationMode = (mode: 'dh2' | 'derived' | 'naive') => {
+    devWindow.setLightPropagationMode = (mode: 'dh2' | 'derived' | 'naive') => {
         if (mode !== 'dh2' && mode !== 'derived' && mode !== 'naive') {
             console.log("Usage: setLightPropagationMode('dh2' | 'derived' | 'naive')")
             return
@@ -76,7 +79,7 @@ export function registerLightingCommands(): void {
     //                   while keeping the pooling gradient. Tune with setObjectLightSmooth().
     //   'tile-smooth' — tile-y + the same blur kernel.
     //   'off'         — original per-fragment path (dark tops on tall sprites).
-    ;(window as any).setObjectLightingMode = (mode: string) => {
+    devWindow.setObjectLightingMode = (mode: string) => {
         const valid = ['tile-y', 'foot-y', 'off', 'flat', 'foot-smooth', 'tile-smooth', 'wall-clamp']
         if (!valid.includes(mode)) {
             console.log(
@@ -96,7 +99,7 @@ export function registerLightingCommands(): void {
     // setObjectLightSmooth(px) — blur kernel radius (world px) for the '*-smooth'
     // object lighting modes. Larger = smoother wall faces, softer light detail.
     // Try values ~4–24; 12 is the default. Takes effect next frame.
-    ;(window as any).setObjectLightSmooth = (px: number) => {
+    devWindow.setObjectLightSmooth = (px: number) => {
         if (typeof px !== 'number' || !isFinite(px) || px < 0) {
             console.log('Usage: setObjectLightSmooth(px)  — world pixels, e.g. setObjectLightSmooth(12)')
             return
@@ -120,7 +123,7 @@ export function registerLightingCommands(): void {
     //   setWallTopFadeNWSE(px)  — the other orientation (NE-SW / corner / default)
     //   setWallTopFade(px)      — set BOTH at once (0 disables)
     const _validFade = (px: number) => typeof px === 'number' && isFinite(px) && px >= 0
-    ;(window as any).setWallTopFadeEW = (px: number) => {
+    devWindow.setWallTopFadeEW = (px: number) => {
         if (!_validFade(px)) {
             console.log('Usage: setWallTopFadeEW(px)  — art texels; 0 to disable')
             return
@@ -128,7 +131,7 @@ export function registerLightingCommands(): void {
         Config.engine.wallTopFadePx = px
         console.log(`[Lighting] wall top-edge fade (E-W) = ${px} texels${px === 0 ? ' (disabled)' : ''}`)
     }
-    ;(window as any).setWallTopFadeNWSE = (px: number) => {
+    devWindow.setWallTopFadeNWSE = (px: number) => {
         if (!_validFade(px)) {
             console.log('Usage: setWallTopFadeNWSE(px)  — art texels; 0 to disable')
             return
@@ -136,7 +139,7 @@ export function registerLightingCommands(): void {
         Config.engine.wallTopFadePxNWSE = px
         console.log(`[Lighting] wall top-edge fade (NW-SE) = ${px} texels${px === 0 ? ' (disabled)' : ''}`)
     }
-    ;(window as any).setWallTopFade = (px: number) => {
+    devWindow.setWallTopFade = (px: number) => {
         if (!_validFade(px)) {
             console.log('Usage: setWallTopFade(px)  — sets both E-W and NW-SE; 0 to disable')
             return
@@ -155,7 +158,7 @@ export function registerLightingCommands(): void {
     //   'blend'     — 2-tile lerp between current and next path hex by walk progress.
     //   'egg-split' — (default) barycentric split across the tiles under the animated
     //                 foot position; tracks the sprite exactly (like the egg anchor).
-    ;(window as any).setPlayerLightSmooth = (mode: string) => {
+    devWindow.setPlayerLightSmooth = (mode: string) => {
         const valid = ['ce', 'blend', 'egg-split']
         if (!valid.includes(mode)) {
             console.log("Usage: setPlayerLightSmooth('ce' | 'blend' | 'egg-split')")
@@ -177,7 +180,7 @@ export function registerLightingCommands(): void {
     // It reads obj.lightRadius/lightIntensity directly, so it survives
     // setLightPropagationMode / setObjectLightingMode switches — you can watch
     // the effect of changing modes while seeing exactly where the sources are.
-    ;(window as any).showLightSources = (on: boolean) => {
+    devWindow.showLightSources = (on: boolean) => {
         setLightSourceOverlayActive(on)
         console.log(`[lightDebug] light source overlay ${on ? 'ON' : 'OFF'}`)
     }
@@ -188,7 +191,7 @@ export function registerLightingCommands(): void {
     //   'tiles'   — fill every hex within lightRadius as a translucent floor
     //               rhombus, like the 'beta' egg overlay
     //   'none'    — no radius shape; just the centre point + its r=/i= data
-    ;(window as any).setLightOverlayMode = (mode: LightOverlayMode) => {
+    devWindow.setLightOverlayMode = (mode: LightOverlayMode) => {
         if (mode !== 'ellipse' && mode !== 'tiles' && mode !== 'none') {
             console.log("Usage: setLightOverlayMode('ellipse' | 'tiles' | 'none')")
             return
@@ -201,7 +204,7 @@ export function registerLightingCommands(): void {
     // radius (defaults to 1.0). Use it to calibrate whether the ellipse lines
     // up with the visible light falloff on the floor — a diagnostic for the
     // hex-UV offset issue. (No effect in 'tiles'/'none' modes.)
-    ;(window as any).setLightOverlayRadius = (scale: number) => {
+    devWindow.setLightOverlayRadius = (scale: number) => {
         setLightOverlayRadiusScale(scale)
         console.log(`[lightDebug] light overlay radius scale=${scale}`)
     }
@@ -213,7 +216,7 @@ export function registerLightingCommands(): void {
     //   setPlayerLight(4, 100)  — default torch
     //   setPlayerLight(8, 100)  — bigger torch
     //   setPlayerLight(0, 0)    — no personal light
-    ;(window as any).setPlayerLight = (radius: number, intensity: number) => {
+    devWindow.setPlayerLight = (radius: number, intensity: number) => {
         const player = globalState.player
         if (!player) {
             console.log('[setPlayerLight] no player')
@@ -240,7 +243,7 @@ export function registerLightingCommands(): void {
     //   'bicubic'       — Catmull-Rom down the column; smoother falloff, no stagger.
     //
     // Back-compat: setLightingBilinear(true)/'on' → 'linear', false/'off' → 'off'.
-    ;(window as any).setLightingBilinear = (mode: boolean | string) => {
+    devWindow.setLightingBilinear = (mode: boolean | string) => {
         const r = globalState.renderer as WebGLRenderer
         if (!r || typeof r.setLightInterpMode !== 'function') {
             console.log('[setLightingBilinear] renderer not ready')
@@ -265,7 +268,7 @@ export function registerLightingCommands(): void {
     // player whose resulting intensity differs, mirroring eggDebug()'s side-by-side
     // comparison pattern.
     // Example: tile pos=21718 (18,108) dh2=43210 derived=39850 naive=51200 (DIFF)
-    ;(window as any).lightingDebug = (radius: number = 10) => {
+    devWindow.lightingDebug = (radius: number = 10) => {
         const player = globalState.player
         if (!player) {
             console.log('[LightingDebug] no player')
@@ -307,7 +310,7 @@ export function registerLightingCommands(): void {
     // Screen offsets: NE=(+16,−12) E=(+32,0) SE=(+16,+12) SW=(−16,+12) W=(−32,0) NW=(−16,−12)
     // Grid layout: col = screenX/16 + 4, row = screenY/12 + 2  → 9 cols × 5 rows.
     // Natural indentation from leading null columns: rows 0,4 → 12-char, rows 1,3 → 6-char.
-    ;(window as any).lightingPlayerDebug = (rings: number = 2, output: string = 'full') => {
+    devWindow.lightingPlayerDebug = (rings: number = 2, output: string = 'full') => {
         const player = globalState.player
         if (!player) {
             console.log('[LightingPlayerDebug] no player')

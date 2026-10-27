@@ -131,7 +131,7 @@ function handFamily(hand: 'leftHand' | 'rightHand'): 'punch' | 'kick' {
 }
 
 function playerHand(critter: Critter): 'leftHand' | 'rightHand' {
-    return (critter as any).activeHand ?? 'leftHand'
+    return critter.activeHand ?? 'leftHand'
 }
 
 function getAction(hand: 'leftHand' | 'rightHand'): UnarmedAction {
@@ -141,7 +141,7 @@ function getAction(hand: 'leftHand' | 'rightHand'): UnarmedAction {
 
 // CE item.cc critterCanAim for an unarmed hit mode: only Fast Shot forbids it.
 function canAim(critter: Critter): boolean {
-    return !(critter.isPlayer && ((critter as any).traits ?? []).includes('Fast Shot'))
+    return !(critter.isPlayer && (critter.traits ?? []).includes('Fast Shot'))
 }
 
 function actionValid(critter: Critter, hand: 'leftHand' | 'rightHand', action: UnarmedAction): boolean {

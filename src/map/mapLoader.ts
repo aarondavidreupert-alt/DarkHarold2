@@ -77,14 +77,14 @@ function mapAgeDeadCritters(gMap: GameMap, now: number): void {
     const hours = Math.trunc((now - gMap.lastVisitTime) / TICKS_PER_HOUR)
     if (hours === 0) return
     const party = globalState.gParty
-    const protoFlags = (c: Critter): number => (c as any).pro?.extra?.flags ?? 0
+    const protoFlags = (c: Critter): number => c.pro?.extra?.flags ?? 0
     const critters: Critter[] = []
     for (let level = 0; level < (gMap.objects?.length ?? 0); level++) {
         for (const o of gMap.objects![level]) if (o.type === 'critter') critters.push(o as Critter)
     }
     for (const c of critters) {
         if (c.isPlayer || party?.isPartyMember(c) || c.dead) continue
-        ;(c as any).fleeing = false
+        c.fleeing = false
         if (c.killType === KILL_TYPE_ROBOT || (protoFlags(c) & CRITTER_NO_HEAL) !== 0) continue
         const maxHp = c.getStat('Max HP')
         const hp = c.getStat('HP')

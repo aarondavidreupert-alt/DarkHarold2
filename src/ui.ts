@@ -197,8 +197,8 @@ export function cycleActiveItemAction(): void {
     const wep = globalState.player!.equippedWeapon
     if (!wep || !wep.weapon) {
         const player = globalState.player!
-        const activeHand: 'leftHand' | 'rightHand' = (player as any).activeHand ?? 'leftHand'
-        const activeItem = (player as any)[activeHand] as Obj | undefined
+        const activeHand: 'leftHand' | 'rightHand' = player.activeHand ?? 'leftHand'
+        const activeItem = player[activeHand] as Obj | undefined
         if (activeItem && !objectIsWeapon(activeItem)) return // non-weapon: one action
         cycleUnarmedAction(player)
         uiDrawWeapon()
@@ -249,7 +249,7 @@ export function initUI() {
             const reloadAP = wep.weapon.getReloadAPCost() // CE ref: item.cc:1640
             if (ap && ap.getAvailableCombatAP() < reloadAP) return
             if (reloadWeapon(wep)) {
-                const soundID = (wep as any).pro?.extra?.soundID
+                const soundID = wep.pro?.extra?.soundID
                 if (typeof soundID === 'number')
                     globalState.audioEngine?.playWeaponSfx(String.fromCharCode(soundID), 'reload')
                 if (ap) {
@@ -264,8 +264,8 @@ export function initUI() {
 
         if (!wep || !wep.weapon) {
             const player = globalState.player!
-            const activeHand: 'leftHand' | 'rightHand' = (player as any).activeHand ?? 'leftHand'
-            const activeItem = (player as any)[activeHand] as Obj | undefined
+            const activeHand: 'leftHand' | 'rightHand' = player.activeHand ?? 'leftHand'
+            const activeItem = player[activeHand] as Obj | undefined
 
             // CE ref: interface.cc:1073-1078,1122-1127 — clicking a non-weapon
             // item's HUD slot fires INTERFACE_ITEM_ACTION_USE (the item's own

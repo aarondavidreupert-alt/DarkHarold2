@@ -342,7 +342,7 @@ export class StatSet {
 
     static deserialize(data: ReturnType<StatSet['serialize']>): StatSet {
         const s = new StatSet(data.baseStats, data.useBonuses)
-        s.bonusStats = Object.assign({}, (data as any).bonusStats ?? {}) // saves before 2026-10-22 have none
+        s.bonusStats = Object.assign({}, data.bonusStats ?? {}) // saves before 2026-10-22 have none
         return s
     }
 }

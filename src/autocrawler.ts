@@ -54,7 +54,7 @@ import type { StoryReport } from './autocrawler/story.js'
 // ─── Window exposure ──────────────────────────────────────────────────────────
 
 if (typeof window !== 'undefined' && Config.engine.debug) {
-    ;(window as any).autoCrawler = {
+    window.autoCrawler = {
         runDialogueCrawler,
         runCombatCrawler,
         runMapCrawler,

@@ -84,7 +84,7 @@ WebGLRenderer.prototype.renderScrollBorderOverlay = function (): void {
     // Calibration mode: `window.borderDebug = true` renders the bars as
     // semi-transparent grey so the map shows through and you can see exactly
     // where the border sits while tuning window.scrollLimits. Default = solid black.
-    ctx.fillStyle = (window as any).borderDebug ? 'rgba(128,128,128,0.5)' : '#000000'
+    ctx.fillStyle = window.borderDebug ? 'rgba(128,128,128,0.5)' : '#000000'
 
     // Clamp the inner cross-bars to the screen so top/bottom bars never draw
     // with negative width when a side bar already covers the whole edge.
@@ -523,7 +523,7 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
     // CE object.cc _obj_render_object: OBJECT_TRANS_RED / WALL / GLASS / STEAM / ENERGY
     // draw through _dark_translucent_trans_buf_to_buf — the sprite's gray step blends the
     // flag's colour over the background (force fields, windows, steam, laser wires).
-    const trans = stealth ? null : TRANS_BLEND[(((obj as any).flags ?? 0) >>> 0) & 0xfc000] // CE switches on the whole mask (TRANS_NONE included)
+    const trans = stealth ? null : TRANS_BLEND[((obj.flags ?? 0) >>> 0) & 0xfc000] // CE switches on the whole mask (TRANS_NONE included)
 
     if (stealth) {
         const gl = this.gl
@@ -664,7 +664,7 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
         if (this.uWallFadePx) {
             let fadePx = 0
             if (obj.type === 'wall') {
-                const ef: number = (obj as any).pro?.extra?.extendedFlags ?? 0
+                const ef: number = obj.pro?.extra?.extendedFlags ?? 0
                 const isEW = (ef & 0x8000000) !== 0 || (ef & 0x40000000) !== 0
                 fadePx = isEW ? (Config.engine.wallTopFadePx ?? 12) : (Config.engine.wallTopFadePxNWSE ?? 12)
             }

@@ -67,7 +67,7 @@ let overlay: HTMLElement | null = null
  *  mouse-up / key-up, so the same click can't skip the movie that follows); with one
  *  already, or no splash, at once. */
 export function waitForSplashClick(): Promise<void> {
-    const active = (navigator as any).userActivation?.hasBeenActive ?? true
+    const active = navigator.userActivation?.hasBeenActive ?? true
     if (active || !overlay) return Promise.resolve()
     const label = document.createElement('div')
     label.textContent = '[click to play]'

@@ -330,8 +330,8 @@ export function setupRandomEncounter(): void {
 
         if (index > 0 && prevCritter !== null && prevCritter !== critter && critter !== null && !globalState.inCombat) {
             if (entry.subEntries.length === 2 && Config.engine.doCombat === true) {
-                ;(prevCritter as any).whoHitMe = critter
-                ;(critter as any).whoHitMe = prevCritter
+                prevCritter.whoHitMe = critter
+                critter.whoHitMe = prevCritter
                 Combat.start(
                     prevCritter,
                     {

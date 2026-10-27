@@ -162,7 +162,7 @@ export function giveCar(fuel: number = CAR_FUEL_MAX): void {
     _carFuel = Math.min(CAR_FUEL_MAX, Math.max(0, fuel))
     if (worldmapPlayer) worldmapPlayer.carFuel = _carFuel
     setGlobalVarHook?.(GVAR_PLAYER_GOT_CAR, 1)
-    const mapName = (globalState.gMap as any)?.name as string | undefined
+    const mapName = globalState.gMap?.name as string | undefined
     if (!globalState.mapAreas) {
         try {
             globalState.mapAreas = loadAreas()
@@ -1093,7 +1093,7 @@ function carRanOutOfGas(): void {
         const outOfGas = globalState.mapAreas?.[CITY_CAR_OUT_OF_GAS]
         if (outOfGas) {
             outOfGas.worldPosition = areaPosAtParty(outOfGas, worldmapPlayer!.x, worldmapPlayer!.y)
-            ;(outOfGas as any).visitedState = 1
+            outOfGas.visitedState = 1
             setAreaVisible(CITY_CAR_OUT_OF_GAS, true) // CITY_STATE_KNOWN
             updateAreaMarkerPos(String(CITY_CAR_OUT_OF_GAS), outOfGas.worldPosition.x, outOfGas.worldPosition.y)
         }

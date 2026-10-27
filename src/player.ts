@@ -140,7 +140,7 @@ export class Player extends Critter {
                 break
             case 'CHA': {
                 // PROTO_ID_MIRRORED_SHADES in either hand: +1
-                const shades = (this.leftHand as any)?.pid === 433 || (this.rightHand as any)?.pid === 433
+                const shades = this.leftHand?.pid === 433 || this.rightHand?.pid === 433
                 if (shades) value = Math.min(10, value + 1)
                 break
             }

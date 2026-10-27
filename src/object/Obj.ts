@@ -265,7 +265,7 @@ export function testDroppedExplosive(dude: Critter): void {
     for (const c of explosionRingCritters(dude.position, elevation, dude, false)) {
         if (c === dude || c.dead || c.teamNum === dude.teamNum) continue
         if (getRandomInt(1, 10) > c.getStat('PER')) continue // statRoll(STAT_PERCEPTION) < success
-        ;(c as any).whoHitMe = dude
+        c.whoHitMe = dude
         watcher ??= c
     }
     if (watcher && !globalState.inCombat) {
@@ -295,7 +295,7 @@ export function switchItemProto(obj: Obj, pid: number): void {
     obj.pid = pid
     obj.pro = pro
     obj.art = lookupArt(makePID(pro.frmType, pro.frmPID))
-    const invPID = ((pro as any).extra?.invFRM ?? -1) & 0xffff
+    const invPID = (pro.extra?.invFRM ?? -1) & 0xffff
     const invName = invPID !== 0xffff ? getLstId('art/inven/inven', invPID) : null
     if (invName) obj.invArt = 'art/inven/' + invName.split('.')[0]
     obj.name = getMessage('pro_item', pro.textID) ?? obj.name
@@ -363,15 +363,14 @@ function itemOwner(item: Obj): Critter | null {
 // holder with the larger of the two lights; without it the holder's own light comes
 // back (the dude 4 hexes at full intensity — objectsInit — an NPC its proto's).
 export function updateHandFlareLight(c: Critter): void {
-    const a = c as any
-    let radius = c.isPlayer ? 4 : ((c.pro as any)?.lightDistance ?? 0)
-    let intensity = c.isPlayer ? 65536 : ((c.pro as any)?.lightIntensity ?? 0)
+    const a = c
+    let radius = c.isPlayer ? 4 : (c.pro?.lightDistance ?? 0)
+    let intensity = c.isPlayer ? 65536 : (c.pro?.lightIntensity ?? 0)
     // CE inventory.cc _inven_update_lighting: the dude's light is max(4, the hand item's
     // lightDistance) at 0x10000 — any light-giving item, the lit flare among them
     for (const h of [a.leftHand, a.rightHand]) {
         if (!h || h.pid === undefined) continue
-        const r =
-            h.pid === PROTO_ID_LIT_FLARE ? (h.lightRadius ?? 8) : (h.lightRadius ?? (h.pro as any)?.lightDistance ?? 0)
+        const r = h.pid === PROTO_ID_LIT_FLARE ? (h.lightRadius ?? 8) : (h.lightRadius ?? h.pro?.lightDistance ?? 0)
         if (!(r > 0)) continue
         radius = Math.max(radius, r)
         if (!c.isPlayer) intensity = Math.max(intensity, h.lightIntensity ?? 65536)
@@ -406,7 +405,7 @@ export function scheduleFlareBurnOut(obj: Obj, ticks: number): void {
     const burnOut = () => {
         const owner = itemOwner(obj)
         if (owner) {
-            const a = owner as any
+            const a = owner
             if (a.leftHand === obj) a.leftHand = owner.isPlayer ? undefined : (owner.constructor as any).makeFist?.()
             if (a.rightHand === obj) a.rightHand = owner.isPlayer ? undefined : (owner.constructor as any).makeFist?.()
             const i = owner.inventory.indexOf(obj)
@@ -508,7 +507,7 @@ export function setObjectOpen(obj: Obj, open: boolean, loot = true, signalEvent 
 // byte tools/proto.py keeps as itemFlags), set on natural weapons (claws, spore spikes,
 // robot and turret guns). Not the object flag OBJECT_HIDDEN.
 export function itemIsHidden(item: Obj | null | undefined): boolean {
-    return !!item && (((item as any).pro?.extra?.itemFlags ?? 0) & 0x08) !== 0
+    return !!item && ((item.pro?.extra?.itemFlags ?? 0) & 0x08) !== 0
 }
 
 // CE proto_instance.cc _check_door_state: an open door (CE _obj_is_portal) gets
@@ -763,10 +762,10 @@ export class Obj {
         obj.pro = pro
         obj.flags = obj.pro.flags
         // CE object.cc objectCreateWithFidPid → objectSetLight(proto lightDistance, lightIntensity)
-        const lightDistance = (pro as any).lightDistance ?? 0
+        const lightDistance = pro.lightDistance ?? 0
         if (lightDistance > 0) {
             obj.lightRadius = Math.min(lightDistance, 8)
-            obj.lightIntensity = (pro as any).lightIntensity ?? 0
+            obj.lightIntensity = pro.lightIntensity ?? 0
         }
 
         // TODO: Subclasses
@@ -791,7 +790,7 @@ export class Obj {
         initWeaponAmmo(obj)
         // CE proto.cc _proto_update_gen: a new scenery object takes its proto's door flags,
         // stairs / ladder destinations and elevator; a new exit grid goes nowhere yet
-        const ex = (pro as any)?.extra ?? {}
+        const ex = pro?.extra ?? {}
         if (pidType === 2) {
             const e: any = (obj.extra = obj.extra ?? {})
             switch (ex.subType) {
@@ -886,11 +885,7 @@ export class Obj {
             // there (itemGetMoney; _obj_pickup takes at least 1), a charged item its charges.
             if (obj.pid === 41 && mobj.amount === undefined)
                 obj.amount = Math.max(1, mobj.extra.charges) // PROTO_ID_MONEY
-            else if (
-                obj.pid !== 41 &&
-                mobj.miscCharges === undefined &&
-                mobj.extra.charges !== (obj.pro as any)?.extra?.charges
-            )
+            else if (obj.pid !== 41 && mobj.miscCharges === undefined && mobj.extra.charges !== obj.pro?.extra?.charges)
                 obj.miscCharges = mobj.extra.charges
         }
         if (obj.subtype === 'ammo') {
@@ -1173,7 +1168,7 @@ export class Obj {
         if (Scripting.timeEventList.some((e) => e.obj === this || e.obj === obj)) return false // OBJECT_QUEUED
         if (this.subtype === 'container') return false
         if ((this.inventory?.length ?? 0) !== 0 || (obj.inventory?.length ?? 0) !== 0) return false
-        if (((this as any).miscCharges ?? 0) !== ((obj as any).miscCharges ?? 0)) return false
+        if ((this.miscCharges ?? 0) !== (obj.miscCharges ?? 0)) return false
         return true
     }
 
@@ -1215,8 +1210,8 @@ export class Obj {
         if (this.subtype === 'armor' && POWER_ARMORS.includes(this.pid)) weight = Math.trunc(weight / 2)
         else if (this.subtype === 'container') weight += this.getInventoryWeight()
         else if (this.subtype === 'weapon') {
-            const rounds = (this as any).ammoQuantity ?? 0
-            const ammoPid = (this as any).ammoTypePid ?? -1
+            const rounds = this.ammoQuantity ?? 0
+            const ammoPid = this.ammoTypePid ?? -1
             if (rounds > 0 && ammoPid !== -1) {
                 const ammo = loadPRO(ammoPid, ammoPid & 0xffff)
                 const perBox = Math.max(1, ammo?.extra?.quantity ?? 1)
@@ -1240,7 +1235,7 @@ export class Obj {
             for (const it of this.inventory) cost += it.stackCost()
         } else if (this.subtype === 'weapon') {
             const rounds = ammoGetQuantity(this)
-            const ammoPid = (this as any).ammoTypePid ?? -1
+            const ammoPid = this.ammoTypePid ?? -1
             if (rounds > 0 && ammoPid !== -1) {
                 const ammo = loadPRO(ammoPid, ammoPid & 0xffff)
                 const perBox = Math.max(1, ammo?.extra?.quantity ?? 1)
@@ -1295,7 +1290,7 @@ export class Obj {
         if (this.type !== 'critter') return true
         // CE item.cc itemAttemptAdd: a non-biped critter takes nothing (-5) unless it has
         // CRITTER_BARTER (sfall fix: Skynet, Goris)
-        const extra = this.pro?.extra as any
+        const extra = this.pro?.extra
         if ((extra?.bodyType ?? 0) !== 0 && ((extra?.flags ?? 0) & 0x02) === 0) return false
         const max = (this as unknown as Critter).getStat?.('Carry') ?? Infinity
         const addWeight = item.stackWeight(count)
@@ -1420,7 +1415,7 @@ export class Obj {
                 else {
                     const i = owner.inventory.indexOf(this)
                     if (i !== -1) owner.inventory.splice(i, 1)
-                    const a = owner as any
+                    const a = owner
                     for (const hand of ['leftHand', 'rightHand'] as const)
                         if (a[hand] === this) refillHand(owner, hand, this)
                     if (owner.isPlayer) uiDrawWeapon()
@@ -1469,7 +1464,7 @@ export class Obj {
                             else owner.inventory.splice(idx, 1)
                         } else {
                             // in a hand: one off the stack, the last one replaced (itemReplace)
-                            const ownerAny = owner as any
+                            const ownerAny = owner
                             const hand =
                                 ownerAny.leftHand === this
                                     ? 'leftHand'
@@ -1527,7 +1522,7 @@ export class Obj {
             // CE _obj_use_door: closing over something in the doorway — proto.msg 597
             if (this.open) {
                 const gMap = globalState.gMap
-                const elevation = (this as any).elevation ?? gMap!.currentElevation
+                const elevation = this.elevation ?? gMap!.currentElevation
                 if (gMap!.blockingObjectAt(toTileNum(this.position), elevation, 0, this) !== null) {
                     uiLog(getProtoMsg(597) ?? 'The doorway seems to be blocked.')
                     return false
@@ -1743,7 +1738,7 @@ export class Obj {
         for (const v of victims) {
             if (v === killer) continue
             if (v.dead) {
-                if (killer?.isPlayer && !wasDead.has(v)) xp += (v.pro?.extra as any)?.XPValue ?? 0
+                if (killer?.isPlayer && !wasDead.has(v)) xp += v.pro?.extra?.XPValue ?? 0
             } else if (killer) {
                 ;(v as any).whoHitMe = killer
                 anyDefender ??= v

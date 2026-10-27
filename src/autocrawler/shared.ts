@@ -91,7 +91,7 @@ export function listHostileCritters(): Critter[] {
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 
 export function critterDisplayName(c: Critter): string {
-    return c.name || (c as any).art || String(c.uid)
+    return c.name || c.art || String(c.uid)
 }
 
 // Move the player to the first hex neighbour of `target`.

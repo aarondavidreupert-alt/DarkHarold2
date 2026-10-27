@@ -413,7 +413,7 @@ export function playerUse(obj: Obj | null) {
                 const id = BAD_SHOT_MSG[bad]
                 if (id !== undefined) uiLog((getMessage('combat', id) ?? '').replace('%d', String(attackAPCost)))
                 if (bad === 'noAmmo' && weapon) {
-                    const sid = (weapon as any).pro?.extra?.soundID
+                    const sid = weapon.pro?.extra?.soundID
                     if (typeof sid === 'number')
                         globalState.audioEngine.playWeaponSfx(String.fromCharCode(sid), 'empty')
                 }
@@ -450,7 +450,7 @@ export function playerUse(obj: Obj | null) {
                 }
             } else {
                 // Block attack (and AP deduction) if ranged weapon has no ammo
-                if (ammoGetCapacity(weapon as any) > 0 && ammoGetQuantity(weapon as any) === 0) {
+                if (ammoGetCapacity(weapon) > 0 && ammoGetQuantity(weapon) === 0) {
                     uiLog(getMessage('combat', 101) ?? 'Out of ammo.')
                     return
                 }
@@ -633,7 +633,7 @@ export function playerAttackDoor(door: Obj): void {
         uiLog(getMessage('combat', 102) ?? '')
         return
     }
-    if (weapon && ammoGetCapacity(weapon as any) > 0 && ammoGetQuantity(weapon as any) === 0) {
+    if (weapon && ammoGetCapacity(weapon) > 0 && ammoGetQuantity(weapon) === 0) {
         uiLog(getMessage('combat', 101) ?? '')
         return
     }
@@ -641,18 +641,16 @@ export function playerAttackDoor(door: Obj): void {
     drawAP(ap.getAvailableCombatAP(), ap.getTotalMaxAP(), ap.move)
     const dir = hexDirectionTo(player.position, door.position)
     if (dir !== null && dir !== undefined) player.orientation = dir
-    const soundId = (weapon as any)?.pro?.extra?.soundID
+    const soundId = weapon?.pro?.extra?.soundID
     if (weapon && typeof soundId === 'number') {
         globalState.audioEngine.playSfxByName(
             sfxBuildWeaponName(1, weapon, !!weapon.weapon?.usesSecondary(), null).toLowerCase(),
             player,
         )
     }
-    if (weapon && ammoGetCapacity(weapon as any) > 0) {
-        const rounds = weapon.weapon?.isBurst?.()
-            ? Math.min(ammoGetQuantity(weapon as any), weaponGetBurstRounds(weapon as any))
-            : 1
-        ammoSetQuantity(weapon as any, ammoGetQuantity(weapon as any) - rounds)
+    if (weapon && ammoGetCapacity(weapon) > 0) {
+        const rounds = weapon.weapon?.isBurst?.() ? Math.min(ammoGetQuantity(weapon), weaponGetBurstRounds(weapon)) : 1
+        ammoSetQuantity(weapon, ammoGetQuantity(weapon) - rounds)
     }
     const hit = () => {
         if (door._script) Scripting.damage(door, weapon ?? player, player, 0)

@@ -235,7 +235,7 @@ export function openAutomap(useScanner = false): void {
     // (one charge), else misc.msg 17 / 18
     scannerDot.onclick = () => {
         if (!scannerOn) {
-            const p = globalState.player as any
+            const p = globalState.player
             const scanner = [p?.leftHand, p?.rightHand].find((it) => it?.pid === PROTO_ID_MOTION_SENSOR) ?? null
             if (scanner && miscItemGetCharges(scanner) > 0) {
                 miscItemConsumeCharge(scanner)

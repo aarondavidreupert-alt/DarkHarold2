@@ -20,24 +20,27 @@ import { dbg } from '../logger.js'
 import { uiWorldMap } from '../ui.js'
 import * as Worldmap from '../worldmap.js'
 
+// console commands are free-form globals (play.html#dev)
+const devWindow = window as unknown as Record<string, unknown>
+
 // DH2 console commands (no CE equivalent): engine and UI toggles, test shortcuts.
 // Moved out of main.ts (window.onload).
 
 export function registerToggleCommands(): void {
-    ;(window as any).toggleFloorLighting = () => {
+    devWindow.toggleFloorLighting = () => {
         Config.engine.doFloorLighting = !Config.engine.doFloorLighting
         dbg('map', '[Lighting] floor lighting:', Config.engine.doFloorLighting)
     }
 
     // setRoofEgg(bool) — soft egg oval on roof tiles that occlude the player when
     // standing BEHIND a building (roof not hidden by the under-building flood-fill).
-    ;(window as any).setRoofEgg = (on: boolean) => {
+    devWindow.setRoofEgg = (on: boolean) => {
         Config.ui.roofEgg = on !== false
         console.log(`[Roof] egg-transparency = ${Config.ui.roofEgg}`)
     }
 
     // setWalkModel('ce' | 'dh2' | 'smooth') — walk/run movement model (Config.engine.walkModel)
-    ;(window as any).setWalkModel = (model: 'ce' | 'dh2' | 'smooth') => {
+    devWindow.setWalkModel = (model: 'ce' | 'dh2' | 'smooth') => {
         if (model !== 'ce' && model !== 'dh2' && model !== 'smooth') {
             console.log(
                 "[Walk] use 'ce' (CE _object_move, default), 'dh2' (old DarkFO chunks) or 'smooth' (ce + frame blend)",
@@ -50,7 +53,7 @@ export function registerToggleCommands(): void {
 
     // setAnimOffsetModel('ce' | 'dh2') — sprite offset across animation changes
     // (Config.engine.animOffsetModel)
-    ;(window as any).setAnimOffsetModel = (model: 'ce' | 'dh2') => {
+    devWindow.setAnimOffsetModel = (model: 'ce' | 'dh2') => {
         if (model !== 'ce' && model !== 'dh2') {
             console.log("[Anim] use 'ce' (CE obj->x/y accumulator, default) or 'dh2' (old anchor-pinning artOffset)")
             return
@@ -61,27 +64,27 @@ export function registerToggleCommands(): void {
 
     // setDevKeys(true) — enable the DH2 developer hotkeys (h teleport, q/e elevation, ...)
     // Console: the debug readouts and the fps counter (fallout2.cfg [dh2] debug_overlay / fps_overlay)
-    ;(window as any).setDebugOverlay = (on: boolean) => {
+    devWindow.setDebugOverlay = (on: boolean) => {
         Config.ui.showDebugOverlay = !!on
         console.log(`[DH2] debug overlay ${on ? 'on' : 'off'}`)
     }
-    ;(window as any).setFpsOverlay = (on: boolean) => {
+    devWindow.setFpsOverlay = (on: boolean) => {
         Config.ui.showFPS = !!on
         if (globalState.$fpsOverlay) globalState.$fpsOverlay.style.display = on ? '' : 'none'
         console.log(`[DH2] fps overlay ${on ? 'on' : 'off'}`)
     }
     // Console: CE's 480×400 px scroll limit around the player (fallout2.cfg [dh2] scroll_player_limit)
-    ;(window as any).setScrollPlayerLimit = (on: boolean) => {
+    devWindow.setScrollPlayerLimit = (on: boolean) => {
         Config.ui.scrollPlayerLimit = !!on
         console.log(`[DH2] scroll limit around the player ${on ? 'on' : 'off'}`)
     }
     // Console: skipTemple() — leave the Temple of Trials for Arroyo Village (src/debug.ts).
-    ;(window as any).skipTemple = () => debug.skipTemple()
+    devWindow.skipTemple = () => debug.skipTemple()
     // Console (DH2 debug): revealWorldmap() — open the worldmap with every subtile, town
     // and entrance revealed; a click then moves the party there at once (no time, no
     // encounters). revealWorldmap(false) reveals without instant travel;
     // setInstantTravel(false) switches it off again.
-    ;(window as any).revealWorldmap = (instant: boolean = true) => {
+    devWindow.revealWorldmap = (instant: boolean = true) => {
         if (globalState.inCombat) {
             console.warn('[DH2] revealWorldmap: not in combat')
             return
@@ -94,11 +97,11 @@ export function registerToggleCommands(): void {
             `[DH2] worldmap revealed${instant !== false ? ', instant travel on (setInstantTravel(false) to stop)' : ''}`,
         )
     }
-    ;(window as any).setInstantTravel = (on: boolean) => {
+    devWindow.setInstantTravel = (on: boolean) => {
         Worldmap.setInstantTravel(!!on)
         console.log(`[DH2] worldmap instant travel ${on ? 'on' : 'off'}`)
     }
-    ;(window as any).setDevKeys = (on: boolean) => {
+    devWindow.setDevKeys = (on: boolean) => {
         Config.engine.devKeys = on !== false
         console.log(`[Input] developer hotkeys ${Config.engine.devKeys ? 'on' : 'off'}`)
     }
@@ -106,7 +109,7 @@ export function registerToggleCommands(): void {
     // setDayNightCycle(true)  — DH2 smooth day/night light curve (default)
     // setDayNightCycle(false) — CE lighting: only map scripts' set_light_level
     // For this session only; the permanent setting is fallout2.cfg [dh2] day_night_cycle.
-    ;(window as any).setDayNightCycle = (on: boolean) => {
+    devWindow.setDayNightCycle = (on: boolean) => {
         Config.engine.dayNightCycle = on !== false
         console.log(
             `[Lighting] day/night cycle = ${Config.engine.dayNightCycle} (${Config.engine.dayNightCycle ? 'DH2 curve' : 'CE scripts only'})`,
@@ -119,7 +122,7 @@ export function registerCacheAndOutlineCommands(): void {
     // loads skip the network fetch. Each entry carries the file's Last-Modified +
     // size (fileStamp), so a pipeline re-run refreshes it on the next load; this
     // drops the cache by hand (then reload), e.g. when a server sends no stamp.
-    ;(window as any).clearAssetCache = () => {
+    devWindow.clearAssetCache = () => {
         IDBCache.nuke()
         console.log('[Cache] IndexedDB asset cache cleared — reload the page to re-fetch proMap/imageMap from disk.')
     }
@@ -130,11 +133,11 @@ export function registerCacheAndOutlineCommands(): void {
     // opaque/colorful layer; "fill" is the silhouette at its normal
     // position, drawn on top, typically more transparent so the border's
     // outermost sliver still pokes out around the edge.
-    ;(window as any).setOutlineFillAlpha = (a: number) => {
+    devWindow.setOutlineFillAlpha = (a: number) => {
         Config.ui.outlineFillAlpha = Math.max(0, Math.min(1, a))
         console.log(`[Outline] fillAlpha=${Config.ui.outlineFillAlpha}`)
     }
-    ;(window as any).setOutlineBorderAlpha = (a: number) => {
+    devWindow.setOutlineBorderAlpha = (a: number) => {
         Config.ui.outlineBorderAlpha = Math.max(0, Math.min(1, a))
         console.log(`[Outline] borderAlpha=${Config.ui.outlineBorderAlpha}`)
     }
@@ -144,7 +147,7 @@ export function registerCacheAndOutlineCommands(): void {
     // Usage:  setDialogueHighlights(0.5, 1.0)  (upper, lower, both 0.0–1.0)
     // The PNG bakes the full spatial falloff; CSS opacity is the sole strength
     // knob. 0=invisible, 1=max (raw PNG alpha). Defaults set in ui.css.
-    ;(window as any).setDialogueHighlights = (upper: number, lower: number) => {
+    devWindow.setDialogueHighlights = (upper: number, lower: number) => {
         const u = document.getElementById('dialogueHighlightUpper') as HTMLElement | null
         const l = document.getElementById('dialogueHighlightLower') as HTMLElement | null
         if (u) u.style.opacity = String(upper)

@@ -160,7 +160,7 @@ Critter.prototype.getAnimation = function (this: Critter, anim: string): string 
         // without that FRM, the unarmed one.
         const id = Number(anim.slice(5))
         const held = this.equippedWeapon
-        const weaponCode = held && held.pid !== undefined ? ((held as any).pro?.extra?.animCode ?? 0) : 0
+        const weaponCode = held && held.pid !== undefined ? (held.pro?.extra?.animCode ?? 0) : 0
         const armed = weaponCode ? artGetCode(id, weaponCode) : null
         if (armed && globalState.imageInfo![base + armed[0] + armed[1]] !== undefined) return base + armed[0] + armed[1]
         const code = artGetCode(id, 0)
@@ -290,10 +290,10 @@ Critter.prototype.fireActionFrame = function (this: Critter): void {
 }
 
 Critter.prototype.updateStaticAnim = function (this: Critter): void {
-    if ((window as any).__test?.fastMode) {
+    if (window.__test?.fastMode) {
         this.fireActionFrame()
         const cb = this.animCallback
-        ;(this as any).animCallback = null
+        this.animCallback = null
         this.frame = 0 // match the normal done-path which resets frame before calling callback
         if (cb) cb()
         return
@@ -436,7 +436,7 @@ Critter.prototype.updateAnim = function (this: Critter): void {
         return
     }
 
-    if ((window as any).__test?.fastMode) {
+    if (window.__test?.fastMode) {
         this.position = { x: this.path.target.x, y: this.path.target.y }
         this.path.walked = this.path.path.length - 1
         const callback = this.animCallback
@@ -451,7 +451,7 @@ Critter.prototype.updateAnim = function (this: Critter): void {
     // gets fps += combat_speed (the 0..50 preference, higher is faster); the dude only
     // with player_speedup.
     if (globalState.inCombat && this.anim === 'walk') {
-        const isPlayer = globalState.player && (this as any) === globalState.player
+        const isPlayer = globalState.player && this === globalState.player
         if (!isPlayer || Config.engine.playerSpeedup) {
             fps += Math.max(0, Math.min(50, Config.combat.combatSpeed))
         }
@@ -577,7 +577,7 @@ Critter.prototype.walkFrameCE = function (this: Critter): void {
     // within the hexes it set out to walk (their AP are paid), or the walk ends there.
     const gMap = globalState.gMap
     if (gMap) {
-        const elevation = (this as any).elevation ?? gMap.currentElevation
+        const elevation = this.elevation ?? gMap.currentElevation
         const blocker = gMap.blockingObjectAt(pos[1] * 200 + pos[0], elevation, 0, this)
         const usableDoor = !!blocker && blocker.subtype === 'door' && !blocker.jammed && canUseDoor(this, blocker)
         if (blocker && !usableDoor) {

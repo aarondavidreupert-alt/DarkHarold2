@@ -129,9 +129,9 @@ let _activeBarBounds: typeof CE_CENTER_BOUNDS | null = null
 export function setMapScrollLimits(mapName: string): void {
     _activeBarBounds = MAP_BAR_BOUNDS[mapName] ?? null
     // Clear any live console override so it doesn't bleed into the next map.
-    delete (window as any).scrollLimits
-    delete (window as any).borderDebug
-    delete (window as any)._bbSide
+    delete window.scrollLimits
+    delete window.borderDebug
+    delete window._bbSide
     if (_bbKeyListener) {
         document.removeEventListener('keydown', _bbKeyListener)
         _bbKeyListener = null
@@ -149,7 +149,7 @@ export function setMapScrollLimits(mapName: string): void {
 //   4. mapContentBounds     — interior floor bbox fallback
 //   5. null                 — no data; overlay skips drawing
 export function getActiveScrollBarBounds(): typeof CE_CENTER_BOUNDS | null {
-    if ((window as any).scrollLimits) return (window as any).scrollLimits
+    if (window.scrollLimits) return window.scrollLimits
     if (_activeBarBounds) return _activeBarBounds
     if (Config.ui.scrollBounds === 'ce') {
         // the ring the player is in, a CE view half (320×190) out: where the original
@@ -194,8 +194,8 @@ export function getActiveScrollBarBounds(): typeof CE_CENTER_BOUNDS | null {
 export function getActiveScrollLimits(): typeof CE_CENTER_BOUNDS {
     const inX = ORIGINAL_ISO_WINDOW_WIDTH / 2 // 320
     const inY = ORIGINAL_ISO_WINDOW_HEIGHT / 2 // 190
-    if ((window as any).scrollLimits) {
-        const b = (window as any).scrollLimits
+    if (window.scrollLimits) {
+        const b = window.scrollLimits
         return { minX: b.minX + inX, maxX: b.maxX - inX, minY: b.minY + inY, maxY: b.maxY - inY }
     }
     if (_activeBarBounds) {
@@ -232,7 +232,7 @@ export let mapContentBounds: { minX: number; maxX: number; minY: number; maxY: n
 export function computeObjectContentBounds(objects: Obj[]): void {
     if (!objects || objects.length === 0) {
         objectContentBounds = null
-        ;(window as any).objectContentBounds = null
+        window.objectContentBounds = null
         return
     }
     let minX = Infinity,
@@ -240,7 +240,7 @@ export function computeObjectContentBounds(objects: Obj[]): void {
         minY = Infinity,
         maxY = -Infinity
     for (const obj of objects) {
-        const pos = (obj as any).position
+        const pos = obj.position
         if (!pos || pos.x == null || pos.y == null) continue
         const p = hexToScreen(pos.x, pos.y)
         if (p.x - OBJ_HALF_W < minX) minX = p.x - OBJ_HALF_W
@@ -249,7 +249,7 @@ export function computeObjectContentBounds(objects: Obj[]): void {
         if (p.y + OBJ_HALF_H > maxY) maxY = p.y + OBJ_HALF_H
     }
     objectContentBounds = minX === Infinity ? null : { minX, maxX, minY, maxY }
-    ;(window as any).objectContentBounds = objectContentBounds
+    window.objectContentBounds = objectContentBounds
     dbg('map', '[scroll] objectContentBounds =', JSON.stringify(objectContentBounds), objects.length + ' objects')
 }
 
@@ -266,7 +266,7 @@ const INTERIOR_INSET_Y = 60
 export function computeScrollBlockerBounds(objects: Obj[]): void {
     if (!objects || objects.length === 0) {
         scrollBlockerBounds = null
-        ;(window as any).scrollBlockerBounds = null
+        window.scrollBlockerBounds = null
         return
     }
     let minX = Infinity,
@@ -275,8 +275,8 @@ export function computeScrollBlockerBounds(objects: Obj[]): void {
         maxY = -Infinity
     let count = 0
     for (const obj of objects) {
-        if ((obj as any).type !== SCROLL_BLOCKER_TYPE || (obj as any).pidID !== SCROLL_BLOCKER_PIDID) continue
-        const pos = (obj as any).position
+        if (obj.type !== SCROLL_BLOCKER_TYPE || obj.pidID !== SCROLL_BLOCKER_PIDID) continue
+        const pos = obj.position
         if (!pos || pos.x == null || pos.y == null) continue
         count++
         const p = hexToScreen(pos.x, pos.y)
@@ -286,7 +286,7 @@ export function computeScrollBlockerBounds(objects: Obj[]): void {
         if (p.y > maxY) maxY = p.y
     }
     scrollBlockerBounds = count === 0 ? null : { minX, maxX, minY, maxY }
-    ;(window as any).scrollBlockerBounds = scrollBlockerBounds
+    window.scrollBlockerBounds = scrollBlockerBounds
     dbg('map', '[scroll] scrollBlockerBounds =', JSON.stringify(scrollBlockerBounds), count + ' blockers')
 
     // [dh2] scroll_bounds=ce: the blocker hexes (clampCameraCE) and their groups
@@ -295,8 +295,8 @@ export function computeScrollBlockerBounds(objects: Obj[]): void {
     // its ring plus a second, outside one.
     _blockerHexes = new Set()
     for (const obj of objects) {
-        if ((obj as any).type !== SCROLL_BLOCKER_TYPE || (obj as any).pidID !== SCROLL_BLOCKER_PIDID) continue
-        const pos = (obj as any).position
+        if (obj.type !== SCROLL_BLOCKER_TYPE || obj.pidID !== SCROLL_BLOCKER_PIDID) continue
+        const pos = obj.position
         if (pos && pos.x != null && pos.y != null) _blockerHexes.add(pos.x + pos.y * 200)
     }
     _blockerGroups = []
@@ -371,12 +371,12 @@ export function computeScrollBlockerBounds(objects: Obj[]): void {
     // exit grids (misc pid 0x5000010-0x5000017) by destination, for walkBorderBounds
     _exitGroups = new Map()
     for (const obj of objects) {
-        const pid = (obj as any).pid as number
-        if ((obj as any).type !== 'misc' || pid < 0x5000010 || pid > 0x5000017 || !(obj as any).position) continue
-        const ex = (obj as any).extra ?? {}
+        const pid = obj.pid as number
+        if (obj.type !== 'misc' || pid < 0x5000010 || pid > 0x5000017 || !obj.position) continue
+        const ex = obj.extra ?? {}
         const key = `${ex.exitMapID}/${ex.startingPosition}/${ex.startingElevation}`
         if (!_exitGroups.has(key)) _exitGroups.set(key, [])
-        _exitGroups.get(key)!.push(hexToScreen((obj as any).position.x, (obj as any).position.y))
+        _exitGroups.get(key)!.push(hexToScreen(obj.position.x, obj.position.y))
     }
 }
 
@@ -403,7 +403,7 @@ export function walkBorderBounds(): typeof CE_CENTER_BOUNDS | null {
         }
     }
     // a live blackBar() edit changes the border: don't keep it
-    if (!(window as any).scrollLimits && !(window as any).borderDebug) _walkBounds = b
+    if (!window.scrollLimits && !window.borderDebug) _walkBounds = b
     return b
 }
 
@@ -500,7 +500,7 @@ function chooseRingBounds(): typeof CE_CENTER_BOUNDS | null {
 export function computeMapContentBounds(floorMap: string[][] | null): void {
     if (!floorMap || floorMap.length === 0) {
         mapContentBounds = null
-        ;(window as any).mapContentBounds = null
+        window.mapContentBounds = null
         return
     }
     let minX = Infinity,
@@ -531,8 +531,8 @@ export function computeMapContentBounds(floorMap: string[][] | null): void {
             maxY: maxY - INTERIOR_INSET_Y,
         }
     }
-    const mapName = (globalState.gMap as any)?.name?.toLowerCase() ?? '?'
-    ;(window as any).mapContentBounds = mapContentBounds ? { map: mapName, ...mapContentBounds } : null
+    const mapName = globalState.gMap?.name?.toLowerCase() ?? '?'
+    window.mapContentBounds = mapContentBounds ? { map: mapName, ...mapContentBounds } : null
     dbg('map', '[scroll] interiorFloorBounds =', JSON.stringify(mapContentBounds))
 }
 
@@ -593,31 +593,31 @@ let _bbKeyListener: ((e: KeyboardEvent) => void) | null = null
 export function blackBar(side?: 'W' | 'E' | 'N' | 'S') {
     // Exit mode
     if (!side) {
-        ;(window as any).borderDebug = false
-        ;(window as any)._bbSide = null
+        window.borderDebug = false
+        window._bbSide = null
         if (_bbKeyListener) {
             document.removeEventListener('keydown', _bbKeyListener)
             _bbKeyListener = null
         }
-        const mapName = (globalState.gMap as any)?.name ?? '?'
-        const lim = (window as any).scrollLimits
+        const mapName = globalState.gMap?.name ?? '?'
+        const lim = window.scrollLimits
         if (lim) console.log('[blackBar] SAVE → ' + mapName + ': ' + JSON.stringify(lim))
         console.log('[blackBar] OFF — bars solid black, clamp active')
         return
     }
 
     // Seed window.scrollLimits from the current auto bounds so edits are relative
-    if (!(window as any).scrollLimits) {
+    if (!window.scrollLimits) {
         const b = objectContentBounds
         if (b) {
-            ;(window as any).scrollLimits = { minX: b.minX, maxX: b.maxX, minY: b.minY, maxY: b.maxY }
+            window.scrollLimits = { minX: b.minX, maxX: b.maxX, minY: b.minY, maxY: b.maxY }
         } else {
-            ;(window as any).scrollLimits = { ...getActiveScrollLimits() }
+            window.scrollLimits = { ...getActiveScrollLimits() }
         }
     }
 
-    ;(window as any).borderDebug = true // grey overlay + free scroll
-    ;(window as any)._bbSide = side
+    window.borderDebug = true // grey overlay + free scroll
+    window._bbSide = side
 
     // Remove any previous listener before adding a new one
     if (_bbKeyListener) document.removeEventListener('keydown', _bbKeyListener)
@@ -627,33 +627,33 @@ export function blackBar(side?: 'W' | 'E' | 'N' | 'S') {
         e.preventDefault()
         const step = e.shiftKey ? 5 : BB_STEP
         const out = e.code === 'PageUp' // true = more visible = bar moves outward
-        const lim = (window as any).scrollLimits
-        const s = (window as any)._bbSide
+        const lim = window.scrollLimits
+        const s = window._bbSide
         if (s === 'W') lim.minX += out ? -step : +step
         if (s === 'E') lim.maxX += out ? +step : -step
         if (s === 'N') lim.minY += out ? -step : +step
         if (s === 'S') lim.maxY += out ? +step : -step
         // Keep overlay source in sync (objectContentBounds is immutable; scroll limits override it)
-        const mapName = (globalState.gMap as any)?.name ?? '?'
+        const mapName = globalState.gMap?.name ?? '?'
         console.log('[blackBar] ' + mapName + ' ' + s + ' → ' + JSON.stringify(lim))
     }
     document.addEventListener('keydown', _bbKeyListener)
 
     console.log('[blackBar] editing ' + side + ' bar  |  PageUp=more  PageDown=less  Shift=fine  |  blackBar() to exit')
-    console.log('[blackBar] current = ' + JSON.stringify((window as any).scrollLimits))
+    console.log('[blackBar] current = ' + JSON.stringify(window.scrollLimits))
 }
 
 export function borderSave() {
-    const mapName = (globalState.gMap as any)?.name ?? '?'
-    const lim = (window as any).scrollLimits ?? objectContentBounds
+    const mapName = globalState.gMap?.name ?? '?'
+    const lim = window.scrollLimits ?? objectContentBounds
     console.log(mapName + ': ' + JSON.stringify(lim))
     return lim
 }
 
 export function clearBorder() {
-    delete (window as any).scrollLimits
-    ;(window as any).borderDebug = false
-    ;(window as any)._bbSide = null
+    delete window.scrollLimits
+    window.borderDebug = false
+    window._bbSide = null
     if (_bbKeyListener) {
         document.removeEventListener('keydown', _bbKeyListener)
         _bbKeyListener = null
@@ -671,7 +671,7 @@ export const MAP_WORLD_BOUNDS = CE_CENTER_BOUNDS
 export function clampCameraPosition(): void {
     // Calibration mode (borderCalib()): let the camera scroll freely so each
     // edge can be reached and grabbed without half-set bounds locking scroll.
-    if ((window as any).borderDebug) return
+    if (window.borderDebug) return
     if (Config.ui.scrollBounds === 'ce') clampCameraCE(false)
     else clampCameraDH2()
 }
@@ -792,9 +792,7 @@ function clampCameraDH2(): void {
     const gMap = globalState.gMap
     if (gMap) {
         const centerHex = hexFromScreen(nextCX, nextCY)
-        const blocked = gMap
-            .objectsAtPosition(centerHex)
-            .some((o: Obj) => (o as any).type === 'misc' && (o as any).pidID === 12)
+        const blocked = gMap.objectsAtPosition(centerHex).some((o: Obj) => o.type === 'misc' && o.pidID === 12)
         if (blocked) {
             nextCX = prevCX
             nextCY = prevCY
@@ -830,7 +828,7 @@ export function centerCamera(around: Point) {
     const viewH = getWorldViewHeight()
     globalState.cameraPosition.x = (scr.x - viewW / 2) | 0
     globalState.cameraPosition.y = (scr.y - viewH / 2) | 0
-    if (Config.ui.scrollBounds === 'ce' && !(window as any).borderDebug) clampCameraCE(true)
+    if (Config.ui.scrollBounds === 'ce' && !window.borderDebug) clampCameraCE(true)
     else clampCameraPosition()
 }
 

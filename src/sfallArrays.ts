@@ -45,7 +45,7 @@ function less(a: Element, b: Element): boolean {
     const tb = elementType(b)
     if (ta !== tb) return ta < tb
     if (ta === 3) return false // pointers: no meaningful order in DH2
-    return (a as any) < (b as any)
+    return a < b
 }
 
 function listSort<T>(arr: T[], action: number, lessFn: (a: T, b: T) => boolean): void {

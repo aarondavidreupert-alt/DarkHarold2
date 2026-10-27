@@ -125,7 +125,7 @@ export function showCharacterScreen() {
     const saved = {
         editorLastLevel: player.editorLastLevel,
         perks: player.perks.slice(),
-        traits: ((player as any).traits ?? []).slice(),
+        traits: (player.traits ?? []).slice(),
         pendingPerkPick: player.pendingPerkPick,
         baseStats: Object.assign({}, player.stats.baseStats),
         bonusStats: Object.assign({}, player.stats.bonusStats),
@@ -137,7 +137,7 @@ export function showCharacterScreen() {
     const cancel = () => {
         player.editorLastLevel = saved.editorLastLevel
         player.perks = saved.perks
-        ;(player as any).traits = saved.traits
+        player.traits = saved.traits
         player.pendingPerkPick = saved.pendingPerkPick
         player.stats.baseStats = saved.baseStats
         player.stats.bonusStats = saved.bonusStats
@@ -788,7 +788,7 @@ export function showCharacterScreen() {
         newSkillSet.hasTagPerk = player.skills.hasTagPerk
         newStatSet.baseStats = Object.assign({}, player.stats.baseStats)
         newStatSet.bonusStats = Object.assign({}, player.stats.bonusStats)
-        playerSkillOpts.traits = (player as any).traits
+        playerSkillOpts.traits = player.traits
         for (const skill of SKILLS) openingBaseSkills[skill] = newSkillSet.getBase(skill)
         redrawStatsSkills()
     }

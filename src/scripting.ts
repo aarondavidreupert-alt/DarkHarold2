@@ -1179,13 +1179,13 @@ export class Script {
             case 50: {
                 // CE ref: interpreter_extra.cc:3316 METARULE_CRITTER_BARTERS
                 // CRITTER_BARTER = 0x02 (obj_types.h:93)
-                if (!isGameObject(target as any)) return 0
+                if (!isGameObject(target)) return 0
                 const pro = (target as any).pro
                 return ((pro?.extra?.flags ?? 0) & 0x02) !== 0 ? 1 : 0
             }
             case 51: {
                 // CE ref: interpreter_extra.cc:3328 METARULE_CRITTER_KILL_TYPE
-                if (!isGameObject(target as any)) return 0
+                if (!isGameObject(target)) return 0
                 return (target as any).killType ?? 0
             }
             case 30:
@@ -1207,7 +1207,7 @@ export class Script {
                 const outOfGas = globalState.mapAreas?.[21] // CITY_CAR_OUT_OF_GAS
                 if (outOfGas) {
                     Worldmap.setAreaVisible(21, false)
-                    ;(outOfGas as any).visitedState = 0
+                    outOfGas.visitedState = 0
                 }
                 uiWorldMap()
                 return 0
@@ -1541,7 +1541,7 @@ export class Script {
                     const c = <Critter>obj
                     if (globalState.gParty?.isPartyMember(c) || c.teamNum === amount || loadingGame) return
                     c.teamNum = amount
-                    const who = (c as any).whoHitMe
+                    const who = c.whoHitMe
                     if (who && who.teamNum === amount) (c as any).whoHitMe = null
                     ;(c as any).aiLastTarget = null
                     return
@@ -1853,7 +1853,7 @@ export class Script {
             return 0
         }
         const real = (h: any) => (h && h.pid !== undefined ? h : null)
-        const active = (obj as any).isPlayer ? ((obj as any).activeHand ?? 'leftHand') : null
+        const active = obj.isPlayer ? (obj.activeHand ?? 'leftHand') : null
         if (where === 0)
             return (obj as Critter).getEquippedArmor() ?? null // INVEN_TYPE_WORN
         else if (where === 1)
@@ -1874,7 +1874,7 @@ export class Script {
             dbgWarn('script', `inven_cmds: unhandled cmd ${invenCmd}`)
             return null
         }
-        if (!isGameObject(obj as any) || !obj.inventory) return null
+        if (!isGameObject(obj) || !obj.inventory) return null
         if (itemIndex < 0 || itemIndex >= obj.inventory.length) return null
         return obj.inventory[itemIndex]
     }
@@ -1954,9 +1954,9 @@ export class Script {
                 if (value < 0) return -2
                 if (value >= p.stats.getBase('Experience')) {
                     p.stats.setBase('Experience', value)
-                    ;(p as any).addExperience?.(0)
+                    p.addExperience?.(0)
                 } else {
-                    ;(p as any).setExperienceLower?.(value)
+                    p.setExperienceLower?.(value)
                 }
                 return 0
             }
@@ -2123,16 +2123,16 @@ export class Script {
         if (!initiator || !isGameObject(obj) || target.type !== 'critter') return
         const inactive = (c: Critter) => c.dead || (c.injuryFlags & 0x01) !== 0 || c.visible === false
         if (inactive(initiator) || inactive(target)) return
-        if ((target as any).fleeing) return
+        if (target.fleeing) return
         if (isCombatActive() || globalState.combat) {
             // In combat: the attacker engages the target.
             if (!initiator.hostile && !initiator.isPlayer) {
                 initiator.hostile = true
-                ;(initiator as any).whoHitMe = target
+                initiator.whoHitMe = target
             }
             return
         }
-        ;(initiator as any).whoHitMe = target
+        initiator.whoHitMe = target
         // Mark the initiating critter hostile before combat starts so the LOS
         // scan in nextTurn() counts it as active and doesn't skip its turn.
         if (!initiator.isPlayer) initiator.hostile = true
@@ -2452,7 +2452,7 @@ export class Script {
         // A critter using it: CE _obj_use_item_on — the item's and the target's
         // use_obj_on_p_proc, then (not overridden) the engine's default use: a drug or
         // healing item takes effect and is used up (useItemOn.ts, the player's path)
-        if (source && (source as any).type === 'critter') {
+        if (source && source.type === 'critter') {
             objUseItemOn(source as unknown as Critter, who, obj)
             return
         }
@@ -2505,7 +2505,7 @@ export class Script {
             if (lying && c) {
                 // which way it lies, for _dude_standup later (lifecycle.ts naming)
                 const onFront = anim === 21 || anim === 35 || anim === 36 // FALL_FRONT(_BLOOD), PRONE_TO_STANDING
-                ;(c as any).knockdownAnim = onFront ? 'knockdownBack' : 'knockdownFront'
+                c.knockdownAnim = onFront ? 'knockdownBack' : 'knockdownFront'
                 playAnimId(obj, anim, reversed, () => {}) // stays on the last frame
                 return
             }
@@ -2678,7 +2678,7 @@ export class Script {
     obj_blocking_at(tile: number, elevation: number, blockingType: number): Obj | null {
         if (!globalState.gMap) return null
         const o = globalState.gMap.blockingObjectAt(tile, elevation, blockingType, null)
-        if (o && blockingType === 1 && ((((o as any).flags ?? 0) >>> 0) & 0x80000000) !== 0) return null
+        if (o && blockingType === 1 && (((o.flags ?? 0) >>> 0) & 0x80000000) !== 0) return null
         return o
     }
     // CE ref: sfall_opcodes.cc:937 op_make_straight_path — screen-space straight line
@@ -2785,7 +2785,7 @@ export class Script {
     // by byte offset. DH2's protos are JSON, so only the offsets the UPU uses map to a
     // field: an item's 96 (weapon d.max_ammo) and a critter's 388 (d.body). Others: -1.
     get_proto_data(pid: number, offset: number) {
-        const pro = loadPRO(pid, pid & 0xffff) as any
+        const pro = loadPRO(pid, pid & 0xffff)
         if (!pro) return -1
         if (offset === 96 && pro.type === 0) return pro.extra?.maxAmmo ?? -1
         if (offset === 388 && pro.type === 1) return pro.extra?.bodyType ?? -1
@@ -2793,7 +2793,7 @@ export class Script {
         return -1
     }
     set_proto_data(pid: number, offset: number, value: number) {
-        const pro = loadPRO(pid, pid & 0xffff) as any
+        const pro = loadPRO(pid, pid & 0xffff)
         if (!pro || !pro.extra) return
         if (offset === 96 && pro.type === 0) pro.extra.maxAmmo = value
         else if (offset === 388 && pro.type === 1) pro.extra.bodyType = value
@@ -2890,7 +2890,7 @@ export class Script {
     }
     // CE op_get_script (0x81F5): the object's script number (scripts.lst line + 1), 0 for none
     get_script(obj: Obj) {
-        const name = isGameObject(obj) ? (obj as any)._script?.scriptName : null
+        const name = isGameObject(obj) ? obj._script?.scriptName : null
         return name ? scriptNumberOf(name) : 0
     }
     // CE op_set_world_map_pos (0x8172) → worldmap.cc wmSetPartyWorldPos
@@ -2997,7 +2997,7 @@ export class Script {
     } // CE op_in_world_map (0x8170)
     // CE opGetCurrentHand (0x8193): interfaceGetCurrentHand, HAND_LEFT 0 / HAND_RIGHT 1
     active_hand() {
-        return (globalState.player as any)?.activeHand === 'rightHand' ? 1 : 0
+        return globalState.player?.activeHand === 'rightHand' ? 1 : 0
     }
     get_uptime() {
         return Math.trunc(window.performance.now())
@@ -3077,7 +3077,7 @@ export class Script {
     // CE op_get_attack_type (0x8228): the hit mode of the active hand's action — 0 / 1
     // left primary / secondary, 2 / 3 right, the unarmed modes for an empty hand
     get_attack_type() {
-        const player = globalState.player as any
+        const player = globalState.player
         if (!player) return -1
         const hand: 'leftHand' | 'rightHand' = player.activeHand ?? 'leftHand'
         const item = player[hand]
@@ -3368,7 +3368,7 @@ export class Script {
         if (!globalState.inCombat) {
             let fidget = mood
             if (headNum !== -1) {
-                const lv0 = (this.self_obj as any)._script?.lvars?.[0]
+                const lv0 = this.self_obj._script?.lvars?.[0]
                 const value = typeof lv0 === 'number' ? lv0 : -1
                 fidget = value > 10 ? FIDGET_GOOD : value > -10 ? FIDGET_NEUTRAL : FIDGET_BAD
             }
@@ -3497,8 +3497,7 @@ export class Script {
         if (!isGameObject(obj) || !obj.pro) return null
         const base = getLstJson('art/critters/critters', obj.pro.frmPID & 0xfff)?.frm
         if (!base) return null
-        const weapon =
-            anim === 38 /* ANIM_TAKE_OUT */ ? extra : (((obj as any).frmPID ?? obj.pro.frmPID) & 0xf000) >> 12
+        const weapon = anim === 38 /* ANIM_TAKE_OUT */ ? extra : ((obj.frmPID ?? obj.pro.frmPID) & 0xf000) >> 12
         const code = artGetCodeForSfx(anim, weapon)
         if (!code) return null
         let [w, a] = code
@@ -3550,9 +3549,9 @@ export class Script {
         if ((d as any).isFleeing) return // CRITTER_MANUEVER_FLEEING
         if (globalState.inCombat) {
             // in combat: ENGAGING with the defender as who hit it (unless already engaging)
-            if (!(a as any).engaging) {
-                ;(a as any).engaging = true
-                ;(a as any).whoHitMe = d
+            if (!a.engaging) {
+                a.engaging = true
+                a.whoHitMe = d
             }
             if (!a.isPlayer) a.hostile = true
         } else if (Config.engine.doCombat) {
@@ -3603,8 +3602,8 @@ export class Script {
     critter_stop_attacking(obj: Obj) {
         if (!isGameObject(obj)) return
         const c = obj as Critter
-        ;(c as any).disengaging = true
-        ;(c as any).whoHitMe = null
+        c.disengaging = true
+        c.whoHitMe = null
         c.hostile = false
     }
     // CE opSetMapMusic (0x80E2) — worldmap.cc wmSetMapMusic: override maps.txt music.
@@ -3877,7 +3876,7 @@ export class Script {
     reg_anim_clear(obj?: Obj) {
         if (obj && isGameObject(obj)) {
             if (animBatch) animBatch = animBatch.filter((st: any) => st.obj !== obj)
-            if (typeof (obj as any).clearAnim === 'function') (obj as any).clearAnim()
+            if (typeof obj.clearAnim === 'function') obj.clearAnim()
         }
     }
 
@@ -3982,10 +3981,7 @@ export class Script {
                 const toObj = (entry.to as any).position !== undefined
                 let drop = 0
                 if (toObj) drop = (((entry.to as any).flags ?? 0) & 0x800) !== 0 ? 2 : 1
-                else if (
-                    gMap!.blockingObjectAt(toTileNum(dest), (c as any).elevation ?? gMap!.currentElevation, 0, c) !==
-                    null
-                )
+                else if (gMap!.blockingObjectAt(toTileNum(dest), c.elevation ?? gMap!.currentElevation, 0, c) !== null)
                     drop = 1
                 path.length = Math.max(1, path.length - drop)
                 if (path.length < 2) return arrived()
@@ -4049,7 +4045,7 @@ export class Script {
     // a step of the current batch that loops `anim` for good.
     reg_anim_animate_forever(obj: Obj, anim: number) {
         if (globalState.inCombat) return
-        this.regAnimPush('reg_anim_animate_forever', obj, { kind: 'forever', obj, anim } as any)
+        this.regAnimPush('reg_anim_animate_forever', obj, { kind: 'forever', obj, anim })
     }
     animate_move_obj_to_tile(obj: Critter, tileNum: any, isRun: number) {
         log('animate_move_obj_to_tile', [obj, tileNum, isRun], 'movement')
@@ -4556,7 +4552,7 @@ function procedureOneName(script: Script): Promise<string | null> {
     const key = (script.scriptName ?? '').toLowerCase()
     if (!(key in procedureOneNames)) {
         procedureOneNames[key] = script._vm
-            ? Promise.resolve((script._vm as any).intfile.proceduresTable?.[1]?.name ?? null)
+            ? Promise.resolve(script._vm.intfile.proceduresTable?.[1]?.name ?? null)
             : fetch(assetUrl('data/scripts/' + key + '.int'))
                   .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject()))
                   .then(
@@ -4694,7 +4690,7 @@ export function doProgramEvents(): void {
 }
 setChildProgramLoader((name) => {
     try {
-        return (loadIntScript(name) as any)._vm ?? null
+        return loadIntScript(name)._vm ?? null
     } catch (e) {
         return null
     }
@@ -5027,7 +5023,7 @@ export function objectEnterMap(obj: Obj, elevation: number, mapID: number) {
 export function reset(mapName: string, mapID?: number) {
     // CE: the old map's programs are freed, and with them their exported procedures and
     // pending call_at / call_when; the dude's and the global scripts stay
-    const dudeScript = (globalState.player as any)?._script
+    const dudeScript = globalState.player?._script
     vmClearPrograms((vm: any) => vm.scriptObj === dudeScript || GlobalScripts.globalScriptIsLoaded(vm.scriptObj))
     // The event queue is not emptied here: leaving the old map already cleared what CE
     // clears (queueLeavingMap, _queue_leaving_map); poison, radiation and the party's
@@ -5103,5 +5099,5 @@ registerStub('aibkdor', {
 
 if (typeof window !== 'undefined') {
     // the module's own namespace object, for DevTools and the test pages (was the TS namespace)
-    ;(window as any).Scripting = ScriptingModule
+    window.Scripting = ScriptingModule
 }

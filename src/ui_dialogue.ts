@@ -99,7 +99,7 @@ function setupDialogueActionButtons(target: Critter | undefined): void {
     }
 
     const isPartyMember = globalState.gParty.isPartyMember(target)
-    const proFlags = (target as any).pro?.extra?.flags ?? 0
+    const proFlags = target.pro?.extra?.flags ?? 0
     // CE ref: game_dialog.cc:3662 _gdCanBarter — CRITTER_BARTER flag (0x02).
     const canBarter = (proFlags & 0x02) !== 0
 
