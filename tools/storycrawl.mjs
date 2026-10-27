@@ -85,11 +85,13 @@ async function crawl(base, backend) {
     }
 }
 
-// The crawler waits one setTimeout(0) after a talk; when the dialogue opens later than that (the
-// timing varies run to run, more so in headless Chromium), one side records `talk ui=N {...}` (no reply) and the
-// two traces part from there. Such a map is reported as inconclusive, not as a difference.
-const NOT_OPENED = /\] talk ui=\d+ \{/
-const isTimingNoise = (d) => NOT_OPENED.test(d.a) !== NOT_OPENED.test(d.b)
+// The crawler waits one setTimeout(0) after a talk or a click; when the dialogue (or its next
+// reply) shows up later than that (the timing varies run to run, more so in headless Chromium),
+// one side records the step without a reply and the two traces part from there. Such a map is
+// reported as inconclusive, not as a difference.
+// the step label is the text before ` reply=` / ` ui=`; noise = the same step, a reply on one side only
+const stepOf = (line) => line.split(/ (?:reply=|ui=)/)[0]
+const isTimingNoise = (d) => stepOf(d.a) === stepOf(d.b) && d.a.includes(' reply=') !== d.b.includes(' reply=')
 let inconclusive = 0
 
 function firstDiff(a, b) {
