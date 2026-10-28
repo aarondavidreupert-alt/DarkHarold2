@@ -7,7 +7,7 @@
 //   endgameDeathEndingValidate    (0x440CF4)
 //   endgameDeathEndingGetFileName (0x440D8C)
 
-import * as Scripting from '../scripting.js'
+import { getGlobalVar } from '../globalVars.js'
 import { world } from '../state/world.js'
 import { getFileJSON, getRandomInt } from '../util.js'
 import { dbg, dbgWarn } from '../logger.js'
@@ -62,7 +62,7 @@ function validateDeathEndings(entries: EndgameDeathEnding[]): number {
     let total = 0
     for (const e of entries) {
         e.enabled = false
-        if (e.gvar !== -1 && Scripting.getGlobalVar(e.gvar) >= e.value) continue
+        if (e.gvar !== -1 && getGlobalVar(e.gvar) >= e.value) continue
         if (e.worldAreaKnown !== -1 && !world.knownAreas.has(e.worldAreaKnown)) continue
         if (e.worldAreaNotKnown !== -1 && world.knownAreas.has(e.worldAreaNotKnown)) continue
         const lvl = world.player?.getStat('Level') ?? 1
@@ -83,7 +83,7 @@ export function setupDeathEnding(reason: number): void {
     }
 
     // CE: special-case GVAR_MODOC_SHITTY_DEATH → forced index 12 (endgame.cc:1136)
-    if (reason === DEATH_REASON_DEATH && Scripting.getGlobalVar(GVAR_MODOC_SHITTY_DEATH) !== 0) {
+    if (reason === DEATH_REASON_DEATH && getGlobalVar(GVAR_MODOC_SHITTY_DEATH) !== 0) {
         const special = entries[12]
         if (special) {
             selectedDeathFile = 'narrator/' + special.voiceOverBaseName

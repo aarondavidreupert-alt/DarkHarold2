@@ -19,7 +19,7 @@ limitations under the License.
 // "Per-file split proposals" §20.
 
 import { world } from '../state/world.js'
-import * as Scripting from '../scripting.js'
+import { getGlobalVar } from '../globalVars.js'
 import { getRandomInt } from '../util.js'
 import { dbg } from '../logger.js'
 import { getHourMilitary, getTotalDays } from '../gametime.js'
@@ -200,7 +200,7 @@ function evalCond(node: Node, critterCount?: number): number | boolean {
             switch (node.name) {
                 case 'global': // GVAR
                     if (node.arg.type !== 'int') throw new Error('evalCond: GVAR not a number')
-                    return Scripting.getGlobalVar(node.arg.value)
+                    return getGlobalVar(node.arg.value)
                 case 'player':
                     if (node.arg.type !== 'var') throw new Error('evalCond: player arg not a var')
                     if (node.arg.name !== 'level') throw new Error('player( ' + node.arg.name + ')')

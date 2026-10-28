@@ -27,14 +27,15 @@ import { getZoom } from './renderer.js'
 import * as Scripting from './scripting.js'
 import { Skills, SKILL_NAMES } from './skills.js'
 import { skillUse } from './skillUse.js'
-import { uiCalledShot, uiCloseCalledShot, uiLoot } from './ui.js'
+
 import { drawAP } from './hudRefresh.js'
 import { uiLog } from './messageLog.js'
 import { UIMode } from './uiMode.js'
 import { getMessage, getProtoMsg } from './util.js'
 import { Config } from './config.js'
 import { randomBetween } from './random.js'
-import { uiSteal } from './uiSteal.js'
+
+import { uiPort } from './uiPort.js'
 import { DAM_KNOCKED_OUT } from './combat/results.js'
 import { currentUnarmed, unarmedAPCost } from './unarmed.js'
 import { Combat } from './combat.js'
@@ -214,9 +215,9 @@ export function playerUseSkill(skill: Skills, obj: Obj, performer?: Critter): vo
         if (skillName === 'Steal') {
             const inactive = target.dead === true || ((target as Critter).injuryFlags & DAM_KNOCKED_OUT) !== 0
             if (obj.type === 'critter' && !inactive) {
-                uiSteal(world.player as Critter, target)
+                uiPort.uiSteal(world.player as Critter, target)
             } else if (obj.type === 'critter') {
-                uiLoot(obj)
+                uiPort.uiLoot(obj)
             } else {
                 uiLog('There is nothing to steal.')
             }
@@ -438,13 +439,13 @@ export function playerUse(obj: Obj | null) {
                     const art = who.hasAnimation('called-shot')
                         ? who.getAnimation('called-shot')
                         : 'art/critters/hmjmpsna'
-                    uiCalledShot(art, who, (region: string) => {
+                    uiPort.uiCalledShot(art, who, (region: string) => {
                         if (world.player!.AP!.getAvailableCombatAP() < attackAPCost) {
                             uiLog(getProtoMsg(700)!)
                         } else {
                             strike(region)
                         }
-                        uiCloseCalledShot()
+                        uiPort.uiCloseCalledShot()
                     })
                 } else {
                     strike('torso')
@@ -464,11 +465,11 @@ export function playerUse(obj: Obj | null) {
 
                     dbg('combat', '[Combat] called-shot art: %s', art)
 
-                    uiCalledShot(art, who, (region: string) => {
+                    uiPort.uiCalledShot(art, who, (region: string) => {
                         const calledAPCost = attackAPCost
                         if (world.player!.AP!.getAvailableCombatAP() < calledAPCost) {
                             uiLog(getProtoMsg(700)!) // "You don't have enough action points."
-                            uiCloseCalledShot()
+                            uiPort.uiCloseCalledShot()
                             return
                         }
                         world.player!.AP!.subtractCombatAP(calledAPCost)
@@ -479,7 +480,7 @@ export function playerUse(obj: Obj | null) {
                         )
                         dbg('combat', '[Combat] player attacks %s', region)
                         world.combat!.attack(world.player!, <Critter>obj, region)
-                        uiCloseCalledShot()
+                        uiPort.uiCloseCalledShot()
                     })
                 } else if (weapon.weapon!.isBurst()) {
                     const burstAPCost = weapon.weapon!.getAttackAPCost(world.player!, weapon.weapon!.slot()) // a primary burst (minigun) uses slot 1
@@ -531,7 +532,7 @@ export function playerUse(obj: Obj | null) {
                 Scripting.talk(who._script, who)
             } else if (who.dead === true) {
                 // loot a dead body — dead critters have no use_p_proc gate
-                uiLoot(obj)
+                uiPort.uiLoot(obj)
             } else {
                 if (!world.inCombat && obj._script) Scripting.noteMissingProc(obj._script, 'talk_p_proc')
                 dbg('map', '[Main] cannot talk to/loot that critter')

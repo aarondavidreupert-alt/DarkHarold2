@@ -32,7 +32,7 @@ too). Type-only steps were also checked by comparing tsc's output before and aft
 | ESLint (recommended + curly) | 5486 | **4198** (ESLint 10 rule set; mostly `curly`) |
 | Prettier | 205 files differ | **0**, checked in CI (Q8) |
 | sync XHR per map boot | artemple 39, klamall 91, denbus1 130 | **1, 3, 3** (Q13) |
-| largest import cycle | 145 modules, main.js first | **73**, luadiff loads without main.js (Q14) |
+| largest import cycle | 145 modules, main.js first | **25**, no UI module in it; luadiff loads without main.js (Q14) |
 | toolchain | TS 4.6, ESLint 7, Python lock for 3.9 | **TS 6.0, ESLint 10 + typescript-eslint 8, Python 3.11+** (Q17) |
 | unit tests | 0 | **45** (Q2, + the light table) |
 
@@ -53,8 +53,17 @@ times, `eventLog`, the use handlers) and a getter / setter for every moved field
 tools and the save code still see one object with the old names. A type-checked rewrite moved 1561 uses to
 their owner; importers of `globalState` 136 → 23. Tests, lint, parity, smoke and storycrawl unchanged.
 
-Open: **Q14** past 73 modules (scripting hooks for objects / combat / dialogue),
-the world-map map entries in Q13 (still loaded synchronously), and two Q13 leftovers by design (scripts
+Q14 (2026-10-29): the largest import cycle 90 → 25 modules, all of it game logic (scripting, combat, objects,
+critters, world map). Three cuts: (1) the game logic calls the 20 UI windows it opens (dialogue, barter, loot,
+steal, called shot, world map, combat HUD lights, ...) through `uiPort` (`src/uiPort.ts`, type-only imports),
+which `src/uiPortInstall.ts` fills at boot, instead of importing the UI modules that import it back;
+(2) the split classes no longer import their method files: `src/classParts.ts` installs them on
+`Script` / `Combat` / `Obj` (imported first by `main.ts` and `luaDiff.ts`), the classes import only their types;
+`GameScriptVM` gets its `Script` from the caller; (3) the GVAR store moved to the leaf `src/globalVars.ts` (perks,
+encounters and the death endings read it without the scripting engine; `scripting.ts` re-exports it). CI
+limit 90 → 25. Tests, lint, parity, smoke and storycrawl unchanged.
+
+Open:the world-map map entries in Q13 (still loaded synchronously), and two Q13 leftovers by design (scripts
 a script spawns later, dialogue `.msg` on first talk).
 
 ## Scorecard (as assessed before the pass)
@@ -143,11 +152,11 @@ What Phase 1 delivered (2026-10-27):
 |---|---|---|---|
 | Q13 | ✅ Async loading: `fetch` versions of `getFileText` / `getFileJSON` / `getFileBinarySync`; preload what the synchronous paths need (msg files, protos, scripts) at map load so engine code can stay synchronous where CE is. `main.ts` boot with `await` (CA21, CA22). | yes (startup order, script loading) | no `open(..., false)` left; crawler + luadiff unchanged; load time measured before / after |
 
-### Phase 5 — architecture (long term) — 🔶 Q14 partial, Q15 / Q16 done
+### Phase 5 — architecture (long term) — ✅ Q14 / Q15 / Q16 done
 
 | # | Step | Approval | Done when |
 |---|---|---|---|
-| Q14 | 🔶 partial Break the 144-module import cycle: move shared types into type-only modules, pass services in (renderer, audio, UI callbacks) instead of importing them, keep the hook pattern already used (`globalState.drugHandler`, `setWorldmapGlobalVarHooks`). Measure the largest cycle in CI. | yes | largest cycle < 30 modules; `main.js` no longer has to be imported first |
+| Q14 | ✅ Break the 144-module import cycle: move shared types into type-only modules, pass services in (renderer, audio, UI callbacks) instead of importing them, keep the hook pattern already used (`globalState.drugHandler`, `setWorldmapGlobalVarHooks`). Measure the largest cycle in CI. | yes | largest cycle < 30 modules; `main.js` no longer has to be imported first |
 | Q15 | ✅ Split `globalState` into owned state (map, party, camera, UI mode, caches) with accessors; save format unchanged (`eventLog`, `seenMovies`, `knownAreas` ... keep their names). | yes (save format adjacent) | old saves load; ≤ 40 importers of `globalState` |
 | Q16 | ✅ Split files > 800 lines per `ts-split-refactor.md` (CA41), file renames to camelCase (CA40). | yes | no file > 1500 lines |
 | Q17 | ✅ Toolchain upgrade: TypeScript 5.x, ESLint 9 flat config + `typescript-eslint` 8, Python ≥ 3.11 for the pipeline (CA24). After Phase 1 so CI catches the fallout. | yes | CI green on the new versions |

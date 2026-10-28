@@ -11,8 +11,10 @@
 //   if it suspended in gsay_end / gsay_message: resume it (dialogueExit)
 //   call the first dialogue option it offered, once
 
+import '../classParts.js'
 import globalState from '../globalState.js'
 import { parseIntFile } from '../intfile.js'
+import { Script } from '../scripting.js'
 import { BinaryReader } from '../util.js'
 import * as ScriptVMBridge from '../vmBridge.js'
 import { setVMFatalHook } from '../vm.js'
@@ -348,7 +350,7 @@ function runVM(name: string, data: DataView, seed: number, plan: Plan, imports: 
     const reader = new BinaryReader(data)
     const intfile = parseIntFile(reader, name)
     reader.seek(0)
-    const vm = new ScriptVMBridge.GameScriptVM(reader, intfile)
+    const vm = new ScriptVMBridge.GameScriptVM(reader, intfile, new Script())
     vm.scriptObj = mock
     mock._vm = vm
     for (const procName in intfile.procedures) mock[procName] = (...args: any[]) => vm.engineCall(procName, args)

@@ -12,7 +12,8 @@ import { Critter, itemIsHidden, Obj } from '../object.js'
 import { invenUnwield } from '../inventoryWield.js'
 import { weaponCanBeReloadedWith } from '../weaponAmmo.js'
 import { Player } from '../player.js'
-import { uiEndCombat, uiEndButtonsGreenLights, uiEndButtonsRedLights, uiStartCombat } from '../ui.js'
+
+import { uiPort } from '../uiPort.js'
 import { drawAC, drawAP, drawHP } from '../hudRefresh.js'
 import { uiLog } from '../messageLog.js'
 import { getProtoMsg, getRandomInt } from '../util.js'
@@ -75,12 +76,11 @@ import {
     DAM_RANDOM_HIT,
 } from './results.js'
 import { objectDistance, weaponAttackType } from './hitChance.js'
-import { installMethods } from '../installMethods.js'
-import { combatAttackMethods } from './combatAttack.js'
-import { combatDisplayMethods } from './combatDisplay.js'
-import { combatProjectileMethods } from './combatProjectiles.js'
-import { combatAiTurnMethods } from './combatAiTurn.js'
-import { combatAiActionMethods } from './combatAiActions.js'
+import type { combatAttackMethods } from './combatAttack.js'
+import type { combatDisplayMethods } from './combatDisplay.js'
+import type { combatProjectileMethods } from './combatProjectiles.js'
+import type { combatAiTurnMethods } from './combatAiTurn.js'
+import type { combatAiActionMethods } from './combatAiActions.js'
 
 // A combat in a save game (CE combatSave)
 export interface SavedCombat {
@@ -541,7 +541,7 @@ export class Combat {
         this.player.clearAnim()
 
         if (!window.__test?.fastMode) services.audioEngine.playSfxByName('icombat1')
-        uiStartCombat()
+        uiPort.uiStartCombat()
     }
 
     log(msg: any) {
@@ -1041,7 +1041,7 @@ export class Combat {
         this.player.AP?.resetAP() // CE ref: combat.cc:2811
         this.giveExps() // CE ref: combat.cc:2816
         world.gMap!.updateMap()
-        uiEndCombat()
+        uiPort.uiEndCombat()
     }
 
     // CE combat.cc _combat_over: living NPCs reload their weapon (aiAttemptWeaponReload,
@@ -1088,7 +1088,7 @@ export class Combat {
         this.player.AP?.resetAP() // CE ref: combat.cc:2811
         this.giveExps() // CE ref: combat.cc:2816
         world.gMap?.updateMap()
-        uiEndCombat()
+        uiPort.uiEndCombat()
         // Defer flag reset so the current script execution frame finishes
         // before a new combat can be started (prevents the map_update_p_proc
         // → attack_complex → Combat.start() re-entry loop).
@@ -1198,7 +1198,7 @@ export class Combat {
             // CE ref: combat.cc:3276 / interface.cc interfaceBarEndButtonsRenderGreenLights —
             // green lights + icombat2 when player's turn begins (buttons enabled)
             if (!window.__test?.fastMode) services.audioEngine.playSfxByName('icombat2')
-            uiEndButtonsGreenLights()
+            uiPort.uiEndButtonsGreenLights()
             eventLogPush({
                 actor: actorName(this.player),
                 action: 'turn-begin',
@@ -1212,7 +1212,7 @@ export class Combat {
             // CE ref: interface.cc interfaceBarEndButtonsRenderRedLights —
             // red lights + icombat1 during AI turns (buttons disabled)
             if (!window.__test?.fastMode) services.audioEngine.playSfxByName('icombat1')
-            uiEndButtonsRedLights()
+            uiPort.uiEndButtonsRedLights()
             const critter = this.combatants[this.whoseTurn]
             // CE: only combatants act — party members too join first (_combat_add_noncoms,
             // via _combatai_notify_friends at the end of a round)
@@ -1345,11 +1345,3 @@ type CombatMethods = typeof combatAttackMethods &
     typeof combatAiActionMethods
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type, @typescript-eslint/no-unsafe-declaration-merging
 export interface Combat extends CombatMethods {}
-installMethods(
-    Combat.prototype,
-    combatAttackMethods,
-    combatDisplayMethods,
-    combatProjectileMethods,
-    combatAiTurnMethods,
-    combatAiActionMethods,
-)

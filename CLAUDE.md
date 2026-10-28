@@ -22,7 +22,7 @@ DarkHarold2 is a semi-faithful browser recreation of Fallout 2, forked from the 
   Needs the extracted game data: local only, not in CI
 - `npm run smoke` / `npm run storycrawl` — headless game boot (page errors, `SMOKE_SYNC_XHR=1` counts blocking
   requests) and the story crawler on both backends (VM = Lua, `--compare` a saved run). Local only, like parity
-- `npm run format` (Prettier, checked in CI), `npm run cycles` (import cycles; CI: largest ≤ 90 modules; a split class's files count one by one)
+- `npm run format` (Prettier, checked in CI), `npm run cycles` (import cycles; CI: largest ≤ 25 modules; game logic calls UI windows through `uiPort`, never by import)
 - CI (`.github/workflows/ci.yml`): build (0 errors, `strict`), import-cycle ratchet, Prettier, lint ratchet, `npm test`.
   Everything else (play testing, story crawler) is manual in the browser
 
@@ -75,7 +75,7 @@ files are derived from the user's install — never commit them. See `wiki/lua_s
 Three-file split — understand this before touching any opcode:
 1. `src/vm.ts` — low-level bytecode decoder (`opMap`, raw stack ops)
 2. `src/vmBridge.ts` — maps bytecode op values to Script methods via `bridgeOpMap` and the `bridged(procName, argc)` factory
-3. `src/scripting.ts` — `Script` class, one method per FO2 script intrinsic; the methods are kept by category in `src/scripting/opcodes/*.ts` (core, critter, inventory, objects, map, anim, dialogue, combat, metarule, sfall) and installed on `Script.prototype` (`installMethods`)
+3. `src/scripting.ts` — `Script` class, one method per FO2 script intrinsic; the methods are kept by category in `src/scripting/opcodes/*.ts` (core, critter, inventory, objects, map, anim, dialogue, combat, metarule, sfall) and installed on `Script.prototype` by `src/classParts.ts` (`installMethods`)
 
 To add a new opcode: add the method to the matching `src/scripting/opcodes/<category>.ts` object (it gets `this: Script` as its first parameter), then wire it in vmBridge.ts with `bridged("methodName", argCount)`. Never add raw stack logic in vmBridge.ts.
 
@@ -110,10 +110,14 @@ Tile coordinate convention: `tileNum = y * 200 + x` (200-wide grid, 40000 max ti
 ## Conventions
 - Scripting opcodes are methods of the `Script` class (`src/scripting.ts`), kept by
   category in `src/scripting/opcodes/<category>.ts` (object literals with a `this: Script`
-  parameter, installed on the prototype by `installMethods`; 2026-10-28, code_quality Q16).
+  parameter, installed on the prototype by `src/classParts.ts`; 2026-10-28, code_quality Q16).
   To add an opcode: add it to the matching category file, then wire it in
   `src/vmBridge.ts` with `bridged("name", argc[, returns])`. The same pattern splits
-  `combat/Combat.ts` (`combat/combat*.ts`). Import those files only through their class's module.
+  `combat/Combat.ts` (`combat/combat*.ts`) and `object/Obj.ts` (`object/objUse.ts`). The class module imports
+  its method files as types only (`import type`); a new file goes into `classParts.ts`.
+- Game logic (scripting, combat, objects, world map) opens UI windows through `uiPort` (`src/uiPort.ts`, filled by
+  `uiPortInstall.ts`), not by importing `ui*.ts`: those import the logic back (code_quality Q14). GVARs live in
+  `src/globalVars.ts`.
 - Use the existing `stub()` helper for unimplemented opcodes — never silent no-ops
 - Use `dbg()` / `dbgWarn()` from src/logger.ts for logging — never raw console.log in new code
 - TimedEvent / `timeEventList` in scripting.ts is the hook for all tick-based callbacks

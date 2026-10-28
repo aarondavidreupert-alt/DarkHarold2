@@ -15,7 +15,8 @@ import { world } from '../../state/world.js'
 import { uiState } from '../../state/uiState.js'
 import { hexDistance, hexInDirection, hexNearestNeighbor } from '../../geometry.js'
 import { lookupMapName, setMapMusicOverride } from '../../data.js'
-import { uiWorldMap } from '../../ui.js'
+
+import { uiPort } from '../../uiPort.js'
 import {
     currentMapID,
     inMapEnter,
@@ -240,7 +241,7 @@ export const mapOpcodes = {
     world_map(this: Script) {
         // CE scriptsRequestWorldMap: in combat _game_user_wants_to_quit = 1 — the fight ends
         if (world.inCombat) world.combat?.end()
-        requestScript('worldMap', () => uiWorldMap()) // CE scriptsRequestWorldMap
+        requestScript('worldMap', () => uiPort.uiWorldMap()) // CE scriptsRequestWorldMap
     },
     // CE opSetMapMusic (0x80E2) — worldmap.cc wmSetMapMusic: override maps.txt music.
     set_map_music(this: Script, mapIndex: number, music: string) {

@@ -34,7 +34,8 @@ import * as Scripting from './scripting.js'
 import { dbg } from './logger.js'
 import { uiLog } from './messageLog.js'
 import { getMessage } from './util.js'
-import { openAutomap } from './uiAutomap.js'
+
+import { uiPort } from './uiPort.js'
 
 export const PROTO_ID_GEIGER_COUNTER_I = 52
 export const PROTO_ID_GEIGER_COUNTER_II = 207
@@ -158,7 +159,7 @@ export function useChargedMiscItem(item: Obj, owner: Critter | null): void {
     if (item.pid === PROTO_ID_MOTION_SENSOR) {
         // CE: a charge opens the automap with the scanner on, else item.msg 5
         if (miscItemConsumeCharge(item) === 0) {
-            openAutomap(true)
+            uiPort.openAutomap(true)
         } else {
             const fmt = getMessage('item', 5) ?? '%s has no charges left.'
             uiLog(fmt.replace('%s', item.name || ''))

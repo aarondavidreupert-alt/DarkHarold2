@@ -4,7 +4,7 @@
 
 import { CE_PERKS, CE_PERK_REQS, PERK_COUNT, perkApplyEffect, perkIdByName, perkNameById } from './cePerks.js'
 import { getFileJSON, getMessage } from '../util.js'
-import * as Scripting from '../scripting.js'
+import { getGlobalVar } from '../globalVars.js'
 import { SKILL_NAMES } from '../skills.js'
 import type { Player } from '../player.js'
 import { PerkDef, PERKS, SPECIAL } from './perks.data.js'
@@ -53,7 +53,7 @@ const PARAM_GVAR = 0x4000000
 function perkParamMet(player: Player, param: number, value: number): boolean {
     const isVariable = (param & PARAM_GVAR) !== 0
     const p = param & ~PARAM_GVAR
-    const current = isVariable ? Number(Scripting.getGlobalVar(p)) : player.getSkill(SKILL_NAMES[p])
+    const current = isVariable ? Number(getGlobalVar(p)) : player.getSkill(SKILL_NAMES[p])
     if (value < 0) return isVariable ? current < value : current < -value
     return current >= value
 }

@@ -38,7 +38,8 @@ import { Critter, objectUnjamAll } from './object.js'
 import { changeCursor } from './playerUse.js'
 import { clampCameraPosition, ceMapScroll, getObjectUnderCursor, SCREEN_HEIGHT, SCREEN_WIDTH } from './renderer.js'
 import * as Scripting from './scripting.js'
-import { uiHideCombatHover, uiShowCombatHover } from './ui.js'
+
+import { uiPort } from './uiPort.js'
 import { UIMode } from './uiMode.js'
 import * as Endgame from './endgame.js'
 import * as GameTime from './gametime.js'
@@ -218,13 +219,13 @@ export function tickGame(): void {
                 changeCursor('pointer')
                 // CE game_mouse.cc:745 — the to-hit readout follows the attack cursor.
                 if (world.inCombat && uiState.cursorMode === 'attack') {
-                    uiShowCombatHover(obj, uiState.cursorPos.x, uiState.cursorPos.y)
+                    uiPort.uiShowCombatHover(obj, uiState.cursorPos.x, uiState.cursorPos.y)
                 } else {
-                    uiHideCombatHover()
+                    uiPort.uiHideCombatHover()
                 }
             } else {
                 changeCursor('auto')
-                uiHideCombatHover()
+                uiPort.uiHideCombatHover()
             }
         }
     }

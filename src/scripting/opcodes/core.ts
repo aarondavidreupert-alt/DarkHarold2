@@ -15,7 +15,6 @@ import {
     TOWN_REP_GVARS,
     dialogueExit,
     getScriptMessage,
-    globalVars,
     info,
     isGameObject,
     log,
@@ -25,12 +24,13 @@ import {
     timedEvent,
     warn,
 } from '../../scripting.js'
+import { getGlobalVars, setGlobalVar } from '../../globalVars.js'
 
 export const coreOpcodes = {
     // Actual scripting engine API implementations
 
     set_global_var(this: Script, gvar: number, value: any) {
-        globalVars[gvar] = value
+        setGlobalVar(gvar, value)
         info('set_global_var: ' + gvar + ' = ' + value, 'gvars')
         log('set_global_var', [gvar, value], 'gvars')
         // CE ref: game.cc:995 gameSetGlobalVar — GVAR 0 is the main karma score
@@ -91,6 +91,7 @@ export const coreOpcodes = {
         mapVars[scriptName][mvar] = value
     },
     global_var(this: Script, gvar: number) {
+        const globalVars = getGlobalVars()
         if (globalVars[gvar] === undefined) {
             warn('global_var: unknown gvar ' + gvar + ', using default (0)', 'gvars')
             globalVars[gvar] = 0

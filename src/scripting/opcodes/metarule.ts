@@ -21,7 +21,8 @@ import { loadPRO, lookupArt, makePID } from '../../pro.js'
 import { returnToMainMenu } from '../../mainMenuReturn.js'
 import { uiDrawWeapon } from '../../hudRefresh.js'
 import { uiLog } from '../../messageLog.js'
-import { uiWorldMap } from '../../ui.js'
+
+import { uiPort } from '../../uiPort.js'
 import {
     info,
     isGameObject,
@@ -194,7 +195,7 @@ export const metaruleOpcodes = {
                     Worldmap.setAreaVisible(21, false)
                     outOfGas.visitedState = 0
                 }
-                uiWorldMap()
+                uiPort.uiWorldMap()
                 return 0
             }
             case 32: {

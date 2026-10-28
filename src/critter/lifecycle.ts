@@ -30,7 +30,8 @@ import { hexInDirection, hexToScreen, HEX_GRID_SIZE, Point } from '../geometry.j
 import { randomBetween } from '../random.js'
 import { toTileNum } from '../tile.js'
 import { armorPerkSwap } from '../perks/cePerks.js'
-import { applyArmorArt } from '../uiInventory/dragdrop.js'
+
+import { uiPort } from '../uiPort.js'
 import { ammoGetCapacity } from '../weaponAmmo.js'
 import {
     critterIsProne,
@@ -423,7 +424,7 @@ export function itemDropAll(obj: Critter): void {
                 self.armor = null
                 if (obj.isPlayer) {
                     armorPerkSwap(obj, worn, null)
-                    applyArmorArt(null)
+                    uiPort.applyArmorArt(null)
                 }
             }
         } else if (item && item.pid !== undefined) self[slot] = undefined

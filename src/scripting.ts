@@ -17,11 +17,14 @@ import { parseIntFile } from './intfile.js'
 import { dbg, dbgWarn } from './logger.js'
 import { uiElevator } from './uiElevator.js'
 import { Critter, createObjectWithPID, Obj } from './object.js'
-import { uiBarterMode } from './ui.js'
+
+import { uiPort } from './uiPort.js'
 import { uiLog } from './messageLog.js'
 import { UIMode } from './uiMode.js'
 import { updateIndicatorBar } from './hudRefresh.js'
 import { BinaryReader, getFileBinarySync, getFileJSON, getFileText, getMessage } from './util.js'
+import { getGlobalVar, loadGlobalVars, resetGlobalVars, setGlobalVar } from './globalVars.js'
+export { getGlobalVar, getGlobalVars, loadGlobalVars, setGlobalVar, setGlobalVars } from './globalVars.js'
 import { ScriptVM } from './vm.js'
 import { attachLuaScript, isLuaReady, LuaScriptHandle } from './lua/luaRuntime.js'
 import * as Worldmap from './worldmap.js'
@@ -30,17 +33,16 @@ import { setChildProgramLoader, vmClearPrograms, vmDoEvents } from './vm.js'
 import { Config } from './config.js'
 import { isWithinPerception } from './perception.js'
 import * as ScriptingModule from './scripting.js' // itself: window.Scripting below
-import { installMethods } from './installMethods.js'
-import { coreOpcodes } from './scripting/opcodes/core.js'
-import { metaruleOpcodes } from './scripting/opcodes/metarule.js'
-import { critterOpcodes } from './scripting/opcodes/critter.js'
-import { inventoryOpcodes } from './scripting/opcodes/inventory.js'
-import { objectsOpcodes } from './scripting/opcodes/objects.js'
-import { mapOpcodes } from './scripting/opcodes/map.js'
-import { animOpcodes } from './scripting/opcodes/anim.js'
-import { dialogueOpcodes } from './scripting/opcodes/dialogue.js'
-import { combatOpcodes } from './scripting/opcodes/combat.js'
-import { sfallOpcodes } from './scripting/opcodes/sfall.js'
+import type { coreOpcodes } from './scripting/opcodes/core.js'
+import type { metaruleOpcodes } from './scripting/opcodes/metarule.js'
+import type { critterOpcodes } from './scripting/opcodes/critter.js'
+import type { inventoryOpcodes } from './scripting/opcodes/inventory.js'
+import type { objectsOpcodes } from './scripting/opcodes/objects.js'
+import type { mapOpcodes } from './scripting/opcodes/map.js'
+import type { animOpcodes } from './scripting/opcodes/anim.js'
+import type { dialogueOpcodes } from './scripting/opcodes/dialogue.js'
+import type { combatOpcodes } from './scripting/opcodes/combat.js'
+import type { sfallOpcodes } from './scripting/opcodes/sfall.js'
 import { dialogueExit, talk } from './scripting/events.js'
 export {
     getScriptMessage,
@@ -96,8 +98,6 @@ export const scriptingState = {
 
 let gameObjects: Obj[] | null = null
 export let mapVars: any = null
-export let globalVars: any = {}
-let globalVarsLoaded = false
 export let currentMapID: number | null = null
 let currentMapObject: Script | null = null
 export let mapFirstRun = true
@@ -443,35 +443,17 @@ export function poisonDecayEvent(critter: Critter): void {
     if (hp <= 5) Events.emit('queueBail')
 }
 
-export function setGlobalVar(gvar: number, value: number): void {
-    globalVars[gvar] = value
-}
-
 // CE random.cc — seeding goes to the ported Park-Miller generator (src/random.ts);
 // Math.random is no longer overridden.
 function seed(s: number) {
     randomSeedPrerandom(Math.abs(Math.trunc(s)) % 0x7fffffff)
 }
 
-export function getGlobalVar(gvar: number): any {
-    return globalVars[gvar] !== undefined ? globalVars[gvar] : 0
-}
-
-export function getGlobalVars(): any {
-    return globalVars
-}
-
-export function setGlobalVars(vars: { [k: string]: number }): void {
-    globalVars = Object.assign({}, vars)
-}
-
 // CE ref: game.cc gameReset → gameLoadGlobalVars (vault13.gam defaults), _scr_reset /
 // scriptsReset (queue, MVARs of every map) — a new game or a load starts clean.
 export function resetGameState(): void {
     vmClearPrograms() // a new game / load: no program's exports or call_at / call_when survive
-    globalVars = {}
-    globalVarsLoaded = false
-    loadGlobalVars()
+    resetGlobalVars()
     mapVars = null
     timeEventList.length = 0
 }
@@ -492,24 +474,6 @@ export function getTimedEventsSerialized(): SerializedTimedEvent[] {
         ticks: e.ticks,
         userdata: e.userdata,
     }))
-}
-
-export function loadGlobalVars(): void {
-    if (globalVarsLoaded) return
-    try {
-        const data = getFileJSON('data/gvars.json')
-        for (const key of Object.keys(data)) {
-            const idx = Number(key)
-            if (globalVars[idx] === undefined) {
-                globalVars[idx] = data[key]
-            }
-        }
-        globalVarsLoaded = true
-        info('loadGlobalVars: loaded ' + Object.keys(data).length + ' global vars from gvars.json')
-    } catch (e: any) {
-        globalVarsLoaded = true
-        dbg('load', 'loadGlobalVars: gvars.json not found, using defaults (' + e.message + ')')
-    }
 }
 
 // data/maps/<map>.mvars.json per map (null = none), fetched once per session.
@@ -632,7 +596,7 @@ export function dialogueReply(id: number): void {
     if (scriptingState.pendingBarter) {
         const merchant = scriptingState.pendingBarter
         scriptingState.pendingBarter = null
-        uiBarterMode(merchant)
+        uiPort.uiBarterMode(merchant)
         return
     }
     // by this point the option's callback may have switched to an
@@ -895,7 +859,7 @@ function loadIntScript(name: string): Script {
     if (!currentMapObject) dbg('load', 'note: using current script (%s) as map script for this object', intfile.name)
 
     reader.seek(0)
-    const vm = new ScriptVMBridge.GameScriptVM(reader, intfile)
+    const vm = new ScriptVMBridge.GameScriptVM(reader, intfile, new Script())
     vm.scriptObj.scriptName = name
     vm.scriptObj.lvars = {}
     vm.scriptObj._mapScript = currentMapObject || vm.scriptObj // map scripts are their own map scripts
@@ -1332,7 +1296,7 @@ export function reset(mapName: string, mapID?: number) {
 }
 
 export function init(mapName: string, mapID?: number) {
-    Worldmap.setWorldmapGlobalVarHooks((g: number) => globalVars[g] ?? 0, setGlobalVar) // car GVARs
+    Worldmap.setWorldmapGlobalVarHooks(getGlobalVar, setGlobalVar) // car GVARs
     // No randomInit here: CE seeds the RNG once per launch (game.cc gameInitWithOptions →
     // random.cc randomInit; DH2: random.ts on module load), not on every map load.
     loadGlobalVars()
@@ -1394,8 +1358,8 @@ if (typeof window !== 'undefined') {
 }
 
 // Script's methods kept in other files by topic (wiki/code_quality.md Q16): installed on the prototype
-// here, typed through the interface merge below. Import those files only through this module: it
-// must be loaded first, so that their objects exist when it installs them.
+// by classParts.ts (so this module does not import them: they import half the engine), typed through
+// the interface merge below.
 type ScriptMethods = typeof coreOpcodes &
     typeof metaruleOpcodes &
     typeof critterOpcodes &
@@ -1408,16 +1372,3 @@ type ScriptMethods = typeof coreOpcodes &
     typeof sfallOpcodes
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type, @typescript-eslint/no-unsafe-declaration-merging
 export interface Script extends ScriptMethods {}
-installMethods(
-    Script.prototype,
-    coreOpcodes,
-    metaruleOpcodes,
-    critterOpcodes,
-    inventoryOpcodes,
-    objectsOpcodes,
-    mapOpcodes,
-    animOpcodes,
-    dialogueOpcodes,
-    combatOpcodes,
-    sfallOpcodes,
-)

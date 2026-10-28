@@ -23,7 +23,8 @@ import { areaContainingMap, loadAreas, lookupMapName, mapIsSaved, type Area } fr
 import * as GameTime from '../gametime.js'
 import { Point } from '../geometry.js'
 import { world } from '../state/world.js'
-import { hidev, makeEl, showv, uiCloseWorldMap, uiWorldMapShowArea } from '../ui.js'
+import { hidev, makeEl, showv } from '../uiDom.js'
+import { uiPort } from '../uiPort.js'
 import { showConfirm } from '../uiDialog.js'
 import { clamp, getFileBinarySync, getFileText, getMessage } from '../util.js'
 import { Config } from '../config.js'
@@ -781,7 +782,7 @@ function setTargetImage(url: string, isHotspot: boolean): void {
 // map header's start (mapLoadById), and the area becomes visited.
 function enterArea(area: Area): void {
     if ((area.visitedState ?? 0) === 2 && area.mapArt) {
-        uiWorldMapShowArea(area)
+        uiPort.uiWorldMapShowArea(area)
         return
     }
     if (area.entrances.length === 0) return
@@ -797,7 +798,7 @@ function enterArea(area: Area): void {
     }
     dbg('worldmap', `[Worldmap] entering ${area.name} → ${entrance.mapName} (no town map)`)
     world.gMap!.loadMap(entrance.mapName)
-    uiCloseWorldMap()
+    uiPort.uiCloseWorldMap()
 }
 
 // CE worldmap.cc wmMapMarkMapEntranceState(mapIdx, elevation, state): only a saved map
@@ -1071,7 +1072,7 @@ function enterWilderness(): void {
         dbg('worldmap', `car parked at area ${_currentCarAreaId}`)
     }
     world.gMap!.loadMap(mapName)
-    uiCloseWorldMap()
+    uiPort.uiCloseWorldMap()
 }
 
 // CE ref: worldmap.cc:3052-3082 — out of gas: travel stops, the party leaves the car,
@@ -1280,7 +1281,7 @@ async function runEncounter(roll: EncounterRoll): Promise<void> {
     walk.distance = 0
     worldmapPlayer!.target = null
     world.gMap!.loadMap(mapName, undefined, undefined, roll.forced ? undefined : () => setupRandomEncounter())
-    uiCloseWorldMap()
+    uiPort.uiCloseWorldMap()
 }
 
 // One frame of CE wmWorldMapFunc.

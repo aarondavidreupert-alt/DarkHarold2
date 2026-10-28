@@ -16,7 +16,7 @@ limitations under the License.
 
 import { world } from './state/world.js'
 import { IntFile } from './intfile.js'
-import * as Scripting from './scripting.js'
+import type * as Scripting from './scripting.js'
 import { BinaryReader } from './util.js'
 import { dbg } from './logger.js'
 import { scriptProcNumber, STOPS_PROC_ON_SELF } from './scriptProcs.js'
@@ -462,12 +462,14 @@ let bridgeOpMap: { [opcode: number]: (this: GameScriptVM) => void } = {
 // update VM opMap with our bridgeOpMap
 Object.assign(opMap, bridgeOpMap)
 
-// define a game-oriented Script VM that has a ScriptProto instance
+// define a game-oriented Script VM that has a ScriptProto instance (the caller makes it: this
+// module only imports the Script type, wiki/code_quality.md Q14)
 export class GameScriptVM extends ScriptVM {
-    scriptObj = new Scripting.Script()
+    scriptObj: Scripting.Script
 
-    constructor(script: BinaryReader, intfile: IntFile) {
+    constructor(script: BinaryReader, intfile: IntFile, scriptObj: Scripting.Script) {
         super(script, intfile)
+        this.scriptObj = scriptObj
 
         // patch scriptObj to allow transparent procedure calls
         // TODO: maybe we should check if we're interrupting the VM

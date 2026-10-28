@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './classParts.js'
+import './uiPortInstall.js'
 import { HTMLAudioEngine, NullAudioEngine } from './audio.js'
 import { useDrug } from './drugs.js'
 import { heart } from './heart.js'

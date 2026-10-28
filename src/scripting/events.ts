@@ -10,7 +10,8 @@ import { dbg } from '../logger.js'
 import { getProtoMsg } from '../util.js'
 import { isTalkingHeadActive, startLips } from '../talkingHead.js'
 import { toTileNum } from '../tile.js'
-import { uiEndDialogue, uiStartDialogue } from '../ui.js'
+
+import { uiPort } from '../uiPort.js'
 import {
     Script,
     ScriptableObj,
@@ -72,7 +73,7 @@ export function dialogueEnd() {
 
 export function dialogueExit() {
     SfallHooks.gameModeSpecial(false) // sfall: SPECIAL while the dialogue panel closes
-    uiEndDialogue()
+    uiPort.uiEndDialogue()
     scriptingState.dialogueBarterMod = 0
     info('[dialogue exit]')
 
@@ -108,7 +109,7 @@ export function reenterDialogue(): void {
     if (!scriptingState.currentDialogueObject || !scriptingState.currentDialogueObject._script) {
         return
     }
-    uiStartDialogue(true, scriptingState.currentDialogueObject as Critter)
+    uiPort.uiStartDialogue(true, scriptingState.currentDialogueObject as Critter)
     if (scriptingState.dialogueOptionProcs.length === 0) {
         dbg('dialogue', '[dialogue exit after barter (no options)]')
         dialogueExit()

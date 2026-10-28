@@ -11,7 +11,8 @@ import { getProtoMsg } from '../../util.js'
 import { world } from '../../state/world.js'
 import { uiState } from '../../state/uiState.js'
 import { resetFloatMessages } from '../../floatText.js'
-import { uiAddDialogueOption, uiBarterMode, uiSetDialogueReply, uiStartDialogue } from '../../ui.js'
+
+import { uiPort } from '../../uiPort.js'
 import {
     DIALOG_OPTION_ENTRIES_CAPACITY,
     dialogueExit,
@@ -38,7 +39,7 @@ export const dialogueOpcodes = {
         scriptingState.dialogueBarterMod = mod
         // inside an option's procedure: open it when the procedure has returned
         if (inDialogueReply) scriptingState.pendingBarter = this.self_obj as Critter
-        else uiBarterMode(this.self_obj as Critter)
+        else uiPort.uiBarterMode(this.self_obj as Critter)
     },
     start_gdialog(this: Script, msgFileID: number, obj: Obj, mood: number, headNum: number, backgroundID: number) {
         log('start_gdialog', [msgFileID, obj, mood, headNum, backgroundID])
@@ -58,7 +59,7 @@ export const dialogueOpcodes = {
             resetFloatMessages() // CE _gdialogInitFromScript → textObjectsReset
         }
         scriptingState.currentDialogueObject = this.self_obj as Critter
-        uiStartDialogue(false, this.self_obj as Critter)
+        uiPort.uiStartDialogue(false, this.self_obj as Critter)
         // CE ref: interpreter_extra.cc:1892 opStartGameDialog — with a head, the
         // starting fidget comes from the speaker's reaction (LVAR 0 →
         // reactionTranslateValue: > 10 good, > -10 neutral, else bad); otherwise mood.
@@ -87,7 +88,7 @@ export const dialogueOpcodes = {
         scriptingState.dialogueOptionProcs.push(target.bind(this))
         scriptingState.dialogueOptionTexts.push(msg)
         scriptingState.dialogueOptionReactions.push(reaction)
-        uiAddDialogueOption(msg, scriptingState.dialogueOptionProcs.length - 1, reaction)
+        uiPort.uiAddDialogueOption(msg, scriptingState.dialogueOptionProcs.length - 1, reaction)
     },
     gsay_start(this: Script) {
         log('gsay_start', [])
@@ -98,7 +99,7 @@ export const dialogueOpcodes = {
         scriptingState.dialogueOptionReactions = []
         // ensure dialogue UI is open (may already be open from start_gdialog)
         if (uiState.uiMode !== UIMode.dialogue && this.self_obj) {
-            uiStartDialogue(false, this.self_obj as Critter)
+            uiPort.uiStartDialogue(false, this.self_obj as Critter)
         }
     },
     //gSay_Option(msgList, msgID, target, reaction) { stub("gSay_Option", arguments) },
@@ -111,7 +112,7 @@ export const dialogueOpcodes = {
         scriptingState.dialogueOptionProcs = []
         scriptingState.dialogueOptionTexts = []
         scriptingState.dialogueOptionReactions = []
-        uiSetDialogueReply(msg)
+        uiPort.uiSetDialogueReply(msg)
         // CE scripts.cc:2726 _scr_get_msg_str_speech(…, 1) — speak it if there's a head.
         speakScriptMessage(msgList, msgID)
         // CE ref: game_dialog.cc:1134-1146 gameDialogSetMessageReply ->
@@ -127,7 +128,7 @@ export const dialogueOpcodes = {
             warn('gsay_message: msg is null')
             return
         }
-        uiSetDialogueReply(msg)
+        uiPort.uiSetDialogueReply(msg)
         speakScriptMessage(msgList, msgID)
         // CE ref: game_dialog.cc:1148-1160 gameDialogSetTextReply ->
         // gameDialogAddReviewText.
@@ -146,7 +147,7 @@ export const dialogueOpcodes = {
         })
         const done = getProtoMsg(650) ?? '[Done]'
         scriptingState.dialogueOptionTexts.push(done)
-        uiAddDialogueOption(done, scriptingState.dialogueOptionProcs.length - 1)
+        uiPort.uiAddDialogueOption(done, scriptingState.dialogueOptionProcs.length - 1)
         // save resume address and halt VM, mirroring the gsay_end convention
         if (this._vm) {
             this._vm.retStack.push(this._vm.script.offset)
@@ -178,7 +179,7 @@ export const dialogueOpcodes = {
             scriptingState.dialogueOptionProcs.push(() => {})
             scriptingState.dialogueOptionTexts.push(text)
             scriptingState.dialogueOptionReactions.push(50)
-            uiAddDialogueOption(text, scriptingState.dialogueOptionProcs.length - 1)
+            uiPort.uiAddDialogueOption(text, scriptingState.dialogueOptionProcs.length - 1)
         }
         info('[gsay_end: halting for dialogue]', 'dialogue')
         return 1
@@ -205,7 +206,7 @@ export const dialogueOpcodes = {
         scriptingState.dialogueOptionProcs.push(target.bind(this))
         scriptingState.dialogueOptionTexts.push(msg)
         scriptingState.dialogueOptionReactions.push(reaction)
-        uiAddDialogueOption(msg, scriptingState.dialogueOptionProcs.length - 1, reaction)
+        uiPort.uiAddDialogueOption(msg, scriptingState.dialogueOptionProcs.length - 1, reaction)
     },
     dialogue_system_enter(this: Script) {
         log('dialogue_system_enter', [])

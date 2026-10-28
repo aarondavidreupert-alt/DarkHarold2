@@ -9,7 +9,8 @@
 import type { Critter, Obj } from './object.js'
 import { refreshStealthState } from './miscItem.js'
 import { armorPerkSwap } from './perks/cePerks.js'
-import { applyArmorArt } from './uiInventory/dragdrop.js'
+
+import { uiPort } from './uiPort.js'
 import { drawAC, uiDrawWeapon } from './hudRefresh.js'
 import { updateHandFlareLight } from './object.js'
 import { ANIM, critterWeaponCode, playCharAnimSfx } from './sfxNames.js'
@@ -49,7 +50,7 @@ export function invenWield(c: Critter, item: Obj, hand: Hand, animate = false): 
             if (isReal(old)) c.inventory.push(old)
             a.armor = item
             armorPerkSwap(c, old, item)
-            applyArmorArt(item)
+            uiPort.applyArmorArt(item)
             drawAC(c.getStat('AC') + ((item as any).pro?.extra?.AC ?? 0))
         } else {
             if (isReal(old)) old.flags = (old.flags ?? 0) & ~OBJECT_WORN
@@ -190,7 +191,7 @@ export function unequipForRemoval(c: Critter, item: Obj): void {
         if (c.isPlayer) {
             if (!c.inventory.includes(item)) c.inventory.push(item)
             armorPerkSwap(c, item, null)
-            applyArmorArt(null)
+            uiPort.applyArmorArt(null)
             drawAC(c.getStat('AC'))
         }
     }
@@ -210,7 +211,7 @@ export function moveAllInventory(from: Obj, to: Obj): void {
                 from.inventory.push(oldArmor)
                 a.armor = null
                 armorPerkSwap(c, oldArmor, null)
-                applyArmorArt(null)
+                uiPort.applyArmorArt(null)
             }
         } else {
             a.leftHand = (c.constructor as any).makeFist?.()

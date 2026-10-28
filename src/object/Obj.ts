@@ -35,7 +35,8 @@ import * as Lightmap from '../lightmap.js'
 import { dbg, dbgWarn } from '../logger.js'
 import { getPROSubTypeName, getPROTypeName, loadPRO, lookupArt, makePID } from '../pro.js'
 import * as Scripting from '../scripting.js'
-import { uiLoot } from '../ui.js'
+
+import { uiPort } from '../uiPort.js'
 import { uiDrawWeapon } from '../hudRefresh.js'
 import { uiLog } from '../messageLog.js'
 import { getMessage, getRandomInt, RollResult } from '../util.js'
@@ -44,8 +45,7 @@ import { uiGetTimer } from '../uiBarter/swap.js'
 import { Config } from '../config.js'
 import type { Critter } from './Critter.js'
 import { sfallIniGetString } from '../sfallIni.js'
-import { installMethods } from '../installMethods.js'
-import { objUseMethods } from './objUse.js'
+import type { objUseMethods } from './objUse.js'
 
 // Module state the Obj methods share (an object, so the methods kept in object/objUse.ts can
 // assign it too; wiki/code_quality.md Q16).
@@ -493,7 +493,7 @@ export function setObjectOpen(obj: Obj, open: boolean, loot = true, signalEvent 
         obj.anim = null
         if (loot && obj.isContainer && open) {
             // loot a container
-            uiLoot(obj)
+            uiPort.uiLoot(obj)
         }
     })
 
@@ -1446,9 +1446,8 @@ export class Obj {
 }
 
 // Obj's methods kept in other files by topic (wiki/code_quality.md Q16): installed on the prototype
-// here, typed through the interface merge below. Import those files only through this module: it
-// must be loaded first, so that their objects exist when it installs them.
+// by classParts.ts (so this module does not import them: they import half the engine), typed through
+// the interface merge below.
 type ObjMethods = typeof objUseMethods
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type, @typescript-eslint/no-unsafe-declaration-merging
 export interface Obj extends ObjMethods {}
-installMethods(Obj.prototype, objUseMethods)
