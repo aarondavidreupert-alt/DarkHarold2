@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { makePanelDraggable } from './ui_drag.js'
+import { makePanelDraggable } from './uiDrag.js'
 import { beginUseItemOn, cancelUseItemOn, itemCanUseOn } from './useItemOn.js'
 import { ammoGetCapacity, ammoGetQuantity, weaponAttemptReload } from './weaponAmmo.js'
 import { Combat } from './combat.js'
@@ -22,16 +22,16 @@ import globalState from './globalState.js'
 import { dbg } from './logger.js'
 import { Obj, objectIsWeapon } from './object.js'
 import { Config } from './config.js'
-import { openAutomap, closeAutomap, isAutomapOpen } from './ui_automap.js'
-import { openPipBoy, closePipBoy, isPipBoyOpen } from './ui_pipboy.js'
+import { openAutomap, closeAutomap, isAutomapOpen } from './uiAutomap.js'
+import { openPipBoy, closePipBoy, isPipBoyOpen } from './uiPipBoy.js'
 import { cycleUnarmedAction } from './unarmed.js'
-import { initOptionsMenu, getOptionsWindow, showOptionsMenu, closeOptionsMenu } from './ui_options.js'
-import { initSkilldex, getSkilldexWindow, showSkilldex, closeSkilldex } from './ui_skilldex.js'
-import { initInventory } from './ui_inventory.js'
-import { showCharacterScreen, closeCharacterScreen, getCharacterWindow } from './ui_character.js'
-import { initLoot } from './ui_loot.js'
-import { initCalledShot } from './ui_calledshot.js'
-import { drawHP, drawAC, drawAP, uiDrawWeapon, uiEndCombatAnimationDone, attackButtonDisabled } from './ui_hud.js'
+import { initOptionsMenu, getOptionsWindow, showOptionsMenu, closeOptionsMenu } from './uiOptions.js'
+import { initSkilldex, getSkilldexWindow, showSkilldex, closeSkilldex } from './uiSkilldex.js'
+import { initInventory } from './uiInventory.js'
+import { showCharacterScreen, closeCharacterScreen, getCharacterWindow } from './uiCharacter.js'
+import { initLoot } from './uiLoot.js'
+import { initCalledShot } from './uiCalledShot.js'
+import { drawHP, drawAC, drawAP, uiDrawWeapon, uiEndCombatAnimationDone, attackButtonDisabled } from './uiHud.js'
 import {
     closeAllPanels,
     isCharacterOpen,
@@ -40,17 +40,17 @@ import {
     registerCharacterWindow,
     registerSkilldexWindow,
     registerOptionsWindow,
-} from './ui_panels.js'
+} from './uiPanels.js'
 import { initUiContainer } from './uiContainer.js'
 
 // --- Re-exports for external callers (keep `from './ui.js'` import sites
 // working after individual panels were extracted into ui_*.ts modules) -----
-export { Widget } from './ui_widget.js'
-export type { CSSBoundingBox } from './ui_widget.js'
-export { WindowFrame, SmallButton, Label, List } from './ui_components.js'
-export { uiSaveLoad } from './ui_saveload.js'
-export { showMainMenu, hideMainMenu, isMainMenuVisible, initMainMenu } from './ui_mainmenu.js'
-export { initCharacterCreator } from './ui_charactercreator.js'
+export { Widget } from './uiWidget.js'
+export type { CSSBoundingBox } from './uiWidget.js'
+export { WindowFrame, SmallButton, Label, List } from './uiComponents.js'
+export { uiSaveLoad } from './uiSaveLoad.js'
+export { showMainMenu, hideMainMenu, isMainMenuVisible, initMainMenu } from './uiMainMenu.js'
+export { initCharacterCreator } from './uiCharacterCreator.js'
 export {
     drawHP,
     drawAC,
@@ -66,17 +66,17 @@ export {
     uiShowCombatHover,
     uiHideCombatHover,
     initLogScrollZones,
-} from './ui_hud.js'
-export { UIMode, closeAllPanels, isInventoryOpen, isCharacterOpen, isSkilldexOpen, isOptionsOpen } from './ui_panels.js'
-export { showInventory as uiInventoryScreen } from './ui_inventory.js'
-export { showCharacterScreen, closeCharacterScreen, getCharacterWindow } from './ui_character.js'
-export { uiStartDialogue, uiEndDialogue, uiSetDialogueReply, uiAddDialogueOption } from './ui_dialogue.js'
-export { uiBarterMode } from './ui_barter.js'
-export { uiLoot } from './ui_loot.js'
-export { uiWorldMap, uiCloseWorldMap, uiWorldMapShowArea } from './ui_worldmap.js'
-export { uiElevator } from './ui_elevator.js'
-export { uiCalledShot, uiCloseCalledShot } from './ui_calledshot.js'
-export { uiContextMenu, uiHideContextMenu } from './ui_contextmenu.js'
+} from './uiHud.js'
+export { UIMode, closeAllPanels, isInventoryOpen, isCharacterOpen, isSkilldexOpen, isOptionsOpen } from './uiPanels.js'
+export { showInventory as uiInventoryScreen } from './uiInventory.js'
+export { showCharacterScreen, closeCharacterScreen, getCharacterWindow } from './uiCharacter.js'
+export { uiStartDialogue, uiEndDialogue, uiSetDialogueReply, uiAddDialogueOption } from './uiDialogue.js'
+export { uiBarterMode } from './uiBarter.js'
+export { uiLoot } from './uiLoot.js'
+export { uiWorldMap, uiCloseWorldMap, uiWorldMapShowArea } from './uiWorldmap.js'
+export { uiElevator } from './uiElevator.js'
+export { uiCalledShot, uiCloseCalledShot } from './uiCalledShot.js'
+export { uiContextMenu, uiHideContextMenu } from './uiContextMenu.js'
 
 // UI system
 
@@ -128,7 +128,7 @@ function uiInit() {
 
     // CE interface.cc interfaceInit: the bar's buttons sound _gsound_med_butt_press /
     // _release (ib2p1xx1 / ib2lu1x1), the item button the large pair (ib3…); the
-    // inventory button is wired in ui_inventory/panel.ts
+    // inventory button is wired in uiInventory/panel.ts
     const barSounds = (id: string, press: string, release: string) => {
         const el = document.getElementById(id)
         if (!el) return
@@ -163,19 +163,19 @@ function uiInit() {
     }
 }
 
-// Panel mutual-exclusion helpers have been moved to ui_panels.ts and are
+// Panel mutual-exclusion helpers have been moved to uiPanels.ts and are
 // re-exported above. closeInventoryPanel/uiInventoryScreen now live in
-// ui_inventory.ts; ui_inventory wires its own registerCloseInventoryPanel()
+// uiInventory.ts; uiInventory wires its own registerCloseInventoryPanel()
 // during initInventory().
 //
-// initSkilldex() has moved to ui_skilldex.ts.
-// initOptionsMenu() has moved to ui_options.ts.
-// initCharacterScreen() has moved to ui_character.ts as showCharacterScreen().
+// initSkilldex() has moved to uiSkilldex.ts.
+// initOptionsMenu() has moved to uiOptions.ts.
+// initCharacterScreen() has moved to uiCharacter.ts as showCharacterScreen().
 
-import { $id } from './ui_dom.js'
-// Preserve the existing public surface (worldmap.ts and ui_options.ts read
+import { $id } from './uiDom.js'
+// Preserve the existing public surface (worldmap.ts and uiOptions.ts read
 // these via `from './ui.js'`).
-export { showv, hidev, makeEl } from './ui_dom.js'
+export { showv, hidev, makeEl } from './uiDom.js'
 
 // CE interface.cc interfaceBarSwapHands — the B key and the change-hand button.
 export function swapHands(): void {
@@ -211,7 +211,7 @@ export function cycleActiveItemAction(): void {
 export function initUI() {
     uiInit()
 
-    // calledShot digit divs + cancel button live in ui_calledshot.ts → initCalledShot()
+    // calledShot digit divs + cancel button live in uiCalledShot.ts → initCalledShot()
 
     $id('optionsButton').onclick = () => {
         if (isOptionsOpen()) {
@@ -222,7 +222,7 @@ export function initUI() {
         showOptionsMenu()
     }
 
-    // lootBoxDoneButton wiring lives in ui_loot.ts → initLoot()
+    // lootBoxDoneButton wiring lives in uiLoot.ts → initLoot()
 
     $id('handSwapButton').onclick = () => swapHands()
 
@@ -342,7 +342,7 @@ export function initUI() {
         }
     }
 
-    // inventoryBoxList scroll wiring lives in ui_inventory.ts → initInventory()
+    // inventoryBoxList scroll wiring lives in uiInventory.ts → initInventory()
 
     makeScrollable($id('barterBoxInventoryLeft'))
     makeScrollable($id('barterBoxInventoryRight'))
@@ -360,36 +360,36 @@ export function initUI() {
 }
 
 // Right-click context menu (uiContextMenu / uiHideContextMenu) has moved to
-// ui_contextmenu.ts.
+// uiContextMenu.ts.
 //
-// HUD bar (HP/AC/AP/weapon/combat-buttons/hover/log) has moved to ui_hud.ts
+// HUD bar (HP/AC/AP/weapon/combat-buttons/hover/log) has moved to uiHud.ts
 // and is re-exported from ui.ts above.
 
 // Inventory panel (uiInventoryScreen, uiMoveSlot, applyArmorArt,
 // makeDropTarget, makeDraggable, tryLoadAmmoIntoWeapon) has moved to
-// ui_inventory.ts; ui_barter and ui_loot pull the dnd helpers from there.
+// uiInventory.ts; uiBarter and uiLoot pull the dnd helpers from there.
 
-// drawHP / drawAC / drawAP / drawDigits have moved to ui_hud.ts.
+// drawHP / drawAC / drawAP / drawDigits have moved to uiHud.ts.
 
 // Dialogue panel (uiStartDialogue / uiEndDialogue / uiSetDialogueReply /
 // uiAddDialogueOption) and the uiAnimateBox slide-up helper have moved to
-// ui_dialogue.ts; ui_barter pulls the slide-up animation from there.
+// uiDialogue.ts; uiBarter pulls the slide-up animation from there.
 //
-// Barter screen (uiBarterMode + uiEndBarterMode) has moved to ui_barter.ts,
+// Barter screen (uiBarterMode + uiEndBarterMode) has moved to uiBarter.ts,
 // along with the cross-list move helpers uiGetAmount / uiSwapItem.
 //
-// Loot screen (uiLoot + uiEndLoot) has moved to ui_loot.ts; ui_loot wires
+// Loot screen (uiLoot + uiEndLoot) has moved to uiLoot.ts; uiLoot wires
 // its own lootBoxDoneButton handler from initLoot().
 
-// uiLog has moved to ui_hud.ts.
+// uiLog has moved to uiHud.ts.
 //
 // World map (uiCloseWorldMap, uiWorldMap, uiWorldMapShowArea, internal
-// area/world view + label-list helpers) has moved to ui_worldmap.ts.
+// area/world view + label-list helpers) has moved to uiWorldmap.ts.
 //
-// Elevator (uiElevator + internal uiElevatorDone) has moved to ui_elevator.ts.
+// Elevator (uiElevator + internal uiElevatorDone) has moved to uiElevator.ts.
 //
 // Called-shot screen (uiCalledShot + uiCloseCalledShot) has moved to
-// ui_calledshot.ts; the static digit-divs and cancel button live in
+// uiCalledShot.ts; the static digit-divs and cancel button live in
 // initCalledShot() called from uiInit.
 
-// uiSaveLoad has moved to ui_saveload.ts — re-exported below.
+// uiSaveLoad has moved to uiSaveLoad.ts — re-exported below.

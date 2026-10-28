@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Bitmap font rendering core — split out of ui_font.ts.
+// Bitmap font rendering core — split out of uiFont.ts.
 // See wiki/ts-split-refactor.md → "Per-file split proposals" §17.
 //
 // Reference: jsFO src/core/rendering.js blitFontString() / symbolInfo and
@@ -23,7 +23,7 @@
 // symbol info map: { [charCode: number]: { x, y, w, h } }.
 
 import { dbgWarn } from '../logger.js'
-import { Widget } from '../ui_widget.js'
+import { Widget } from '../uiWidget.js'
 import { assetUrl } from '../modAssets.js'
 
 export interface SymbolInfo {

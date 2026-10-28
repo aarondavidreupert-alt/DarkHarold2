@@ -156,7 +156,7 @@ never a silently wrong translation:
   (`MISSING_OPERANDS`, marked inferred); the VM pushes CE's three call words (flags, `checkWaitFunc`,
   `windowId`) since 2026-10-22 (L18) and does the same. Only examining the open Modoc toilet runs it.
 
-`python tools/int2lua.py --check-bridge src/vm_bridge.ts` checks the intrinsic table (name, argc, pushes a
+`python tools/int2lua.py --check-bridge src/vmBridge.ts` checks the intrinsic table (name, argc, pushes a
 result) against the VM bridge.
 
 ## Script fixes (deliberate deviations from the shipped scripts)
@@ -197,7 +197,7 @@ The output uses plain Lua where SSL and Lua agree and helpers from the prelude w
 | `a % b` | `mod(a, b)` | sign of the dividend (C `%`); by zero stops the procedure like `div` |
 | `a and b` | `a and b` when `b` has no side effects, else `AND(a, b)` | sslc's `opAnd`/`opOr` evaluate both sides first; Lua skips the right side. The decompiler's `PURE` list says which intrinsics are safe to skip |
 | comparison used as a value | `b2i(a == b)` | CE comparisons push 0/1 |
-| `self_obj`, `dude_obj`, `game_time`, … | `self_obj`, … | Built-in variables, read on every access through the environment's `__index` (`vm_bridge.ts readBuiltinVar`, shared with the VM) |
+| `self_obj`, `dude_obj`, `game_time`, … | `self_obj`, … | Built-in variables, read on every access through the environment's `__index` (`vmBridge.ts readBuiltinVar`, shared with the VM) |
 | `import variable x` / `export variable x` | `import("x")` / `export("x", v)`, then plain `x` | Read/written on the map script object, like VM `op_fetch_external` / `op_store_external` |
 | `giq_option(…, Node002, …)` | `giq_option(…, Node002, …)` | The procedure is passed as a Lua function |
 
@@ -227,7 +227,7 @@ Unofficial Patch, with a `manifest.json`): their decompiled scripts load through
 `.dat` lines are skipped.
 `[dh2] mods=` overrides the file when it is not empty; the pipeline's `write_config` stage creates an empty,
 commented file if there is none, as sfall does (`tools/fallout2Cfg.py write_default_mods_order`,
-`src/ui_options/fallout2Cfg.ts loadModsOrder`).
+`src/uiOptions/fallout2Cfg.ts loadModsOrder`).
 
 ## Runtime
 

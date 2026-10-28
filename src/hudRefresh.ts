@@ -1,7 +1,7 @@
 // The HUD redraws game logic asks for (HP, AC and AP counters, the weapon button, the indicator
-// bar). A leaf module: ui_hud.ts plugs its functions in when it loads (setHudRefresh), so combat,
+// bar). A leaf module: uiHud.ts plugs its functions in when it loads (setHudRefresh), so combat,
 // objects, scripting and the rest do not import the HUD (wiki/code_quality.md Q14). The calls
-// all happen while the game runs, after ui_hud.ts has loaded.
+// all happen while the game runs, after uiHud.ts has loaded.
 
 interface HudRefresh {
     drawHP(hp: number): void

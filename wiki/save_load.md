@@ -4,7 +4,7 @@ Reference doc for the Fallout 2 save/load system — CE savegame format, what st
 is persisted, scripting opcodes, and DH2 implementation status.
 
 Ground truth: `raw/fallout2-ce/src/loadsave.cc`, `loadsave.h`, `scripts.cc`, `game.cc`  
-DH2 implementation: `src/saveload.ts`, `src/scripting.ts`, `src/vm_bridge.ts`, `src/map/GameMap.ts`, `src/object/Obj.ts`, `src/object/Critter.ts`
+DH2 implementation: `src/saveload.ts`, `src/scripting.ts`, `src/vmBridge.ts`, `src/map/GameMap.ts`, `src/object/Obj.ts`, `src/object/Critter.ts`
 
 ---
 
@@ -302,4 +302,4 @@ Saved since 2026-10-25 (CE parity audit): the preferences (`preferences`, CE han
 | Storage | IndexedDB records instead of SAVE.DAT + MAPS/*.SAV — same content, not file-compatible with CE saves |
 | Unvisited maps | Load fresh from `maps/*.json` — the same as CE, which loads them from the master .MAP |
 
-Everything the former table listed (MVARs, kill counts, worldmap, event queue, automap, `is_loading_game`, the slot UI — `ui_saveload.ts` is CE's LOADSAVE screen) is implemented. <!-- audited: 2026-10-18 -->
+Everything the former table listed (MVARs, kill counts, worldmap, event queue, automap, `is_loading_game`, the slot UI — `uiSaveLoad.ts` is CE's LOADSAVE screen) is implemented. <!-- audited: 2026-10-18 -->

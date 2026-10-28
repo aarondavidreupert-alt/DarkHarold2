@@ -13,7 +13,7 @@ import { Point } from './geometry.js'
 import globalState from './globalState.js'
 import { parseIntFile } from './intfile.js'
 import { dbg, dbgWarn } from './logger.js'
-import { uiElevator } from './ui_elevator.js'
+import { uiElevator } from './uiElevator.js'
 import { Critter, createObjectWithPID, Obj } from './object.js'
 import { uiBarterMode } from './ui.js'
 import { uiLog } from './messageLog.js'
@@ -23,7 +23,7 @@ import { BinaryReader, getFileBinarySync, getFileJSON, getFileText, getMessage }
 import { ScriptVM } from './vm.js'
 import { attachLuaScript, isLuaReady, LuaScriptHandle } from './lua/luaRuntime.js'
 import * as Worldmap from './worldmap.js'
-import * as ScriptVMBridge from './vm_bridge.js'
+import * as ScriptVMBridge from './vmBridge.js'
 import { setChildProgramLoader, vmClearPrograms, vmDoEvents } from './vm.js'
 import { Config } from './config.js'
 import { isWithinPerception } from './perception.js'
@@ -69,7 +69,7 @@ export const scriptingState = {
     nextSfallListId: 0xcccccc,
     sfallMessageWindowOpen: false,
     // Per-dialogue barter modifier set by gdialog_set_barter_mod.
-    // Reset to 0 on dialogue exit. Applied as a percentage markup in ui_barter.ts.
+    // Reset to 0 on dialogue exit. Applied as a percentage markup in uiBarter.ts.
     // ref: fallout2-ce barter.cc, dialog.cc gDialogSetBarterMod
     dialogueBarterMod: 0,
     // CE game_dialog.cc gameDialogBarter only sets _dialogue_switch_mode = 2; the dialogue

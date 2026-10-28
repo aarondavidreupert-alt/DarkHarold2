@@ -15,7 +15,7 @@ limitations under the License.
 """
 
 # fallout2.cfg for a fresh install - CE game_config.cc gameConfigInit defaults
-# plus DarkHarold2's [dh2] section (read by src/ui_options/fallout2Cfg.ts).
+# plus DarkHarold2's [dh2] section (read by src/uiOptions/fallout2Cfg.ts).
 # CE writes the file itself on exit (gameConfigSave); a browser can't, so the
 # pipeline creates it once. An existing file is never overwritten - it may hold
 # the user's own settings.
@@ -25,7 +25,7 @@ import os
 DEFAULT_CFG = r"""; fallout2.cfg - DarkHarold2
 ;
 ; Default values of CE game_config.cc gameConfigInit. DarkHarold2 reads this file at
-; startup (src/ui_options/fallout2Cfg.ts). A browser can't write it back, so changes
+; startup (src/uiOptions/fallout2Cfg.ts). A browser can't write it back, so changes
 ; made in the Options screen are kept in localStorage and override this file. Clear
 ; the site data to fall back to these values.
 ;

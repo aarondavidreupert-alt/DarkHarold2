@@ -30,10 +30,10 @@ CE refs:
 DH2 refs:
 - `src/scripting.ts` (`global_var`, `set_global_var`, `get_pc_stat`,
   `set_pc_stat`, `mod_pc_stat`, `set_obj_visibility`)
-- `src/ui_character/viewer.ts` (`KARMA_TITLES`, `TOWN_NAMES`, `townStanding`)
+- `src/uiCharacter/viewer.ts` (`KARMA_TITLES`, `TOWN_NAMES`, `townStanding`)
 - `src/skills.ts` (Karma/Reputation stat definitions)
 - `src/debug.ts` (`setKarma`)
-- `src/vm_bridge.ts` (opcode wiring)
+- `src/vmBridge.ts` (opcode wiring)
 - `src/render/webglDraw.ts` (`renderObject`), `src/render/webglContext.ts` (blend state)
 - `src/renderer.ts` (`objectRenderInfo`)
 
@@ -77,7 +77,7 @@ town sense; it is a critter-local signed integer modified by `reactionSetValue`.
 
 #### DH2
 
-The GVAR pool (`Scripting` `globalVars`, saved with the game, initial values from `data/gvars.json` = vault13.gam) is authoritative, as in CE. The character screen's karma folder reads the GVARs directly (`src/ui_character/folders.ts`); `player.stats` `Karma` / `Rep_*` are kept in sync for older code paths only.
+The GVAR pool (`Scripting` `globalVars`, saved with the game, initial values from `data/gvars.json` = vault13.gam) is authoritative, as in CE. The character screen's karma folder reads the GVARs directly (`src/uiCharacter/folders.ts`); `player.stats` `Karma` / `Rep_*` are kept in sync for older code paths only.
 
 ---
 
@@ -177,7 +177,7 @@ the GVAR is non-zero.
 
 #### DH2
 
-`src/ui_character/folders.ts` is CE `characterEditorDrawKarmaFolder`: every `data/karmavar.txt` entry (sorted by GVAR) — the score with its genrep title for GVAR 0, the other entries when their GVAR is non-zero — then the town reputations of the known areas, then the reliances; each line selects its card (skilldex art, editor.msg title and description).
+`src/uiCharacter/folders.ts` is CE `characterEditorDrawKarmaFolder`: every `data/karmavar.txt` entry (sorted by GVAR) — the score with its genrep title for GVAR 0, the other entries when their GVAR is non-zero — then the town reputations of the known areas, then the reliances; each line selects its card (skilldex art, editor.msg title and description).
 
 ---
 
@@ -605,7 +605,7 @@ visibility/transparency-adjacent opcodes are:
 
 | Opcode | Name | Args | CE handler | DH2 method | DH2 wired |
 |--------|------|------|-----------|-----------|-----------|
-| `0x80E3` | `set_obj_visibility` | `obj, invisible` (0=show, 1=hide) | `opSetObjectVisibility` `interpreter_extra.cc:2080` | `Script.set_obj_visibility` `scripting.ts:1213` | Yes — `vm_bridge.ts:133` |
+| `0x80E3` | `set_obj_visibility` | `obj, invisible` (0=show, 1=hide) | `opSetObjectVisibility` `interpreter_extra.cc:2080` | `Script.set_obj_visibility` `scripting.ts:1213` | Yes — `vmBridge.ts:133` |
 
 `set_obj_visibility` sets or clears the `OBJECT_HIDDEN` flag
 (`object.cc:2096`). In combat it also clears any outline on the object. It has

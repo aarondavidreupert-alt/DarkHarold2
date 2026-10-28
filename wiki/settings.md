@@ -11,7 +11,7 @@ Cross-references: `wiki/sound_system.md` (volume keys), `wiki/save_load.md` (loc
 `raw/fallout2-ce/src/text_object.cc` (`textObjectAdd`, `textObjectsRenderInRect`, `textObjectFindPlacement`, `textObjectsSetBaseDelay`)  
 **DH2 source files:**  
 `src/config.ts` (all Config fields and defaults),  
-`src/ui_options.ts` (`buildPrefsPanel`), `src/ui_options/preferences.ts` (`loadPreferences`, `savePreferences`, `SavedPreferences`),  
+`src/uiOptions.ts` (`buildPrefsPanel`), `src/uiOptions/preferences.ts` (`loadPreferences`, `savePreferences`, `SavedPreferences`),  
 `src/main.ts` / `src/input.ts` (consumption of `Config.engine.doAlwaysRun`),  
 `src/combat.ts` (barrel; `src/combat/*.ts`) (consumption of `Config.combat.difficultyModifier`, combat damage only),  
 `src/skills.ts` (consumption of `Config.combat.gameDifficultyModifier`, skill-check modifier — **FIXED 2026-07-04, S-CI2**: now a field separate from `difficultyModifier`),  
@@ -245,11 +245,11 @@ Note: `combat_messages` storage is inverted in the source — stored value 0 = v
 
 ### 4.1 Architecture
 
-`src/config.ts` holds the defaults (CE `settings.h` values; `Config` is also `window.Config`). At startup `src/ui_options/fallout2Cfg.ts` reads `fallout2.cfg` (CE `configParseLine` / `settingsFromConfig`): `[preferences]`, `[sound]` and the `[system]` keys that matter in a browser (`color_cycling`, `cycle_speed_factor`), plus a `[dh2]` section for DH2-only options (window dragging, overlays, edge scroll, Pip-Boy at start, day/night curve …, see README). The asset pipeline's `write_config` stage (`tools/fallout2Cfg.py`) creates the file with CE `gameConfigInit` defaults and never overwrites it. Changes made in the Preferences window are kept in `localStorage` (`dh2_preferences`) and win over the file — a browser can't write the file back (S-CI5).
+`src/config.ts` holds the defaults (CE `settings.h` values; `Config` is also `window.Config`). At startup `src/uiOptions/fallout2Cfg.ts` reads `fallout2.cfg` (CE `configParseLine` / `settingsFromConfig`): `[preferences]`, `[sound]` and the `[system]` keys that matter in a browser (`color_cycling`, `cycle_speed_factor`), plus a `[dh2]` section for DH2-only options (window dragging, overlays, edge scroll, Pip-Boy at start, day/night curve …, see README). The asset pipeline's `write_config` stage (`tools/fallout2Cfg.py`) creates the file with CE `gameConfigInit` defaults and never overwrites it. Changes made in the Preferences window are kept in `localStorage` (`dh2_preferences`) and win over the file — a browser can't write the file back (S-CI5).
 
 ### 4.2 Preferences (CE `preferences.cc`)
 
-The Preferences window (`src/ui_options.ts buildPrefsPanel`) is CE's at CE pixel positions: the five 4-way knobs (game / combat difficulty, violence, target highlight, combat looks), the six toggles (combat messages, taunts, language filter, running, subtitles, item highlight), the sliders (combat speed + player speedup, text delay, the four volumes, brightness, mouse sensitivity) and DEFAULT / DONE / CANCEL. DEFAULT is `preferencesSetDefaults` (incl. the volumes at 22281 / 32767); CANCEL restores the values from when the window opened.
+The Preferences window (`src/uiOptions.ts buildPrefsPanel`) is CE's at CE pixel positions: the five 4-way knobs (game / combat difficulty, violence, target highlight, combat looks), the six toggles (combat messages, taunts, language filter, running, subtitles, item highlight), the sliders (combat speed + player speedup, text delay, the four volumes, brightness, mouse sensitivity) and DEFAULT / DONE / CANCEL. DEFAULT is `preferencesSetDefaults` (incl. the volumes at 22281 / 32767); CANCEL restores the values from when the window opened.
 
 | CE key | DH2 field | CE default | Consumed in |
 |--------|-----------|------------|-------------|
@@ -282,7 +282,7 @@ Debug and engine toggles (`Config.ui.show*`, `Config.engine.*`, `Config.scriptin
 
 ## 5. CE Options Window (`options.cc`)
 
-The game menu (Escape / Menu button): SAVE GAME, LOAD GAME, PREFERENCES, EXIT GAME, DONE (keys S, L, P, E / Ctrl+Q / Ctrl+X / F10, O / D / Enter); `+` / `-` change the brightness. DH2 (`src/ui_options.ts initOptionsMenu`) has the same buttons and keys; the Preferences window is CE's separate window (§4.2). Credits are on the main menu, as in CE.
+The game menu (Escape / Menu button): SAVE GAME, LOAD GAME, PREFERENCES, EXIT GAME, DONE (keys S, L, P, E / Ctrl+Q / Ctrl+X / F10, O / D / Enter); `+` / `-` change the brightness. DH2 (`src/uiOptions.ts initOptionsMenu`) has the same buttons and keys; the Preferences window is CE's separate window (§4.2). Credits are on the main menu, as in CE.
 
 ---
 

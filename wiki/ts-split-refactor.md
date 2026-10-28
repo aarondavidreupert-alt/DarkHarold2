@@ -27,28 +27,28 @@ opcode bodies move out of `Script` (CLAUDE.md "Conventions" forbids it).
 |---|------|------:|---------------------:|-----------|
 | 1 | `src/scripting.ts` | 2614 | 6 | Scripting |
 | 2 | `src/object.ts` | 2208 | 5 | Objects / characters |
-| 3 | `src/ui_character.ts` | 2095 | 4 | UI panels |
+| 3 | `src/uiCharacter.ts` | 2095 | 4 | UI panels |
 | 4 | `src/combat.ts` | 1694 | 5 | Combat |
 | 5 | `src/main.ts` | 1279 | 4 | Engine core |
 | 6 | `src/webglrenderer.ts` | 1161 | 3 | Rendering |
 | 7 | `src/autocrawler.ts` | 903 | 4 | Testing / tooling |
-| 8 | `src/ui_inventory.ts` | 780 | 2 | UI panels |
+| 8 | `src/uiInventory.ts` | 780 | 2 | UI panels |
 | 9 | `src/map.ts` | 759 | 2 | World / map |
 | 10 | `src/worldmap.ts` | 757 | 3 | World / map |
 | 11 | `src/perks.ts` | 747 | 2 | Objects / characters |
-| 12 | `src/ui_pipboy.ts` | 736 | 4 | UI panels |
+| 12 | `src/uiPipBoy.ts` | 736 | 4 | UI panels |
 | 13 | `src/critter.ts` | 670 | 2 | Objects / characters |
 | 14 | `src/skillUse.ts` | 651 | 2 | Skills |
 | 15 | `src/lightmap.ts` | 589 | 2 | Rendering |
 | 16 | `src/renderer.ts` | 566 | 2 | Rendering |
-| 17 | `src/ui_font.ts` | 543 | 2 | UI panels |
+| 17 | `src/uiFont.ts` | 543 | 2 | UI panels |
 | 18 | `src/automapData.ts` | 543 | 3 | Persistence |
 | 19 | `src/endgame.ts` | 536 | 3 | Endgame |
 | 20 | `src/encounters.ts` | 519 | 2 | World / map |
-| 21 | `src/ui_barter.ts` | 486 | 2 | UI panels |
+| 21 | `src/uiBarter.ts` | 486 | 2 | UI panels |
 | 22 | `src/criticalEffects.ts` | 478 | 2 | Combat |
 | 23 | `src/ui.ts` | 469 | leave; already barrel | UI panels |
-| 24 | `src/ui_options.ts` | 438 | 2 | UI panels |
+| 24 | `src/uiOptions.ts` | 438 | 2 | UI panels |
 | 25 | `src/geometry.ts` | 411 | 2 | Math utilities |
 
 **Net result if all splits land:** roughly **62 new modules**, each well under
@@ -83,10 +83,10 @@ below for full detail.
    `Combat`'s thin shell.
 
 4. **UI files are mostly self-contained — the worst offenders are
-   `ui_character.ts` (2095 lines) and `ui_pipboy.ts` (736 lines).**
-   `ui_character.ts` interleaves the character-screen viewer and the
+   `uiCharacter.ts` (2095 lines) and `uiPipBoy.ts` (736 lines).**
+   `uiCharacter.ts` interleaves the character-screen viewer and the
    character creator (two distinct flows sharing nothing except styles and
-   shared widgets). `ui_pipboy.ts` has STATUS, AUTOMAPS, ARCHIVES tabs each
+   shared widgets). `uiPipBoy.ts` has STATUS, AUTOMAPS, ARCHIVES tabs each
    ~150 lines, plus a date/time bar and a "wait" menu — each tab is its own
    sub-module candidate.
 
@@ -114,7 +114,7 @@ below for full detail.
 8. **Several files are barrels masquerading as modules.** `ui.ts` (469 lines)
    is already mostly re-exports plus `uiInit`. It does **not** need splitting —
    it's actually the model the other UI splits should follow. Same goes for
-   the lighter-weight UI files (`ui_panels.ts`, `ui_drag.ts`, `ui_components.ts`).
+   the lighter-weight UI files (`uiPanels.ts`, `uiDrag.ts`, `uiComponents.ts`).
 
 ---
 
@@ -133,7 +133,7 @@ A subfolder layout is therefore part of this proposal, mirroring the
 | **Barrels stay at the old path.** | Existing import sites (`from './scripting.js'`, `from './object.js'`) keep working. No call-site updates as part of a split. |
 | **The barrel file is the public surface.** | If a downstream module imports a sub-file directly (`from './scripting/dialogue.js'`), that's a deliberate decision to depend on an internal — flag it in review. |
 | **Files that aren't split stay where they are.** | `src/heart.ts`, `src/config.ts`, `src/util.ts`, `src/aiPackets.ts`, etc. all keep their current path. No churn for files under 400 lines. |
-| **No nested subfolders inside a subfolder unless the file count justifies it.** | `src/ui_pipboy/tabs/` is the one exception (4 tab files share a common parent shell). Everything else is one level deep. |
+| **No nested subfolders inside a subfolder unless the file count justifies it.** | `src/uiPipBoy/tabs/` is the one exception (4 tab files share a common parent shell). Everything else is one level deep. |
 
 ### Target folder structure (after every split lands)
 
@@ -246,56 +246,56 @@ src/
 ├── soundMap.ts
 ├── tile.ts
 ├── transpiler.ts
-├── ui/                       ← split from ui_font.ts (font primitives)
+├── ui/                       ← split from uiFont.ts (font primitives)
 │   ├── fontCore.ts
 │   └── numberDials.ts
 ├── ui.ts                     ← unchanged barrel
-├── ui_automap.ts
-├── ui_barter/                ← split from ui_barter.ts
+├── uiAutomap.ts
+├── uiBarter/                ← split from uiBarter.ts
 │   ├── screen.ts
 │   └── swap.ts
-├── ui_barter.ts              ← barrel
-├── ui_calledshot.ts
-├── ui_character/             ← split from ui_character.ts
+├── uiBarter.ts              ← barrel
+├── uiCalledShot.ts
+├── uiCharacter/             ← split from uiCharacter.ts
 │   ├── creator.ts
 │   ├── descriptions.ts
 │   ├── perkModal.ts
 │   └── viewer.ts
-├── ui_character.ts           ← barrel
-├── ui_charactercreator.ts
-├── ui_components.ts
-├── ui_contextmenu.ts
-├── ui_dialogue.ts
-├── ui_drag.ts
-├── ui_elevator.ts
-├── ui_font.ts                ← thin barrel + default Font instances
-├── ui_hud.ts
-├── ui_inventory/             ← split from ui_inventory.ts
+├── uiCharacter.ts           ← barrel
+├── uiCharacterCreator.ts
+├── uiComponents.ts
+├── uiContextMenu.ts
+├── uiDialogue.ts
+├── uiDrag.ts
+├── uiElevator.ts
+├── uiFont.ts                ← thin barrel + default Font instances
+├── uiHud.ts
+├── uiInventory/             ← split from uiInventory.ts
 │   ├── dragdrop.ts
 │   └── panel.ts
-├── ui_inventory.ts           ← barrel
-├── ui_loot.ts
-├── ui_mainmenu.ts
-├── ui_options/               ← split from ui_options.ts
+├── uiInventory.ts           ← barrel
+├── uiLoot.ts
+├── uiMainMenu.ts
+├── uiOptions/               ← split from uiOptions.ts
 │   └── preferences.ts
-├── ui_options.ts             ← panel + barrel
-├── ui_panels.ts
-├── ui_pipboy/                ← split from ui_pipboy.ts
+├── uiOptions.ts             ← panel + barrel
+├── uiPanels.ts
+├── uiPipBoy/                ← split from uiPipBoy.ts
 │   ├── shell.ts
 │   └── tabs/                 ← only nested subfolder in the proposal
 │       ├── archives.ts
 │       ├── automaps.ts
 │       └── status.ts
-├── ui_pipboy.ts              ← barrel
-├── ui_saveload.ts
-├── ui_skilldex.ts
+├── uiPipBoy.ts              ← barrel
+├── uiSaveLoad.ts
+├── uiSkilldex.ts
 ├── ui_unarmed.ts
-├── ui_widget.ts
-├── ui_worldmap.ts
+├── uiWidget.ts
+├── uiWorldmap.ts
 ├── unarmed.ts
 ├── util.ts
 ├── vm.ts
-├── vm_bridge.ts
+├── vmBridge.ts
 ├── webglrenderer.ts          ← slim WebGLRenderer class + barrel
 ├── worldmap/                 ← split from worldmap.ts
 │   ├── encounters.ts
@@ -347,7 +347,7 @@ src/
   internal-access sites use the subfolder paths.
 - **Two-level depth in the tree.** Mitigated by the "no nested subfolders
   unless justified" rule. The only nested case is
-  `src/ui_pipboy/tabs/`, where it's natural (the three tabs share a
+  `src/uiPipBoy/tabs/`, where it's natural (the three tabs share a
   shell.ts parent).
 - **`git mv` history is messier than a flat layout.** Mitigated by
   splitting **exactly** along whole-block boundaries inside a single
@@ -364,13 +364,13 @@ Files that aren't being split keep their current top-level path. Specifically:
 `globalState.ts`, `heart.ts`, `idbcache.ts`, `images.ts`, `init.ts`,
 `intfile.ts`, `lighting.ts`, `logger.ts`, `party.ts`, `player.ts`,
 `pro.ts`, `questData.ts`, `questLog.ts`, `saveload.ts`, `skills.ts`,
-`soundMap.ts`, `tile.ts`, `transpiler.ts`, `ui_automap.ts`,
-`ui_calledshot.ts`, `ui_charactercreator.ts`, `ui_components.ts`,
-`ui_contextmenu.ts`, `ui_dialogue.ts`, `ui_drag.ts`, `ui_elevator.ts`,
-`ui_hud.ts`, `ui_loot.ts`, `ui_mainmenu.ts`, `ui_panels.ts`,
-`ui_saveload.ts`, `ui_skilldex.ts`, `ui_unarmed.ts`,
-`ui_widget.ts`, `ui_worldmap.ts`, `unarmed.ts`, `util.ts`, `vm.ts`,
-`vm_bridge.ts`. The `formats/` subfolder is pre-existing and untouched.
+`soundMap.ts`, `tile.ts`, `transpiler.ts`, `uiAutomap.ts`,
+`uiCalledShot.ts`, `uiCharacterCreator.ts`, `uiComponents.ts`,
+`uiContextMenu.ts`, `uiDialogue.ts`, `uiDrag.ts`, `uiElevator.ts`,
+`uiHud.ts`, `uiLoot.ts`, `uiMainMenu.ts`, `uiPanels.ts`,
+`uiSaveLoad.ts`, `uiSkilldex.ts`, `ui_unarmed.ts`,
+`uiWidget.ts`, `uiWorldmap.ts`, `unarmed.ts`, `util.ts`, `vm.ts`,
+`vmBridge.ts`. The `formats/` subfolder is pre-existing and untouched.
 
 ### Migration impact at every phase checkpoint
 
@@ -504,7 +504,7 @@ in a follow-up).
 
 ---
 
-### 3. `src/ui_character.ts` — 2095 lines → 4 modules
+### 3. `src/uiCharacter.ts` — 2095 lines → 4 modules
 
 **Current responsibilities:**
 
@@ -516,16 +516,16 @@ in a follow-up).
 | `showCharacterCreator` — character creation flow (name/age/sex, SPECIAL point-buy, traits, tag skills) | 1002–1870 |
 | `showPerkModal` — perk-selection modal triggered on level-up | 1875–2095 |
 
-**Proposed split (all under `src/ui_character/`):**
+**Proposed split (all under `src/uiCharacter/`):**
 
 | New file | Owns | Exports |
 |----------|------|---------|
-| `src/ui_character/descriptions.ts` | All description / image / karma-title lookup tables. Pure data. | Named constants. |
-| `src/ui_character/viewer.ts` | `showCharacterScreen` and helpers it uniquely needs (the in-game character screen viewer). | `showCharacterScreen`, `closeCharacterScreen`, `getCharacterWindow`. |
-| `src/ui_character/creator.ts` | `showCharacterCreator` and creation-flow helpers (name/age/sex panels, trait picker, tag skill picker, point-buy). | `showCharacterCreator`. |
-| `src/ui_character/perkModal.ts` | `showPerkModal` and its filtering / requirement-check helpers. | `showPerkModal`. |
+| `src/uiCharacter/descriptions.ts` | All description / image / karma-title lookup tables. Pure data. | Named constants. |
+| `src/uiCharacter/viewer.ts` | `showCharacterScreen` and helpers it uniquely needs (the in-game character screen viewer). | `showCharacterScreen`, `closeCharacterScreen`, `getCharacterWindow`. |
+| `src/uiCharacter/creator.ts` | `showCharacterCreator` and creation-flow helpers (name/age/sex panels, trait picker, tag skill picker, point-buy). | `showCharacterCreator`. |
+| `src/uiCharacter/perkModal.ts` | `showPerkModal` and its filtering / requirement-check helpers. | `showPerkModal`. |
 
-`src/ui_character.ts` becomes a barrel.
+`src/uiCharacter.ts` becomes a barrel.
 
 **Sizes after split (estimate):**
 `descriptions.ts` ≈ 230; `viewer.ts` ≈ 720 (still over but mostly DOM layout);
@@ -714,7 +714,7 @@ side-effect import — that path keeps working through the barrel.
 
 ---
 
-### 8. `src/ui_inventory.ts` — 780 lines → 2 modules
+### 8. `src/uiInventory.ts` — 780 lines → 2 modules
 
 **Current responsibilities:**
 
@@ -731,10 +731,10 @@ side-effect import — that path keeps working through the barrel.
 
 | New file | Owns | Exports |
 |----------|------|---------|
-| `src/ui_inventory/dragdrop.ts` | DOM/drag helpers + `uiMoveSlot` + `tryLoadAmmoIntoWeapon` + `applyArmorArt`. Inventory transfer mechanics. | `makeDropTarget`, `makeDraggable`, `uiMoveSlot`, `applyArmorArt`. |
-| `src/ui_inventory/panel.ts` | `closeInventory`, `initInventory`, `showInventory`. The panel itself. | `closeInventory`, `initInventory`, `showInventory`. |
+| `src/uiInventory/dragdrop.ts` | DOM/drag helpers + `uiMoveSlot` + `tryLoadAmmoIntoWeapon` + `applyArmorArt`. Inventory transfer mechanics. | `makeDropTarget`, `makeDraggable`, `uiMoveSlot`, `applyArmorArt`. |
+| `src/uiInventory/panel.ts` | `closeInventory`, `initInventory`, `showInventory`. The panel itself. | `closeInventory`, `initInventory`, `showInventory`. |
 
-`src/ui_inventory.ts` becomes a barrel.
+`src/uiInventory.ts` becomes a barrel.
 
 **Sizes after split (estimate):** `dragdrop.ts` ≈ 300; `panel.ts` ≈ 480.
 
@@ -843,7 +843,7 @@ it as a known intentional outlier.
 
 ---
 
-### 12. `src/ui_pipboy.ts` — 736 lines → 4 modules
+### 12. `src/uiPipBoy.ts` — 736 lines → 4 modules
 
 **Current responsibilities:**
 
@@ -858,16 +858,16 @@ it as a known intentional outlier.
 | ARCHIVES tab (`renderArchivesTab`) | 548–617 |
 | Tab dispatch + public open/close/toggle (`renderTab`, `openPipBoy`, `closePipBoy`, `togglePipBoy`, `isPipBoyOpen`) | 618–736 |
 
-**Proposed split (all under `src/ui_pipboy/`):**
+**Proposed split (all under `src/uiPipBoy/`):**
 
 | New file | Owns | Exports |
 |----------|------|---------|
-| `src/ui_pipboy/shell.ts` | Constants, tab dispatcher, public open/close/toggle, date/time bar, wait menu, shared widget helpers. | `openPipBoy`, `closePipBoy`, `togglePipBoy`, `isPipBoyOpen`. |
-| `src/ui_pipboy/tabs/status.ts` | `renderStatusTab`. | `renderStatusTab`. |
-| `src/ui_pipboy/tabs/automaps.ts` | AUTOMAPS tab (`renderAutomapsTab` + automap canvas helpers). | `renderAutomapsTab`. |
-| `src/ui_pipboy/tabs/archives.ts` | `renderArchivesTab`. | `renderArchivesTab`. |
+| `src/uiPipBoy/shell.ts` | Constants, tab dispatcher, public open/close/toggle, date/time bar, wait menu, shared widget helpers. | `openPipBoy`, `closePipBoy`, `togglePipBoy`, `isPipBoyOpen`. |
+| `src/uiPipBoy/tabs/status.ts` | `renderStatusTab`. | `renderStatusTab`. |
+| `src/uiPipBoy/tabs/automaps.ts` | AUTOMAPS tab (`renderAutomapsTab` + automap canvas helpers). | `renderAutomapsTab`. |
+| `src/uiPipBoy/tabs/archives.ts` | `renderArchivesTab`. | `renderArchivesTab`. |
 
-`src/ui_pipboy.ts` becomes a barrel re-exporting `openPipBoy`, `closePipBoy`,
+`src/uiPipBoy.ts` becomes a barrel re-exporting `openPipBoy`, `closePipBoy`,
 `togglePipBoy`, `isPipBoyOpen`.
 
 **Sizes after split (estimate):** `shell.ts` ≈ 280; `status.ts` ≈ 60;
@@ -1003,7 +1003,7 @@ game-state imports beyond `globalState` and `geometry`.
 
 ---
 
-### 17. `src/ui_font.ts` — 543 lines → 2 modules
+### 17. `src/uiFont.ts` — 543 lines → 2 modules
 
 **Current responsibilities:**
 
@@ -1022,11 +1022,11 @@ game-state imports beyond `globalState` and `geometry`.
 | `src/ui/fontCore.ts` | `SymbolInfo`, `SymbolInfoMap`, `FontRenderer`, `FontWidget`, `makeFontLabel`, `renderBitmapText`, `parseHexColor`, glyph-height cache. | Core font classes + the bitmap renderer. |
 | `src/ui/numberDials.ts` | `setNumberDial`, `renderBignum`, the sprite-dimension constants. | Number-dial helpers (used by HUD HP/AC/AP and Pip-Boy clock). |
 
-`src/ui_font.ts` keeps the default-font instantiations (`font1`–`font4`) and
+`src/uiFont.ts` keeps the default-font instantiations (`font1`–`font4`) and
 becomes a barrel.
 
 **Sizes after split (estimate):** `fontCore.ts` ≈ 410 (just over);
-`numberDials.ts` ≈ 100; `ui_font.ts` ≈ 30.
+`numberDials.ts` ≈ 100; `uiFont.ts` ≈ 30.
 
 **Circular-dependency risks:** none.
 
@@ -1049,7 +1049,7 @@ becomes a barrel.
 | New file | Owns | Exports |
 |----------|------|---------|
 | `src/automap/storage.ts` | IndexedDB layer + the legacy localStorage migration: `openDB`, `idbGetAll`, `idbPutBatch`, `loadFromLocalStorage`, `scheduleSave`, `flushPendingWrites`, `flushAutomapSave`, constants. | Storage primitives. |
-| `src/automap/tracking.ts` | Map state: `seenData`, `objectSnapshots`, `dirtyTiles`/`dirtyObjects`, plus the query/mutation API (`snapshotCurrentMapObjects`, `getObjectSnapshot`, `getArchivedMaps`, `getSeenTiles`, `markSeenAt`, `initAutomapTracking`). | Public state API used by `ui_pipboy.ts` and `automapData.ts`. |
+| `src/automap/tracking.ts` | Map state: `seenData`, `objectSnapshots`, `dirtyTiles`/`dirtyObjects`, plus the query/mutation API (`snapshotCurrentMapObjects`, `getObjectSnapshot`, `getArchivedMaps`, `getSeenTiles`, `markSeenAt`, `initAutomapTracking`). | Public state API used by `uiPipBoy.ts` and `automapData.ts`. |
 | `src/automap/render.ts` | `renderAutomapCanvas`, `drawAutomapInto`, `RenderOptions`. | Canvas renderer. |
 
 `src/automapData.ts` becomes a barrel that re-exports the public surface
@@ -1119,7 +1119,7 @@ for `player(level)` / `time_of_day` — no cycle.
 
 ---
 
-### 21. `src/ui_barter.ts` — 486 lines → 2 modules
+### 21. `src/uiBarter.ts` — 486 lines → 2 modules
 
 **Current responsibilities:**
 
@@ -1134,10 +1134,10 @@ for `player(level)` / `time_of_day` — no cycle.
 
 | New file | Owns | Exports |
 |----------|------|---------|
-| `src/ui_barter/swap.ts` | `_uiAddItem`, `uiSwapItem`, `uiGetAmount`, DOM helpers. The cross-list transfer primitives shared with `ui_loot.ts`. | `uiSwapItem`, `uiGetAmount`. |
-| `src/ui_barter/screen.ts` | `uiBarterMode`, `uiEndBarterMode`. The barter screen itself. | `uiBarterMode`. |
+| `src/uiBarter/swap.ts` | `_uiAddItem`, `uiSwapItem`, `uiGetAmount`, DOM helpers. The cross-list transfer primitives shared with `uiLoot.ts`. | `uiSwapItem`, `uiGetAmount`. |
+| `src/uiBarter/screen.ts` | `uiBarterMode`, `uiEndBarterMode`. The barter screen itself. | `uiBarterMode`. |
 
-`src/ui_barter.ts` becomes a barrel.
+`src/uiBarter.ts` becomes a barrel.
 
 **Sizes after split (estimate):** `swap.ts` ≈ 240; `screen.ts` ≈ 250.
 
@@ -1189,7 +1189,7 @@ lines but its real code shrinks; that's the intended outcome.
 
 ---
 
-### 24. `src/ui_options.ts` — 438 lines → 2 modules
+### 24. `src/uiOptions.ts` — 438 lines → 2 modules
 
 **Current responsibilities:**
 
@@ -1207,11 +1207,11 @@ lines but its real code shrinks; that's the intended outcome.
 
 | New file | Owns | Exports |
 |----------|------|---------|
-| `src/ui_options/preferences.ts` | `SavedPreferences`, `PREFS_KEY`, `loadPreferences`, `savePreferences`, `getVolumeValue`. The Config/localStorage layer with no DOM. | Pref I/O. |
-| `src/ui_options.ts` | `buildPrefsPanel`, `openPrefsPanel`, `closePrefsPanel`, `initOptionsMenu`, `showOptionsMenu`, `closeOptionsMenu`, `getOptionsWindow`. The DOM-bearing panel. | Public surface. |
+| `src/uiOptions/preferences.ts` | `SavedPreferences`, `PREFS_KEY`, `loadPreferences`, `savePreferences`, `getVolumeValue`. The Config/localStorage layer with no DOM. | Pref I/O. |
+| `src/uiOptions.ts` | `buildPrefsPanel`, `openPrefsPanel`, `closePrefsPanel`, `initOptionsMenu`, `showOptionsMenu`, `closeOptionsMenu`, `getOptionsWindow`. The DOM-bearing panel. | Public surface. |
 
 **Sizes after split (estimate):** `preferences.ts` ≈ 70;
-`ui_options.ts` (after carve) ≈ 370.
+`uiOptions.ts` (after carve) ≈ 370.
 
 **Circular-dependency risks (low):** none — `preferences.ts` only touches
 `Config` and `globalState`.
@@ -1261,7 +1261,7 @@ These can land in any order, and almost certainly without test failures.
 3. **`src/criticalEffects.ts`** → `criticalEffects/effects.ts` + `criticalEffects/table.ts`
    (already inside a `module CriticalEffects` namespace; sibling files
    augment naturally).
-4. **`src/ui_font.ts`** → `ui/fontCore.ts` + `ui/numberDials.ts` + barrel.
+4. **`src/uiFont.ts`** → `ui/fontCore.ts` + `ui/numberDials.ts` + barrel.
 5. **`src/automapData.ts`** → `automap/storage.ts` + `automap/tracking.ts` + `automap/render.ts` + barrel.
 6. **`src/lightmap.ts`** → `lightmap/lightTable.ts` carve-out.
 
@@ -1272,11 +1272,11 @@ These can land in any order, and almost certainly without test failures.
 
 **Phase 3 — UI panels (independent of objects/combat changes).**
 
-9.  **`src/ui_options.ts`** → `ui_options/preferences.ts` carve-out.
-10. **`src/ui_barter.ts`** → `ui_barter/swap.ts` + `ui_barter/screen.ts`.
-11. **`src/ui_inventory.ts`** → `ui_inventory/dragdrop.ts` + `ui_inventory/panel.ts`.
-12. **`src/ui_pipboy.ts`** → `ui_pipboy/shell.ts` + 3 per-tab files.
-13. **`src/ui_character.ts`** → `ui_character/{descriptions,viewer,creator,perkModal}.ts`.
+9.  **`src/uiOptions.ts`** → `uiOptions/preferences.ts` carve-out.
+10. **`src/uiBarter.ts`** → `uiBarter/swap.ts` + `uiBarter/screen.ts`.
+11. **`src/uiInventory.ts`** → `uiInventory/dragdrop.ts` + `uiInventory/panel.ts`.
+12. **`src/uiPipBoy.ts`** → `uiPipBoy/shell.ts` + 3 per-tab files.
+13. **`src/uiCharacter.ts`** → `uiCharacter/{descriptions,viewer,creator,perkModal}.ts`.
 
 **Phase 4 — world / map / encounter triplet (somewhat coupled).**
 
@@ -1346,18 +1346,18 @@ independently.
   decomposition with re-exports.
 - **Does not rename anything publicly exported.** The visible names that other
   files import stay unchanged.
-- **Does not touch `formats/`, `vm.ts`, `vm_bridge.ts`, `player.ts`,
+- **Does not touch `formats/`, `vm.ts`, `vmBridge.ts`, `player.ts`,
   `char.ts`, `skills.ts`, `aiPackets.ts`, `gametime.ts`, `audio.ts`,
   `data.ts`, `pro.ts`, `tile.ts`, `lighting.ts`, `globalState.ts`,
   `config.ts`, `events.ts`, `logger.ts`, `util.ts`, `images.ts`,
   `saveload.ts`, `idbcache.ts`, `debug.ts`, `intfile.ts`, `transpiler.ts`,
   `questData.ts`, `questLog.ts`, `drugs.ts`, `eventlog.types.ts`,
-  `unarmed.ts`, `soundMap.ts`, `heart.ts`, `init.ts`, `ui_hud.ts`,
-  `ui_dialogue.ts`, `ui_panels.ts`, `ui_widget.ts`, `ui_components.ts`,
-  `ui_drag.ts`, `ui_calledshot.ts`, `ui_contextmenu.ts`, `ui_elevator.ts`,
-  `ui_loot.ts`, `ui_mainmenu.ts`, `ui_saveload.ts`, `ui_skilldex.ts`,
-  `ui_timer.ts`, `ui_unarmed.ts`, `ui_charactercreator.ts`,
-  `ui_worldmap.ts`, `ui_automap.ts`, `party.ts`** — all already at or
+  `unarmed.ts`, `soundMap.ts`, `heart.ts`, `init.ts`, `uiHud.ts`,
+  `uiDialogue.ts`, `uiPanels.ts`, `uiWidget.ts`, `uiComponents.ts`,
+  `uiDrag.ts`, `uiCalledShot.ts`, `uiContextMenu.ts`, `uiElevator.ts`,
+  `uiLoot.ts`, `uiMainMenu.ts`, `uiSaveLoad.ts`, `uiSkilldex.ts`,
+  `ui_timer.ts`, `ui_unarmed.ts`, `uiCharacterCreator.ts`,
+  `uiWorldmap.ts`, `uiAutomap.ts`, `party.ts`** — all already at or
   below ~400 lines.
 - **Does not collapse the `Scripting` / `Worldmap` / `Encounters` /
   `Lightmap` / `CriticalEffects` namespaces.** Each retains its existing
@@ -1490,7 +1490,7 @@ clarity and the change has to be advertised.
 
 ---
 
-### Alt-B. Lift shared DOM helpers into `src/ui_dom.ts` (no rule change needed)
+### Alt-B. Lift shared DOM helpers into `src/uiDom.ts` (no rule change needed)
 
 The current UI files each redefine the same DOM micro-helpers. Audit of
 `function $id(`, `clearEl`, `showv`, `hidev`, `show`, `hide`, `off`,
@@ -1499,26 +1499,26 @@ The current UI files each redefine the same DOM micro-helpers. Audit of
 | File | Duplicated helpers |
 |------|-------------------:|
 | `ui.ts` | 9 |
-| `ui_worldmap.ts` | 8 |
-| `ui_hud.ts` | 8 |
-| `ui_loot.ts` | 6 |
-| `ui_inventory.ts` | 5 |
-| `ui_calledshot.ts` | 5 |
-| `ui_elevator.ts` | 4 |
-| `ui_barter.ts` | 4 |
-| `ui_contextmenu.ts` | 3 |
-| `ui_dialogue.ts` | 1 |
+| `uiWorldmap.ts` | 8 |
+| `uiHud.ts` | 8 |
+| `uiLoot.ts` | 6 |
+| `uiInventory.ts` | 5 |
+| `uiCalledShot.ts` | 5 |
+| `uiElevator.ts` | 4 |
+| `uiBarter.ts` | 4 |
+| `uiContextMenu.ts` | 3 |
+| `uiDialogue.ts` | 1 |
 | `ui_unarmed.ts` | 1 |
 
 Roughly **54 duplicated helper bodies** across 11 files. Many bodies are
 identical one-liners (`function $id(id: string): HTMLElement { return
 document.getElementById(id)! }`). Some have subtle drift (e.g. `showv`
-in `ui.ts` clears `visibility` while in `ui_loot.ts` it clears both
+in `ui.ts` clears `visibility` while in `uiLoot.ts` it clears both
 `visibility` and `display`).
 
 #### Proposed file
 
-`src/ui_dom.ts` — a single ~100-line module exporting:
+`src/uiDom.ts` — a single ~100-line module exporting:
 
 | Export | Body |
 |--------|------|
@@ -1533,14 +1533,14 @@ in `ui.ts` clears `visibility` while in `ui_loot.ts` it clears both
 | `hidev(el)` | `el.style.visibility = 'hidden'` |
 | `off(el, events)` | jQuery-style multi-event detach (already identical across files) |
 | `appendHTML(el, html)` | `el.insertAdjacentHTML('beforeend', html)` |
-| `makeEl(tag, opts)` | The shared element-factory currently duplicated across `ui.ts`, `ui_inventory.ts`, `ui_barter.ts`, `ui_loot.ts` |
+| `makeEl(tag, opts)` | The shared element-factory currently duplicated across `ui.ts`, `uiInventory.ts`, `uiBarter.ts`, `uiLoot.ts` |
 
 #### Reconciliation of drifted variants
 
 Before consolidating, pick one canonical body for each helper. The two
 known drift cases are:
 
-- **`showv`/`hidev`**: `ui_loot.ts` and `ui_barter.ts` reset both
+- **`showv`/`hidev`**: `uiLoot.ts` and `uiBarter.ts` reset both
   `display` and `visibility`; `ui.ts` and the rest only touch `visibility`.
   Recommend: `showv` / `hidev` touch `visibility` only; callers that
   want both behaviours use `show`/`hide` which touch `display`. This
@@ -1548,7 +1548,7 @@ known drift cases are:
   hint at it (`v` = visibility).
 - **`makeEl`**: at least four variants exist with slightly different
   option shapes (`classes` vs `className`, `attrs` vs `attributes`).
-  Pick the `ui_inventory.ts` shape (`{ classes, attrs, style, text }`)
+  Pick the `uiInventory.ts` shape (`{ classes, attrs, style, text }`)
   since it has the most callers, and migrate the rest.
 
 #### Trade-offs
@@ -1584,7 +1584,7 @@ carrying duplicates into the new subfolder structure.
 | Alt | Scope | Rule change required? | Recommendation |
 |-----|-------|-----------------------|----------------|
 | **A. Opcode-category split** | `scripting/Script.ts` (~1700 → ~120) + 17 category files | Yes — `CLAUDE.md` "Conventions" line | Defer to a follow-up; needs explicit rule-change discussion |
-| **B. Shared DOM helpers in `ui_dom.ts`** | 11 UI files lose ~120 lines of duplication | No | Do it; ideally before Phase 3 of the mainline refactor |
+| **B. Shared DOM helpers in `uiDom.ts`** | 11 UI files lose ~120 lines of duplication | No | Do it; ideally before Phase 3 of the mainline refactor |
 
 ---
 
@@ -1607,10 +1607,10 @@ intermediate state instead of the pre-refactor monolith.
 | # | Phase | What lands | Why this order |
 |---|-------|------------|----------------|
 | 0 | **CLAUDE.md rule change** | Rewrite "Conventions" → opcodes live in `src/scripting/opcodes/<category>.ts` on `Script.prototype`. Add subfolder convention. | Must come **first** so contributors are aware before the structure changes. One small commit. |
-| 1 | Leaf-level splits (unchanged) | `geometry`, `perks`, `criticalEffects`, `ui_font`, `automapData`, `lightmap` | Zero-risk; ships the subfolder convention introduced in Phase 0 on safe files. |
-| **1.5** | **Alt-B: `src/ui_dom.ts` consolidation** | Create `ui_dom.ts` with canonical `$id`/`clearEl`/`showv`/`hidev`/`makeEl`/`off`/`$img`/`$q`/`$qa`/`appendHTML`. Migrate 11 UI files to import from it. | Before Phase 3 so UI splits inherit deduplicated baseline. Files that don't get split (`ui_hud`, `ui_loot`, etc.) still benefit. One commit per file or one bulk commit — reviewer's call. |
+| 1 | Leaf-level splits (unchanged) | `geometry`, `perks`, `criticalEffects`, `uiFont`, `automapData`, `lightmap` | Zero-risk; ships the subfolder convention introduced in Phase 0 on safe files. |
+| **1.5** | **Alt-B: `src/uiDom.ts` consolidation** | Create `uiDom.ts` with canonical `$id`/`clearEl`/`showv`/`hidev`/`makeEl`/`off`/`$img`/`$q`/`$qa`/`appendHTML`. Migrate 11 UI files to import from it. | Before Phase 3 so UI splits inherit deduplicated baseline. Files that don't get split (`uiHud`, `uiLoot`, etc.) still benefit. One commit per file or one bulk commit — reviewer's call. |
 | 2 | Render (unchanged) | `renderer`, `webglrenderer` | No UI dependency on Phase 1.5. Could run in parallel with Phase 1.5 in practice. |
-| 3 | UI panels (unchanged) | `ui_options`, `ui_barter`, `ui_inventory`, `ui_pipboy`, `ui_character` | Each panel's split now starts from the deduplicated baseline. |
+| 3 | UI panels (unchanged) | `uiOptions`, `uiBarter`, `uiInventory`, `uiPipBoy`, `uiCharacter` | Each panel's split now starts from the deduplicated baseline. |
 | 4 | World/map (unchanged) | `encounters`, `worldmap`, `map`, `endgame` | Independent of UI changes. |
 | 5 | Objects/critter/combat (unchanged) | `object`, `critter`, `combat` | High-risk cluster lands together as planned. |
 | **6a** | **Scripting mainline split** | `scripting/{Script,runtime,dialogue,perception,lifecycle,animBatch}.ts` per the original Phase 6 proposal. `Script.ts` still ~1700 lines (carries every opcode). | Validates the barrel pattern on the most-imported file in the engine before Alt-A piles on. |
@@ -1677,6 +1677,6 @@ intermediate state instead of the pre-refactor monolith.
 After execution every newly created file is ≤ 400 lines except:
 `scripting/Script.ts` (~ 1700, mandated by CLAUDE.md), `object/critterAnimation.ts`
 (~ 480, follow-up candidate), `combat/Combat.ts` (~ 950, follow-up candidate),
-`playerUse.ts` (~ 810, follow-up candidate), `ui_character/creator.ts` (~ 870,
+`playerUse.ts` (~ 810, follow-up candidate), `uiCharacter/creator.ts` (~ 870,
 follow-up candidate), and the `perks/perks.data.ts` data table (~ 660,
 intentional). Five files remain above 400; everything else fits.

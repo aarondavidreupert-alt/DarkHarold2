@@ -705,7 +705,7 @@ html, body {
 }
 
 /* one item in the inventory, loot, steal, barter and companion-trade lists
-   (ui_dom.ts appendItemSlot): icon and stack count centred, the count 2px below */
+   (uiDom.ts appendItemSlot): icon and stack count centred, the count 2px below */
 .invItemSlot {
   text-align: center;
 }
@@ -1103,7 +1103,7 @@ html, body {
 /* Persistent dialogue-window action buttons — CE ref: game_dialog.cc:4357-4388
    _gdialog_window_create. Barter (593,41) exists on every dialogue; Combat
    Control (593,116) only when talking to a party member (toggled in
-   uiStartDialogue, ui_dialogue.ts). Both 14x14, same di_rdbt2/di_rdbt1
+   uiStartDialogue, uiDialogue.ts). Both 14x14, same di_rdbt2/di_rdbt1
    up/down convention as the companion control screen's action buttons. */
 #dialogueBarterButton,
 #dialogueCombatControlButton {

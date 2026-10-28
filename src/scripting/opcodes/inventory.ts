@@ -1,6 +1,6 @@
 // Script opcodes: items, caps and inventories: adding, removing, wielding, picking up and dropping (CE op_add_obj_to_inven, op_critter_inven_obj, ...).
 // Methods of the Script class (scripting.ts), kept here by topic and installed on its prototype
-// there; vm_bridge.ts and the Lua prelude call them as before (wiki/code_quality.md Q16).
+// there; vmBridge.ts and the Lua prelude call them as before (wiki/code_quality.md Q16).
 
 import type { Script } from '../../scripting.js'
 import { Critter, Obj, giveNewUid } from '../../object.js'

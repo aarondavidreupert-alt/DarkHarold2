@@ -18,7 +18,7 @@ limitations under the License.
 // critter.cc gcdLoad (the .gcd character file: critter proto data, name, tagged
 // skills, traits, unspent character points; big-endian like every FO2 file).
 
-import { SKILLS, STATS, TRAITS_BY_ID } from './ui_character.js'
+import { SKILLS, STATS, TRAITS_BY_ID } from './uiCharacter.js'
 import { getFileBinarySync, getFileText } from './util.js'
 
 // CE character_selector.cc:97 — file stem and face FRM (intrface.lst index).

@@ -9,7 +9,7 @@
 import type { Critter, Obj } from './object.js'
 import { refreshStealthState } from './miscItem.js'
 import { armorPerkSwap } from './perks/cePerks.js'
-import { applyArmorArt } from './ui_inventory/dragdrop.js'
+import { applyArmorArt } from './uiInventory/dragdrop.js'
 import { drawAC, uiDrawWeapon } from './hudRefresh.js'
 import { updateHandFlareLight } from './object.js'
 import { ANIM, critterWeaponCode, playCharAnimSfx } from './sfxNames.js'

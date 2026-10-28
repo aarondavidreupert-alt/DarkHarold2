@@ -8,7 +8,7 @@ each one into a readable Lua file that the DarkHarold2 Lua script backend
 (src/lua/) runs in place of the bytecode VM (src/vm.ts). The output keeps the
 script's own variable and procedure names (they are stored in the .int
 identifier table) and calls the same intrinsics as the VM bridge
-(src/vm_bridge.ts), under their SSL names.
+(src/vmBridge.ts), under their SSL names.
 
 Bytecode layout and opcode semantics follow fallout2-ce:
   interpreter.cc  programCreateByName / opPushBase / opIf / opWhile / opCall /
@@ -41,7 +41,7 @@ import sys
 
 # ---------------------------------------------------------------------------
 # Intrinsic table: opcode -> (ssl name, argc, pushes a result)
-# Mirrors src/vm_bridge.ts bridgeOpMap (`--check-bridge` verifies it).
+# Mirrors src/vmBridge.ts bridgeOpMap (`--check-bridge` verifies it).
 # ---------------------------------------------------------------------------
 
 INTRINSICS = {
@@ -1596,7 +1596,7 @@ class ProcDecompiler:
         """sslc compiles `x += 1` on an imported variable as `push_int <identifier
         offset>; fetch_external`: CE opFetchExternalVariable /
         opStoreExternalVariable read the name as programGetIdentifier(
-        value.integerValue) whatever the value's type (src/vm_bridge.ts varName
+        value.integerValue) whatever the value's type (src/vmBridge.ts varName
         does the same). A constant that is not an identifier offset stays an
         error."""
         if isinstance(n, Const) and not n.is_float and n.value in self.f.identifiers:
@@ -2094,7 +2094,7 @@ def write_report(path, rows):
 
 
 def check_bridge(bridge_path):
-    """Compare INTRINSICS against src/vm_bridge.ts; returns a list of differences."""
+    """Compare INTRINSICS against src/vmBridge.ts; returns a list of differences."""
     import re
     lines = open(bridge_path, encoding="utf-8").read().splitlines()
     src = "\n".join(l for l in lines if not l.strip().startswith("//"))
@@ -2103,7 +2103,7 @@ def check_bridge(bridge_path):
         op = int(m.group(1), 16)
         want = (m.group(2), int(m.group(3)), m.group(4) != "false")
         if INTRINSICS.get(op) != want:
-            diffs.append("0x%04X: table %r, vm_bridge.ts %r" % (op, INTRINSICS.get(op), want))
+            diffs.append("0x%04X: table %r, vmBridge.ts %r" % (op, INTRINSICS.get(op), want))
     return diffs
 
 
@@ -2113,7 +2113,7 @@ def main(argv=None):
     ap.add_argument("-o", "--out", help="output directory (default: print to stdout)")
     ap.add_argument("--report", metavar="TSV", help="write the variable list (names and their sources) to TSV")
     ap.add_argument("--check-bridge", metavar="VM_BRIDGE_TS",
-                    help="verify the intrinsic table against src/vm_bridge.ts and exit")
+                    help="verify the intrinsic table against src/vmBridge.ts and exit")
     args = ap.parse_args(argv)
 
     if args.check_bridge:

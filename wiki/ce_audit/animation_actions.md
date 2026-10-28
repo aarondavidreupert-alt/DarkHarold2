@@ -81,10 +81,10 @@ Top findings:
 | `_action_ranged` (:692) | `attack` / `resolveAttack` / `flyProjectile` / `takeThrownItem` Combat.ts | ✅ FIXED (ACT-05) | MED | Projectile only on hit or a non-critical miss ✓. Origin hex, 32-px nodes, ammo-flying ✓. Thrown item removed/replaced ✓, flare lit ✓. Missing: **ANIM_POINT before / ANIM_UNPOINT after** (ACT-05). The explosion is one `misc 14` sprite at the centre; CE uses frm 29 (grenade) / 31 (plasma) / 2 (EMP) / 10 (rocket) at the centre plus the six adjacent hexes (NE delayed 2/4). No ANIM_TAKE_OUT of the replacement weapon after a throw. A ranged miss plays `cmbtflx`, where CE plays the weapon's HIT sfx (material 'X'/'F'). Defender taunt hit/miss ✓. |
 | `_is_next_to` (:988) | inline `hexDistance <= 1` checks (useItemOn.ts:91, playerUse.ts:203) | ✅ FIXED (2026-10-26) | LOW | The failure text is hard-coded "Can't reach that." instead of misc.msg 2000 ("You cannot get there."). — **2026-10-26:** misc.msg 2000 "You cannot get there.". |
 | `_action_climb_ladder` (:1006) | `Obj.use` isLadder branch src/object/Obj.ts:1236 | ✅ FIXED (ACT-07) | MED | ACT-07. |
-| `_action_use_an_item_on_object` (:1063) | `usePendingItemOn` src/useItemOn.ts:67; ui_contextmenu.ts:103 `use` | ✅ FIXED (ACT-02) | MED | Walk to an adjacent hex ✓. Item-on-object in combat walks with move AP and costs 2 AP (itemGetActionPointCost) ✓. Missing: the run rule (≥ 5 hexes out of combat → run; DH2 uses `doAlwaysRun`). Missing: weapon PUT_AWAY / TAKE_OUT around the use, MAGIC_HANDS_GROUND (prone critter or scenery ext flag 0x01) vs MIDDLE before `_obj_use` (DH2 plays `al` concurrently, Obj.ts:1214), and the 3-AP scenery cost for a plain use (ACT-02). |
+| `_action_use_an_item_on_object` (:1063) | `usePendingItemOn` src/useItemOn.ts:67; uiContextMenu.ts:103 `use` | ✅ FIXED (ACT-02) | MED | Walk to an adjacent hex ✓. Item-on-object in combat walks with move AP and costs 2 AP (itemGetActionPointCost) ✓. Missing: the run rule (≥ 5 hexes out of combat → run; DH2 uses `doAlwaysRun`). Missing: weapon PUT_AWAY / TAKE_OUT around the use, MAGIC_HANDS_GROUND (prone critter or scenery ext flag 0x01) vs MIDDLE before `_obj_use` (DH2 plays `al` concurrently, Obj.ts:1214), and the 3-AP scenery cost for a plain use (ACT-02). |
 | `_action_use_an_object` (:1151) | `playerUse` callback → `obj.use` playerUse.ts:417 | ✅ FIXED (ACT-02) | HIGH | No AP gating in combat (ACT-02). Animation as above. |
 | `actionPickUp` (:1157) | `Obj.pickup` Obj.ts:1348 | ✅ FIXED (ACT-06) | MED | ACT-06. Also: the pickup sfx is `ipickup1` (CE: `artCopyFileName(item fid)` on the action frame); no AP in combat; the container branch (open via `_obj_use_container` + `scriptsRequestLooting`) goes through `use` instead. |
-| `_action_loot_container` (:1257) | `uiLootWalk` ui_contextmenu.ts:164; playerUse.ts:410 | ✅ FIXED (ACT-02) | MED | Walk then loot ✓, NO_STEAL ✓ (context menu only; the plain left-click on a corpse at playerUse.ts:410 skips it). No AP / 3-AP cost in combat (ACT-02). Run threshold differs (walkInFrontOf: distance to the stop hex > 5, CE: ≥ 5 to the target). |
+| `_action_loot_container` (:1257) | `uiLootWalk` uiContextMenu.ts:164; playerUse.ts:410 | ✅ FIXED (ACT-02) | MED | Walk then loot ✓, NO_STEAL ✓ (context menu only; the plain left-click on a corpse at playerUse.ts:410 skips it). No AP / 3-AP cost in combat (ACT-02). Run threshold differs (walkInFrontOf: distance to the stop hex > 5, CE: ≥ 5 to the target). |
 | `_action_skill_use` (:1295) | `skillUse` Sneak branch src/skillUse.ts:344 | ✅ | — | dudeToggleState(SNEAKING). |
 | `_action_use_skill_in_combat_error` (:1309) | playerUse.ts:192 | ✅ | — | proto.msg 902. |
 | `actionUseSkill` (:1325) | `playerUse` useSkill branch playerUse.ts:178, `skillPerformer` :76 | ✅ FIXED (2026-10-26) | LOW | Non-combat skills ✓. Performer choice and party lines (skill.msg 1000/1100) ✓, Steal by the dude only ✓. Missing: the target-type gates (First Aid/Doctor → critters; Lockpick → items/scenery; Steal → item/critter, not self; Traps → not critters; Science/Repair → only robots, Repair also brahmin, before any walk). DH2 walks first and then lets `skillUse` print a message. Missing: the MAGIC_HANDS anim before `_obj_use_skill_on`. The run rule for the dude uses `doAlwaysRun`, where CE runs at ≥ 5 hexes. — **2026-10-26:** the target-type gates before any walk (skillTargetAllowed), the magic-hands anim (ground on a prone critter) before the skill, run at ≥ 5 hexes for the dude too. |
@@ -96,14 +96,14 @@ Top findings:
 | `_report_explosion` (:1727) | — | ✅ FIXED (ACT-04) | MED | ACT-04: no `_combat_display`, no XP for the dude source, no `who_hit_me`, no `scriptsRequestCombat` for survivors. |
 | `_finished_explosion` (:1803) | — | 🚫 | — | Guard flag (see above). |
 | `_compute_explosion_damage` (:1811) | `computeExplosionDamage` src/combat/explosion.ts:77 | ✅ | — | Armour DT/DR are added the way `critterGetStat` sums them. |
-| `actionTalk` (:1832) | input.ts:452, ui_contextmenu.ts:94, playerUse.ts:396 | ✅ FIXED (2026-10-26) | LOW | DH2 always walks next to the NPC. CE moves only when ≥ 9 hexes away or the shot is blocked (then *runs*), and talks from range otherwise. Deliberate, known_bugs P15. — **2026-10-26:** as an option: `[dh2] talk_mode=ce` talks within 9 hexes in line of sight (talkApproach.ts); the default walks up. |
+| `actionTalk` (:1832) | input.ts:452, uiContextMenu.ts:94, playerUse.ts:396 | ✅ FIXED (2026-10-26) | LOW | DH2 always walks next to the NPC. CE moves only when ≥ 9 hexes away or the shot is blocked (then *runs*), and talks from range otherwise. Deliberate, known_bugs P15. — **2026-10-26:** as an option: `[dh2] talk_mode=ce` talks within 9 hexes in line of sight (talkApproach.ts); the default walks up. |
 | `_can_talk_to` (:1864) | — | ✅ FIXED (2026-10-26) | LOW | No post-move recheck / misc.msg 2000. — **2026-10-26:** after the walk (or a failed walk): ≥ 9 hexes or out of sight gives misc.msg 2000 and no talk (talkApproach.ts canTalkTo). |
 | `_talk_to` (:1883) | `Scripting.talk` | ✅ | — | |
 | `actionDamage` (:1890) | `critter_dmg` src/scripting.ts:1657 | ✅ FIXED (ACT-01) | HIGH | ACT-01. |
 | `_report_dmg` (:1959) | — | ✅ FIXED (ACT-01) | MED | No `_combat_display` for script damage (part of ACT-01). |
 | `_compute_dmg_damage` (:1971) | — | ✅ FIXED (ACT-01) | HIGH | No DT/DR by type (part of ACT-01). CE's inverted NO_KNOCKBACK test means script damage never knocks back; DH2 matches that by accident. |
-| `actionCheckPush` (:1996) | `actionCheckPush` ui_contextmenu.ts:175 | ✅ FIXED (2026-10-26) | LOW | `_action_can_talk_to` is reduced to a ≤ 12 distance check. CE also needs a sight-blocking path (`pathfinderFindPath(..., _obj_sight_blocking_at)`). — **2026-10-26:** a sight path is needed (pathfinder 'sight' mode = _obj_sight_blocking_at), then ≤ 12 hexes. |
-| `actionPush` (:2040) | `actionPush` ui_contextmenu.ts:190 | ✅ FIXED (2026-10-26) | LOW | push_p_proc + override ✓, rotation order 0,1,5,2,4,3 ✓. In combat CE moves the target with its own AP; DH2 `walkTo` with no AP. — **2026-10-26:** in combat the pushed critter moves on its own AP (none left: it stays). |
+| `actionCheckPush` (:1996) | `actionCheckPush` uiContextMenu.ts:175 | ✅ FIXED (2026-10-26) | LOW | `_action_can_talk_to` is reduced to a ≤ 12 distance check. CE also needs a sight-blocking path (`pathfinderFindPath(..., _obj_sight_blocking_at)`). — **2026-10-26:** a sight path is needed (pathfinder 'sight' mode = _obj_sight_blocking_at), then ≤ 12 hexes. |
+| `actionPush` (:2040) | `actionPush` uiContextMenu.ts:190 | ✅ FIXED (2026-10-26) | LOW | push_p_proc + override ✓, rotation order 0,1,5,2,4,3 ✓. In combat CE moves the target with its own AP; DH2 `walkTo` with no AP. — **2026-10-26:** in combat the pushed critter moves on its own AP (none left: it stays). |
 | `_action_can_talk_to` (:2116) | inside actionCheckPush | ✅ FIXED (2026-10-26) | LOW | See above. — **2026-10-26:** see actionCheckPush. |
 | `hideProjectile` (:2129) | `flyProjectile` destroy Combat.ts:1631 | 🚫 | — | CE crash workaround; DH2 destroys the projectile object. |
 
@@ -129,7 +129,7 @@ Top findings:
 | `animationRegisterAnimateReversed` (:875) | AnimStep `reversed` | ✅ | — | |
 | `animationRegisterAnimateAndHide` (:904) | explosion sprites `singleAnimation` + `destroyObject` (Obj.ts:1301) | ✅ | — | |
 | `animationRegisterRotateToTile` (:933) | `obj.orientation = …` (Combat.ts:790, lifecycle fire dance) | ✅ | — | Inline; prone check missing (LOW). |
-| `animationRegisterRotateClockwise` / `CounterClockwise` (:954,974) | context-menu rotate ui_contextmenu.ts:119 | ✅ | — | |
+| `animationRegisterRotateClockwise` / `CounterClockwise` (:954,974) | context-menu rotate uiContextMenu.ts:119 | ✅ | — | |
 | `animationRegisterHideObject` / `HideObjectForced` (:996,1016) | `destroyObject` calls | ✅ | — | |
 | `animationRegisterCallback` / `Callback3` / `CallbackForced` (:1036–1085) | JS closures | ✅ | — | CE runs "forced" callbacks even when a sequence aborts. DH2 sequences cannot abort, so this does not arise. |
 | `animationRegisterSetFlag` / `UnsetFlag` (:1114,1139) | — | 🚫 | — | Used for hidden / lighting toggles inside CE sequences only. |
@@ -201,7 +201,7 @@ Top findings:
   `_check_scenery_ap_cost` (proto_instance.cc:1403) then takes 3 AP, or prints proto.msg 700
   and aborts.
 - **DH2:** `playerUse.ts:388–425` (callback → `walkInFrontOf`), `playerUse.ts:224`
-  (skill walk), `ui_contextmenu.ts:103,164`.
+  (skill walk), `uiContextMenu.ts:103,164`.
 - **DH2 behaviour:** no turn check, no `maxLength`, no `subtractMoveAP`, no 3-AP charge.
   (`usePendingItemOn` does charge its 2 AP and move AP correctly.)
 - **Impact:** in combat the player can cross the map for free by clicking a far item, door or
@@ -344,6 +344,6 @@ Top findings:
 - The explosion sprite in combat uses misc proto 14 for every grenade type
   (`spawnExplosionSprite`).
 - Corpse auto-cleanup timer `Config.engine.corpseTimeout` (lifecycle.ts:123).
-- The `[dh2] elevator_use` context-menu Use on elevators (ui_contextmenu.ts:134).
+- The `[dh2] elevator_use` context-menu Use on elevators (uiContextMenu.ts:134).
 - `Config.engine.doInfiniteUse` skips every walk-to-target.
 - `Config.engine.walkModel` 'dh2' / 'smooth' alternatives to CE's walk model.

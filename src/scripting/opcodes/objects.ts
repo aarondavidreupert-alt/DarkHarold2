@@ -1,6 +1,6 @@
 // Script opcodes: objects: locks, doors, protos, creation, names and types, visibility, use, light (CE op_obj_lock, op_proto_data, op_create_object_sid, ...).
 // Methods of the Script class (scripting.ts), kept here by topic and installed on its prototype
-// there; vm_bridge.ts and the Lua prelude call them as before (wiki/code_quality.md Q16).
+// there; vmBridge.ts and the Lua prelude call them as before (wiki/code_quality.md Q16).
 
 import type { Script } from '../../scripting.js'
 import { Config } from '../../config.js'

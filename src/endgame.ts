@@ -22,7 +22,7 @@
 //   endgame/slideRender.ts  — slide rendering primitives + overlay
 
 import { returnToMainMenu } from './mainMenuReturn.js'
-import { showConfirm } from './ui_dialog.js'
+import { showConfirm } from './uiDialog.js'
 import * as Scripting from './scripting.js'
 import globalState from './globalState.js'
 import { getFileJSON, getMessage } from './util.js'

@@ -2,7 +2,7 @@
 
 > Last audited: 2026-10-17 (lifecycle §1; formula audit C22/C23/C30, see §10)  
 > Sources: `raw/fallout2-ce/src/combat.cc`, `combat_ai.cc`, `critter.cc`, `obj_types.h`, `proto_types.h`  
-> DH2 sources: `src/combat.ts` (barrel; `src/combat/{actionPoints,AI,damage,hitChance,Combat,results,explosion,whoHitMe}.ts`), `src/critter.ts` (barrel; `src/critter/{Weapon,lifecycle}.ts`), `src/scripting.ts`, `src/vm_bridge.ts`, `src/main.ts`  
+> DH2 sources: `src/combat.ts` (barrel; `src/combat/{actionPoints,AI,damage,hitChance,Combat,results,explosion,whoHitMe}.ts`), `src/critter.ts` (barrel; `src/critter/{Weapon,lifecycle}.ts`), `src/scripting.ts`, `src/vmBridge.ts`, `src/main.ts`  
 > Cross-reference: [damage_formula.md](damage_formula.md) for hit chance, damage calculation, critical
 > effects, sequence/initiative, and AP base formula.
 
@@ -277,15 +277,15 @@ The same: `Combat` checks `fleeing` (`CRITTER_MANUEVER_FLEEING`), the packet's `
 
 | Opcode | Name | Args | CE function | DH2 status | DH2 source | Notes |
 |--------|------|------|-------------|------------|------------|-------|
-| 0x8128 | `combat_is_initialized` | 0 | `opCombatIsInitialized` | IMPLEMENTED | vm_bridge.ts:51 | Returns `scriptObj.combat_is_initialized` (0/1); set to 1 when `combat_p_proc` fires |
+| 0x8128 | `combat_is_initialized` | 0 | `opCombatIsInitialized` | IMPLEMENTED | vmBridge.ts:51 | Returns `scriptObj.combat_is_initialized` (0/1); set to 1 when `combat_p_proc` fires |
 | 0x80D0 | `attack_complex` | 8 | `opAttackComplex` | IMPLEMENTED | scripting.ts | Self attacks the target; nothing when either is inactive / hidden or the target flees; `_gcsd` accuracy bonus, min / max damage and the results override for the first attack |
 | 0x80ED | `kill_critter` | 2 | `opKillCritter` | IMPLEMENTED | scripting.ts | `critterKill` without animation; the corpse is the single-frame death `deathFrame` |
-| 0x80EE | `kill_critter_type` | 2 | `opKillCritterType` | IMPLEMENTED | vm_bridge.ts | |
-| 0x80EF | `critter_dmg` | 3 | `opCritterDamage` | IMPLEMENTED | vm_bridge.ts | |
+| 0x80EE | `kill_critter_type` | 2 | `opKillCritterType` | IMPLEMENTED | vmBridge.ts | |
+| 0x80EF | `critter_dmg` | 3 | `opCritterDamage` | IMPLEMENTED | vmBridge.ts | |
 | 0x80FB | `critter_state` | 1 | `opGetCritterState` | IMPLEMENTED | scripting.ts | DEAD 1; PRONE 2 when knocked out or in a knockdown; plus the DAM_CRIP bits |
 | 0x80FF | `critter_attempt_placement` | 3 | `opCritterAttemptPlacement` | IMPLEMENTED | scripting.ts | CE `_obj_attempt_placement` |
 | 0x8127 | `critter_injure` | 2 | `opCritterInjure` | IMPLEMENTED | scripting.ts | |
-| 0x8143 | `attack_setup` | 2 | `opAttackSetup` | IMPLEMENTED | vm_bridge.ts | |
+| 0x8143 | `attack_setup` | 2 | `opAttackSetup` | IMPLEMENTED | vmBridge.ts | |
 | 0x8151 | `critter_is_fleeing` | 1 | `opCritterIsFleeing` | IMPLEMENTED | scripting.ts | the AI's flee flag |
 | 0x8152 | `critter_set_flee_state` | 2 | `opCritterSetFleeState` | IMPLEMENTED | scripting.ts | the AI honours it |
 | 0x8153 | `terminate_combat` | 0 | `opTerminateCombat` | IMPLEMENTED | scripting.ts | |

@@ -347,7 +347,7 @@ export function skillUse(
             break
 
         case 'Steal':
-            // scriptsRequestStealing — the steal screen (ui_steal.ts) opens from playerUse.ts
+            // scriptsRequestStealing — the steal screen (uiSteal.ts) opens from playerUse.ts
             break
 
         case 'Traps':
@@ -472,7 +472,7 @@ function toggleSneak(user: Critter): void {
 }
 
 // ---------------------------------------------------------------------------
-// STEAL — per-item roll called from the interactive steal UI (ui_steal.ts).
+// STEAL — per-item roll called from the interactive steal UI (uiSteal.ts).
 // FO2-CE ref: skill.cc:1031 skillsPerformStealing(). One call per item dragged.
 // stealCount: CE's _gStealCount — count of items attempted this session;
 // every drag makes subsequent ones harder (inventory.cc:4360,4384).

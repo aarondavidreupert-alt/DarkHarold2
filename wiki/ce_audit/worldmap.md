@@ -1,6 +1,6 @@
 # CE parity audit — worldmap (worldmap.cc / worldmap.h)
 
-Scope: `raw/fallout2-ce/src/worldmap.cc` (6674 lines) + `worldmap.h`. DH2 code checked: `src/worldmap/Worldmap.ts`, `src/worldmap/encounters.ts`, `src/worldmap/encounterData.ts`, `src/worldmap/parser.ts`, `src/encounters/conditionLang.ts`, `src/ui_worldmap.ts`, the parts of `src/data.ts` that parse city.txt and maps.txt, the worldmap opcodes in `src/scripting.ts` (metarule / metarule3 / mark_area_known / wm_area_set_pos), `src/audio.ts` (ambient sfx), `src/gametime.ts` / `src/gameTick.ts` (time passing). Audited 2026-10-24.
+Scope: `raw/fallout2-ce/src/worldmap.cc` (6674 lines) + `worldmap.h`. DH2 code checked: `src/worldmap/Worldmap.ts`, `src/worldmap/encounters.ts`, `src/worldmap/encounterData.ts`, `src/worldmap/parser.ts`, `src/encounters/conditionLang.ts`, `src/uiWorldmap.ts`, the parts of `src/data.ts` that parse city.txt and maps.txt, the worldmap opcodes in `src/scripting.ts` (metarule / metarule3 / mark_area_known / wm_area_set_pos), `src/audio.ts` (ambient sfx), `src/gametime.ts` / `src/gameTick.ts` (time passing). Audited 2026-10-24.
 
 Wiki hints used: `wiki/worldmap.md` (§17 gaps), `wiki/car_system.md`, `wiki/known_bugs.md` C55, W1–W17. Every finding below was checked against the code, not taken from the wiki.
 
@@ -67,11 +67,11 @@ Top findings, by severity:
 | `wmMapIdxIsSaveable` / `wmMapIsSaveable` | `data.ts:396 mapIsSaved` | ✅ | — | |
 | `wmMapDeadBodiesAge` | `data.ts:402` | ✅ | — | |
 | `wmMapCanRestHere` | `data.ts:408` | ✅ | — | |
-| `wmMapPipboyActive` | `ui_pipboy/shell.ts:515-517` | ✅ | — | DH2 option `pipboyAvailableAtStart` (DH2-only). |
+| `wmMapPipboyActive` | `uiPipBoy/shell.ts:515-517` | ✅ | — | DH2 option `pipboyAvailableAtStart` (DH2-only). |
 | `wmMapMarkVisited` | `Worldmap.ts:568 markMapVisited` (on `loadMapPost`, mark_area_known type 1) | ✅ | — | Saved maps only, then `wmAreaMarkVisited`. The `wmAreaMarkVisitedState` side effects are missing (WM-08). |
 | `wmMatchEntranceFromMap` / `wmMatchEntranceElevFromMap` / `wmMatchAreaFromMap` | inline in `scripting.ts:959-975`, `:794-805` | ✅ FIXED (WM-04) | MED | No −1 elevation wildcard; every match changed instead of the first (WM-04). |
 | `wmMapMarkMapEntranceState` | `scripting.ts:959 metarule3 104` only | ✅ FIXED (WM-02, WM-04) | HIGH | Not called from map load, elevation change or exit grids (WM-02); matching differs (WM-04). |
-| `wmWorldMap` | `ui_worldmap.ts:60 uiWorldMap` | ✅ | — | |
+| `wmWorldMap` | `uiWorldmap.ts:60 uiWorldMap` | ✅ | — | |
 | `wmWorldMapFunc` | `Worldmap.ts:1136 updateWorldmapPlayer` (+ `init` click handlers) | ✅ FIXED (WM-03) | MED | The walking frame matches (steps, car steps, fuel, out of gas, healing, fog, end of walk, 18000 ticks, encounter). Gaps: hotspot click ignores the town-map rule (WM-03); keys T / Home / Ctrl+F1–F7 / Ctrl+↑↓ are missing; arrow keys pan 2 px a frame only while stopped (CE: 20 px a press, also while walking); the mouse wheel over the map does not scroll it (CE 20 px). Out of gas: CE matches the area at the mouse (`worldX/worldY`, a CE bug); DH2 uses the party position. |
 | `wmCheckGameAreaEvents` | — | ✅ FIXED (2026-10-26) | LOW | CE `mapLoad` hides CITY_FAKE_VAULT_13_A (45) and shows / visits B (46) while the party is at A. NEW. — **2026-10-26:** the Fake Vault 13 swap. |
 | `wmInterfaceCenterOnParty` | `applyPan(x − 222, y − 219)` at `Worldmap.ts:850, 1164` | 🚫 N/A (2026-10-26) | LOW | CE offsets are −203/−200 and it is bound to Home. DH2 centers on the 445×438 view and recenters every walking frame; CE scrolls 1 px a step, so the party keeps its place on screen. — **2026-10-26:** DH2 centres on its own view; following the party while walking is a DH2 choice. |
@@ -91,9 +91,9 @@ Top findings, by severity:
 | `wmWorldPosInvalid` | `Worldmap.ts:82 worldPosInvalid` | ✅ | — | CE bit formula including its "TODO: Check math" quirk. |
 | `wmPartyInitWalking` | `Worldmap.ts:990 partyInitWalking` | ✅ | — | Bresenham set-up the same as CE. CE centers the view if the cursor is not visible; DH2 always centers. DH2 debug `instantTravel` added (DH2-only). |
 | `wmPartyWalkingStep` | `Worldmap.ts:1052 partyWalkingStep` | ✅ | — | Terrain counter 1..4, difficulty ≥ 1, walk-mask stop. When blocked, CE matches the area with `(worldPosX, worldPosX)` (a CE typo); DH2 uses the correct (x, y). |
-| `wmInterfaceScrollTabsStart` / `Stop` / `Update` | `ui_worldmap.ts:35 setLabelScroll` | 🚫 N/A (2026-10-26) | LOW | 27 px a step; CE animates 7×delta over several frames and disables the tab buttons while scrolling. DH2 jumps. — **2026-10-26:** the same end position; the animation is cosmetic. |
-| `wmInterfaceInit` | `ui_worldmap.ts:60 uiWorldMap`, `Worldmap.ts:873 start` | ✅ FIXED (WM-07) | MED | Resets the encounter timer. Missing: worldmap music `20car`/`23world` (WM-07), `_map_save_in_game(true)` before the worldmap opens (not verified whether the DH2 map cache covers it), `scriptsDisable` (DH2 pauses the game loop through uiMode). |
-| `wmInterfaceExit` | `ui_worldmap.ts:50 uiCloseWorldMap`, `Worldmap.ts:879 stop` | ✅ | — | Encounter fields cleared after setup. |
+| `wmInterfaceScrollTabsStart` / `Stop` / `Update` | `uiWorldmap.ts:35 setLabelScroll` | 🚫 N/A (2026-10-26) | LOW | 27 px a step; CE animates 7×delta over several frames and disables the tab buttons while scrolling. DH2 jumps. — **2026-10-26:** the same end position; the animation is cosmetic. |
+| `wmInterfaceInit` | `uiWorldmap.ts:60 uiWorldMap`, `Worldmap.ts:873 start` | ✅ FIXED (WM-07) | MED | Resets the encounter timer. Missing: worldmap music `20car`/`23world` (WM-07), `_map_save_in_game(true)` before the worldmap opens (not verified whether the DH2 map cache covers it), `scriptsDisable` (DH2 pauses the game loop through uiMode). |
+| `wmInterfaceExit` | `uiWorldmap.ts:50 uiCloseWorldMap`, `Worldmap.ts:879 stop` | ✅ | — | Encounter fields cleared after setup. |
 | `wmInterfaceScroll` / `wmInterfaceScrollPixel` | `Worldmap.ts:204 applyPan`, `:1183-1191` | 🚫 N/A (2026-10-26) | LOW | Step 20 px (CE) vs 2 px a frame; panning is disabled while walking. — **2026-10-26:** DH2 pans smoothly; the step size is cosmetic. |
 | `wmMouseBkProc` | `Worldmap.ts:858 _onWMMouseMove` | 🚫 N/A (2026-10-26) | LOW | CE: the screen-edge pixel, 20 px every 50 ms, scroll cursors (and "can't scroll" cursors). DH2: a 20 px band inside the view, 2 px a frame, no cursor change. — **2026-10-26:** as wmInterfaceScroll: DH2 pans smoothly inside a band. |
 | `wmMarkSubTileOffsetVisited` / `wmMarkSubTileOffsetKnown` / `wmMarkSubTileOffsetVisitedFunc` | `Worldmap.ts:373 markSquare` | ✅ | — | "Known only while unknown" rule kept. The numbers are swapped against CE (WM-01). |
@@ -119,8 +119,8 @@ Top findings, by severity:
 | `wmGetPartyWorldPos` | `Worldmap.ts:345 getPlayerWorldPos` | ✅ | — | DH2 rounds; positions are integers anyway. Returns 0,0 (metarule 44/45) before the worldmap is initialised. |
 | `wmGetPartyCurArea` | `Worldmap.ts:531 getCurrentAreaId` | ✅ | — | |
 | `wmMarkAllSubTiles` | `resetWorldmap` re-parse | ✅ | — | |
-| `wmTownMap` | `ui_worldmap.ts:60 uiWorldMap(true)` (scripts `town_map` / map.cc transition) | ✅ | — | |
-| `wmTownMapFunc` | `ui_worldmap.ts:123 uiWorldMapShowArea`, `:147 hotspot onclick` | ✅ FIXED (WM-03, WM-09) | HIGH | Shown whatever the visited state or `mapFid` (WM-03). Number keys 1..n, Esc, T/W, Ctrl+F1–F7 are missing. Car parking on entry matches. mapSetEnteringLocation differs for elevation −1 (WM-09). |
+| `wmTownMap` | `uiWorldmap.ts:60 uiWorldMap(true)` (scripts `town_map` / map.cc transition) | ✅ | — | |
+| `wmTownMapFunc` | `uiWorldmap.ts:123 uiWorldMapShowArea`, `:147 hotspot onclick` | ✅ FIXED (WM-03, WM-09) | HIGH | Shown whatever the visited state or `mapFid` (WM-03). Number keys 1..n, Esc, T/W, Ctrl+F1–F7 are missing. Car parking on entry matches. mapSetEnteringLocation differs for elevation −1 (WM-09). |
 | `wmTownMapInit` | `uiWorldMapShowArea:132-192` | ✅ FIXED (WM-06) | MED | CE skips entrances with x or y = −1; DH2 auto-places them (WM-06). |
 | `wmTownMapRefresh` | `uiWorldMapShowArea:168` | ✅ FIXED (WM-06) | MED | Entrance label: worldmap.msg `200+10·area+index` (CE) vs the maps.txt lookup name (WM-06). |
 | `wmTownMapExit` | `uiWorldMapWorldView` | 🚫 | — | |
@@ -134,8 +134,8 @@ Top findings, by severity:
 | `wmSfxIdxName` | `audio.ts` (sfx name used as is) | ✅ FIXED (2026-10-26) | LOW | Night remap `brdchir1` → `cricket`, `brdchirp` → `cricket1` (hour ≤ 600 or ≥ 1800) is missing. NEW. — **2026-10-26:** the night cricket remap. |
 | `wmRefreshInterfaceOverlay` | static DOM chrome | 🚫 | — | |
 | `wmInterfaceRefreshCarFuel` | `Worldmap.ts:336-341` | ✅ | — | 70 px, rounded down to even. |
-| `wmRefreshTabs` | `ui_worldmap.ts:195 uiWorldMapLabels` | ✅ | — | |
-| `wmMakeTabsLabelList` | `ui_worldmap.ts:205-207` | ✅ | — | Known + label art. |
+| `wmRefreshTabs` | `uiWorldmap.ts:195 uiWorldMapLabels` | ✅ | — | |
+| `wmMakeTabsLabelList` | `uiWorldmap.ts:205-207` | ✅ | — | Known + label art. |
 | `wmTabsCompareNames` | `localeCompare` | ✅ | — | CE `stricmp` on city.txt `area_name`; the order of the vanilla names is the same. |
 | `wmFreeTabsLabelList` | — | 🚫 | — | |
 | `wmRefreshInterfaceDial` / `wmInterfaceDialSyncTime` | `Worldmap.ts:217 updateDial` | ✅ | — | |
@@ -172,7 +172,7 @@ Top findings, by severity:
 
 ### WM-03 — The town map is always shown; `wmAreaFindFirstValidMap` is missing — **FIXED 2026-10-24 (PA21)**
 - CE: `worldmap.cc:3141-3172` (hotspot release) and `:3192` (T key): `if (city->visitedState == 2 && city->mapFid != -1) wmTownMapFunc(&map) else { wmAreaFindFirstValidMap(&map); city->visitedState = 2; }`. `worldmap.cc:6460 wmAreaFindFirstValidMap`: the first entrance with state ≠ 0; if none, entrance 0 is opened and used. The map is loaded with no entering location, so the map header's start is used.
-- DH2: `src/worldmap/Worldmap.ts:763-768` calls `uiWorldMapShowArea(area)` for any area; `src/ui_worldmap.ts:123`.
+- DH2: `src/worldmap/Worldmap.ts:763-768` calls `uiWorldMapShowArea(area)` for any area; `src/uiWorldmap.ts:123`.
 - Impact: the first visit to a town shows its town map instead of entering it. Areas without town-map art (`townmap_art_idx=-1`: Enclave, Abbey, Primitive Tribe, EPA, Ghost Farm, Car Outta Gas, Destroyed Arroyo, Klamath Toxic Caves and the random-encounter / special areas) show `url('undefined.png')` with auto-placed entrance buttons, where CE goes straight onto the map. HIGH (visible UI break in every special encounter re-visit and several story areas).
 - Fix: in the hotspot handler, test `area.visitedState === 2 && area.mapArt`. Otherwise pick the first entrance with `state` set (else open entrance 0), set `visitedState = 2`, do the car parking, and `loadMap(entrance.mapName)` with no position override.
 - Ref: NEW.
@@ -193,7 +193,7 @@ Top findings, by severity:
 
 ### WM-06 — Town-map entrances with −1 coordinates are shown; labels are lookup names — **FIXED 2026-10-25**
 - CE: `worldmap.cc:5862 wmTownMapInit` / `:5915 wmTownMapRefresh`: skips `state == 0` and also `x == -1 || y == -1`; labels each hotspot with worldmap.msg `200 + 10 * area + index`, centred under it.
-- DH2: `src/ui_worldmap.ts:139-192`: "orphaned" entrances (x−22 ≤ 5 and y−21 ≤ 5, which includes −1/−1) are placed in rows of 3 below the art; `:168` labels with `entrance.mapLookupName`.
+- DH2: `src/uiWorldmap.ts:139-192`: "orphaned" entrances (x−22 ≤ 5 and y−21 ≤ 5, which includes −1/−1) are placed in rows of 3 below the art; `:168` labels with `entrance.mapLookupName`.
 - Impact: any −1/−1 entrance that a script opens (Desert Encounter 2–10 are "On" with −1/−1; In Game Movie Map 1, Bess Dead) appears as a clickable button that CE never shows. Labels read like "Destroyed Arroyo Bridge" / "Den Residential 1" rather than the localized worldmap.msg names. MED.
 - Fix: skip x or y = −1; use `getMessage('worldmap', 200 + 10 * area.id + index)` as the label.
 - Ref: NEW (W9 fixed only the offset).
@@ -214,7 +214,7 @@ Top findings, by severity:
 
 ### WM-09 — Entrance elevation −1 with a tile: player placed on the tile instead of the header start — **FIXED 2026-10-24 (PA21)**
 - CE: `ui → wmTownMapFunc → mapSetEnteringLocation(elevation, tile, rotation)`; `map.cc:860`: `if (gEnteringElevation == -1) mapSetEnteringLocation(header elevation, header tile, header rotation)`. The tile is discarded.
-- DH2: `src/data.ts:141` clamps the elevation to 0; `src/ui_worldmap.ts:161-163` treats `elevation >= 0 && tileNum >= 0` as an own location.
+- DH2: `src/data.ts:141` clamps the elevation to 0; `src/uiWorldmap.ts:161-163` treats `elevation >= 0 && tileNum >= 0` as an own location.
 - Impact: Broken Hills 2 (21948), NCR: Downtown (12316), San Fran Dock (26900) and Destroyed Arroyo Bridge (26719) put the player on that tile at elevation 0 instead of the map's default start. MED (the tiles may well be valid, but they are not where CE places you).
 - Fix: keep the raw −1 and use an own location only when `elevation >= 0`.
 - Ref: NEW.

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type { Proto } from './proto_types.js'
+import type { Proto } from './protoTypes.js'
 import { AudioEngine } from './audio.js'
 import type { CycleMask } from './colorCycle.js'
 import type { Combat } from './combat.js'

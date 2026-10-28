@@ -1,7 +1,7 @@
 # Interface Windows — DarkHarold2 Reference
 
 > Ground-truth: `raw/fallout2-ce/src/interface.cc` / `interface.h` (`interfaceInit`, `InterfaceItemState`, `indicatorBar*`), `raw/fallout2-ce/src/game_dialog.cc`, `raw/fallout2-ce/src/elevator.cc`, `raw/fallout2-ce/src/elevator.h`, `raw/fallout2-ce/src/skilldex.cc`
-> DH2 impl: `src/ui_panels.ts` (`UIMode`, mutual exclusion), `src/ui_components.ts` (`WindowFrame`, `SmallButton`, `Label`, `List`), `src/ui_hud.ts` (HUD bar), `src/ui.ts` (init, button wiring), `src/ui_elevator.ts` (elevator panel), and the per-window modules below
+> DH2 impl: `src/uiPanels.ts` (`UIMode`, mutual exclusion), `src/uiComponents.ts` (`WindowFrame`, `SmallButton`, `Label`, `List`), `src/uiHud.ts` (HUD bar), `src/ui.ts` (init, button wiring), `src/uiElevator.ts` (elevator panel), and the per-window modules below
 > **Last audited:** 2026-06-13
 
 ---
@@ -29,12 +29,12 @@ Key HUD constants (`interface.h`):
 DH2 replaces CE's window manager with HTML/CSS:
 - Each panel is one or more DOM elements positioned absolutely over the canvas
 - `#uiStage` (or `#game-container`) is the mount point for floating panels
-- `UIMode` enum (owned by `ui_panels.ts`) enforces mutual exclusion — at most one major panel is open at a time
-- `WindowFrame` class (`ui_components.ts`) is the DH2 equivalent of a CE `windowCreate` call
+- `UIMode` enum (owned by `uiPanels.ts`) enforces mutual exclusion — at most one major panel is open at a time
+- `WindowFrame` class (`uiComponents.ts`) is the DH2 equivalent of a CE `windowCreate` call
 
 ---
 
-## 2. UIMode Enum (`ui_panels.ts:31`)
+## 2. UIMode Enum (`uiPanels.ts:31`)
 
 ```typescript
 export enum UIMode {
@@ -68,27 +68,27 @@ export enum UIMode {
 | UIMode | Source file | Open function | Close / Done |
 |--------|-------------|---------------|--------------|
 | `none` | — | — | — |
-| `dialogue` | `ui_dialogue.ts` | `uiStartDialogue(force, target?)` | `uiEndDialogue()` |
-| `barter` | `ui_barter.ts` | `uiBarterMode(merchant)` | `uiEndBarterMode()` (internal) |
-| `loot` | `ui_loot.ts` | `uiLoot(object)` | `uiEndLoot()` via Done button |
-| `inventory` | `ui_inventory.ts` | `showInventory()` | `closeInventory()` |
-| `worldMap` | `ui_worldmap.ts` | `uiWorldMap(onAreaMap?)` | `uiCloseWorldMap()` |
-| `elevator` | `ui_elevator.ts` | `uiElevator(elevator)` | `uiElevatorDone()` on floor select |
-| `calledShot` | `ui_calledshot.ts` | `uiCalledShot(art, target, cb?)` | `uiCloseCalledShot()` |
-| `skilldex` | `ui_skilldex.ts` | `showSkilldex()` | `closeSkilldex()` |
-| `useSkill` | `ui_skilldex.ts` | set internally after skill click | — |
-| `contextMenu` | `ui_contextmenu.ts` | `uiContextMenu(obj, evt)` | `uiHideContextMenu()` |
-| `saveLoad` | `ui_saveload.ts` | `uiSaveLoad(isSave)` | `done()` (internal) |
-| `char` | `ui_character.ts` | `showCharacterScreen()` | `closeCharacterScreen()` |
-| `pipBoy` | `ui_pipboy.ts` | `openPipBoy()` | `closePipBoy()` |
-| `automap` | `ui_automap.ts` | `openAutomap()` | `closeAutomap()` |
-| `options` | `ui_options.ts` | `showOptionsMenu()` | `closeOptionsMenu()` |
-| `mainMenu` | `ui_mainmenu.ts` | `showMainMenu()` | `hideMainMenu()` |
-| `characterCreator` | `ui_charactercreator.ts` | `initCharacterCreator()` | via onDone/onCancel callbacks |
+| `dialogue` | `uiDialogue.ts` | `uiStartDialogue(force, target?)` | `uiEndDialogue()` |
+| `barter` | `uiBarter.ts` | `uiBarterMode(merchant)` | `uiEndBarterMode()` (internal) |
+| `loot` | `uiLoot.ts` | `uiLoot(object)` | `uiEndLoot()` via Done button |
+| `inventory` | `uiInventory.ts` | `showInventory()` | `closeInventory()` |
+| `worldMap` | `uiWorldmap.ts` | `uiWorldMap(onAreaMap?)` | `uiCloseWorldMap()` |
+| `elevator` | `uiElevator.ts` | `uiElevator(elevator)` | `uiElevatorDone()` on floor select |
+| `calledShot` | `uiCalledShot.ts` | `uiCalledShot(art, target, cb?)` | `uiCloseCalledShot()` |
+| `skilldex` | `uiSkilldex.ts` | `showSkilldex()` | `closeSkilldex()` |
+| `useSkill` | `uiSkilldex.ts` | set internally after skill click | — |
+| `contextMenu` | `uiContextMenu.ts` | `uiContextMenu(obj, evt)` | `uiHideContextMenu()` |
+| `saveLoad` | `uiSaveLoad.ts` | `uiSaveLoad(isSave)` | `done()` (internal) |
+| `char` | `uiCharacter.ts` | `showCharacterScreen()` | `closeCharacterScreen()` |
+| `pipBoy` | `uiPipBoy.ts` | `openPipBoy()` | `closePipBoy()` |
+| `automap` | `uiAutomap.ts` | `openAutomap()` | `closeAutomap()` |
+| `options` | `uiOptions.ts` | `showOptionsMenu()` | `closeOptionsMenu()` |
+| `mainMenu` | `uiMainMenu.ts` | `showMainMenu()` | `hideMainMenu()` |
+| `characterCreator` | `uiCharacterCreator.ts` | `initCharacterCreator()` | via onDone/onCancel callbacks |
 
 ---
 
-## 4. HUD Bar (`ui_hud.ts`)
+## 4. HUD Bar (`uiHud.ts`)
 
 The always-visible bottom bar. DH2 equivalent of CE's `gInterfaceBarWindow`.
 
@@ -170,7 +170,7 @@ Reload is handled inside the `attackButtonContainer` click: if `weapon.mode === 
 
 ---
 
-## 5. WindowFrame — Base Panel Component (`ui_components.ts:24`)
+## 5. WindowFrame — Base Panel Component (`uiComponents.ts:24`)
 
 ```typescript
 class WindowFrame {
@@ -192,7 +192,7 @@ Loot, barter, dialogue, and inventory panels use static HTML elements (hidden/sh
 
 ---
 
-## 6. Mutual Exclusion (`ui_panels.ts`)
+## 6. Mutual Exclusion (`uiPanels.ts`)
 
 ```typescript
 export function closeAllPanels(): void {
@@ -207,11 +207,11 @@ export function closeAllPanels(): void {
 
 `closeAllPanels()` is called by every panel-open path before opening its own panel (except dialogue and barter, which run as modal overlays). PipBoy and automap are independently close-able.
 
-Panel visibility getters use lazy registration: each module calls `registerCharacterWindow/registerSkilldexWindow/registerOptionsWindow` at init time, breaking the circular import `ui_panels → ui_character → ui_components → ui_panels`.
+Panel visibility getters use lazy registration: each module calls `registerCharacterWindow/registerSkilldexWindow/registerOptionsWindow` at init time, breaking the circular import `uiPanels → uiCharacter → uiComponents → uiPanels`.
 
 ---
 
-## 7. Context Menu (`ui_contextmenu.ts:87`)
+## 7. Context Menu (`uiContextMenu.ts:87`)
 
 Right-click on any map object opens a context menu positioned at the cursor:
 
@@ -230,11 +230,11 @@ CE equivalent: `_win_show_context_menu` in `worldmap.cc`/`proto_instance.cc`; DH
 
 ---
 
-## 8. Pip-Boy (`ui_pipboy.ts`)
+## 8. Pip-Boy (`uiPipBoy.ts`)
 
 Three tabs: **STATUS** (derived stats, health), **AUTOMAPS** (per-map canvas renders), **ARCHIVES** (holodisk text).
 
-Automap rendering in the AUTOMAPS tab delegates to `ui_automap.ts`:
+Automap rendering in the AUTOMAPS tab delegates to `uiAutomap.ts`:
 - `createAutomapCanvas(opts)` — renders a WebGL-based tile map
 - Pan per map/elevation stored in `getAutomapPan/setAutomapPan`
 - Zoom level global: `ZOOM_MIN` / `ZOOM_MAX` / `ZOOM_STEP`
@@ -276,7 +276,7 @@ DH2 tracks weapon mode as `weapon.mode` (string: `'single'` / `'burst'` / `'relo
 
 ### 9.2 Indicator Bar (CE → DH2)
 
-CE displays a bar of status badges above the main HUD when relevant conditions are active. DH2 implements this via `updateIndicatorBar()` / `buildBadgeSrcCanvases()` in `src/ui_hud.ts`.
+CE displays a bar of status badges above the main HUD when relevant conditions are active. DH2 implements this via `updateIndicatorBar()` / `buildBadgeSrcCanvases()` in `src/uiHud.ts`.
 
 #### CE constants (`interface.h`, `interface.cc`)
 
@@ -315,7 +315,7 @@ textX = (BADGE_W - textWidth) / 2
 textY = (BADGE_H - textHeight + BADGE_CW) / 2
 ```
 
-#### DH2 implementation (`src/ui_hud.ts`)
+#### DH2 implementation (`src/uiHud.ts`)
 
 `buildBadgeSrcCanvases()` — runs once on HUD init. Loads `art/intrface/warnbox.png` and `font1`, pre-renders one canvas per indicator type (5 total). Badge text is composited using `FoText`/`renderBitmapText` and color-matched to CE.
 
@@ -323,16 +323,16 @@ textY = (BADGE_H - textHeight + BADGE_CW) / 2
 - HP draw (`drawHP`)
 - AP draw (`drawAP`) during combat init
 - Sneak toggle (`src/skillUse.ts useSneak`)
-- Character screen Done button (`src/ui_character/viewer.ts`)
+- Character screen Done button (`src/uiCharacter/viewer.ts`)
 
 `renderIndicatorBadges(activeSet)` — builds the container DOM element with `overflow:hidden`, appends badge `<canvas>` elements using CE geometry above.
 
 ---
 
-## 10. Skilldex (`skilldex.cc` / `src/ui_skilldex.ts`)
+## 10. Skilldex (`skilldex.cc` / `src/uiSkilldex.ts`)
 
 > **Source anchor:** `raw/fallout2-ce/src/skilldex.cc` (`skilldexOpen`, `skilldexClose`, `gSkilldexSkills`)
-> **DH2 impl:** `src/ui_skilldex.ts` (`showSkilldex`, `closeSkilldex`); `UIMode.skilldex = 8`
+> **DH2 impl:** `src/uiSkilldex.ts` (`showSkilldex`, `closeSkilldex`); `UIMode.skilldex = 8`
 
 ### 10.1 CE Implementation
 
@@ -355,7 +355,7 @@ The 10 skills shown, in order, are a fixed subset of CE's `Skill` enum:
 
 This intentionally omits the 8 remaining CE skills (Traps, Science, Repair, Speech, Barter, Gambling, Outdoorsman, and the combat-only unarmed skills). Clicking a skill button calls `actionUseSkill(gDude, target, skillId)` via a callback chain.
 
-### 10.2 DH2 Implementation (`src/ui_skilldex.ts`)
+### 10.2 DH2 Implementation (`src/uiSkilldex.ts`)
 
 `showSkilldex()` sets `globalState.uiMode = UIMode.skilldex` and renders the same 10-skill list as a `WindowFrame` overlay. Each skill entry is a clickable button. On click, `useSkill(skill, target)` is called, which defers to `main.ts:useSkill` for the actual skill-use logic.
 
@@ -363,7 +363,7 @@ This intentionally omits the 8 remaining CE skills (Traps, Science, Repair, Spee
 
 The Skilldex is opened from:
 - The `skilldexButton` HUD button (see §4.5)
-- The `[Skill]` entry in the context menu (`ui_contextmenu.ts`)
+- The `[Skill]` entry in the context menu (`uiContextMenu.ts`)
 
 ### 10.3 Known Gaps vs CE
 
@@ -378,10 +378,10 @@ No functional gap in the skill list itself — DH2 shows the same 10 skills as C
 
 ---
 
-## 11. Elevator (`elevator.cc` / `elevator.h` / `src/ui_elevator.ts`)
+## 11. Elevator (`elevator.cc` / `elevator.h` / `src/uiElevator.ts`)
 
 > **Source anchor:** `raw/fallout2-ce/src/elevator.cc`, `raw/fallout2-ce/src/elevator.h`
-> **DH2 files:** `src/ui_elevator.ts`, `src/data.ts` (`Elevator` interface, `getElevator`), `src/scripting.ts` (`requestElevator`, metarule 15)
+> **DH2 files:** `src/uiElevator.ts`, `src/data.ts` (`Elevator` interface, `getElevator`), `src/scripting.ts` (`requestElevator`, metarule 15)
 > **Data:** `src/ceElevators.ts` (CE's tables, compiled in; until 2026-10-22 `lut/elevators.json` read from fallout2.exe)
 > `UIMode.elevator = 6`
 
@@ -452,7 +452,7 @@ Special elevation remapping is applied for two hardcoded elevators:
 - `ELEVATOR_MILITARY_BASE_LOWER` — elevation offset −2 when ≥ 2
 - `ELEVATOR_MILITARY_BASE_UPPER` — offset −2 when elevation = 4
 
-### 11.4 DH2 Implementation (`src/ui_elevator.ts`, `src/scripting.ts`)
+### 11.4 DH2 Implementation (`src/uiElevator.ts`, `src/scripting.ts`)
 
 #### Trigger
 
@@ -465,7 +465,7 @@ The elevator spatial scripts call metarule 15 (METARULE_ELEVATOR); `requestEleva
 
 (The old `main.ts useElevator()`, which searched around the player for pid 1293, had no caller and was removed 2026-10-26.)
 
-#### `uiElevator(elevator)` (`ui_elevator.ts:56`)
+#### `uiElevator(elevator)` (`uiElevator.ts:56`)
 
 - Sets `globalState.uiMode = UIMode.elevator` (= 6)
 - Shows `#elevatorBox` DOM element with the background FRM art as a CSS background image
@@ -515,22 +515,22 @@ export interface Elevator {
 
 | # | Feature | CE Behavior | DH2 Status | Impact |
 |---|---------|-------------|------------|--------|
-| IW1 | Indicator bar | 5 indicator types shown above HUD (ADDICT/SNEAK/LEVEL/POISONED/RADIATED) | **FIXED 2026-06-13** — implemented in `src/ui_hud.ts`; see §9.2 for geometry/color details | — |
-| IW2 | `InterfaceItemState.isDisabled` | CE `dudeIsWeaponDisabled`: a weapon with both arms crippled (or a two-handed one with either) → the unreadied button art (intrface #73 SATURBUP), no hit mode / AP digit, attack button disabled. CE never greys the button for AP. | **FIXED 2026-10-17** (C42) — `setAttackButtonDisabled` in `ui_hud.ts`; the old non-CE red tint for unaffordable AP removed | — |
+| IW1 | Indicator bar | 5 indicator types shown above HUD (ADDICT/SNEAK/LEVEL/POISONED/RADIATED) | **FIXED 2026-06-13** — implemented in `src/uiHud.ts`; see §9.2 for geometry/color details | — |
+| IW2 | `InterfaceItemState.isDisabled` | CE `dudeIsWeaponDisabled`: a weapon with both arms crippled (or a two-handed one with either) → the unreadied button art (intrface #73 SATURBUP), no hit mode / AP digit, attack button disabled. CE never greys the button for AP. | **FIXED 2026-10-17** (C42) — `setAttackButtonDisabled` in `uiHud.ts`; the old non-CE red tint for unaffordable AP removed | — |
 | IW3 | `InterfaceItemAction` aiming states | primary → primary aimed → secondary → secondary aimed → reload | **FIXED** — `Weapon.modes` / `cycleMode` (`single`, `called`, `burst`/`secondary`, `secondaryCalled`, `reload`; Fast Shot drops the aimed ones); aimed modes open the called-shot panel (`playerUse.ts`) | — |
 | IW4 | HUD bar hide/show | CE hides the bar only for the worldmap (`worldmap.cc:4466`) and before a map is loaded (`interfaceReset`) | Matches in effect: the DH2 worldmap is a full-screen overlay over the HUD | — |
 | IW5 | Active hand persistence in save | CE `interfaceSave` serializes `gInterfaceCurrentHand` | **FIXED** — `saveload.ts` saves / restores `player.activeHand` | — |
 | IW6 | AP readout | CE `interfaceRenderActionPoints` blits the lights at once (no animation): green AP, yellow free move, all ten red off-turn | **FIXED 2026-10-17** (C42) — the DH2 120 ms fade removed | — |
 | IW7 | Reload AP cost / AP sync | CE: `weaponGetActionPointCost` (`item.cc:1643`) returns 1 (Fast Reload perk), 0 (Solar Scorcher), else 2. CE calls `interfaceRenderActionPoints` after deduction. | **FIXED 2026-06-13** — DH2 `getReloadAPCost()` (`src/critter/Weapon.ts:346`) matches CE logic; `drawAP()` called immediately after deduction in `ui.ts`. Note: CE reload AP is hardcoded logic (not from PRO data), so no PRO field read is needed. | — |
-| IW8 | Dialogue `_dialogue_switch_mode` | `game_dialog.cc`: barter (2), party control (1 → back to talk), customize (8 → back to control), trade | **FIXED** — barter, companion control / customize and companion trade switch between each other and back to the dialogue as CE (`ui_dialogue.ts`, `ui_companion.ts`, `ui_companion_trade.ts`) | — |
-| IW9 | Perk selection UI | CE `character_editor.cc` perk dialog | **FIXED** — `ui_character/perkModal.ts` (incl. Mutate!, C35) | — |
-| IW10 | Action menu | CE `gameMouseHandleActionMenu`: ITEM use/get, look, [inventory, skill for containers]; CRITTER talk (active, not in combat) or use/loot (unless NO_STEAL), push (`actionCheckPush`), look, inventory, skill; the dude: rotate; SCENERY [use], look, inventory, skill; WALL look, [inventory]; always cancel. INVENTORY = `inventoryOpenUseItemOn` (use the clicked item on the object, 2 AP in combat); SKILL = skilldex then `actionUseSkill` on the object | **FIXED 2026-10-17** (C42) — `ui_contextmenu.ts`; push = `push_p_proc` then a step away (`actionPush`). Still opened by right-click instead of CE's left-button hold (DH2 input model) | — |
-| IW11 | Character editor in-game | CE allows stat/skill re-editing via options during character creation | DH2 `ui_charactercreator.ts` has limited re-entry support | Minor; only affects new game flow |
-| EV1 | ✅ FIXED (stale claim corrected 2026-07-04) | Already implemented: `animateGauge()`/`setGaugeFrame()`/`gaugeFrameForFloor()` in `ui_elevator.ts` interpolate the gauge needle frame-by-frame before travel, matching CE's `elevator.cc:405` float-step loop (`GAUGE_FRAME_MS=276`). | FIXED — `ui_elevator.ts:37-62` | low severity |
+| IW8 | Dialogue `_dialogue_switch_mode` | `game_dialog.cc`: barter (2), party control (1 → back to talk), customize (8 → back to control), trade | **FIXED** — barter, companion control / customize and companion trade switch between each other and back to the dialogue as CE (`uiDialogue.ts`, `uiCompanion.ts`, `uiCompanionTrade.ts`) | — |
+| IW9 | Perk selection UI | CE `character_editor.cc` perk dialog | **FIXED** — `uiCharacter/perkModal.ts` (incl. Mutate!, C35) | — |
+| IW10 | Action menu | CE `gameMouseHandleActionMenu`: ITEM use/get, look, [inventory, skill for containers]; CRITTER talk (active, not in combat) or use/loot (unless NO_STEAL), push (`actionCheckPush`), look, inventory, skill; the dude: rotate; SCENERY [use], look, inventory, skill; WALL look, [inventory]; always cancel. INVENTORY = `inventoryOpenUseItemOn` (use the clicked item on the object, 2 AP in combat); SKILL = skilldex then `actionUseSkill` on the object | **FIXED 2026-10-17** (C42) — `uiContextMenu.ts`; push = `push_p_proc` then a step away (`actionPush`). Still opened by right-click instead of CE's left-button hold (DH2 input model) | — |
+| IW11 | Character editor in-game | CE allows stat/skill re-editing via options during character creation | DH2 `uiCharacterCreator.ts` has limited re-entry support | Minor; only affects new game flow |
+| EV1 | ✅ FIXED (stale claim corrected 2026-07-04) | Already implemented: `animateGauge()`/`setGaugeFrame()`/`gaugeFrameForFloor()` in `uiElevator.ts` interpolate the gauge needle frame-by-frame before travel, matching CE's `elevator.cc:405` float-step loop (`GAUGE_FRAME_MS=276`). | FIXED — `uiElevator.ts:37-62` | low severity |
 | EV2 | Start floor of the elevator gauge | CE derives it by index arithmetic plus offsets for Sierra 2 / Military Base | Equivalent: DH2 finds the current floor by `(mapID, level)` in the button table, which is what CE's offsets reconstruct (checked against `lut/elevators.json` 2026-10-17; for Sierra 2 on map 29 CE's arithmetic even goes to −1) | — |
 | EV3 | `use_elevator` opcode | Not a vanilla opcode — CE `0x80FD` is `radiation_inc` (wired) | No gap | — |
-| EV4 | `console.log` in production path | — | **FIXED** — no `console.log` left in `ui_elevator.ts` | — |
+| EV4 | `console.log` in production path | — | **FIXED** — no `console.log` left in `uiElevator.ts` | — |
 
-| IW12 | Inventory AP cost | CE `inventoryOpen()` (`inventory.cc:570`): deducts `4 - 2 * quickPocketsRank` AP on open in combat; calls `interfaceRenderActionPoints()` to sync display. | **FIXED 2026-06-13** — `showInventory()` in `src/ui_inventory/panel.ts` deducts AP and calls `drawAP()` on first open during combat. Quick Pockets perk (`hasPerk('Quick Pockets')`) reduces cost by 2. | — |
+| IW12 | Inventory AP cost | CE `inventoryOpen()` (`inventory.cc:570`): deducts `4 - 2 * quickPocketsRank` AP on open in combat; calls `interfaceRenderActionPoints()` to sync display. | **FIXED 2026-06-13** — `showInventory()` in `src/uiInventory/panel.ts` deducts AP and calls `drawAP()` on first open during combat. Quick Pockets perk (`hasPerk('Quick Pockets')`) reduces cost by 2. | — |
 
 <!-- audited: 2026-10-17 -->

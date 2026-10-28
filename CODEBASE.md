@@ -121,7 +121,7 @@ the pipeline or the TS compiler.
 | `src/examine.ts` | Look at / examine text incl. `look_at_p_proc` / `description_p_proc`, health/crippled lines, Awareness details | `proto_instance.cc _obj_look_at_func / _obj_examine_func` |
 | `src/useItemOn.ts` | Using an item on an object: `itemCanUseOn`, the HUD use crosshair, `objUseItemOn` (medical kits, item/target `use_obj_on_p_proc`, drugs on critters) | `proto.cc _proto_action_can_use_on`, `proto_instance.cc _obj_use_item_on` |
 | `src/premade.ts` | Premade characters: `.gcd` parser and `.bio` loader for Narg/Mingan/Chitsa | `critter.cc gcdLoad`, `character_selector.cc` |
-| `src/ui_charselect.ts` | NEW GAME character selector (TAKE/MODIFY/CREATE/BACK) | `character_selector.cc characterSelectorOpen` |
+| `src/uiCharSelect.ts` | NEW GAME character selector (TAKE/MODIFY/CREATE/BACK) | `character_selector.cc characterSelectorOpen` |
 
 ### Combat
 
@@ -143,7 +143,7 @@ Three-file split — understand this before touching any opcode:
 | File | Purpose | fallout2-ce counterpart |
 |------|---------|------------------------|
 | `src/vm.ts` | `ScriptVM` class + `opMap`: low-level bytecode decoder (stack ops, arithmetic, jumps, 319 lines) | `scripts.cc` (VM core) |
-| `src/vm_bridge.ts` | `bridgeOpMap`: maps ~118 bytecode opcode values to `Script` methods via `bridged(procName, argc)` factory (245 lines) | `scripts.cc` (opcode table) |
+| `src/vmBridge.ts` | `bridgeOpMap`: maps ~118 bytecode opcode values to `Script` methods via `bridged(procName, argc)` factory (245 lines) | `scripts.cc` (opcode table) |
 | `src/scriptProcs.ts` | SCRIPT_PROC_* numbers (`script_action`) and the intrinsics that end a procedure on its own `self_obj`, shared by both script backends | `scripts.cc gScriptProcNames`, `interpreter_extra.cc` |
 | `src/scripting.ts` | `Script` class (fields, `_serialize`), script loading, GVAR/LVAR/MVAR access, TimedEvent system, map entry; the opcode methods are in `scripting/opcodes/<category>.ts` (core, metarule, critter, inventory, objects, map, anim, dialogue, combat, sfall), installed on the prototype; the object-event entry points (talk, use, damage, …) and the dialogue runtime in `scripting/events.ts` (1421 lines; split 2026-10-28, code_quality Q16) | `scripts.cc`, `script_list.cc` |
 | `src/sfallArrays.ts` | sfall arrays (list / associative, temporary arrays freed per game tick) for the Unofficial Patch's scripts ([wiki/upu_support.md](wiki/upu_support.md)) | `sfall_arrays.cc`, `sfall_lists.cc` |
@@ -159,9 +159,9 @@ Three-file split — understand this before touching any opcode:
 | `src/lua/luaDiff.ts` | VM-vs-Lua differential test behind `tools/luadiff.html` | — |
 
 To add an opcode: add a method to the matching `scripting/opcodes/<category>.ts` object (first parameter `this: Script`), then wire
-it in `vm_bridge.ts` with `bridged("methodName", argCount)`; the Lua backend calls
+it in `vmBridge.ts` with `bridged("methodName", argCount)`; the Lua backend calls
 `Script` methods by name, and `tools/int2lua.py` needs the opcode in its
-`INTRINSICS` table (`--check-bridge src/vm_bridge.ts` compares the two).
+`INTRINSICS` table (`--check-bridge src/vmBridge.ts` compares the two).
 
 ### Audio
 
@@ -177,28 +177,28 @@ All UI files render to DOM elements over the WebGL canvas.
 | File | Purpose |
 |------|---------|
 | `src/ui.ts` | Legacy UI root: `UIMode` enum, modal helpers, shared panel open/close (469 lines) |
-| `src/ui_panels.ts` | `UIMode` re-export + panel registration helpers (138 lines) |
-| `src/ui_hud.ts` | Main HUD bar: HP/AC/AP readouts, weapon display, combat buttons, message log (309 lines) |
-| `src/ui_character.ts` | Barrel — character screen + creator; split into `ui_character/descriptions.ts` (lookup tables), `ui_character/viewer.ts` (in-game character screen), `ui_character/folders.ts` (CE PERKS / KARMA / KILLS folder view), `ui_character/creator.ts` (new-game creator flow), `ui_character/perkModal.ts` (level-up perk selection), `ui_character/statPanels.ts` (CE status boxes) |
-| `src/ui_charactercreator.ts` | Entry-point shim into the character creator section of ui_character.ts (46 lines) |
-| `src/ui_pipboy.ts` | Barrel — Pip-Boy overlay; split into `ui_pipboy/shell.ts` (container + date/time bar + wait menu + tab dispatcher + shared widget helpers) and `ui_pipboy/tabs/{status,automaps,archives}.ts` |
-| `src/ui_inventory.ts` | Barrel — inventory panel; split into `ui_inventory/dragdrop.ts` (drag/drop primitives, uiMoveSlot, applyArmorArt, tryLoadAmmoIntoWeapon) + `ui_inventory/panel.ts` (closeInventory, initInventory, showInventory) |
-| `src/ui_dialogue.ts` | Dialogue panel: NPC reply text + selectable options, pop-up animation (113 lines) |
-| `src/ui_barter.ts` | Barrel — barter screen; split into `ui_barter/swap.ts` (uiGetAmount + uiSwapItem cross-list primitives) + `ui_barter/screen.ts` (uiBarterMode) |
-| `src/ui_loot.ts` | Loot panel: container/corpse inventory transfer (191 lines) |
-| `src/ui_worldmap.ts` | World map travel screen overlay (193 lines) |
-| `src/ui_calledshot.ts` | Called-shot body region selector (173 lines) |
-| `src/ui_elevator.ts` | Elevator floor selection dialog (108 lines) |
-| `src/ui_skilldex.ts` | Skilldex panel per CE skilldex.cc: skill buttons, values, CANCEL |
-| `src/ui_mainmenu.ts` | Main menu (New Game / Load / Options / Quit) (221 lines) |
-| `src/ui_options.ts` | Options/preferences screen; pref I/O (SavedPreferences, loadPreferences, savePreferences, getVolumeValue) carved into `ui_options/preferences.ts` |
-| `src/ui_saveload.ts` | Save/load window per CE loadsave.cc (slot list, info box, preview), plus scroll bar and delete |
-| `src/ui_automap.ts` | Standalone automap overlay (272 lines) |
-| `src/ui_contextmenu.ts` | Right-click context menu (178 lines) |
-| `src/ui_font.ts` | Barrel — bitmap font renderer; split into `ui/fontCore.ts` (FontRenderer/FontWidget/renderBitmapText) + `ui/numberDials.ts` (setNumberDial/renderBignum); keeps font1–font4 singletons |
-| `src/ui_components.ts` | Shared UI components: buttons, sliders, scroll containers (215 lines) |
-| `src/ui_widget.ts` | Generic widget helpers (88 lines) |
-| `src/ui_drag.ts` | Drag-and-drop support for panels (76 lines) |
+| `src/uiPanels.ts` | `UIMode` re-export + panel registration helpers (138 lines) |
+| `src/uiHud.ts` | Main HUD bar: HP/AC/AP readouts, weapon display, combat buttons, message log (309 lines) |
+| `src/uiCharacter.ts` | Barrel — character screen + creator; split into `uiCharacter/descriptions.ts` (lookup tables), `uiCharacter/viewer.ts` (in-game character screen), `uiCharacter/folders.ts` (CE PERKS / KARMA / KILLS folder view), `uiCharacter/creator.ts` (new-game creator flow), `uiCharacter/perkModal.ts` (level-up perk selection), `uiCharacter/statPanels.ts` (CE status boxes) |
+| `src/uiCharacterCreator.ts` | Entry-point shim into the character creator section of uiCharacter.ts (46 lines) |
+| `src/uiPipBoy.ts` | Barrel — Pip-Boy overlay; split into `uiPipBoy/shell.ts` (container + date/time bar + wait menu + tab dispatcher + shared widget helpers) and `uiPipBoy/tabs/{status,automaps,archives}.ts` |
+| `src/uiInventory.ts` | Barrel — inventory panel; split into `uiInventory/dragdrop.ts` (drag/drop primitives, uiMoveSlot, applyArmorArt, tryLoadAmmoIntoWeapon) + `uiInventory/panel.ts` (closeInventory, initInventory, showInventory) |
+| `src/uiDialogue.ts` | Dialogue panel: NPC reply text + selectable options, pop-up animation (113 lines) |
+| `src/uiBarter.ts` | Barrel — barter screen; split into `uiBarter/swap.ts` (uiGetAmount + uiSwapItem cross-list primitives) + `uiBarter/screen.ts` (uiBarterMode) |
+| `src/uiLoot.ts` | Loot panel: container/corpse inventory transfer (191 lines) |
+| `src/uiWorldmap.ts` | World map travel screen overlay (193 lines) |
+| `src/uiCalledShot.ts` | Called-shot body region selector (173 lines) |
+| `src/uiElevator.ts` | Elevator floor selection dialog (108 lines) |
+| `src/uiSkilldex.ts` | Skilldex panel per CE skilldex.cc: skill buttons, values, CANCEL |
+| `src/uiMainMenu.ts` | Main menu (New Game / Load / Options / Quit) (221 lines) |
+| `src/uiOptions.ts` | Options/preferences screen; pref I/O (SavedPreferences, loadPreferences, savePreferences, getVolumeValue) carved into `uiOptions/preferences.ts` |
+| `src/uiSaveLoad.ts` | Save/load window per CE loadsave.cc (slot list, info box, preview), plus scroll bar and delete |
+| `src/uiAutomap.ts` | Standalone automap overlay (272 lines) |
+| `src/uiContextMenu.ts` | Right-click context menu (178 lines) |
+| `src/uiFont.ts` | Barrel — bitmap font renderer; split into `ui/fontCore.ts` (FontRenderer/FontWidget/renderBitmapText) + `ui/numberDials.ts` (setNumberDial/renderBignum); keeps font1–font4 singletons |
+| `src/uiComponents.ts` | Shared UI components: buttons, sliders, scroll containers (215 lines) |
+| `src/uiWidget.ts` | Generic widget helpers (88 lines) |
+| `src/uiDrag.ts` | Drag-and-drop support for panels (76 lines) |
 
 ### Persistence & State
 
@@ -221,7 +221,7 @@ All UI files render to DOM elements over the WebGL canvas.
 | `src/gameMovie.ts` | `gameMoviePlay` for the WebM movies (subtitles from `.sve`, fades from `.cfg`, seen-movie set) (`game_movie.cc`) |
 | `src/talkingHead.ts` | Talking heads: fidgets, reactions, lip-synced speech from `.lip` files (`game_dialog.cc`, `lips.cc`) |
 | `src/floatText.ts` | Floating text over critters in the CE interface font (text_object.cc textObjectAdd: wrap, outline, float_msg colours) |
-| `src/ui_options/fallout2Cfg.ts` | Reads `fallout2.cfg` into Config at startup (`config.cc`, `settings.cc`) |
+| `src/uiOptions/fallout2Cfg.ts` | Reads `fallout2.cfg` into Config at startup (`config.cc`, `settings.cc`) |
 | `src/questData.ts` | CE `questInit` / `holodiskInit`: quests from `data/data/quests.txt` + quests.msg + map.msg, holodisks from `data/data/holodisk.txt` |
 | `src/questLog.ts` | Reads GVARs against `questData` to produce the active/completed quest list |
 | `src/events.ts` | Pub/sub `Events` module + `scheduleExplosion` helper (52 lines) |
@@ -277,7 +277,7 @@ Key conventions:
 
 _Last audited: 2026-10-06 against `main` branch (opcode table re-verified; first pass 2026-05-31)._
 
-`vm_bridge.ts` wires **~130 opcodes** via the `bridged()` factory plus a few custom
+`vmBridge.ts` wires **~130 opcodes** via the `bridged()` factory plus a few custom
 inline handlers (including `gsay_end` and `giq_option`).
 
 No method in `scripting.ts` calls `stub(...)` at runtime any more. The 11 methods this
@@ -288,7 +288,7 @@ sub-IDs now log via `dbgWarn`. Remaining no-op paths: `play_gmovie` (S15),
 `obj_can_hear_obj` (S28), metarule 52/53 (car cargo, W8).
 
 **Note on `giq_option` and `gsay_end`:** both are wired — they have custom
-inline handlers in `vm_bridge.ts` (lines 191 and 203) rather than using
+inline handlers in `vmBridge.ts` (lines 191 and 203) rather than using
 `bridged()`. The `//,0x811D: bridged("gsay_end", 0)` and
 `//,0x8121: bridged("giq_option", 5)` comments above them are leftover
 reminders of the original bridged form, not the live wiring.
@@ -299,11 +299,11 @@ reminders of the original bridged form, not the live wiring.
 
 _Last audited: 2026-10-18 (full wiki re-audit, known_bugs C48–C61; earlier: 2026-10-07 branch `100percent`, 2026-10-06 reconciliation, first pass 2026-05-31). Every entry below is
 anchored to an active `stub(...)` call, a confirmed missing wire in
-`vm_bridge.ts`, or documented absent engine behaviour verified in source._
+`vmBridge.ts`, or documented absent engine behaviour verified in source._
 
 See `ROADMAP.md` for the prioritised plan.
 
-### Opcode Stubs (wired in vm_bridge.ts, but method body calls stub())
+### Opcode Stubs (wired in vmBridge.ts, but method body calls stub())
 
 None — all 8 `stub(` occurrences in `src/` are commented out, and all 181 vanilla
 opcodes are bridged (S29). `play_gmovie` (S15), `obj_can_hear_obj` (S28) and metarule
@@ -322,7 +322,7 @@ scripts.lst (2026-10-18) finds a handler for all 192 opcodes they use; metarule 
 | Subtitles / speech audio | `src/talkingHead.ts`, `src/gameMovie.ts` | Talking-head speech with lip sync (P4); movie subtitles from `.sve` (S15). |
 | Movie playback | `src/gameMovie.ts`, `tools/convertMovies.py` | `play_gmovie` / startup / ARTIMER / endgame movies play as WebM (S15). |
 | Endgame slideshow | `src/endgame.ts` | `endgame_slideshow` (0x8146) and `endgame_movie` (0x8148) wired. `playSlideshow()` iterates `lut/endgame.json`, shows static/panning PNG slides in a DOM overlay with narrator audio and subtitle support. `setupDeathEnding()` selects a death ending via weighted random from `lut/enddeath.json`. Split per wiki/ts-split-refactor.md §19: `endgame/deathEndings.ts` (selection) + `endgame/slideRender.ts` (slide rendering). See `wiki/endgame.md` and `wiki/known_bugs.md §23`. |
-| Karma titles / town reputation | `src/player.ts`, `src/ui_character/viewer.ts`, `src/combat/whoHitMe.ts` | Karma titles (R1), town rep tiers (R2). CE has no engine-side reaction modifier (`_reaction_influence_` = 0); its one reaction write, −3 on being hit by the player, is ported (C19). |
+| Karma titles / town reputation | `src/player.ts`, `src/uiCharacter/viewer.ts`, `src/combat/whoHitMe.ts` | Karma titles (R1), town rep tiers (R2). CE has no engine-side reaction modifier (`_reaction_influence_` = 0); its one reaction write, −3 on being hit by the player, is ported (C19). |
 | NPC schedule AI | `src/gameTick.ts` | Script-driven, as in CE: one `critter_p_proc` per tick round-robin (`_script_chk_critters`); the DH2 engine wander/follow inventions were removed 2026-10-06. |
 | `wander_type` | — | Removed with the engine wander (2026-10-06); CE has no engine wander. |
 | Animation interleaving | `src/scripting.ts` | Fixed (S13, 2026-06-02): `reg_anim_func` entries fire in registration order between animate steps, matching CE `animationRegAnimFunc`. |
@@ -341,16 +341,16 @@ present and functional in the current source:
 
 | Item | Where it actually lives |
 |------|------------------------|
-| Perk selection UI | `showPerkModal()` in `src/ui_character/perkModal.ts`; triggered when `player.pendingPerkPick` is true. SPECIAL/skill prerequisites checked via `getValidPerks()` in `src/perks/perks.ts`. Perk applied and `pendingPerkPick` cleared via `applyPerk()` in `src/perks/perks.ts`. |
-| Trait selection at character creation | Full 2-trait selector in `src/ui_character/creator.ts`; 2-trait limit enforced; traits live-update skill calculations during creation. |
-| Name / age / sex entry at creation | Text input (name), spinner (age), toggle buttons (sex) all wired in `src/ui_character/creator.ts`; values applied via `player.applyCreationStats()` on DONE. |
+| Perk selection UI | `showPerkModal()` in `src/uiCharacter/perkModal.ts`; triggered when `player.pendingPerkPick` is true. SPECIAL/skill prerequisites checked via `getValidPerks()` in `src/perks/perks.ts`. Perk applied and `pendingPerkPick` cleared via `applyPerk()` in `src/perks/perks.ts`. |
+| Trait selection at character creation | Full 2-trait selector in `src/uiCharacter/creator.ts`; 2-trait limit enforced; traits live-update skill calculations during creation. |
+| Name / age / sex entry at creation | Text input (name), spinner (age), toggle buttons (sex) all wired in `src/uiCharacter/creator.ts`; values applied via `player.applyCreationStats()` on DONE. |
 | Drug decay / addiction | `src/drugs.ts`: CE item.cc port on timed events (`drug:` / `withdrawal:`); `tickAddictions` removed. |
 | Poison tick-based damage | Superseded by S26 (2026-07-27): CE-faithful `poisonDecayEvent` timed event in `src/scripting.ts` (`10*(505-5*level)` ticks, -2 poison / -1 HP). |
 | Radiation | `src/radiation.ts`: CE `critterAdjustRadiation` / `checkRads` (midnight) / `processRads`, replacing the old symptom approximation. |
-| `get_month` / `get_day` | Both read from `GameTime.getDate()` in `src/vm_bridge.ts:52,56` — not hardcoded. |
+| `get_month` / `get_day` | Both read from `GameTime.getDate()` in `src/vmBridge.ts:52,56` — not hardcoded. |
 | `end_dialogue` | Implemented: calls `dialogueExit()` in `src/scripting.ts:1486`. |
-| `gsay_end` | Implemented: halts the VM via `this._vm.halted = true` in `src/scripting.ts:1484`; wired in `vm_bridge.ts:191`. |
-| `giq_option` | Implemented: checks INT threshold, pushes option to `dialogueOptionProcs` and calls `uiAddDialogueOption()` in `src/scripting.ts:1490`; wired in `vm_bridge.ts:203`. |
+| `gsay_end` | Implemented: halts the VM via `this._vm.halted = true` in `src/scripting.ts:1484`; wired in `vmBridge.ts:191`. |
+| `giq_option` | Implemented: checks INT threshold, pushes option to `dialogueOptionProcs` and calls `uiAddDialogueOption()` in `src/scripting.ts:1490`; wired in `vmBridge.ts:203`. |
 | `gfade_in` / `gfade_out` | Implemented: CSS `opacity` transitions via a dynamically created overlay div in `src/scripting.ts:1691,1708`. |
 | `play_sfx` | Implemented: delegates to `globalState.audioEngine.playSfx()` in `src/scripting.ts:1798`. |
 

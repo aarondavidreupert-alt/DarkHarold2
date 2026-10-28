@@ -1,6 +1,6 @@
 # CE parity audit — Items, protos, object "use" actions
 
-Scope: CE files `item.cc`, `proto.cc`, `proto_instance.cc` (+ `item.h`, `proto.h`, `proto_types.h`, `obj_types.h`); DH2 files `src/object/Obj.ts`, `src/object/items.ts`, `src/object/factories.ts`, `src/pro.ts`, `src/proto_types.ts`, `src/miscItem.ts`, `src/weaponAmmo.ts`, `src/critter/Weapon.ts`, `src/critter/lifecycle.ts`, `src/useItemOn.ts`, `src/playerUse.ts`, `src/examine.ts`, `src/inventoryWield.ts`, `src/drugs.ts`, `src/scripting.ts` (item/object opcodes), `src/map/GameMap.ts`, `src/ui_contextmenu.ts`, `src/ui_inventory/panel.ts`, `src/combat/*`, plus the map pipeline `tools/fomap.py` (the stand-in for `proto.cc objectDataRead`). Audited 2026-10-24.
+Scope: CE files `item.cc`, `proto.cc`, `proto_instance.cc` (+ `item.h`, `proto.h`, `proto_types.h`, `obj_types.h`); DH2 files `src/object/Obj.ts`, `src/object/items.ts`, `src/object/factories.ts`, `src/pro.ts`, `src/protoTypes.ts`, `src/miscItem.ts`, `src/weaponAmmo.ts`, `src/critter/Weapon.ts`, `src/critter/lifecycle.ts`, `src/useItemOn.ts`, `src/playerUse.ts`, `src/examine.ts`, `src/inventoryWield.ts`, `src/drugs.ts`, `src/scripting.ts` (item/object opcodes), `src/map/GameMap.ts`, `src/uiContextMenu.ts`, `src/uiInventory/panel.ts`, `src/combat/*`, plus the map pipeline `tools/fomap.py` (the stand-in for `proto.cc objectDataRead`). Audited 2026-10-24.
 
 ## Summary
 
@@ -43,11 +43,11 @@ None of these are listed in `wiki/known_bugs.md`. Related closed rows: IU1 (use_
 | CE function (file) | DH2 counterpart (file:line) | Status | Sev | Notes |
 |---|---|---|---|---|
 | itemsInit / itemsReset / itemsExit / _item_load_ / itemsLoad / itemsSave | `getMessage('item', …)`; static tables in Obj.ts / drugs.ts | 🚫 N/A | – | item.msg comes from the message JSON; books, explosives and healing pids are constants |
-| itemAttemptAdd | `Obj.canCarry` Obj.ts:1033 (+ pickup Obj.ts:1355, ui_loot.ts:80/127) | ✅ FIXED (ITEM-19) | MED | Critter weight check and the container `>=` size check match; three CE checks are missing. ITEM-19 |
+| itemAttemptAdd | `Obj.canCarry` Obj.ts:1033 (+ pickup Obj.ts:1355, uiLoot.ts:80/127) | ✅ FIXED (ITEM-19) | MED | Critter weight check and the container `>=` size check match; three CE checks are missing. ITEM-19 |
 | itemAdd | `Obj.addInventoryItem` Obj.ts:947; `ammoMergeInto` weaponAmmo.ts:69 | ✅ MATCH | LOW | Ammo top-box merge is the same. CE replaces the stack's object with the incoming one; DH2 keeps the old object. Stealth Boy II in hand → `refreshStealthState` |
 | itemRemove | inventory splice at call sites; `ammoSplitOff` weaponAmmo.ts:83 | ✅ FIXED (2026-10-26) | LOW | CE also looks inside containers and clears OBJECT_EQUIPPED / Stealth Boy; DH2 handles this at each call site. Container recursion not verified — **2026-10-26:** a script removal searches the bags recursively (rm_mult_objs_from_inven); the hand / worn flags and the Stealth Boy are handled where items leave (unequipForRemoval). |
 | _item_compact | Array.splice | 🚫 N/A | – | |
-| _item_move_func / itemMove / itemMoveForce | ui_loot.ts transfer; `move_obj_inven_to_obj` | 🚫 N/A (2026-10-26) | LOW | No "put it back, else drop at the owner's tile" fallback when the add fails — **2026-10-26:** DH2's transfers check room before they remove, and itemMoveAll forces the add, so the put-back / drop-on-the-tile path never comes up. |
+| _item_move_func / itemMove / itemMoveForce | uiLoot.ts transfer; `move_obj_inven_to_obj` | 🚫 N/A (2026-10-26) | LOW | No "put it back, else drop at the owner's tile" fallback when the add fails — **2026-10-26:** DH2's transfers check room before they remove, and itemMoveAll forces the add, so the put-back / drop-on-the-tile path never comes up. |
 | itemMoveAll | inventoryWield.ts:90 | ✅ MATCH | – | |
 | itemMoveAllHidden | — | ✅ FIXED (ITEM-01) | MED | Used by inventory.cc:4127 to keep hidden items out of the loot / steal window. ITEM-01 |
 | itemDestroyAllHidden | — | ✅ FIXED (ITEM-01) | HIGH | Called on death (critter.cc:905, combat.cc:4858) to destroy natural weapons; in DH2 they stay in the corpse's inventory. ITEM-01 |
@@ -59,9 +59,9 @@ None of these are listed in `wiki/known_bugs.md`. Related closed rows: IU1 (use_
 | itemGetSize | `pro.extra.size` (canCarry) | ✅ MATCH | – | |
 | itemGetWeight | `Obj.getWeight` Obj.ts:961 | ✅ FIXED (ITEM-01) | HIGH | Formula matches (power armour ÷2, container contents, ammo by the box), but "hidden = 0" reads OBJECT_HIDDEN instead of ITEM_HIDDEN. ITEM-01 |
 | itemGetCost | `Obj.getCost` Obj.ts:987 | ✅ MATCH | – | Integer math is the same |
-| objectGetCost | `Obj.stackCost` Obj.ts:1008, ui_barter/screen.ts:212 | ✅ MATCH | – | |
+| objectGetCost | `Obj.stackCost` Obj.ts:1008, uiBarter/screen.ts:212 | ✅ MATCH | – | |
 | objectGetInventoryWeight | `Obj.getInventoryWeight` Obj.ts:1015 | ✅ MATCH | – | DH2 keeps hand / armor items outside the list and adds them; the totals are the same |
-| dudeIsWeaponDisabled | ui_hud.ts:316 | ✅ MATCH | – | |
+| dudeIsWeaponDisabled | uiHud.ts:316 | ✅ MATCH | – | |
 | itemGetInventoryFid | `Item.init` invArt items.ts:46 | ✅ MATCH | – | |
 | critterGetWeaponForHitMode | hand slots + `Weapon.slot()` | ✅ MATCH | – | |
 | itemGetActionPointCost | useItemOn.ts:40 `USE_ITEM_AP = 2`; `Weapon.getAttackAPCost` | ✅ MATCH | – | |
@@ -86,14 +86,14 @@ None of these are listed in `wiki/known_bugs.md`. Related closed rows: IU1 (use_
 | weaponGetActionPointCost | `Weapon.getAttackAPCost` Weapon.ts:327, `getReloadAPCost` :345, unarmed.ts:164 | ✅ MATCH | – | |
 | weaponGetMinStrengthRequired / CriticalFailureType / Perk / BurstRounds / AnimationCode / ProjectilePid / AmmoTypePid / SoundId | proto fields; weaponAmmo.ts:100 | ✅ MATCH | – | Getters, grouped |
 | critterCanAim | Weapon.ts:293, cycleMode Fast Shot :249; unarmed.ts:115 | ✅ MATCH | – | |
-| weaponCanBeUnloaded / weaponUnload | ui_inventory/panel.ts:481 | ✅ MATCH | – | Repeats one box at a time, as inventory.cc does |
+| weaponCanBeUnloaded / weaponUnload | uiInventory/panel.ts:481 | ✅ MATCH | – | Repeats one box at a time, as inventory.cc does |
 | weaponGetPrimary/SecondaryActionPointCost | `Weapon.getAPCost` Weapon.ts:320 | ✅ MATCH | – | |
 | _item_w_compute_ammo_cost | — | ✅ FIXED (2026-10-25) | LOW | The Super Cattle Prod (399) and Mega Power Fist (407) should use 2 charges per hit; DH2 uses 1 (Combat.ts:489/897). ITEM-16 — **Fixed 2026-10-25:** pids 399 / 407 use 2 charges (ITEM-16). |
 | weaponIsGrenade / weaponGetDamageRadius / weaponGetGrenadeExplosionRadius / weaponGetRocketExplosionRadius | combat/explosion.ts:28-29, Combat.ts:424-444 | ✅ MATCH | – | |
 | weaponGetAmmo{ArmorClass,DamageResistance}Modifier / DamageMultiplier / DamageDivisor; ammoGet* (same four) | combat damage reads the ammo proto `AC modifier / DR modifier / damMult / damDiv` | ✅ MATCH | – | Grouped; the damage formula is audited under combat |
 | armorGetArmorClass / DamageResistance / DamageThreshold / Perk / MaleFid / FemaleFid | Critter stats, `armorPerkSwap`, `applyArmorArt` | ✅ MATCH | – | Grouped |
 | miscItemGetMaxCharges / GetCharges / SetCharges | `miscCharges` miscItem.ts:108 | ✅ FIXED (2026-10-25) | LOW | No clamp to the max; charges start from the proto on the first turn-on; the map's charges are lost (ITEM-12) |
-| miscItemGetPowerType / GetPowerTypePid / IsConsumable | proto_types.ts:149 (fields only) | ✅ FIXED (2026-10-25) | LOW | Only used through itemAttemptAdd (recharging with cells), which is missing (ITEM-19) |
+| miscItemGetPowerType / GetPowerTypePid / IsConsumable | protoTypes.ts:149 (fields only) | ✅ FIXED (2026-10-25) | LOW | Only used through itemAttemptAdd (recharging with cells), which is missing (ITEM-19) |
 | _item_m_use_charged_item | `useChargedMiscItem` miscItem.ts:127 | ✅ FIXED (ITEM-03) | MED | Motion Sensor branch missing. ITEM-03 |
 | miscItemConsumeCharge / miscItemTrickleEventProcess | `scheduleTrickle` miscItem.ts:85 | ✅ FIXED (2026-10-25) | LOW | ITEM-04 |
 | miscItemIsOn | miscItem.ts:62 | ✅ MATCH | – | |
@@ -126,7 +126,7 @@ None of these are listed in `wiki/known_bugs.md`. Related closed rows: IU1 (use_
 | proto_make_path / _proto_list_str / proto_size | `loadPRO` pro.ts:27 (lst lookup) | 🚫 N/A | – | JSON pipeline |
 | _proto_action_can_use | `Obj.canUse` Obj.ts:1119 | ✅ FIXED (2026-10-25) | LOW | Items: `weaponFlags & 0x08` (0x0800) + containers matches. Scenery: reads `extra.weaponFlags`, which scenery JSON doesn't have (it stores `extendedFlags`), so the flag is ignored. ITEM-14 — **Fixed 2026-10-25:** scenery reads its own extendedFlags (ITEM-14). |
 | _proto_action_can_use_on | `itemCanUseOn` useItemOn.ts:47 | ✅ MATCH | – | |
-| _proto_action_can_talk_to | `objActionCanTalkTo` ui_contextmenu.ts:159 | 🚫 N/A (2026-10-26) | LOW | The ext-flag 0x4000 "talk" on non-critters is ignored — **2026-10-26:** CE's _obj_action_can_talk_to also requires a critter, so the 0x4000 flag never makes a non-critter talkable. |
+| _proto_action_can_talk_to | `objActionCanTalkTo` uiContextMenu.ts:159 | 🚫 N/A (2026-10-26) | LOW | The ext-flag 0x4000 "talk" on non-critters is ignored — **2026-10-26:** CE's _obj_action_can_talk_to also requires a critter, so the 0x4000 flag never makes a non-critter talkable. |
 | _proto_action_can_pickup | — | ✅ FIXED (2026-10-25) | LOW | Ground containers with ext flag 0x8000 (bags) can't be picked up; DH2 always opens them. ITEM-14 — **Fixed 2026-10-25:** Obj.canPickUp (ITEM-14). |
 | protoGetMessage / protoGetName / protoGetDescription | `getMessage(cat, textID[+1])` Obj.ts; proto_data 1/2 | ✅ MATCH | LOW | CE's `protoGetName(0x1000000)` returns the dude's own name |
 | proto_item_init / proto_item_subdata_init / proto_critter_init / proto_scenery_init / proto_scenery_subdata_init / proto_wall_init / proto_tile_init / proto_misc_init / proto_copy_proto / proto_new / _proto_find_free_subnode / _proto_new_id / proto_max_id | — | 🚫 N/A | – | Mapper / editor defaults |
@@ -265,7 +265,7 @@ DH2 (miscItem.ts:108) differs on each point: no charge at turn-on (the total run
 
 ### ITEM-17 — No 3-AP cost for scenery / pickup / container use in combat (MED, NEW) — **FIXED 2026-10-24 (PA18)**
 - **CE**: `_check_scenery_ap_cost` is registered by actions.cc for `_action_use_an_object`, `actionPickUp` and loot (actions.cc:1041/1109/1183/1289). In combat, fewer than 3 AP gives proto.msg 700 and refuses; otherwise it subtracts 3 AP.
-- **DH2**: no AP is charged for `Obj.use`, `Obj.pickup` or `uiLoot` in combat (playerUse.ts:417, ui_contextmenu.ts:103/113). Only item-on-target use costs 2 AP (useItemOn.ts:76).
+- **DH2**: no AP is charged for `Obj.use`, `Obj.pickup` or `uiLoot` in combat (playerUse.ts:417, uiContextMenu.ts:103/113). Only item-on-target use costs 2 AP (useItemOn.ts:76).
 - **Fix**: check and spend 3 combat AP in those paths when `inCombat`.
 
 ### ITEM-18 — Dude's EMP resistance (MED, NEW) — **FIXED 2026-10-25**
@@ -294,7 +294,7 @@ DH2 `canCarry` (Obj.ts:1033) differs from CE in three places:
 - **Order of `Obj.use`**: any item's or scenery's use_p_proc runs first and can override, before the engine handlers (book, flare, explosive, drug). CE reaches the script only through `_obj_use_radio` / `_obj_use_misc_item`, after books and flares.
 - **The flare message** is 587 "You light the flare." (CE shows 588 in both branches); this deviation is documented in Obj.ts:269.
 - **Medical kit on a non-critter**: `protinstUseItemOn` refuses with 582; CE hands the target to `skillUse`.
-- **`[dh2] elevator_use`**: elevator scenery gets a Use action (ui_contextmenu.ts:131, src/elevatorUse.ts); CE has none. This is documented in C66.
+- **`[dh2] elevator_use`**: elevator scenery gets a Use action (uiContextMenu.ts:131, src/elevatorUse.ts); CE has none. This is documented in C66.
 - **Ladder climb** plays the climb animation and sfx inside `Obj.use` (Obj.ts:1250); CE does this in actions.cc.
 - **`explosiveGetDamage`** also accepts the armed pids (206/209).
 - **Drug deltas** are applied to base stats, not to a bonus layer (drugs.ts:108, documented).

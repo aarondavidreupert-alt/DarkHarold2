@@ -2,10 +2,10 @@
 
 Scope: CE `game_dialog.cc`, `dialog.cc`, `lips.cc`, `party_member.cc` (plus the dialogue / party opcodes of
 `interpreter_extra.cc` that call into them) vs DH2 `src/scripting.ts` (dialogue + party parts),
-`src/vm.ts` / `src/lua/prelude.ts` (gsay_end / gsay_message suspension), `src/ui_dialogue.ts`,
-`src/ui_dialogue_review.ts`, `src/talkingHead.ts`, `src/ui_companion.ts`, `src/ui_companion_trade.ts`,
-`src/ui_barter/screen.ts` (entry / exit only), `src/party.ts`, `src/aiPackets.ts`, `src/map/GameMap.ts placeParty`,
-`src/ui_pipboy/shell.ts` / `src/worldmap/Worldmap.ts` (resting heal). Audited 2026-10-24.
+`src/vm.ts` / `src/lua/prelude.ts` (gsay_end / gsay_message suspension), `src/uiDialogue.ts`,
+`src/uiDialogueReview.ts`, `src/talkingHead.ts`, `src/uiCompanion.ts`, `src/uiCompanionTrade.ts`,
+`src/uiBarter/screen.ts` (entry / exit only), `src/party.ts`, `src/aiPackets.ts`, `src/map/GameMap.ts placeParty`,
+`src/uiPipBoy/shell.ts` / `src/worldmap/Worldmap.ts` (resting heal). Audited 2026-10-24.
 
 Method: every function of the four CE files was read; DH2 counterparts located by grep and read. Script-side
 claims were checked against the decompiled vanilla scripts in the user's install (`data/scripts/*.lua`,
@@ -77,31 +77,31 @@ Top findings:
 | `gameDialogInit` | — | 🚫 N/A | — | sfall `DialogGameFix` / `NumbersInDialogue` config; DH2 has no number keys at all (DLG-04). |
 | `_gdialogReset`, `gameDialogReset`, `gameDialogExit` | `talkingHead.ts:286 endLips` via `uiEndDialogue` | ✅ | — | Only ends lips. |
 | `_gdialogActive` | `globalState.uiMode === UIMode.dialogue` / `currentDialogueObject` | ✅ | — | |
-| `gameDialogEnter` | `scripting.ts:3461 talk` + callers (`playerUse.ts:409`, `ui_contextmenu.ts:100`, `input.ts:458`) | ✅ FIXED (2026-10-25) | LOW | Combat refusal is in the callers, not in `talk`; no `_action_can_talk_to` (660 "can't see", 661 > 12 hexes) for the `dialogue_system_enter` path; barter modifier reset on exit instead of entry (same effect); camera centre not restored at the end (DLG-07). |
+| `gameDialogEnter` | `scripting.ts:3461 talk` + callers (`playerUse.ts:409`, `uiContextMenu.ts:100`, `input.ts:458`) | ✅ FIXED (2026-10-25) | LOW | Combat refusal is in the callers, not in `talk`; no `_action_can_talk_to` (660 "can't see", 661 > 12 hexes) for the `dialogue_system_enter` path; barter modifier reset on exit instead of entry (same effect); camera centre not restored at the end (DLG-07). |
 | `_gdialogSystemEnter` | `scripting.ts:3452 processDialogueRequest` | ✅ | — | Request opened by the game tick (L9). |
 | `gameDialogStartLips` | `talkingHead.ts:267 startLips` | ✅ FIXED (2026-10-26) | LOW | "censor" sfx for a null name ✅. CE still plays the ACM when the `.lip` file is missing (`lipsLoad` goes on with no stream); DH2 plays nothing without a `.lip`. Unverified whether vanilla has such lines. — **2026-10-26:** without a .lip the speech still plays, unsynced (as CE's lipsLoad with no stream). |
 | `gameDialogEndLips` | `talkingHead.ts:286 endLips` | ✅ | — | |
 | `gameDialogEnable` / `gameDialogDisable` | `talkingHead.ts:307 ticker` (rAF) | 🚫 N/A | — | |
-| `_gdialogInitFromScript` | `scripting.ts:2452 start_gdialog` → `ui_dialogue.ts:133 uiStartDialogue`, `talkingHead.ts:372 startTalkingHead` | ✅ FIXED (2026-10-26) | LOW | Head / reaction / music (half volume or stop) ✅. CE `opStartGameDialog` returns at once in combat; DH2 still opens the UI (only the head is skipped). No `textObjectsReset` (floating texts stay), no `indicatorBarHide`. — **2026-10-26:** start_gdialog does nothing in combat (opStartGameDialog); floating texts are cleared (textObjectsReset); the warning boxes hide (indicatorBarHide). |
-| `_gdialogExitFromScript` | `scripting.ts:533 dialogueExit` → `ui_dialogue.ts:184 uiEndDialogue` / `stopTalkingHead` | ✅ FIXED (2026-10-25) | LOW | Music restore ✅. CE refuses to exit while a barter / control switch is pending (`_dialogue_switch_mode` 2/8/11) — DH2's architecture differs (DLG-01). No camera restore (DLG-07). |
+| `_gdialogInitFromScript` | `scripting.ts:2452 start_gdialog` → `uiDialogue.ts:133 uiStartDialogue`, `talkingHead.ts:372 startTalkingHead` | ✅ FIXED (2026-10-26) | LOW | Head / reaction / music (half volume or stop) ✅. CE `opStartGameDialog` returns at once in combat; DH2 still opens the UI (only the head is skipped). No `textObjectsReset` (floating texts stay), no `indicatorBarHide`. — **2026-10-26:** start_gdialog does nothing in combat (opStartGameDialog); floating texts are cleared (textObjectsReset); the warning boxes hide (indicatorBarHide). |
+| `_gdialogExitFromScript` | `scripting.ts:533 dialogueExit` → `uiDialogue.ts:184 uiEndDialogue` / `stopTalkingHead` | ✅ FIXED (2026-10-25) | LOW | Music restore ✅. CE refuses to exit while a barter / control switch is pending (`_dialogue_switch_mode` 2/8/11) — DH2's architecture differs (DLG-01). No camera restore (DLG-07). |
 | `gameDialogSetBackground` | `talkingHead.ts:373` | ✅ | — | |
-| `gameDialogRenderSupplementaryMessage` | `ui_companion.ts:222 showAIUpdateMsg`, `ui_companion_trade.ts` (`uiSetDialogueReply`) | ✅ FIXED (2026-10-26) | LOW | The dialogue Barter button's 903 / 913 refusals go to the message monitor (`ui_dialogue.ts:102 uiLog`), CE shows them in the reply window. — **2026-10-26:** 903 / 913 in the reply window. |
+| `gameDialogRenderSupplementaryMessage` | `uiCompanion.ts:222 showAIUpdateMsg`, `uiCompanionTrade.ts` (`uiSetDialogueReply`) | ✅ FIXED (2026-10-26) | LOW | The dialogue Barter button's 903 / 913 refusals go to the message monitor (`uiDialogue.ts:102 uiLog`), CE shows them in the reply window. — **2026-10-26:** 903 / 913 in the reply window. |
 | `_gdialogStart` | `scripting.ts:2754 gsay_start` | ✅ FIXED (2026-10-26) | LOW | Options cleared ✅. CE also empties the review list on every `gsay_start`; DH2 empties it on a fresh `start_gdialog` only (same in practice). — **2026-10-26:** gsay_start empties the review list and the options. |
 | `_gdialogSayMessage` | `scripting.ts:2777 gsay_message` | ✅ FIXED (DLG-02) | MED | DLG-02. |
-| `gameDialogAddMessageOptionWithProcIdentifier`, `gameDialogAddTextOptionWithProcIdentifier`, `gameDialogAddMessageOptionWithProc`, `gameDialogAddTextOptionWithProc` | `scripting.ts:2743 gsay_option`, `:2819 giq_option`, `vm_bridge.ts:328`, `lua/prelude.ts:188` | ✅ | — | IQ test incl. Smooth Talker and negative IQ ✅. CE silently ignores a *string* proc name (proc = 0, option ends the dialogue); DH2 behaviour for that case unverified (no vanilla script uses it). |
+| `gameDialogAddMessageOptionWithProcIdentifier`, `gameDialogAddTextOptionWithProcIdentifier`, `gameDialogAddMessageOptionWithProc`, `gameDialogAddTextOptionWithProc` | `scripting.ts:2743 gsay_option`, `:2819 giq_option`, `vmBridge.ts:328`, `lua/prelude.ts:188` | ✅ | — | IQ test incl. Smooth Talker and negative IQ ✅. CE silently ignores a *string* proc name (proc = 0, option ends the dialogue); DH2 behaviour for that case unverified (no vanilla script uses it). |
 | `gameDialogSetMessageReply`, `gameDialogSetTextReply` | `scripting.ts:2765 gsay_reply` | ✅ FIXED (2026-10-26) | LOW | Review entry ✅, speech ✅. CE also clears the option list (options added before the reply are dropped); DH2 keeps them. — **2026-10-26:** a reply drops the options added before it. |
-| `_gdialogGo` | `vm_bridge.ts:317` / `scripting.ts:2801 gsay_end`, `lua/prelude.ts:180` | ✅ FIXED (DLG-02, DLG-03) | MED | DLG-02 / DLG-03: CE returns at once when no reply is pending, and adds an implicit option when there are none; DH2 always suspends. |
+| `_gdialogGo` | `vmBridge.ts:317` / `scripting.ts:2801 gsay_end`, `lua/prelude.ts:180` | ✅ FIXED (DLG-02, DLG-03) | MED | DLG-02 / DLG-03: CE returns at once when no reply is pending, and adds an implicit option when there are none; DH2 always suspends. |
 | `_gdialogUpdatePartyStatus` | — | ✅ FIXED (2026-10-26) | LOW | Recruiting / dismissing during a conversation doesn't swap `di_talk`/`di_talkp` or show / hide Combat Control until the next `uiStartDialogue`. — **2026-10-26:** the partyChanged event refreshes the buttons and Combat Control mid-dialogue (2026-10-26, item 2). |
 | `gdHide`, `gdUnhide` | `uiSwapDialoguePanel` | 🚫 N/A | — | |
-| `gameDialogAddMessageOption`, `gameDialogAddTextOption` | `ui_dialogue.ts:251 uiAddDialogueOption` | ✅ FIXED (2026-10-26) | LOW | CE capacity 30 options; prefix `\x95 ` (bullet) — DH2 `- `. — **2026-10-26:** 30 options at most; the "\x95 " bullet (•). |
-| `gameDialogReviewWindowInit`, `gameDialogReviewWindowFree`, `gameDialogShowReview`, `gameDialogReviewButtonOnMouseUp`, `gameDialogReviewWindowUpdate` | `ui_dialogue_review.ts:35 uiShowDialogueReview` | ✅ FIXED (2026-10-26) | LOW | Art / buttons / rect ✅. CE prints "Name:" (speaker, colour 992) and "Dude:" (21140) headers per entry, reply 768 / option 15855 colours, starts at the oldest entry, ↑/↓ keys scroll one entry, opening it stops the lip-sync speech. DH2: no names, opens scrolled to the bottom, no arrow keys, speech keeps playing. — **2026-10-26:** "Name:" / "Dude:" headers in 992 / 21140, reply 768, option 15855; opens on the oldest entry; ↑ / ↓ move by one entry; the speech stops. |
+| `gameDialogAddMessageOption`, `gameDialogAddTextOption` | `uiDialogue.ts:251 uiAddDialogueOption` | ✅ FIXED (2026-10-26) | LOW | CE capacity 30 options; prefix `\x95 ` (bullet) — DH2 `- `. — **2026-10-26:** 30 options at most; the "\x95 " bullet (•). |
+| `gameDialogReviewWindowInit`, `gameDialogReviewWindowFree`, `gameDialogShowReview`, `gameDialogReviewButtonOnMouseUp`, `gameDialogReviewWindowUpdate` | `uiDialogueReview.ts:35 uiShowDialogueReview` | ✅ FIXED (2026-10-26) | LOW | Art / buttons / rect ✅. CE prints "Name:" (speaker, colour 992) and "Dude:" (21140) headers per entry, reply 768 / option 15855 colours, starts at the oldest entry, ↑/↓ keys scroll one entry, opening it stops the lip-sync speech. DH2: no names, opens scrolled to the bottom, no arrow keys, speech keeps playing. — **2026-10-26:** "Name:" / "Dude:" headers in 992 / 21140, reply 768, option 15855; opens on the oldest entry; ↑ / ↓ move by one entry; the speech stops. |
 | `dialogReviewEntriesClear`, `gameDialogAddReviewMessage`, `gameDialogAddReviewText`, `gameDialogSetReviewOptionMessage`, `gameDialogSetReviewOptionText` | `scripting.ts:100 dialogueReviewLog`, `:492 dialogueReply` | ✅ | — | Capacity 80 not enforced (harmless). |
 | `_gdProcessInit`, `_gdProcessCleanup`, `_gdProcessExit` | DOM `#dialogueBox` | 🚫 N/A | — | |
-| `gameDialogRenderCaps` | `ui_dialogue.ts:125 updateDialogueCaps` | ✅ FIXED (2026-10-26) | LOW | CE `itemGetTotalCaps` also counts caps inside carried containers; DH2 counts loose PID 41 only. — **2026-10-26:** itemGetTotalCaps. |
-| `_gdProcess` | `ui_dialogue.ts:261` (click) + `scripting.ts:492 dialogueReply` | ✅ FIXED (DLG-04) | MED | DLG-04: no 1–9 / B / Space / ↑ / ↓ keys, no 10 s auto-paging of over-long replies. |
+| `gameDialogRenderCaps` | `uiDialogue.ts:125 updateDialogueCaps` | ✅ FIXED (2026-10-26) | LOW | CE `itemGetTotalCaps` also counts caps inside carried containers; DH2 counts loose PID 41 only. — **2026-10-26:** itemGetTotalCaps. |
+| `_gdProcess` | `uiDialogue.ts:261` (click) + `scripting.ts:492 dialogueReply` | ✅ FIXED (DLG-04) | MED | DLG-04: no 1–9 / B / Space / ↑ / ↓ keys, no 10 s auto-paging of over-long replies. |
 | `_gdProcessChoice` | `scripting.ts:492 dialogueReply` | ✅ | — | Review option, `_talk_to_critter_reacts` with the option's reaction, end when the proc adds no options ✅. The sub-screen cases are DLG-01. |
-| `gameDialogOptionOnMouseEnter`, `gameDialogOptionOnMouseExit` | `ui_dialogue.ts:249-260` | ✅ | — | Hover yellow, Empathy blue / red (+ hover magenta / light red) as CE. |
-| `gameDialogRenderReply`, `_gdProcessUpdate` | `ui_dialogue.ts:196 uiSetDialogueReply`, `:251` | ✅ FIXED (2026-10-25) | LOW | Scrollable div instead of CE pages; CE gives no button to options that don't fit the 112 px window (still reachable by key); `[Done]` text hard-coded instead of proto.msg 650; "Go on" (655) case missing (DLG-03). |
+| `gameDialogOptionOnMouseEnter`, `gameDialogOptionOnMouseExit` | `uiDialogue.ts:249-260` | ✅ | — | Hover yellow, Empathy blue / red (+ hover magenta / light red) as CE. |
+| `gameDialogRenderReply`, `_gdProcessUpdate` | `uiDialogue.ts:196 uiSetDialogueReply`, `:251` | ✅ FIXED (2026-10-25) | LOW | Scrollable div instead of CE pages; CE gives no button to options that don't fit the 112 px window (still reachable by key); `[Done]` text hard-coded instead of proto.msg 650; "Go on" (655) case missing (DLG-03). |
 | `_gdCreateHeadWindow`, `_gdDestroyHeadWindow` | `talkingHead.ts:349 ensureCanvas`, `:399 stopTalkingHead` | ✅ | — | |
 | `_gdSetupFidget` | `talkingHead.ts:160 setupFidget` | ✅ | — | Fidget choice 68 / 52 / 77 %, phoneme anim per reaction ✅. |
 | `gameDialogWaitForFidgetToComplete`, `_gdPlayTransition` | `talkingHead.ts:190 playTransition` | ✅ | LOW | Async (promise chain) instead of a blocking loop; the dialogue stays clickable during a transition. |
@@ -109,25 +109,25 @@ Top findings:
 | `_demo_copy_title`, `_demo_copy_options`, `_gDialogRefreshOptionsRect` | — | 🚫 N/A | — | |
 | `gameDialogTicker` | `talkingHead.ts:307 ticker`; sub-mode switches in `uiSwapDialoguePanel` | ✅ | — | Lips → phoneme frame, end of speech → fidget after `_tocksWaiting` ✅. |
 | `_talk_to_critter_reacts` | `talkingHead.ts:213 talkToCritterReacts` | ✅ | — | |
-| `_gdialog_scroll_subwin` | `ui_dialogue.ts:37 uiAnimateBox` | 🚫 N/A | — | 1 s CSS ease vs 10 px strips every 33 ms. |
+| `_gdialog_scroll_subwin` | `uiDialogue.ts:37 uiAnimateBox` | 🚫 N/A | — | 1 s CSS ease vs 10 px strips every 33 ms. |
 | `_text_num_lines`, `text_to_rect_wrapped`, `gameDialogDrawText` | CSS wrapping | 🚫 N/A | — | |
 | `gameDialogSetBarterModifier` | `scripting.ts:2439 gdialog_set_barter_mod` | ✅ | — | |
 | `gameDialogBarter` | `scripting.ts:2444 gdialog_mod_barter` | ✅ FIXED (DLG-01) | HIGH | DLG-01. Also: CE refuses outside a dialogue (`_dialog_state_fix`); DH2 opens barter anyway. |
-| `_barter_end_to_talk_to` | `ui_barter/screen.ts uiEndBarterMode` → `scripting.ts:562 reenterDialogue` | ✅ FIXED (DLG-01) | HIGH | DLG-01 (known design, P6 / P10; consequences NEW). |
-| `_gdialog_barter_create_win`, `_gdialog_barter_destroy_win` | `ui_barter/screen.ts uiBarterMode`, `ui_companion_trade.ts uiCompanionTrade` / `uiEndCompanionTrade` | ✅ FIXED (2026-10-26) | LOW | barter.frm / trade.frm pick ✅. Missing: `aiAttemptWeaponReload(speaker)` after the barter window closes; CE stops a playing lip-sync speech when barter opens (`gameDialogBarterButtonUpMouseUp`). — **2026-10-26:** the speech stops when barter opens; the merchant's aiAttemptWeaponReload when it closes. |
-| `_gdialog_barter_cleanup_tables` | barter working copies (`ui_barter/screen.ts`, `ui_companion_trade.ts`) | 🟡 | — | Barter internals belong to the inventory audit; not checked here. |
-| `partyMemberControlWindowInit` | `ui_companion.ts:301 uiCompanionControl` | ✅ FIXED (PTY-03) | MED | Buttons / positions ✅; disposition enable rule is PTY-03. |
+| `_barter_end_to_talk_to` | `uiBarter/screen.ts uiEndBarterMode` → `scripting.ts:562 reenterDialogue` | ✅ FIXED (DLG-01) | HIGH | DLG-01 (known design, P6 / P10; consequences NEW). |
+| `_gdialog_barter_create_win`, `_gdialog_barter_destroy_win` | `uiBarter/screen.ts uiBarterMode`, `uiCompanionTrade.ts uiCompanionTrade` / `uiEndCompanionTrade` | ✅ FIXED (2026-10-26) | LOW | barter.frm / trade.frm pick ✅. Missing: `aiAttemptWeaponReload(speaker)` after the barter window closes; CE stops a playing lip-sync speech when barter opens (`gameDialogBarterButtonUpMouseUp`). — **2026-10-26:** the speech stops when barter opens; the merchant's aiAttemptWeaponReload when it closes. |
+| `_gdialog_barter_cleanup_tables` | barter working copies (`uiBarter/screen.ts`, `uiCompanionTrade.ts`) | 🟡 | — | Barter internals belong to the inventory audit; not checked here. |
+| `partyMemberControlWindowInit` | `uiCompanion.ts:301 uiCompanionControl` | ✅ FIXED (PTY-03) | MED | Buttons / positions ✅; disposition enable rule is PTY-03. |
 | `partyMemberControlWindowFree` | `uiSwapDialoguePanel` | 🚫 N/A | — | |
-| `partyMemberControlWindowUpdate` | `ui_companion.ts:315 redraw` | ✅ FIXED (PTY-05) | MED | PTY-05. |
-| `gameDialogCombatControlButtonOnMouseUp` | `ui_dialogue.ts:110-113` | ✅ | — | |
-| `_gdPickAIUpdateMsg` | `ui_companion.ts:218 showAIUpdateMsg` | ✅ | — | 670–674, dogs 677–678. |
-| `_gdCanBarter` | — (control Trade button `ui_companion.ts:346`) | ✅ FIXED (2026-10-26) | LOW | CE's control-screen Trade (D) checks `CRITTER_BARTER` and shows 913 "can't carry anything" (e.g. dogs); DH2 opens the trade screen unconditionally from the control screen (the dialogue Barter button does check). — **2026-10-26:** the control screen's Trade checks CRITTER_BARTER. |
-| `partyMemberControlWindowHandleEvents` | `ui_companion.ts:228 useBestWeapon`, `:253 useBestArmor`, disposition clicks | ✅ FIXED (2026-10-25) | LOW | Logic ✅ (unwield right hand, `_ai_search_inven_weap`, reload, message only when found; armor except PID 0x10000A1, message always). Keys W / A / D missing (Esc ✅). — **Fixed 2026-10-25:** keys W / A / D (DLG-04). |
-| `partyMemberCustomizationWindowInit`, `…Free`, `…HandleEvents`, `…Update` | `ui_companion.ts:406 uiCompanionCustomize` | ✅ FIXED (2026-10-26) | LOW | Done button at (593,161) — CE (593,101), key Enter missing; current values shown as raw keys (`be_sure`) next to the buttons instead of the custom.msg text at x 232; "Not Applicable" (99) for unset area-attack missing; extra DH2 title line. — **2026-10-26:** the setting texts at x 232 (y 20 / 48 / 78 / 108 / 137 / 166, colour 992), "Not Applicable." (99), DONE at (593, 101), Enter (already), no extra title line. |
-| `_gdCustomSelectRedraw`, `_gdCustomSelect` | `ui_companion.ts:458 uiCustomCategoryPicker` | ✅ FIXED (PTY-03) | MED | Unsupported values not greyed / refused (PTY-03); single click commits (CE: select, then Done / Enter or double-click; Cancel / Esc); hard-coded English labels instead of custom.msg; no Done / Cancel buttons (70,164)/(176,163). |
-| `_gdCustomUpdateSetting` | `party.ts:261 setCompanionCustomSetting` + `ui_companion.ts:84 CUSTOM_OPTIONS` | ✅ FIXED (PTY-02, PTY-06) | HIGH | PTY-02. Also PTY-06 (custom values dropped on a disposition change). |
-| `gameDialogBarterButtonUpMouseUp` | `ui_dialogue.ts:93` | ✅ | LOW | Flag check, party → trade ✅; refusal text goes to the monitor (see SupplementaryMessage row). |
-| `_gdialog_window_create`, `_gdialog_window_destroy` | `ui_dialogue.ts:72 setupDialogueActionButtons` | ✅ | — | di_talk / di_talkp, Barter (593,41), Review (13,154), Combat Control (593,116) only for party members. |
+| `partyMemberControlWindowUpdate` | `uiCompanion.ts:315 redraw` | ✅ FIXED (PTY-05) | MED | PTY-05. |
+| `gameDialogCombatControlButtonOnMouseUp` | `uiDialogue.ts:110-113` | ✅ | — | |
+| `_gdPickAIUpdateMsg` | `uiCompanion.ts:218 showAIUpdateMsg` | ✅ | — | 670–674, dogs 677–678. |
+| `_gdCanBarter` | — (control Trade button `uiCompanion.ts:346`) | ✅ FIXED (2026-10-26) | LOW | CE's control-screen Trade (D) checks `CRITTER_BARTER` and shows 913 "can't carry anything" (e.g. dogs); DH2 opens the trade screen unconditionally from the control screen (the dialogue Barter button does check). — **2026-10-26:** the control screen's Trade checks CRITTER_BARTER. |
+| `partyMemberControlWindowHandleEvents` | `uiCompanion.ts:228 useBestWeapon`, `:253 useBestArmor`, disposition clicks | ✅ FIXED (2026-10-25) | LOW | Logic ✅ (unwield right hand, `_ai_search_inven_weap`, reload, message only when found; armor except PID 0x10000A1, message always). Keys W / A / D missing (Esc ✅). — **Fixed 2026-10-25:** keys W / A / D (DLG-04). |
+| `partyMemberCustomizationWindowInit`, `…Free`, `…HandleEvents`, `…Update` | `uiCompanion.ts:406 uiCompanionCustomize` | ✅ FIXED (2026-10-26) | LOW | Done button at (593,161) — CE (593,101), key Enter missing; current values shown as raw keys (`be_sure`) next to the buttons instead of the custom.msg text at x 232; "Not Applicable" (99) for unset area-attack missing; extra DH2 title line. — **2026-10-26:** the setting texts at x 232 (y 20 / 48 / 78 / 108 / 137 / 166, colour 992), "Not Applicable." (99), DONE at (593, 101), Enter (already), no extra title line. |
+| `_gdCustomSelectRedraw`, `_gdCustomSelect` | `uiCompanion.ts:458 uiCustomCategoryPicker` | ✅ FIXED (PTY-03) | MED | Unsupported values not greyed / refused (PTY-03); single click commits (CE: select, then Done / Enter or double-click; Cancel / Esc); hard-coded English labels instead of custom.msg; no Done / Cancel buttons (70,164)/(176,163). |
+| `_gdCustomUpdateSetting` | `party.ts:261 setCompanionCustomSetting` + `uiCompanion.ts:84 CUSTOM_OPTIONS` | ✅ FIXED (PTY-02, PTY-06) | HIGH | PTY-02. Also PTY-06 (custom values dropped on a disposition change). |
+| `gameDialogBarterButtonUpMouseUp` | `uiDialogue.ts:93` | ✅ | LOW | Flag check, party → trade ✅; refusal text goes to the monitor (see SupplementaryMessage row). |
+| `_gdialog_window_create`, `_gdialog_window_destroy` | `uiDialogue.ts:72 setupDialogueActionButtons` | ✅ | — | di_talk / di_talkp, Barter (593,41), Review (13,154), Combat Control (593,116) only for party members. |
 | `talk_to_create_background_window`, `gameDialogWindowRenderBackground` | `#dialogueContainer` / `#dialogueFrame` (alltlk) | ✅ | — | |
 | `_talkToRefreshDialogWindowRect` | — | 🚫 N/A | — | |
 | `gameDialogRenderHighlight`, `gameDialogRenderTalkingHead` | `talkingHead.ts:133 render`, hilight1/2 overlays (P22) | ✅ | — | Offset arithmetic incl. the `width*dirY` quirk ✅. No-head case: CE copies the map view into the screen; DH2 leaves the map visible through the frame (🚫). |
@@ -164,11 +164,11 @@ Top findings:
 | `partyMembersReset`, `partyMembersExit` | `gameReset.ts:45-46` | ✅ | — | |
 | `partyMemberGetDescription` | `loadPartyDescs().find(pid)` (`party.ts:112`) | ✅ | — | CE skips `[Party Member 0]` (the dude); irrelevant in DH2. |
 | `partyMemberDescriptionInit` | `party.ts:61` defaults | ✅ | — | |
-| `partyMemberAdd` | `party.ts:92 addPartyMember` ← `scripting.ts:3211 party_add` | ✅ FIXED (2026-10-26) | LOW | Duplicate / table-limit rules and team 0 ✅. Missing `queueRemoveEventsByType(obj, EVENT_TYPE_SCRIPT)` (pending script timers of the recruit keep firing) and `_gdialogUpdatePartyStatus`. Object id / NO_SAVE flags N/A (DH2 save model). — **2026-10-26:** the recruit's script timers are dropped; the party status refresh mid-dialogue is not. — **2026-10-26, follow-up:** the party status refreshes mid-dialogue too (partyChanged → ui_dialogue.ts). |
+| `partyMemberAdd` | `party.ts:92 addPartyMember` ← `scripting.ts:3211 party_add` | ✅ FIXED (2026-10-26) | LOW | Duplicate / table-limit rules and team 0 ✅. Missing `queueRemoveEventsByType(obj, EVENT_TYPE_SCRIPT)` (pending script timers of the recruit keep firing) and `_gdialogUpdatePartyStatus`. Object id / NO_SAVE flags N/A (DH2 save model). — **2026-10-26:** the recruit's script timers are dropped; the party status refresh mid-dialogue is not. — **2026-10-26, follow-up:** the party status refreshes mid-dialogue too (partyChanged → uiDialogue.ts). |
 | `partyMemberRemove` | `party.ts:145 dismissPartyMember` ← `scripting.ts:3215 party_remove` | ✅ FIXED (PTY-01) | HIGH | Removing via the opcode ✅ (team unchanged as CE). Missing timer removal (LOW). **Not called on death** (CE `critter.cc critterKill`, `combat.cc` kill path) — PTY-01. |
 | `_partyMemberPrepSave`, `_partyMemberUnPrepSave`, `partyMembersSave`, `_partyMemberPrepLoad`, `_partyMemberPrepLoadInstance`, `_partyMemberRecoverLoad`, `_partyMemberRecoverLoadInstance`, `partyMembersLoad`, `_partyMemberClear` | `party.ts:172 serialize / deserialize / serializeLevels`, `saveload.ts:195,382` | 🚫 N/A | — | Different save model (objects with script + LVARs serialised, M10). Level-up info saved ✅. |
 | `_partyMemberSyncPosition` | `GameMap.ts:317 placeParty` | ✅ | — | Rotation +4 / +2 alternating, distance 1,1,2,2… via `_objPMAttemptPlacement`; hidden / non-critter skipped ✅. (Dead members are placed too — PTY-01.) |
-| `_partyMemberRestingHeal` | `ui_pipboy/shell.ts addHealth`, `worldmap/Worldmap.ts:1088 partyRestingHeal` | ✅ | — | Dude + members heal Healing Rate per step ✅. |
+| `_partyMemberRestingHeal` | `uiPipBoy/shell.ts addHealth`, `worldmap/Worldmap.ts:1088 partyRestingHeal` | ✅ | — | Dude + members heal Healing Rate per step ✅. |
 | `partyMemberFindByPid` | `party.ts:168 getPartyMemberByPID` ← `party_member_obj` | ✅ | — | (Returns dead members — PTY-01.) |
 | `_isPotentialPartyMember` | `party.ts:76 isPartyMemberPid` | ✅ | — | CE's own loop compares member *i* with pid *i* (a CE bug); DH2 does the intended list lookup. Not used for gameplay decisions in this scope. |
 | `objectIsPartyMember` | `party.ts:164 isPartyMember` | ✅ | — | |
@@ -176,14 +176,14 @@ Top findings:
 | `_partyMemberNewObjID`, `_partyMemberNewObjIDRecurseFind`, `_partyMemberPrepItemSaveAll`, `_partyMemberPrepItemSave`, `_partyMemberItemSave`, `_partyMemberItemRecover`, `_partyMemberClearItemList` | — | 🚫 N/A | — | Item-script preservation across map changes; DH2 keeps inventories (and their scripts) on the objects. |
 | `partyMemberGetBestSkill` | inline in `playerUse.ts:85` | ✅ | — | Not shown on the control screen (PTY-05). |
 | `partyMemberGetBestInSkill` | `playerUse.ts:77 skillPerformer` | ✅ | — | |
-| `partyGetBestSkillValue` | `ui_barter/screen.ts:227`, `worldmap/encounters.ts:84 partyBestSkill` | ✅ | — | Counts dead members because of PTY-01. |
+| `partyGetBestSkillValue` | `uiBarter/screen.ts:227`, `worldmap/encounters.ts:84 partyBestSkill` | ✅ | — | Counts dead members because of PTY-01. |
 | `partyFixMultipleMembers` | (M10: party excluded from map snapshots) | 🟡 | — | No explicit doppelganger sweep; M10 removes the cause. |
 | `_partyMemberSaveProtos` | — | 🚫 N/A | — | DH2 stores level-up stats on the critter object. |
-| `partyMemberSupportsDisposition` | `ui_companion.ts:395 findSiblingPreview` | ✅ FIXED (PTY-03) | MED | PTY-03 (ai.txt packet existence instead of party.txt). |
+| `partyMemberSupportsDisposition` | `uiCompanion.ts:395 findSiblingPreview` | ✅ FIXED (PTY-03) | MED | PTY-03 (ai.txt packet existence instead of party.txt). |
 | `partyMemberSupportsAreaAttackMode`, `…RunAwayMode`, `…BestWeapon`, `…Distance`, `…AttackWho`, `…ChemUse` | — | ✅ FIXED (PTY-03) | MED | PTY-03: every value selectable. |
 | `_partyMemberIncLevels` | `party.ts:106 Party.incLevels` ← `player.ts:292` | ✅ | — | numLevelUps / levelMod / isEarly / `random(0,100) > 100·mod/every`, level_minimum, msg 9000 + individual 9000+10·idx+lvl−1 float ✅. |
 | `_partyMemberCopyLevelInfo` | `party.ts:193 copyLevelInfo` | ✅ | — | SPECIAL (base+bonus) and skills only, Max HP not recomputed, healed to max, gear stays equipped ✅. |
-| `partyIsAnyoneCanBeHealedByRest`, `partyGetMaxWoundToHealByRest` | `ui_pipboy/shell.ts:211 restHealableParty`, `:215 partyMaxWound` | ✅ | — | |
+| `partyIsAnyoneCanBeHealedByRest`, `partyGetMaxWoundToHealByRest` | `uiPipBoy/shell.ts:211 restHealableParty`, `:215 partyMaxWound` | ✅ | — | |
 | `get_all_party_members_objects` (sfall) | `party.ts:160 getPartyMembersAndPlayer` | 🟡 | — | No dead / hidden filter variant. |
 
 ### Related CE code used by this scope (not in the four files)
@@ -209,14 +209,14 @@ Top findings:
 
 ### PTY-02 — Custom-screen values written wrongly (area attack, run away) — **FIXED 2026-10-24 (PA13)**
 - **CE:** `game_dialog.cc:394-410 _custom_settings`: Always! → `AREA_ATTACK_MODE_ALWAYS`, Sometimes → `SOMETIMES`, … ; run-away entries store `RUN_AWAY_MODE_X − 1` = 0…5, and `aiSetRunAwayMode` sets `min_hp = maxHP − maxHP · _hp_run_away_value[i] / 100` with `{0, 25, 40, 60, 75, 100}`: Abject coward min_hp = max HP, finger hurts 75 %, bleeding 60 %, not feeling good 40 %, tourniquet 25 %, Never! 0.
-- **DH2:** `ui_companion.ts:85-99 CUSTOM_OPTIONS`: "Always!" → `'sometimes'`, "Sometimes" → `'no_pref'`; run-away coward / finger_hurts / bleeding / not_feeling_good / **'none'** (for "You need a tourniquet") / never. `Combat.ts:262-275 aiMinHp` uses `{none:0, coward:25, finger_hurts:40, bleeding:60, not_feeling_good:75, tourniquet:100}` keyed by name, i.e. one CE step off: coward → min 75 %, finger → 60 %, bleeding → 40 %, not feeling good → 25 %, "tourniquet" (`none`) → min = max HP (flees at the first damage), "Never!" → not in the table → the packet's ai.txt `min_hp`.
+- **DH2:** `uiCompanion.ts:85-99 CUSTOM_OPTIONS`: "Always!" → `'sometimes'`, "Sometimes" → `'no_pref'`; run-away coward / finger_hurts / bleeding / not_feeling_good / **'none'** (for "You need a tourniquet") / never. `Combat.ts:262-275 aiMinHp` uses `{none:0, coward:25, finger_hurts:40, bleeding:60, not_feeling_good:75, tourniquet:100}` keyed by name, i.e. one CE step off: coward → min 75 %, finger → 60 %, bleeding → 40 %, not feeling good → 25 %, "tourniquet" (`none`) → min = max HP (flees at the first damage), "Never!" → not in the table → the packet's ai.txt `min_hp`.
 - **Impact:** a companion told "Always" burst only sometimes, "Sometimes" uses the no-preference rule; run-away settings are all wrong, and the tourniquet setting is the opposite of what was chosen.
 - **Fix:** store `'always'` / `'sometimes'`; map run-away labels to CE's percentage index (coward 0, finger 25, bleeding 40, not feeling 60, tourniquet 75, never 100) and compute `min_hp` from that index, with "tourniquet" stored as `'tourniquet'`.
 - **Ref:** NEW.
 
 ### PTY-03 — Disposition / custom-value availability ignores party.txt — **FIXED 2026-10-25**
 - **CE:** `partyMembersInit` parses every member's `disposition`, `area_attack_mode`, `run_away_mode`, `best_weapon`, `distance`, `attack_who`, `chem_use` lists; `partyMemberControlWindowInit` disables disposition buttons not in the list (`partyMemberSupportsDisposition`, `disposition[d + 1]`), `_gdCustomSelect` greys and refuses values not in the lists.
-- **DH2:** `party.ts:50` parses only pid / level fields. `ui_companion.ts:365 supported = … || findSiblingPreview()` — true whenever ai.txt has `PARTY <NAME> <DISP>`, which every companion has for all five. `uiCustomCategoryPicker` offers every value.
+- **DH2:** `party.ts:50` parses only pid / level fields. `uiCompanion.ts:365 supported = … || findSiblingPreview()` — true whenever ai.txt has `PARTY <NAME> <DISP>`, which every companion has for all five. `uiCustomCategoryPicker` offers every value.
 - **Impact:** e.g. Marcus (party.txt: custom, aggressive, berserk; distance charge / on_your_own; run away tourniquet / never) can be made a Coward that snipes; Myron can go Berserk; Lenny Aggressive / Berserk; Goris Coward / Defensive.
 - **Fix:** parse the seven lists in `loadPartyDescs` and port the seven `partyMemberSupports*` (note the `+1` index for disposition and run-away mode).
 - **Ref:** NEW (companion_party.md §8.2 documents the ai.txt rule as if it were CE's).
@@ -230,7 +230,7 @@ Top findings:
 
 ### PTY-05 — Control screen readout — **FIXED 2026-10-25**
 - **CE:** `partyMemberControlWindowUpdate`: right-hand item name (or proto.msg 10) at (112,20), armor at (112,49), standing SW sprite centred at (39,132), HP `cur/max` (240,96), best skill name (240,113), weight `inv/carry` (240,131, red when encumbered), melee damage (240,148), AP `cur/max` (240,167).
-- **DH2:** `ui_companion.ts:326-342` — name, "Weapon:", "Armor:", "HP:", "Weight:", "Disposition:" labels at x 20, y 4…96; no sprite, best skill, melee damage or AP; weapon is `equippedWeapon` rather than the right-hand item.
+- **DH2:** `uiCompanion.ts:326-342` — name, "Weapon:", "Armor:", "HP:", "Weight:", "Disposition:" labels at x 20, y 4…96; no sprite, best skill, melee damage or AP; weapon is `equippedWeapon` rather than the right-hand item.
 - **Impact:** layout clashes with control.png's own captions; information missing.
 - **Fix:** draw CE's eight fields at CE's positions (proto.msg 10 for "None", `skillGetName(partyMemberGetBestSkill)`).
 - **Ref:** NEW.
@@ -244,7 +244,7 @@ Top findings:
 
 ### DLG-02 — `gsay_message` ends the dialogue; the following `gsay_end` suspends again — **FIXED 2026-10-25**
 - **CE:** `_op_gsay_message` → `gameDialogSetMessageReply`, option (−2,−2 = proto.msg 650 "[Done]"), `_gdialogSayMessage` → `_gdialogGo` → a nested `_gdProcess`. Picking [Done] returns to the script inside the open dialogue; `gDialogReplyMessageListId = −1`, so a later `gsay_end` returns at once (`_gdialogGo: if (gDialogReplyMessageListId == -1) return 0`).
-- **DH2:** `scripting.ts:2777-2799` adds a no-op `[Done]` and suspends; picking it → `dialogueReply` → no options → `dialogueExit` closes the UI and resumes. When the `gsay_message` was reached directly from `talk_p_proc` (36 scripts, e.g. `robctrl talk_p_proc`, `ccqmstr Node001` else-branch), the resumed code reaches `gsay_end`, which suspends again (`vm_bridge.ts:317`, `prelude.ts:180`) with no UI — `end_dialogue` and anything after it wait for the next dialogue end of that script, then run out of order. A `gsay_message` followed by more options in the same flow would lose them (no vanilla case found).
+- **DH2:** `scripting.ts:2777-2799` adds a no-op `[Done]` and suspends; picking it → `dialogueReply` → no options → `dialogueExit` closes the UI and resumes. When the `gsay_message` was reached directly from `talk_p_proc` (36 scripts, e.g. `robctrl talk_p_proc`, `ccqmstr Node001` else-branch), the resumed code reaches `gsay_end`, which suspends again (`vmBridge.ts:317`, `prelude.ts:180`) with no UI — `end_dialogue` and anything after it wait for the next dialogue end of that script, then run out of order. A `gsay_message` followed by more options in the same flow would lose them (no vanilla case found).
 - **Fix:** don't close the UI on the gsay_message [Done]; just resume the suspended procedure. Track "reply pending" (set by `gsay_reply`, cleared by `gsay_message` / option pick) and make `gsay_end` return without suspending when no reply is pending.
 - **Ref:** NEW (L2 fixed a related stack bug).
 
@@ -256,7 +256,7 @@ Top findings:
 
 ### DLG-04 — No keyboard control in dialogue / companion screens — **FIXED 2026-10-25**
 - **CE:** `_gdProcess`: keys `1`–`9` pick option *n* (also options without a button), `0` ignored (sfall fix), `B` = Barter button, Space / auto after 10 s next page of a long reply, ↑ / ↓ page back / forward, mouse wheel → arrows. Control screen W / A / D / Esc, customise Enter / Esc, picker Enter / Esc, review ↑ / ↓ / Esc.
-- **DH2:** `input.ts:224-236` returns for any non-none UI mode and the dialogue has no key handler (`ui_dialogue.ts`); Esc exists only on the companion screens and the review.
+- **DH2:** `input.ts:224-236` returns for any non-none UI mode and the dialogue has no key handler (`uiDialogue.ts`); Esc exists only on the companion screens and the review.
 - **Fix:** a keydown handler while `uiMode === dialogue` mapping `1`–`9` to `dialogueReply(n−1)` and `b` to the Barter button; W / A / D on the control screen; Enter on customise / picker.
 - **Ref:** NEW.
 
@@ -268,7 +268,7 @@ Top findings:
 
 ### DLG-07 — Camera not restored after dialogue (LOW) — **FIXED 2026-10-25**
 - **CE:** `_gdialogExitFromScript` scrolls back to the centre tile saved at `gameDialogEnter` (or to the dude if he moved).
-- **DH2:** `uiStartDialogue` centres on the speaker (`ui_dialogue.ts:166-181`); `uiEndDialogue` leaves the camera there.
+- **DH2:** `uiStartDialogue` centres on the speaker (`uiDialogue.ts:166-181`); `uiEndDialogue` leaves the camera there.
 - **Ref:** NEW.
 - **Fixed 2026-10-25:** `uiStartDialogue` saves the centre tile and the dude's tile; `uiEndDialogue` centres back on it, or on the dude if he moved (no scroll animation).
 

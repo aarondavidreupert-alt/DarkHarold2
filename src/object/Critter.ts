@@ -121,7 +121,7 @@ export class Critter extends Obj {
     teamNum = -1 // AI team number (TODO: implement this)
     ai: AI | null = null // AI packet
     // Per-field overrides on top of the resolved AI packet, set via the
-    // companion "Custom" behavior screen (ui_companion.ts /
+    // companion "Custom" behavior screen (uiCompanion.ts /
     // setCompanionCustomSetting). Only meaningful when aiNum currently
     // points at a disposition='custom' packet — cleared when switching to a
     // named preset (Berserk/Aggressive/Defensive/Coward). See AI.ts

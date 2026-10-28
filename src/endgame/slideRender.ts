@@ -6,7 +6,7 @@ import { getFileText } from '../util.js'
 import { dbgWarn } from '../logger.js'
 import { assetUrl } from '../modAssets.js'
 import { Config } from '../config.js'
-import { font3, font4 } from '../ui_font.js'
+import { font3, font4 } from '../uiFont.js'
 
 // Slide canvas dimensions (CE: ENDGAME_ENDING_WINDOW_WIDTH/HEIGHT)
 const SLIDE_W = 640

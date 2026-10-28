@@ -29,7 +29,7 @@ import { hexInDirection, hexToScreen, HEX_GRID_SIZE, Point } from '../geometry.j
 import { randomBetween } from '../random.js'
 import { toTileNum } from '../tile.js'
 import { armorPerkSwap } from '../perks/cePerks.js'
-import { applyArmorArt } from '../ui_inventory/dragdrop.js'
+import { applyArmorArt } from '../uiInventory/dragdrop.js'
 import { ammoGetCapacity } from '../weaponAmmo.js'
 import {
     critterIsProne,

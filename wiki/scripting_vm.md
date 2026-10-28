@@ -7,7 +7,7 @@
 `Procedure`), `raw/fallout2-ce/src/scripts.cc` (`scriptExecProc`,
 `scriptLocateProcs`, `gScriptProcNames`, `scriptsExecMapEnterProc`, et al.),
 `raw/fallout2-ce/src/scripts.h` (`ScriptProc`, `ScriptType`, `Script`)  
-**DH2 ref:** `src/vm.ts` (`ScriptVM`, `opMap`), `src/vm_bridge.ts`
+**DH2 ref:** `src/vm.ts` (`ScriptVM`, `opMap`), `src/vmBridge.ts`
 (`ScriptVMBridge`, `GameScriptVM`, `bridgeOpMap`), `src/scripting.ts`
 (`loadScript`, procedure dispatchers), `src/intfile.ts` (`parseIntFile`,
 `IntFile`)
@@ -505,7 +505,7 @@ interface IntFile {
 
 ---
 
-## 9. DH2 VM (`src/vm.ts`, `src/vm_bridge.ts`)
+## 9. DH2 VM (`src/vm.ts`, `src/vmBridge.ts`)
 
 ### 9.1 `ScriptVM` Class
 
@@ -544,7 +544,7 @@ Opcode numbers are CE's `interpreter.h` `OPCODE_*` values.
 | `0x800C` / `0x800D` | a_to_d / d_to_a | move between data and return stack |
 | `0x8010` | exit_program | halt |
 | `0x8012` / `0x8013` | fetch / store global | `dataStack[svarBase + n]` |
-| `0x8014` / `0x8015` / `0x8016` | fetch / store external, export_var | map-script exported vars (`vm_bridge.ts`) |
+| `0x8014` / `0x8015` / `0x8016` | fetch / store external, export_var | map-script exported vars (`vmBridge.ts`) |
 | `0x8019` / `0x801A` / `0x801B` / `0x801C` | swapa / pop / dup / pop_return | |
 | `0x8027` / `0x8028` | check arg count / lookup proc by name | |
 | `0x8029` / `0x802A` / `0x802B` / `0x802C` | pop_base / pop_to_base / push_base / set_global | frame handling |
@@ -563,7 +563,7 @@ runs on the VM.
 
 A scan of all 1448 `.int` files (2026-10-18) shows no other raw opcode in a script listed in scripts.lst: `call_at` / `call_when` / `callstart` / `exec` / `spawn` / `fork` / `wait` / `cancel` / `xor` / `bwnot` never occur. Only the unused `barstow` / `dumar` / `surf` / `genint` scripts (not in scripts.lst) contain `detach` (0x800F) and the `say*` ops (0x804D / 0x804E).
 
-### 9.3 `vm_bridge.ts` — `bridgeOpMap`
+### 9.3 `vmBridge.ts` — `bridgeOpMap`
 
 ~150 additional opcode handlers are registered in `bridgeOpMap`.
 `Object.assign(opMap, bridgeOpMap)` merges them at load.
@@ -589,7 +589,7 @@ External variable access (MVARs):
 - `0x8015` `store_external` — same mechanism for writing.
 - `0x8016` — look up external by name.
 
-### 9.4 `GameScriptVM` (`vm_bridge.ts`)
+### 9.4 `GameScriptVM` (`vmBridge.ts`)
 
 ```ts
 class GameScriptVM extends ScriptVM {

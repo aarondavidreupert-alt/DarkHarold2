@@ -1,6 +1,6 @@
 // Script opcodes: tiles, movement, map loading and start positions, the world map, movies and the game UI (CE op_tile_num, op_move_to, op_load_map, op_play_gmovie, ...).
 // Methods of the Script class (scripting.ts), kept here by topic and installed on its prototype
-// there; vm_bridge.ts and the Lua prelude call them as before (wiki/code_quality.md Q16).
+// there; vmBridge.ts and the Lua prelude call them as before (wiki/code_quality.md Q16).
 
 import type { Script } from '../../scripting.js'
 import { Critter, Obj } from '../../object.js'

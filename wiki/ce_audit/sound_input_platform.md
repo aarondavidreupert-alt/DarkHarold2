@@ -55,7 +55,7 @@ Top findings:
 | sfxBuildWeaponName | opcode: `scripting.ts:2610`; engine: `soundMap.ts:110` `getWeaponSounds` + `audio.ts:222` `playWeaponSfx` | ✅ FIXED (SND-05) | MED | Opcode port matches. The engine path does not use it: hit sound variant always `1` (CE `2` for non-primary hit modes, e.g. burst), material always flesh (`F`), never `X` for plasma/EMP/explosive damage, and the DH2-only fallbacks (burst→single, material→`xxx`). SND-05. |
 | sfxBuildSceneryName | `scripting.ts:2624` | ✅ MATCH | — | `S%c%c%4s1`. |
 | sfxBuildOpenName | `sfxNames.ts:32` | ✅ MATCH | — | AU5; `A` only when no proto, byte 0 → no file. |
-| _gsound_red/med/lrg_butt_press/release, _gsound_toggle_butt_press_ | per-UI calls, e.g. `ui_inventory/panel.ts:70`, `hotkeys.ts:41` | 🚫 N/A (2026-10-26) | LOW | Names identical (`ib1p1xx1`/`ib1lu1x1`/`ib2…`/`ib3…`/`toggle`); wired per screen by hand. Coverage per screen belongs to the UI auditors. Release sounds are wired only where DH2 added mouseup handlers (inventory, pipboy). — **2026-10-26:** the names match; per-screen coverage is in the UI audits. |
+| _gsound_red/med/lrg_butt_press/release, _gsound_toggle_butt_press_ | per-UI calls, e.g. `uiInventory/panel.ts:70`, `hotkeys.ts:41` | 🚫 N/A (2026-10-26) | LOW | Names identical (`ib1p1xx1`/`ib1lu1x1`/`ib2…`/`ib3…`/`toggle`); wired per screen by hand. Coverage per screen belongs to the UI auditors. Release sounds are wired only where DH2 added mouseup handlers (inventory, pipboy). — **2026-10-26:** the names match; per-screen coverage is in the UI audits. |
 | soundPlayFile | `audio.ts:211` `playSfxByName` | ✅ MATCH | — | looks the stem up in sndlist first (CE: load fails silently). |
 | _gsound_bkg_proc | — | 🚫 N/A | — | browser audio needs no pump. |
 | gameSoundFileOpen/Read/Write/Seek/Tell/GetSize/Close, gameSoundIsCompressed, _gsound_file_exists_f, _gsound_setup_paths | — | 🚫 N/A | — | fetch() of pre-converted WAV/MP3. |
@@ -88,11 +88,11 @@ Top findings:
 | gameMouseClickOnInterfaceBar | DOM `#bar` swallows clicks | 🚫 N/A | — | |
 | _gmouse_handle_event — right button | `input.ts:283` → `cycleMouseMode` | ✅ MATCH | — | |
 | _gmouse_handle_event — left up, MOVE mode | `input.ts:269` → `playerUse(getObjectUnderCursor(isSelectable))` | ✅ FIXED (MOUSE-01) | MED | MOUSE-01: CE always walks/runs to the hex in move mode (Shift inverts `running`); DH2 uses/attacks/talks to the clicked object and has no Shift toggle. |
-| _gmouse_handle_event — left up, ARROW mode (primary action) | `input.ts:258` (opens action menu) | ✅ FIXED (MOUSE-02) | MED | MOUSE-02: CE click = primary action (pick up / talk / use / look / loot / rotate dude), hold = action menu. DH2: every click opens the menu; menu closing resets to move mode (`ui_contextmenu.ts:41`), CE stays in arrow mode. Partially documented (README "Known approximations": says "right-click", the code uses left-click in command mode). |
+| _gmouse_handle_event — left up, ARROW mode (primary action) | `input.ts:258` (opens action menu) | ✅ FIXED (MOUSE-02) | MED | MOUSE-02: CE click = primary action (pick up / talk / use / look / loot / rotate dude), hold = action menu. DH2: every click opens the menu; menu closing resets to move mode (`uiContextMenu.ts:41`), CE stays in arrow mode. Partially documented (README "Known approximations": says "right-click", the code uses left-click in command mode). |
 | _gmouse_handle_event — left up, CROSSHAIR | `input.ts:264` | ✅ FIXED (2026-10-26) | LOW | DH2 attacks any object under the cursor except the dude; CE picks a critter first, else only a door (`objectIsDoor`), and re-arms the hover readout. Attacking scenery other than doors is possible in DH2 (playerUse decides). — **2026-10-26:** a critter is the target; doors can't be attacked yet. — **2026-10-26:** a door is attacked too (playerAttackDoor → _combat_attack_this). |
 | _gmouse_handle_event — USE_CROSSHAIR (item on object) | `input.ts:253` `usePendingItemOn` | ✅ MATCH | — | AP cost in combat handled in `useItemOn.ts` (not re-verified here). |
 | _gmouse_handle_event — skill crosshairs | `input.ts:267` → `playerUse` (useSkill) | ✅ MATCH | — | CE: clicking empty ground keeps the mode only when actionUseSkill fails; DH2 First Aid/Doctor on empty ground → self (CE: `object == nullptr` → leaves mode, no self-use). ⚠️ LOW, see MOUSE-08. |
-| _gmouse_handle_event — action menu (left-hold) | `ui_contextmenu.ts:45` `uiContextMenu` | ✅ MATCH (content) | — | C42: menu items per type match CE; opening gesture differs (documented). |
+| _gmouse_handle_event — action menu (left-hold) | `uiContextMenu.ts:45` `uiContextMenu` | ✅ MATCH (content) | — | C42: menu items per type match CE; opening gesture differs (documented). |
 | gameMouseSetCursor / GetCursor (incl. animated wait cursor) | `renderer.ts:318-372` canvas-drawn cursors, CSS on DOM | 🚫 N/A (2026-10-26) | LOW | Hotspot: CE `offsetX = w/2 - ox`, `offsetY = h-1-oy` (FRM offsets); DH2 uses top-left for arrows and centre for crosshairs (approximate). Animated `wait` cursor (`MOUSE_CURSOR_WAIT_PLANET/WATCH`) not used. — **2026-10-26:** the hotspots are within a few pixels; DH2 has no blocking waits for the wait cursor. |
 | gmouse_set_mapper_mode / _gmouse_3d_enable_modes | — | 🚫 N/A | — | mapper only. |
 | gameMouseSetMode / GetMode | `globalState.cursorMode` | ✅ MATCH | — | mode change re-runs `refreshHighlights` (CE `_combat_outline_on/off` when entering/leaving crosshair). |
@@ -102,8 +102,8 @@ Top findings:
 | gameMouseObjectsShow / Hide / IsVisible | `Config.ui.showCursor`, cursorMode checks | ✅ MATCH | — | |
 | gameMouseGetObjectUnderCursor | `renderer.ts:611` `getObjectUnderCursor` | ✅ FIXED (MOUSE-06) | MED | MOUSE-06: no roof test (CE returns nothing for objects under a visible roof unless the egg covers the mouse); does not skip dead / knocked-out critters in favour of what lies under them; loop `i > 0` never tests `objects[0]`. |
 | gameMouseRenderPrimaryAction / _gmouse_3d_pick_frame_hot | `renderer.ts:327` (always `lookn`) | ✅ FIXED (MOUSE-03) | MED | MOUSE-03. |
-| gameMouseRenderActionMenuItems / HighlightActionMenuItemAtIndex | `ui_contextmenu.ts` (DOM buttons) | 🚫 N/A (deliberate) | — | DOM menu, click instead of drag-select (C42). |
-| gameMouseRenderAccuracy | `ui_hud.ts:594` `uiShowCombatHover` (via `gameTick.ts:189`) | ✅ MATCH | — | CI18: "NN%" / " X ", `_colorTable` team colours. DOM overlay, refreshed every 750 ms vs CE 250 ms hover (documented: README "Hover readout"). Only for critters (CE also doors). |
+| gameMouseRenderActionMenuItems / HighlightActionMenuItemAtIndex | `uiContextMenu.ts` (DOM buttons) | 🚫 N/A (deliberate) | — | DOM menu, click instead of drag-select (C42). |
+| gameMouseRenderAccuracy | `uiHud.ts:594` `uiShowCombatHover` (via `gameTick.ts:189`) | ✅ MATCH | — | CI18: "NN%" / " X ", `_colorTable` team colours. DOM overlay, refreshed every 750 ms vs CE 250 ms hover (documented: README "Hover readout"). Only for critters (CE also doors). |
 | gameMouseRenderActionPoints | — | ✅ FIXED (MOUSE-05) | MED | MOUSE-05. |
 | gameMouseLoadItemHighlight | `Config.ui.itemHighlight` (CI7) | ✅ MATCH | — | |
 | gameMouseObjectsInit / Reset / Free, gameMouseActionMenuInit / Free, customMouseModeFrmsInit | `mapLoader.ts:383` art preload | 🚫 N/A | — | |
@@ -189,13 +189,13 @@ Top findings:
 | wordWrap | `floatText.ts:78` (float text); CSS wrapping elsewhere | ✅ FIXED (2026-10-26) | LOW | WRAP-01: CE breaks after a space **or hyphen**, character-wraps a word wider than the line, and treats `\n` as an ordinary break candidate; DH2 breaks only at spaces, never splits a long word (the line overflows), and forces a break at `\n`. — **2026-10-26:** WRAP-01: float text wraps as CE's wordWrap — after a space or hyphen, a long word breaks mid-word, \\n is an ordinary break. |
 | interfaceFontGetStringWidthImpl (font_manager.cc) | `fontCore.ts:166` `measureText` | 🚫 N/A (2026-10-26) | LOW | CE adds letterSpacing after every glyph incl. the last one and uses the font's `wordSpacing` for spaces; DH2 drops the trailing spacing and uses the atlas space glyph (4 px fallback). ±1 px in centring and wrap points. — **2026-10-26:** ±1 px; DH2's layouts are positioned against its own measure. |
 | interfaceFontsInit / Draw / LineHeight / CharacterWidth / Monospaced* / LetterSpacing / BufferSize (AAF) | `fontCore.ts` `FontRenderer`, `renderBitmapText`; `tools/exportFonts.py` | ✅ MATCH | — | line height = maxHeight + lineSpacing. |
-| text_font.cc (FON bitmap fonts: fontInit, fontSetCurrent, fontDrawText, …) | `formats/fon.ts` `fonUnpack`, `ui_font.ts` | ✅ MATCH | — | bit-packed glyph decode. |
+| text_font.cc (FON bitmap fonts: fontInit, fontSetCurrent, fontDrawText, …) | `formats/fon.ts` `fonUnpack`, `uiFont.ts` | ✅ MATCH | — | bit-packed glyph decode. |
 
 ### dbox.cc
 
 | CE function (file) | DH2 counterpart (file:line) | Status | Sev | Notes |
 |---|---|---|---|---|
-| showDialogBox | `ui_dialog.ts:155` `showDialog` | 🚫 N/A (2026-10-26) | LOW | DBOX-01: only the LARGE layout; CE picks MEDIUM (`medialog`) when there is no 2nd button, width ≤ 168 px and ≤ 5 lines. Keys: CE Return (plays `ib1p1xx1`) = yes, Esc = no, Y/N only with flag 0x10 (YES_NO); DH2 always accepts Y/N. Colours / fonts / positions match. — **2026-10-26:** the large layout serves every DH2 caller; the medium box only changes the plate size. |
+| showDialogBox | `uiDialog.ts:155` `showDialog` | 🚫 N/A (2026-10-26) | LOW | DBOX-01: only the LARGE layout; CE picks MEDIUM (`medialog`) when there is no 2nd button, width ≤ 168 px and ≤ 5 lines. Keys: CE Return (plays `ib1p1xx1`) = yes, Esc = no, Y/N only with flag 0x10 (YES_NO); DH2 always accepts Y/N. Colours / fonts / positions match. — **2026-10-26:** the large layout serves every DH2 caller; the medium box only changes the plate size. |
 | showLoadFileDialog / showSaveFileDialog / fileDialogRenderFileList | — | 🚫 N/A | — | character-editor `.gcd` load/save dialog (chareditor auditor); the browser has no file system. |
 
 ### kb.cc / input.cc / mouse.cc / mouse_manager.cc / dinput.cc / touch.cc
@@ -218,12 +218,12 @@ Top findings:
 
 | CE file(s) | DH2 counterpart | Status | Notes |
 |---|---|---|---|
-| window.cc, window_manager.cc, window_manager_private.cc, svga.cc, draw.cc, region.cc, widget.cc, graph_lib.cc | DOM windows (`ui_*.ts`, `ui_widget.ts`, `ui_components.ts`, `ui_dom.ts`), WebGL (`webglrenderer.ts`, `render/*`) | 🚫 N/A | `draw.cc bufferOutline` is ported for float text (`floatText.ts:130`). Window drag is a DH2 option (`[dh2] drag_windows`). |
+| window.cc, window_manager.cc, window_manager_private.cc, svga.cc, draw.cc, region.cc, widget.cc, graph_lib.cc | DOM windows (`ui_*.ts`, `uiWidget.ts`, `uiComponents.ts`, `uiDom.ts`), WebGL (`webglrenderer.ts`, `render/*`) | 🚫 N/A | `draw.cc bufferOutline` is ported for float text (`floatText.ts:130`). Window drag is a DH2 option (`[dh2] drag_windows`). |
 | heap.cc, memory.cc, memory_manager.cc, pointer_registry.cc | JS GC | 🚫 N/A | |
 | db.cc, dfile.cc, xfile.cc, datafile.cc, cache.cc, file_find.cc, file_utils.cc, pcx.cc | pre-baked JSON/PNG, `util.ts getFileText/getFileJSON`, `idbcache.ts` | 🚫 N/A | no runtime DAT parsing, by design (CLAUDE.md). |
 | platform_compat.cc, win32.cc, autorun.cc, version.cc, debug.cc | — | 🚫 N/A | |
 | delay.cc, fps_limiter.cc | `heart.ts` 60 Hz loop | 🚫 N/A | |
-| string_parsers.cc | `ui_options/fallout2Cfg.ts`, `sfallIni.ts` | 🚫 N/A | |
+| string_parsers.cc | `uiOptions/fallout2Cfg.ts`, `sfallIni.ts` | 🚫 N/A | |
 | select_file_list.cc | — | 🚫 N/A | |
 | movie_lib.cc (MVE decoder) | pipeline → video, `gameMovie.ts` | 🚫 N/A | movie auditor. |
 
@@ -231,7 +231,7 @@ Top findings:
 
 ### SND-01 — Worldmap, main-menu and fallback music never play (HIGH, NEW) — **FIXED 2026-10-24 (PA23)**
 - **CE:** `worldmap.cc wmInterfaceInit` (4447, call at 4461): `_gsound_background_play_level_music(isInCar ? "20car" : "23world", 12)` when the world map opens; `main.cc:97` plays `07desert` behind the main menu (and `backgroundSoundDelete` on exit, `main.cc:214/255`); `map.cc mapLoad:819` starts the looping `wind2` while a map loads, and `wmMapMusicStart` (`worldmap.cc:6489`) replaces it only when the map's `music=` in maps.txt is set — a map without music keeps `wind2`.
-- **DH2:** only `GameMap.playMapMusic` (`src/map/GameMap.ts:475`) calls `playMusic`, and only with `curMapInfo.music`. `src/ui_worldmap.ts`, `src/worldmap/`, `src/ui_mainmenu.ts` contain no audio calls (grep), so the previous town's track keeps playing on the world map (nothing stops or replaces it; not checked in the browser), the main menu is silent, and maps without a `music=` entry are silent instead of playing `wind2`.
+- **DH2:** only `GameMap.playMapMusic` (`src/map/GameMap.ts:475`) calls `playMusic`, and only with `curMapInfo.music`. `src/uiWorldmap.ts`, `src/worldmap/`, `src/uiMainMenu.ts` contain no audio calls (grep), so the previous town's track keeps playing on the world map (nothing stops or replaces it; not checked in the browser), the main menu is silent, and maps without a `music=` entry are silent instead of playing `wind2`.
 - **Impact:** audible on every world-map trip and at every start.
 - **Fix:** add `playMusic(inCar ? '20car' : '23world')` in the worldmap open path and restart the map music on worldmap exit via the existing map-load path; `playMusic('07desert')` when the main menu is shown (not under the intro movies, C64); in `playMapMusic`, fall back to `wind2` when `curMapInfo.music` is empty.
 
@@ -256,10 +256,10 @@ Top findings:
 
 ### MOUSE-02 — Arrow-mode click opens the action menu instead of the primary action; mode resets (MED, partly documented C42) — **FIXED 2026-10-25**
 - **CE:** a click in ARROW mode does the primary action (item: pick up; dude: rotate; talkable critter: talk, or examine in combat; other critter: loot; usable scenery: use; else examine — `game_mouse.cc:942-990`); only holding the button opens the action menu (`MOUSE_EVENT_LEFT_BUTTON_DOWN_REPEAT`). The mode stays ARROW afterwards.
-- **DH2:** `input.ts:258` opens `uiContextMenu` on every left click in command mode; `uiHideContextMenu` (`ui_contextmenu.ts:41`) sets `cursorMode = 'move'`, so after any action the player has to right-click back to the arrow.
+- **DH2:** `input.ts:258` opens `uiContextMenu` on every left click in command mode; `uiHideContextMenu` (`uiContextMenu.ts:41`) sets `cursorMode = 'move'`, so after any action the player has to right-click back to the arrow.
 - **Doc mismatch:** README "Known approximations" says the action menu opens on *right-click*; the code opens it on left-click in command mode and uses right-click to cycle modes (as CE).
 - **Fix:** left-click = CE primary action; open the menu after a ~250 ms hold (or keep click-opens-menu but as documented); keep `cursorMode = 'command'` after the menu closes. Update the README line.
-- **Fixed 2026-10-25:** as an option: with `[dh2] mouse_mode=ce` an arrow click does CE's primary action (`ui_contextmenu.ts uiPrimaryAction`), holding the button 250 ms (`BUTTON_REPEAT_TIME`) opens the action menu and the release picks the icon under the pointer, and the cursor stays an arrow. Default `dh2` unchanged.
+- **Fixed 2026-10-25:** as an option: with `[dh2] mouse_mode=ce` an arrow click does CE's primary action (`uiContextMenu.ts uiPrimaryAction`), holding the button 250 ms (`BUTTON_REPEAT_TIME`) opens the action menu and the release picks the icon under the pointer, and the cursor stays an arrow. Default `dh2` unchanged.
 
 ### MOUSE-03 — Hover icon is always the look icon (MED, NEW) — **FIXED 2026-10-25**
 - **CE:** `gameMouseRefresh` + `gameMouseRenderPrimaryAction`: after the mouse rests 250 ms in ARROW mode over an object, the cursor shows the arrow plus the icon of the object's *primary action* (USE for items and usable scenery, TALK for talkable critters out of combat, LOOK in combat / for walls / non-usable scenery / no-steal critters, ROTATE for the dude; flipped to the left near the right edge, fid 285). Nothing over empty ground.
@@ -299,7 +299,7 @@ Top findings:
 - **CYC-01** — palette cycling is not frozen while CE disables it (dialogue, Pip-Boy, menus, fades).
 - **WRAP-01** — word wrap: no hyphen breaks, no character wrap of long words, `\n` forced. `floatText.ts:78`.
 - **FONT-01** — string width ±1 px (trailing letter spacing, `wordSpacing`). `fontCore.ts:166`.
-- **DBOX-01** — only the LARGE message box; Y/N accepted without the YES_NO flag. `ui_dialog.ts:155`.
+- **DBOX-01** — only the LARGE message box; Y/N accepted without the YES_NO flag. `uiDialog.ts:155`.
 - **MSG-02** — `.msg` loader english-only, lenient number field, no 1024-char limit; missing id → `null` (CE `"Error"`).
 
 ## DH2-only behaviour

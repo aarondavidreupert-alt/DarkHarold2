@@ -119,7 +119,7 @@ files under `data/scripts/*.int`.
 were not citable with file/line because DH2 has no decompiler for them. That
 was wrong** — DH2 already ships everything needed to statically disassemble
 them: `src/intfile.ts` (header/procedure-table parser) and `src/vm.ts` +
-`src/vm_bridge.ts` (the full opcode table, since DH2's own scripting engine
+`src/vmBridge.ts` (the full opcode table, since DH2's own scripting engine
 executes this exact bytecode format for gameplay). A standalone static
 disassembler built from those references successfully extracted real,
 verified car-placement tiles for 10 towns — see §7. This is a correction to
@@ -321,9 +321,9 @@ scratch tool) was built from three DH2 source files:
 - `src/vm.ts` — the core opcode table, confirming `0xc001` (`op_push_d`) is
   the literal 32-bit integer push and `0x9001` are the only two opcodes that
   consume inline operand bytes; every other opcode (including all game
-  intrinsics from `vm_bridge.ts`) is a bare 2-byte opcode whose arguments are
+  intrinsics from `vmBridge.ts`) is a bare 2-byte opcode whose arguments are
   already on the VM's data stack from prior pushes.
-- `src/vm_bridge.ts` — confirms `0x80B7` is `create_object_sid`
+- `src/vmBridge.ts` — confirms `0x80B7` is `create_object_sid`
   (`pid, tile, elev, sid`, argc=4), and that `bridged()` pops args in reverse
   then un-reverses them, so push order matches declaration order.
 

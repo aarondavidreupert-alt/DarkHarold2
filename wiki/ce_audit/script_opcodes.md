@@ -6,9 +6,9 @@ registrations = 180 opcodes, `opAttackComplex` is registered twice) and
 helpers they call (`scripts.cc scriptExecProc / scriptsRequestElevator`, `actions.cc actionDamage`,
 `inventory.cc objectGetCarried*ByPid`, `party_member.cc _getPartyMemberCount`, `combat_ai.cc
 critterSetTeam / critterSetAiPacket`, `proto_instance.cc objectOpen / objectLock`, `object.cc
-_obj_remove`). DH2 files: `src/scripting.ts` (Script class), `src/vm_bridge.ts`, `src/vm.ts`,
+_obj_remove`). DH2 files: `src/scripting.ts` (Script class), `src/vmBridge.ts`, `src/vm.ts`,
 `src/lua/prelude.ts`, the `tools/int2lua.py` opcode table (cross-checked: every name / argc / push
-flag is identical to `vm_bridge.ts`, so both backends dispatch to the same `Script` methods with
+flag is identical to `vmBridge.ts`, so both backends dispatch to the same `Script` methods with
 the same arity), plus the helpers they call (`src/object/Obj.ts`, `src/inventoryWield.ts`,
 `src/map/GameMap.ts`, `src/critter/lifecycle.ts`, `src/party.ts`, `src/geometry/hexGrid.ts`).
 Audited 2026-10-24. Line numbers are `src/scripting.ts` unless noted.
@@ -103,15 +103,15 @@ scripts guard their object arguments, and the difference shows only with a broke
 | 0x80B2 | opMarkAreaKnown | mark_area_known :3164 | ✅ | | |
 | 0x80B3 | opReactionInfluence | reaction_influence :2504 | ✅ | | 0 as CE |
 | 0x80B4 | opRandom | random :743 | ✅ | | randomBetween |
-| 0x80B5 | opRollDice | vm_bridge.ts:106 / prelude `roll_dice` | ✅ | | 0 as CE |
+| 0x80B5 | opRollDice | vmBridge.ts:106 / prelude `roll_dice` | ✅ | | 0 as CE |
 | 0x80B6 | opMoveTo | move_to :2408 | ⚠️ | MED | OP-12: elevation compared with the current elevation, not the object's; returns undefined (CE: new tile or -1) |
 | 0x80B7 | opCreateObject | create_object_sid :1890 | ✅ | | pid 0 not refused (LOW); a bad elevation returns null where CE still creates the object |
 | 0x80B8 | opDisplayMsg | display_msg :751 | ✅ | | |
 | 0x80B9 | opScriptOverrides | script_overrides :1039 | ✅ | | |
 | 0x80BA | opObjectIsCarryingObjectWithPid | obj_is_carrying_obj_pid :1301 | ⚠️ | HIGH | OP-02 |
 | 0x80BB | opTileContainsObjectWithPid | tile_contains_obj_pid :2389 | ⚠️ | MED | OP-10: 0 for any elevation but the current one |
-| 0x80BC | opGetSelf | builtin self_obj (vm_bridge.ts:54) | ✅ | | |
-| 0x80BD | opGetSource | builtin source_obj (vm_bridge.ts:62) | ⚠️ | LOW | OP-13: CE `scriptExecProc` clears `source` after every proc; DH2 keeps the last one |
+| 0x80BC | opGetSelf | builtin self_obj (vmBridge.ts:54) | ✅ | | |
+| 0x80BD | opGetSource | builtin source_obj (vmBridge.ts:62) | ⚠️ | LOW | OP-13: CE `scriptExecProc` clears `source` after every proc; DH2 keeps the last one |
 | 0x80BE | opGetTarget | builtin target_obj | ✅ | | CE defaults target to the owner when null (minor) |
 | 0x80BF | opGetDude | builtin dude_obj | ✅ | | |
 | 0x80C0 | opGetObjectBeingUsed | obj_being_used_with :2509 | ✅ | | |
@@ -156,7 +156,7 @@ scripts guard their object arguments, and the difference shows only with a broke
 | 0x80E7 | opAnimBusy | anim_busy :1947 | ✅ | | returns a boolean |
 | 0x80E8 | opCritterHeal | critter_heal :1666 | ✅ | | critterAdjustHitPoints |
 | 0x80E9 | opSetLightLevel | set_light_level :2054 → gametime.ts:240 | ✅ | | CE intensity formula |
-| 0x80EA | opGetGameTime | builtin game_time (vm_bridge.ts:58) | ⚠️ | HIGH | OP-01 |
+| 0x80EA | opGetGameTime | builtin game_time (vmBridge.ts:58) | ⚠️ | HIGH | OP-01 |
 | 0x80EB | opGetGameTimeInSeconds | builtin game_time_in_seconds | ✅ | | live |
 | 0x80EC | opGetObjectElevation | elevation :1381 | ✅ | | null: CE 0, DH2 -1 (LOW) |
 | 0x80ED | opKillCritter | kill_critter :1539 | 🟡 | LOW | OP-15: on self CE stops the procedure (PROGRAM_FLAG_0x0100); DH2 runs on |
@@ -207,18 +207,18 @@ scripts guard their object arguments, and the difference shows only with a broke
 | 0x811A | opExplosion | explosion :3030 | 🟡 | LOW | elevation ignored (current elevation); tile -1 not refused; immediate (CE request) |
 | 0x811B | opGetDaysSinceLastVisit | days_since_visited :3101 | ✅ | | |
 | 0x811C | _op_gsay_start | gsay_start :2754 | ✅ | | |
-| 0x811D | _op_gsay_end | vm_bridge.ts:317 / gsay_end :2801 | ✅ | | suspend + resume |
+| 0x811D | _op_gsay_end | vmBridge.ts:317 / gsay_end :2801 | ✅ | | suspend + resume |
 | 0x811E | _op_gsay_reply | gsay_reply :2765 | ✅ | | |
-| 0x811F | _op_gsay_option | vm_bridge.ts:328 / gsay_option :2743 | ✅ | | |
+| 0x811F | _op_gsay_option | vmBridge.ts:328 / gsay_option :2743 | ✅ | | |
 | 0x8120 | _op_gsay_message | gsay_message :2777 | ✅ | | the synthesised option text is "[Done]" (see the dialogue audit) |
-| 0x8121 | _op_giq_option | vm_bridge.ts:340 / giq_option :2819 | ✅ | | INT + Smooth Talker, both signs; a string proc target isn't handled by the VM wrapper (LOW) |
+| 0x8121 | _op_giq_option | vmBridge.ts:340 / giq_option :2819 | ✅ | | INT + Smooth Talker, both signs; a string proc target isn't handled by the VM wrapper (LOW) |
 | 0x8122 | opPoison | poison :1681 | ✅ | | |
 | 0x8123 | opGetPoison | get_poison :1543 | ✅ | | |
 | 0x8124 | opPartyAdd | party_add :3211 | ✅ | | |
 | 0x8125 | opPartyRemove | party_remove :3215 | ✅ | | |
 | 0x8126 | opRegAnimAnimateForever | reg_anim_animate_forever :2987 | ✅ | | |
 | 0x8127 | opCritterInjure | critter_injure :1626 | ✅ | | |
-| 0x8128 | opCombatIsInitialized | builtin combat_is_initialized (vm_bridge.ts:55) | ⚠️ | HIGH | OP-01 |
+| 0x8128 | opCombatIsInitialized | builtin combat_is_initialized (vmBridge.ts:55) | ⚠️ | HIGH | OP-01 |
 | 0x8129 | _op_gdialog_barter | gdialog_mod_barter :2444 | ✅ | | |
 | 0x812A | opGetGameDifficulty | game_difficulty :2541 | ✅ | | |
 | 0x812B | opGetRunningBurningGuy | running_burning_guy :2546 | ✅ | | |
@@ -297,7 +297,7 @@ the `gsay_*` opcodes above). Not re-verified against the .int files (they are no
 ### OP-01 — `game_time` and `combat_is_initialized` are cached, not live (HIGH, NEW) — **FIXED 2026-10-24 (PA11)**
 - CE: `interpreter_extra.cc opGetGameTime` → `gameTimeGetTime()`; `opCombatIsInitialized` →
   `isInCombat()`. Both are read at the moment the script asks.
-- DH2: `vm_bridge.ts:55,58` builtins return `s.combat_is_initialized` / `s.game_time`, plain fields
+- DH2: `vmBridge.ts:55,58` builtins return `s.combat_is_initialized` / `s.game_time`, plain fields
   on the Script object (the Lua backend reads the same builtins through `readBuiltinVar`).
   - `game_time` is set in `talk` :3463, `updateCritter` :3474, `spatial` :3489, `destroy` :3501,
     `damage` :3514, `combatEvent` :3621, `updateMap` (object scripts) :3661, `objectRunProc` :3715,
@@ -534,6 +534,6 @@ the `gsay_*` opcodes above). Not re-verified against the .int files (they are no
   (CE `scriptsRequest*`); `load_map` and `dialogue_system_enter` are deferred, as in CE.
 - `dh2_script_fixes()` is a Script method (not an opcode) that the decompiled Lua asks before a
   script fix (`tools/int2lua.py` SCRIPT_FIXES).
-- The sfall opcodes in `vm_bridge.ts` (arrays, `abs`, `get_ini_setting`, `set_self`, proto data,
+- The sfall opcodes in `vmBridge.ts` (arrays, `abs`, `get_ini_setting`, `set_self`, proto data,
   weapon ammo, PC base / extra stats, `party_member_list`, `get_script`, `sfall_func0-2`, …) are
   outside this audit's scope (CE `sfall_opcodes.cc`).

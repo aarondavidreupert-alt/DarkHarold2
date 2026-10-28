@@ -1,6 +1,6 @@
 // Script opcodes: animations (the reg_anim_* batch), fades, explosions and sound names (CE op_reg_anim_*, op_gfade_*, op_explosion, op_sfx_build_*).
 // Methods of the Script class (scripting.ts), kept here by topic and installed on its prototype
-// there; vm_bridge.ts and the Lua prelude call them as before (wiki/code_quality.md Q16).
+// there; vmBridge.ts and the Lua prelude call them as before (wiki/code_quality.md Q16).
 
 import type { Script } from '../../scripting.js'
 import { Config } from '../../config.js'

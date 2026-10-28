@@ -1,7 +1,7 @@
 # Tile System & Elevation
 
 > **Source anchor:** `raw/fallout2-ce/src/tile.cc`, `tile.h`, `obj_types.h`, `map.cc`, `map.h`, `map_defs.h`, `object.cc`, `scripts.cc`, `interpreter_extra.cc`
-> **DH2 files:** `src/tile.ts`, `src/geometry.ts` (barrel; `src/geometry/{hexScreen,hexGrid}.ts`), `src/map.ts` (barrel; `src/map/{GameMap,mapLoader}.ts`), `src/object.ts` (barrel; `src/object/*.ts`), `src/scripting.ts`, `src/vm_bridge.ts`
+> **DH2 files:** `src/tile.ts`, `src/geometry.ts` (barrel; `src/geometry/{hexScreen,hexGrid}.ts`), `src/map.ts` (barrel; `src/map/{GameMap,mapLoader}.ts`), `src/object.ts` (barrel; `src/object/*.ts`), `src/scripting.ts`, `src/vmBridge.ts`
 > **Last audited:** 2026-06-02
 
 ---

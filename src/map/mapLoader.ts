@@ -34,7 +34,7 @@ import { setMapScrollLimits } from '../render/camera.js'
 import * as Scripting from '../scripting.js'
 import { fromTileNum } from '../tile.js'
 import { getFileJSON } from '../util.js'
-import { showAlert } from '../ui_dialog.js'
+import { showAlert } from '../uiDialog.js'
 import { GameMap } from './GameMap.js'
 import { globalScriptsMapProc } from '../sfallGlobalScripts.js'
 

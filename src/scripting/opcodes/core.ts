@@ -1,6 +1,6 @@
 // Script opcodes: variables (GVAR / LVAR / MVAR), messages, float text, timers and game time (CE interpreter_extra.cc op_set_global_var, op_display_msg, op_add_timer_event, ...).
 // Methods of the Script class (scripting.ts), kept here by topic and installed on its prototype
-// there; vm_bridge.ts and the Lua prelude call them as before (wiki/code_quality.md Q16).
+// there; vmBridge.ts and the Lua prelude call them as before (wiki/code_quality.md Q16).
 
 import type { Script } from '../../scripting.js'
 import { Config } from '../../config.js'
@@ -137,7 +137,7 @@ export const coreOpcodes = {
         dialogueExit()
     },
     // ── Opcodes that were never bridged (found 2026-10-06 by diffing CE's
-    //    interpreterRegisterOpcode table against vm.ts/vm_bridge.ts). An unbridged
+    //    interpreterRegisterOpcode table against vm.ts/vmBridge.ts). An unbridged
     //    opcode makes vm.step() return false, silently ending the procedure.
 
     // CE interpreter_extra.cc opScrReturn (0x80A2) — value handed back to the engine.

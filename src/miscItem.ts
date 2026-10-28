@@ -34,7 +34,7 @@ import * as Scripting from './scripting.js'
 import { dbg } from './logger.js'
 import { uiLog } from './messageLog.js'
 import { getMessage } from './util.js'
-import { openAutomap } from './ui_automap.js'
+import { openAutomap } from './uiAutomap.js'
 
 export const PROTO_ID_GEIGER_COUNTER_I = 52
 export const PROTO_ID_GEIGER_COUNTER_II = 207

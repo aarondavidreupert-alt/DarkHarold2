@@ -1,6 +1,6 @@
 # CE parity audit — Character editor, Pip-Boy, main interface bar
 
-Scope: fallout2-ce `character_editor.cc`, `pipboy.cc`, `interface.cc`, compared with DH2 `src/ui_character/*` (creator, viewer, perkModal, folders, statPanels, descriptions), `src/ui_pipboy/shell.ts` + `tabs/*`, `src/questLog.ts`, `src/questData.ts`, `src/ui_hud.ts`, `src/ui.ts`, `src/player.ts`, `src/char.ts`, `src/perks/perks.ts`, `src/input.ts`, `src/hotkeys.ts`. Audited 2026-10-24.
+Scope: fallout2-ce `character_editor.cc`, `pipboy.cc`, `interface.cc`, compared with DH2 `src/uiCharacter/*` (creator, viewer, perkModal, folders, statPanels, descriptions), `src/uiPipBoy/shell.ts` + `tabs/*`, `src/questLog.ts`, `src/questData.ts`, `src/uiHud.ts`, `src/ui.ts`, `src/player.ts`, `src/char.ts`, `src/perks/perks.ts`, `src/input.ts`, `src/hotkeys.ts`. Audited 2026-10-24.
 
 Earlier audits this builds on: known_bugs C35 (character_stats), C40 (pipboy), C42 (interface), C51 (perks), C53 (rest bail), C57 (character folders).
 
@@ -35,7 +35,7 @@ Top findings:
 
 | CE function | DH2 counterpart (file:line) | Status | Sev | Notes |
 |---|---|---|---|---|
-| characterEditorShow (main loop) | `ui_character/viewer.ts:71` showCharacterScreen, `creator.ts:59` showCharacterCreator | ✅ FIXED (CHAR-03, CHAR-04) | MED | No keyboard (CHAR-03); not modal (CHAR-03); CANCEL doesn't restore (CHAR-04). |
+| characterEditorShow (main loop) | `uiCharacter/viewer.ts:71` showCharacterScreen, `creator.ts:59` showCharacterCreator | ✅ FIXED (CHAR-03, CHAR-04) | MED | No keyboard (CHAR-03); not modal (CHAR-03); CANCEL doesn't restore (CHAR-04). |
 | characterEditorShow — creation DONE checks (118/119, 142/143, 157/158, 160/161) | `creator.ts:865` | ✅ | — | Messages, error sound, Yes/No on "None". |
 | characterEditorShow — CANCEL / ESC → rc 1 → restore | `creator.ts:891`, `viewer.ts:159` | ✅ FIXED (CHAR-04) | MED | Creator: cancel goes back to the menu ✅. Viewer: perk changes are not restored (CHAR-04). |
 | characterEditorShow — end: `dudeDisableState(LEVEL_UP_AVAILABLE)` | — | ✅ FIXED (HUD-01) | MED | No level-up state; the indicator uses skill points instead (HUD-01). |
@@ -47,7 +47,7 @@ Top findings:
 | characterEditorDrawFolders | `folders.ts:187` draw | ✅ | — | C57. |
 | characterEditorDrawPerksFolder | `folders.ts:63` | ✅ | — | Traits heading 156, perks 109, "(rank)", fallback card 71/124/127. |
 | characterEditorKillsCompare / DrawKillsFolder | `folders.ts:146` | ✅ | — | proto.msg 1450+ / 1469+, sorted by name. |
-| characterEditorDrawBigNumber | `ui_font.ts renderBignum` | ✅ FIXED (2026-10-26) | LOW | Static; CE animates the digits counting up or down. — **2026-10-26:** a changed digit shows glyph 11 for 123 ms, ones then tens (setBignum); out of 0..99 shows 99. |
+| characterEditorDrawBigNumber | `uiFont.ts renderBignum` | ✅ FIXED (2026-10-26) | LOW | Static; CE animates the digits counting up or down. — **2026-10-26:** a changed digit shows glyph 11 for 123 ms, ones then tens (setBignum); out of 0..99 shows 99. |
 | characterEditorDrawPcStats | `viewer.ts:165-182` | ✅ FIXED (2026-10-26) | LOW | XP has no thousands separators (`_itostndn`); at max level CE leaves "Next Level" blank (msg 175 above 999,999); the lines can't be selected for their cards. — **2026-10-26:** thousands commas; "Next Level" blank at level 99, editor.msg 175 above 999,999; the three lines open their cards. |
 | characterEditorDrawPrimaryStat | `viewer.ts:530`, `creator.ts:842` | ✅ | — | Value and stat.msg 301-310 comment (clamped). |
 | characterEditorDrawGender / Age / Name | `creator.ts:530-612`, `viewer.ts:204-265` | ✅ | — | |
@@ -93,10 +93,10 @@ Top findings:
 
 | CE function | DH2 counterpart (file:line) | Status | Sev | Notes |
 |---|---|---|---|---|
-| pipboyOpen — wmMapPipboyActive / misc.msg 7000 gate | `ui_pipboy/shell.ts:514` | ✅ | — | |
+| pipboyOpen — wmMapPipboyActive / misc.msg 7000 gate | `uiPipBoy/shell.ts:514` | ✅ | — | |
 | pipboyOpen — keys ESC/Return/P/Z close, PgUp/PgDn | `input.ts:155`, `status.ts:189` | ✅ | — | |
 | pipboyOpen — REST intent (Z) | `shell.ts:605` openPipBoyRest | ✅ | — | |
-| pipboyOpen — idle screensaver | — | ✅ FIXED (2026-10-26) | LOW | Documented approximation. — **2026-10-26:** after 2 idle minutes the bombs fall over the bare screen (ui_pipboy/logo.ts, CE's spawn rate, speeds and 50 ms steps); any input ends it. |
+| pipboyOpen — idle screensaver | — | ✅ FIXED (2026-10-26) | LOW | Documented approximation. — **2026-10-26:** after 2 idle minutes the bombs fall over the bare screen (uiPipBoy/logo.ts, CE's spawn rate, speeds and 50 ms steps); any input ends it. |
 | pipboyWindowInit — rest option count | `shell.ts:350` | ✅ | — | Party > 0 and someone healable. |
 | pipboyWindowInit — logo + holiday name start screen; "pipon" sound | `shell.ts:584` opens STATUS | 🟡 PARTLY FIXED (2026-10-26) | LOW | No logo screen, no holiday (pipboy.msg holiday ids). pipon: not in the data (C40). — **2026-10-26:** the Pip-Boy opens on the logo with the holiday name (pipboy.msg 100-107) until a tab is picked; pipon is still not in the data (C40). |
 | pipboyWindowInit — `_rest_time = 0`, `_proc_bail_flag = 0` | `shell.ts:521` | ✅ | — | |
@@ -110,7 +110,7 @@ Top findings:
 | pipboyRenderHolodiskText | `status.ts:156` renderHolodisk | ✅ | — | 35 lines a page, END-DISK/END-PAR, 212/200/214/201. |
 | pipboyWindowRenderHolodiskList | `status.ts:62` knownHolodisks | ✅ | — | |
 | _qscmp | `automaps.ts:250` .sort() | 🟡 | — | See PIP-01. |
-| pipboyWindowHandleAutomaps / _PrintAMelevList / _PrintAMList | `ui_pipboy/tabs/automaps.ts:120` | ✅ FIXED (PIP-01) | MED | PIP-01. |
+| pipboyWindowHandleAutomaps / _PrintAMelevList / _PrintAMList | `uiPipBoy/tabs/automaps.ts:120` | ✅ FIXED (PIP-01) | MED | PIP-01. |
 | pipboyHandleVideoArchive / pipboyRenderVideoArchive | `tabs/archives.ts:36` | ✅ | — | Movies 2..15 seen, pipboy.msg 500+n, FADE_IN/OUT/PAUSE_MUSIC. |
 | pipboyHandleAlarmClock | `shell.ts:318` toggleWaitMenu, `:379` restFor | ✅ | — | 215 refusal with iisxxxx1; ib1p1xx1 / ib2lu1x1. |
 | pipboyWindowRenderRestOptions | `shell.ts:343-372` | ✅ | — | 300, HP line 301, options 302-315. |
@@ -120,7 +120,7 @@ Top findings:
 | pipboyRest (until healed / party healed) | `shell.ts:289-303` | ✅ FIXED (2026-10-26) | LOW | CE's second pass rests one extra 3 h block after the last heal (it loops on the hpToHeal measured *before* the rest, `pipboy.cc:2140-2160`); DH2 checks before each block. No wait-watch cursor. — **2026-10-26:** the second pass tests the wound measured before the last block (one extra 3 h block, as CE); the animated wait-watch cursor (WAIT2) while resting. |
 | _Check4Health / _AddHealth (`_partyMemberRestingHeal(3)`) | `shell.ts:223-236` | ✅ | — | Every 180 min, Healing Rate to the dude and party. |
 | _ClacTime | `shell.ts:180` | ✅ | — | Literal port. |
-| pipboyRenderScreensaver | — | ✅ FIXED (2026-10-26) | LOW | Documented (README known approximations). — **2026-10-26:** ported (ui_pipboy/logo.ts). |
+| pipboyRenderScreensaver | — | ✅ FIXED (2026-10-26) | LOW | Documented (README known approximations). — **2026-10-26:** ported (uiPipBoy/logo.ts). |
 | questInit / questFree / questDescriptionCompare | `questData.ts:43` getQuestDefs | ✅ | — | quests.txt, quests.msg, map.msg, sorted by location (DH2's sort is stable; CE qsort order within a location is unverified). |
 | holodiskInit / holodiskFree | `questData.ts:58` | ✅ | — | |
 
@@ -134,31 +134,31 @@ Top findings:
 | interfaceBarHide / Show | — | 🚫 N/A (2026-10-26) | LOW | Unverified for script hides (movies hide the whole UI). — **2026-10-26:** no script opcode hides the bar (game_ui_disable no longer hides it, as CE); movies hide the whole UI. |
 | interfaceBarEnable / Disable / Enabled | `globalState.gameUIDisabled`, `input.ts:225` | ✅ | — | |
 | interfaceBarRefresh | uiDrawWeapon/drawHP/drawAC callers | ✅ | — | |
-| interfaceRenderHitPoints | `ui_hud.ts:90` drawHP | ✅ | — | 25 % / 50 % colour bands, 250/(Δ+1) ms per step. |
-| interfaceRenderArmorClass | `ui_hud.ts:119` drawAC | ✅ | — | |
-| interfaceRenderActionPoints | `ui_hud.ts:143` drawAP | ✅ | — | Green / yellow free move / all red off-turn; no animation (C42). |
+| interfaceRenderHitPoints | `uiHud.ts:90` drawHP | ✅ | — | 25 % / 50 % colour bands, 250/(Δ+1) ms per step. |
+| interfaceRenderArmorClass | `uiHud.ts:119` drawAC | ✅ | — | |
+| interfaceRenderActionPoints | `uiHud.ts:143` drawAP | ✅ | — | Green / yellow free move / all red off-turn; no animation (C42). |
 | interfaceGetCurrentHitMode | `Weapon.ts` mode, `unarmed.ts` currentUnarmed | ✅ | — | |
 | interfaceUpdateItems | uiDrawWeapon | ✅ FIXED (2026-10-26) | LOW | CE resets the action to primary when a hand's item changes; DH2 keeps `weapon.mode` on the item object (e.g. a weapon re-equipped still in burst). — **2026-10-26:** a new hand item starts on its primary action. |
 | interfaceBarSwapHands | `ui.ts:181` swapHands | ✅ FIXED (2026-10-26) | LOW | Animation ✅. CE also drops the crosshair / use-crosshair mouse mode back to move; DH2 keeps `cursorMode`. — **2026-10-26:** the crosshairs go back to the move cursor. |
 | interfaceGetItemActions / GetCurrentHand / GetActiveItem | `player.activeHand` | ✅ | — | |
 | interfaceCycleItemAction | `ui.ts:193`, `Weapon.ts:244` cycleMode | ✅ | — | primary → aimed → secondary → secondary aimed → reload (if not full); Fast Shot blocks aiming. |
 | _intface_use_item | `ui.ts:249` attack button onclick | ✅ FIXED (HUD-02) | MED | HUD-02 (reload AP). Misc-item use in combat: CE checks and charges AP (`itemGetActionPointCost`); DH2 calls `activeItem.use(player)`, AP charge unverified. Crosshair + combat start ✅. |
-| _intface_update_ammo_lights | `ui_hud.ts:461` uiUpdateAmmoBar | ✅ | — | |
-| interfaceBarEndButtonsShow | `ui_hud.ts:538` uiStartCombat | ✅ FIXED (2026-10-26) | LOW | Animation frames ✅. The "iciboxx1" open sound is missing (only icibcxx1 on close). Fixed 66 ms per frame vs the FRM's fps. — **2026-10-26:** iciboxx1 on opening; a frame every 1000 / the FRM's fps. |
-| interfaceBarEndButtonsHide | `ui_hud.ts:559`, `Combat.ts:2882` | ✅ | — | |
-| interfaceBarEndButtonsRenderGreenLights / RedLights | `ui_hud.ts:519-532` | ✅ | — | Buttons enabled/disabled with the lights. |
+| _intface_update_ammo_lights | `uiHud.ts:461` uiUpdateAmmoBar | ✅ | — | |
+| interfaceBarEndButtonsShow | `uiHud.ts:538` uiStartCombat | ✅ FIXED (2026-10-26) | LOW | Animation frames ✅. The "iciboxx1" open sound is missing (only icibcxx1 on close). Fixed 66 ms per frame vs the FRM's fps. — **2026-10-26:** iciboxx1 on opening; a frame every 1000 / the FRM's fps. |
+| interfaceBarEndButtonsHide | `uiHud.ts:559`, `Combat.ts:2882` | ✅ | — | |
+| interfaceBarEndButtonsRenderGreenLights / RedLights | `uiHud.ts:519-532` | ✅ | — | Buttons enabled/disabled with the lights. |
 | intface_init_items | — | 🚫 | — | |
-| interfaceBarRefreshMainAction | `ui_hud.ts:363` uiDrawWeapon | ✅ | — | C42 (labels, disabled art, AP digit, bullseye). |
+| interfaceBarRefreshMainAction | `uiHud.ts:363` uiDrawWeapon | ✅ | — | C42 (labels, disabled art, AP digit, bullseye). |
 | _intface_redraw_items_callback / _intface_change_fid_callback / interfaceBarSwapHandsAnimatePutAwayTakeOutSequence | `Player.playWeaponSwapAnim` | ✅ | — | |
 | endTurnButtonInit/Free, endCombatButtonInit/Free | `ui.ts:310-326` | ✅ | — | combatAttemptEnd. |
-| interfaceUpdateAmmoBar | `ui_hud.ts:474` | ✅ | — | Rounded down to even. |
+| interfaceUpdateAmmoBar | `uiHud.ts:474` | ✅ | — | Rounded down to even. |
 | _intface_item_reload | `ui.ts:240` reloadWeapon | ✅ FIXED (HUD-02) | MED | HUD-02: no weapon ready sfx (`sfxBuildWeaponName(READY)`); DH2 forces 'single' where CE calls `interfaceCycleItemAction` (also ends on primary). |
-| interfaceRenderCounter | `ui_hud.ts:41` drawDigits | ✅ | — | |
+| interfaceRenderCounter | `uiHud.ts:41` drawDigits | ✅ | — | |
 | intface_fatal_error | — | 🚫 | — | |
-| indicatorBarInit | `ui_hud.ts:205` buildBadgeSrcCanvases | ✅ FIXED (2026-10-26) | LOW | Labels hard-coded English; CE uses intrface.msg 100-104. — **2026-10-26:** the labels from intrface.msg 100-104. |
+| indicatorBarInit | `uiHud.ts:205` buildBadgeSrcCanvases | ✅ FIXED (2026-10-26) | LOW | Labels hard-coded English; CE uses intrface.msg 100-104. — **2026-10-26:** the labels from intrface.msg 100-104. |
 | interfaceBarFree / indicatorBarReset | — | 🚫 | — | |
-| indicatorBarRefresh | `ui_hud.ts:234` updateIndicatorBar | ✅ FIXED (HUD-01) | MED | HUD-01 (LEVEL source). SNEAK/ADDICT/POISONED (> 0)/RADIATED (> 65) ✅. |
-| indicatorBoxCompareByPosition / indicatorBarRender / indicatorBarAdd | `ui_hud.ts:279` | ✅ | — | Enum order, connector geometry. |
+| indicatorBarRefresh | `uiHud.ts:234` updateIndicatorBar | ✅ FIXED (HUD-01) | MED | HUD-01 (LEVEL source). SNEAK/ADDICT/POISONED (> 0)/RADIATED (> 65) ✅. |
+| indicatorBoxCompareByPosition / indicatorBarRender / indicatorBarAdd | `uiHud.ts:279` | ✅ | — | Enum order, connector geometry. |
 | indicatorBarShow / Hide | — | ✅ FIXED (2026-10-26) | LOW | No explicit hide; the Pip-Boy/inventory windows cover it (unverified for every window). — **2026-10-26:** hidden while the dialogue, the character screen or the Pip-Boy is open. |
 | customInterfaceBarInit/Exit/GetBackgroundImageData, sidePanelsInit/Exit/Hide/Show/Draw | — | 🚫 | — | sfall hi-res features. |
 | interface_get_current_attack_mode (sfall) | — | 🚫 | — | sfall opcode helper (out of scope here). |
@@ -167,7 +167,7 @@ Top findings:
 
 ### CHAR-01 — Level-up perk effects lost; Tag! does nothing (HIGH, NEW) — **FIXED 2026-10-24 (PA5)**
 - **CE**: `character_editor.cc characterEditorShow` → `characterEditorUpdateLevel` → `perkDialogShow`, then `perkDialogHandleTagPerk` / `perkDialogHandleMutatePerk` / the Lifegiver and Educated branches (lines 5933-5960). The perk changes the dude directly; the editor works on the live dude, so DONE keeps them. Tag! opens "PICK A NEW TAG SKILL" (editor.msg 155) and stores the skill in `gCharacterEditorTempTaggedSkills[3]`.
-- **DH2**: `src/ui_character/viewer.ts:436-437` clones `player.skills` (and stats), and only then (`:633`) opens `showPerkModal`. `applyPerk` (`src/perks/perks.ts:120-150`) changes `player.skills` (Educated `skillPoints += 2`, Tag! `hasTagPerk = true`, Here and Now → `addExperience` → level-up SP). DONE (`viewer.ts:617-620`) then writes the clone's `skillPoints` and `hasTagPerk` over them. Nothing in the game can tag a 4th skill (only the creator has tag toggles).
+- **DH2**: `src/uiCharacter/viewer.ts:436-437` clones `player.skills` (and stats), and only then (`:633`) opens `showPerkModal`. `applyPerk` (`src/perks/perks.ts:120-150`) changes `player.skills` (Educated `skillPoints += 2`, Tag! `hasTagPerk = true`, Here and Now → `addExperience` → level-up SP). DONE (`viewer.ts:617-620`) then writes the clone's `skillPoints` and `hasTagPerk` over them. Nothing in the game can tag a 4th skill (only the creator has tag toggles).
 - **Impact**: Educated's first-rank +2 SP is lost on DONE. Tag! is a wasted perk. Here and Now's level-up skill points are lost.
 - **Fix**: open the perk modal before cloning, or re-clone / merge `skillPoints` and `hasTagPerk` after the modal closes. Add a Tag! step (the perk window listing the untagged skills) that sets `tagged[3]`, and remove the perk if the player backs out (CE).
 
@@ -202,7 +202,7 @@ Top findings:
 
 ### HUD-01 — LEVEL indicator tied to unspent skill points (MED, NEW) — **FIXED 2026-10-25**
 - **CE**: `interface.cc indicatorBarRefresh` shows LEVEL while `DUDE_STATE_LEVEL_UP_AVAILABLE` is set. It is set in `stat.cc:764` on level-up and cleared in `characterEditorShow` (line 1193) and `stat.cc:815`.
-- **DH2**: `ui_hud.ts:262` uses `skills.skillPoints > 0`.
+- **DH2**: `uiHud.ts:262` uses `skills.skillPoints > 0`.
 - **Impact**: banked skill points keep LEVEL lit forever; in CE it goes out once the character screen has been opened.
 - **Fix**: add a `levelUpAvailable` flag on Player: set it in `addExperience` on level-up, clear it when the character screen closes, save it.
 
@@ -216,7 +216,7 @@ Top findings:
   - Level 1: the cities that have automap data (`mapGetCityName`), filtered by `_automapDisplayMap(map)` (`automap.cc _displayMapList`: maps 0-2, 52-53, 59-60, 68-77, 80-91, 94-125, 127, 141-146 and 149-159 hidden; the sfall `automap=` key in maps.txt can change this), merged by `_is_map_idx_same`, sorted by name (`_qscmp`), header 205.
   - Level 2: the current city's maps first, then the other maps of that city (`_get_map_idx_same`), each elevation named by `mapGetName` (map.msg).
   - A pick draws the map once with `automapRenderInPipboyWindow`: static, no zoom.
-- **DH2**: `ui_pipboy/tabs/automaps.ts:120-280` groups maps by the worldmap area whose *entrance* list contains them (other maps go under "Unknown"). Rows are raw file names with "L<n>" and "(CURRENT)". It adds zoom (+/−, wheel) and drag-pan, and uses invented strings ("AUTOMAPS", "(no saved maps)", "(no maps known yet — explore the wastes)").
+- **DH2**: `uiPipBoy/tabs/automaps.ts:120-280` groups maps by the worldmap area whose *entrance* list contains them (other maps go under "Unknown"). Rows are raw file names with "L<n>" and "(CURRENT)". It adds zoom (+/−, wheel) and drag-pan, and uses invented strings ("AUTOMAPS", "(no saved maps)", "(no maps known yet — explore the wastes)").
 - **Impact**: hidden encounter maps show up; interior maps fall under "Unknown"; names aren't the localized map.msg ones.
 - **Fix**: port `_PrintAMList` / `_PrintAMelevList` over the `maps.txt` city ids and map.msg names, with the `_displayMapList` table; keep zoom as an optional DH2 extra if wanted.
 

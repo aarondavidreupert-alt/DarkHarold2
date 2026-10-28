@@ -1,6 +1,6 @@
 // Script opcodes: the dialogue opcodes (CE op_start_gdialog, op_gsay_*, op_giq_option, op_end_dialogue).
 // Methods of the Script class (scripting.ts), kept here by topic and installed on its prototype
-// there; vm_bridge.ts and the Lua prelude call them as before (wiki/code_quality.md Q16).
+// there; vmBridge.ts and the Lua prelude call them as before (wiki/code_quality.md Q16).
 
 import type { Script } from '../../scripting.js'
 import { Critter, Obj } from '../../object.js'
@@ -161,7 +161,7 @@ export const dialogueOpcodes = {
         // on the dialogue window itself, not tied to any one node's
         // option list. Previously synthesized as dialogue-list options
         // here; moved to real always-present buttons wired in
-        // uiStartDialogue() (ui_dialogue.ts) to match CE — see
+        // uiStartDialogue() (uiDialogue.ts) to match CE — see
         // wiki/known_bugs.md P9.
         // CE game_dialog.cc _gdialogGo: with no reply pending (none set, or a gsay_message
         // already ran its own loop) it returns at once; a reply with no options gets the

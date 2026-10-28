@@ -1,6 +1,6 @@
 // Script opcodes: critter stats, traits, skills and checks, damage, healing, poison and radiation (CE op_get_critter_stat, op_critter_dmg, op_roll_vs_skill, ...).
 // Methods of the Script class (scripting.ts), kept here by topic and installed on its prototype
-// there; vm_bridge.ts and the Lua prelude call them as before (wiki/code_quality.md Q16).
+// there; vmBridge.ts and the Lua prelude call them as before (wiki/code_quality.md Q16).
 
 import type { Script } from '../../scripting.js'
 import { AI } from '../../combat/AI.js'

@@ -36,10 +36,10 @@ import { toTileNum } from '../tile.js'
 import { setVMFatalHook } from '../vm.js'
 import { uiEndDialogue } from '../ui.js'
 import { UIMode } from '../uiMode.js'
-import { activeBarter } from '../ui_barter.js'
-import { uiElevatorDone } from '../ui_elevator.js'
+import { activeBarter } from '../uiBarter.js'
+import { uiElevatorDone } from '../uiElevator.js'
 import { uiLogCount } from '../messageLog.js'
-import { uiCloseWorldMap } from '../ui_worldmap.js'
+import { uiCloseWorldMap } from '../uiWorldmap.js'
 import {
     critterDisplayName,
     getOptionElements,

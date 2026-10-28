@@ -1,6 +1,6 @@
 // Script opcodes: combat and party opcodes (CE op_attack_complex, op_terminate_combat, op_party_add, ...).
 // Methods of the Script class (scripting.ts), kept here by topic and installed on its prototype
-// there; vm_bridge.ts and the Lua prelude call them as before (wiki/code_quality.md Q16).
+// there; vmBridge.ts and the Lua prelude call them as before (wiki/code_quality.md Q16).
 
 import type { Script } from '../../scripting.js'
 import { Combat, isCombatActive } from '../../combat.js'

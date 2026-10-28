@@ -508,7 +508,7 @@ Script `set_light_level` calls are blended with the curve via
 | Args | `obj, invisible_flag (0/1)` | same |
 | CE handler | `opSetObjectVisibility` (`interpreter_extra.cc:2080`) | — |
 | DH2 handler | — | `Script.set_obj_visibility` (`scripting.ts:1213`) |
-| Wired | Yes — `vm_bridge.ts:133` | Yes (same line) |
+| Wired | Yes — `vmBridge.ts:133` | Yes (same line) |
 
 ### CE behaviour (`interpreter_extra.cc:2080`)
 
@@ -559,8 +559,8 @@ Differences vs CE that remain:
 
 | Opcode | Name | Args | CE handler | DH2 method | DH2 wired |
 |--------|------|------|-----------|-----------|-----------|
-| `0x80E9` | `set_light_level` | `level` (0–100) | `opSetLightLevel` `interpreter_extra.cc:2233` | `Script.set_light_level` `scripting.ts:1570` | Yes — `vm_bridge.ts:111` |
-| `0x8107` | `obj_set_light_level` | `obj, intensity, distance` | `opSetObjectLightLevel` `interpreter_extra.cc:3058` | `Script.obj_set_light_level` `scripting.ts:1577` | **FIXED** — `vm_bridge.ts:115` |
+| `0x80E9` | `set_light_level` | `level` (0–100) | `opSetLightLevel` `interpreter_extra.cc:2233` | `Script.set_light_level` `scripting.ts:1570` | Yes — `vmBridge.ts:111` |
+| `0x8107` | `obj_set_light_level` | `obj, intensity, distance` | `opSetObjectLightLevel` `interpreter_extra.cc:3058` | `Script.obj_set_light_level` `scripting.ts:1577` | **FIXED** — `vmBridge.ts:115` |
 
 There is no `get_light_level`, `ambient_light`, or `get_obj_light_level`
 opcode in CE or DH2.
@@ -617,7 +617,7 @@ is the target, the explicit rebake is redundant but harmless:
 re-reads the critter's (now-updated) `lightRadius`/`lightIntensity` from
 the object itself on the very next frame regardless.
 
-The opcode is now wired in `vm_bridge.ts:115`
+The opcode is now wired in `vmBridge.ts:115`
 (`0x8107: bridged("obj_set_light_level", 3, false)`), so the bytecode
 reaches the handler.
 
@@ -726,7 +726,7 @@ treatment in both engines.
 | # | CE behaviour | DH2 status | Location |
 |---|---|---|---|
 | 1 | Night to-hit penalty (−10/−25/−40) when the dude attacks into darkness | **FIXED** — `hitChance.ts darknessPenalty` (Night Sight weapons exempt); `getObjectLightIntensity` now clamps after subtracting the dude's own light, as CE (C46) | `combat.cc attackDetermineToHit`, `object.cc objectGetLightIntensity` |
-| 2 | `obj_set_light_level` (0x8107) changes tile intensity at runtime — CE calls `objectSetLight()` which triggers the full turn-off/turn-on cycle and refreshes the screen rect | **FIXED** — wired at `vm_bridge.ts:115`; `scripting.ts:1577-1588` sets `obj.lightRadius`/`obj.lightIntensity` then calls `Lightmap.rebuildLight()`, a full re-bake (`bakeStaticLight()` + `rebuildDynamicLight()`) rather than CE's targeted turn-off/turn-on subtract-add — functionally equivalent for static objects, costs a full rebake instead of an O(36) delta | `scripting.ts:1577`, `vm_bridge.ts:115` |
+| 2 | `obj_set_light_level` (0x8107) changes tile intensity at runtime — CE calls `objectSetLight()` which triggers the full turn-off/turn-on cycle and refreshes the screen rect | **FIXED** — wired at `vmBridge.ts:115`; `scripting.ts:1577-1588` sets `obj.lightRadius`/`obj.lightIntensity` then calls `Lightmap.rebuildLight()`, a full re-bake (`bakeStaticLight()` + `rebuildDynamicLight()`) rather than CE's targeted turn-off/turn-on subtract-add — functionally equivalent for static objects, costs a full rebake instead of an O(36) delta | `scripting.ts:1577`, `vmBridge.ts:115` |
 | 3 | Night Vision perk adds 20 %/rank to ambient | **FIXED** — `gametime.ts` (`LIGHT_LEVEL_NIGHT_VISION_BONUS`) | `light.cc lightSetAmbientIntensity` |
 | 4 | No built-in day/night curve — only script-driven ambient | DH2 adds a custom curve (`gametime.ts:181`). This is a DH2 extension beyond CE. | `gametime.ts` |
 | 5 | `set_light_level` always applied (indoor and outdoor) | **FIXED 2026-07-01** — outdoor-map guard removed; `setLightLevelOverride()` now honors the call on all map types, matching CE. Previously dropped on outdoor maps (e.g. SID 219 `Kladwtwn.int` — Klamath Downtown). | `gametime.ts:232` |

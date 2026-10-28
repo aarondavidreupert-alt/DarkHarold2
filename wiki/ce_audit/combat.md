@@ -1,6 +1,6 @@
 # CE parity audit — combat (combat.cc)
 
-Scope: CE files `raw/fallout2-ce/src/combat.cc` (every function), `combat.h` (inline `isInCombat`, `isUnarmedHitMode`), `combat_defs.h` (enums/structs only); DH2 files `src/combat/Combat.ts`, `src/combat/{hitChance,damage,results,actionPoints,lineOfFire,explosion,whoHitMe}.ts`, `src/criticalEffects/*`, `src/critter/Weapon.ts`, `src/critter/lifecycle.ts`, `src/unarmed.ts`, `src/ui_calledshot.ts`, `src/playerUse.ts`, `src/weaponAmmo.ts`, `src/scripting.ts` (combatEvent). Audited 2026-10-24.
+Scope: CE files `raw/fallout2-ce/src/combat.cc` (every function), `combat.h` (inline `isInCombat`, `isUnarmedHitMode`), `combat_defs.h` (enums/structs only); DH2 files `src/combat/Combat.ts`, `src/combat/{hitChance,damage,results,actionPoints,lineOfFire,explosion,whoHitMe}.ts`, `src/criticalEffects/*`, `src/critter/Weapon.ts`, `src/critter/lifecycle.ts`, `src/unarmed.ts`, `src/uiCalledShot.ts`, `src/playerUse.ts`, `src/weaponAmmo.ts`, `src/scripting.ts` (combatEvent). Audited 2026-10-24.
 
 Method: each CE function read next to its DH2 counterpart. The critical-hit tables (`src/criticalEffects/ceTables.ts`) were checked by a script against CE's static `gCriticalHitTables` + `gPlayerCriticalHitTable`: all 1080 entries match. `_cf_table`, `hit_location_penalty_default` and the 14 `gUnarmedHitDescriptions` entries were checked by hand and also match. Proto facts quoted below (which weapons burst, which critters have flags) come from the local `proto/pro.json`.
 
@@ -110,14 +110,14 @@ Top findings, most severe first:
 | `_combat_anim_begin` | — | 🚫 | | UI disable / cursor during the animation. |
 | `_combat_anim_finished` | `resolveAttack` / `proceed` Combat.ts:856–945 | 🚫 N/A (2026-10-26) | LOW | Ammo spend → display → apply → standup after the attacker's own knockdown matches. DH2 applies on the action frame / projectile impact; CE applies after the whole animation (ordering only). `_scr_end_combat` (dead path) not ported. — **2026-10-26:** kept: DH2 applies the damage on the action frame / impact, CE after the whole animation — ordering only; the dead-path _scr_end_combat is not reachable in DH2's turn loop. |
 | `_combat_standup` | `combatStandup` results.ts:147 | ✅ | | 3 AP (1 with Quick Recovery). |
-| `_print_tohit` | `drawDigits` ui_calledshot.ts:58 | ✅ FIXED (2026-10-26) | LOW | CE shows "00" for 0 % and dashes only below 0; DH2 shows "--" for ≤ 0. — **2026-10-26:** "00" for 0 %. |
+| `_print_tohit` | `drawDigits` uiCalledShot.ts:58 | ✅ FIXED (2026-10-26) | LOW | CE shows "00" for 0 % and dashes only below 0; DH2 shows "--" for ≤ 0. — **2026-10-26:** "00" for 0 %. |
 | `hitLocationGetName` | `hitLocationName` Combat.ts:1153 | ✅ | | combat.msg 1000 + 10 × alias + location. |
-| `_draw_loc_off` | ui_calledshot.ts (CSS) | 🚫 | | DOM equivalent. |
-| `_draw_loc_on_` | ui_calledshot.ts (CSS) | 🚫 | | |
-| `_draw_loc_` | ui_calledshot.ts | 🚫 | | |
-| `calledShotSelectHitLocation` | `uiCalledShot` ui_calledshot.ts:52 | ✅ FIXED (2026-10-26) | LOW | 8 locations with the hit mode's to-hit, Esc/cancel. DH2-only: crippled limbs are greyed out and can't be picked (CE allows them). No `icsxxxx1` sound on pick. — **2026-10-26:** crippled limbs can be picked, icsxxxx1. |
+| `_draw_loc_off` | uiCalledShot.ts (CSS) | 🚫 | | DOM equivalent. |
+| `_draw_loc_on_` | uiCalledShot.ts (CSS) | 🚫 | | |
+| `_draw_loc_` | uiCalledShot.ts | 🚫 | | |
+| `calledShotSelectHitLocation` | `uiCalledShot` uiCalledShot.ts:52 | ✅ FIXED (2026-10-26) | LOW | 8 locations with the hit mode's to-hit, Esc/cancel. DH2-only: crippled limbs are greyed out and can't be picked (CE allows them). No `icsxxxx1` sound on pick. — **2026-10-26:** crippled limbs can be picked, icsxxxx1. |
 | `_combat_check_bad_shot` | `checkBadShot` Combat.ts:2136 | ✅ | | Order and conditions match (two-hand flag = weaponFlags 0x02, i.e. 0x200). |
-| `_combat_to_hit` | `uiShowCombatHover` ui_hud.ts:594 | ✅ FIXED (2026-10-26) | LOW | CE shows "X" whenever `_combat_check_bad_shot` fails (range, AP, aim blocked); DH2 tests only ammo. — **2026-10-26:** X for every _combat_check_bad_shot refusal. |
+| `_combat_to_hit` | `uiShowCombatHover` uiHud.ts:594 | ✅ FIXED (2026-10-26) | LOW | CE shows "X" whenever `_combat_check_bad_shot` fails (range, AP, aim blocked); DH2 tests only ammo. — **2026-10-26:** X for every _combat_check_bad_shot refusal. |
 | `_combat_attack_this` | playerUse.ts:278–380 | ✅ FIXED (2026-10-26) | LOW | combat.msg 100–106 refusals and the out-of-ammo sound match. The out-of-combat branch (start `_combat` with csd so the player's first turn auto-attacks) isn't reachable in DH2. — **2026-10-26:** out of combat a crosshair click on a critter starts the fight on the dude's turn and attacks (input.ts); doors too (playerAttackDoor). |
 | `_combat_outline_on` | `refreshHighlights` Combat.ts:3112 | ✅ FIXED (2026-10-26) | LOW | See the outline row. — **2026-10-26:** see the outline row. |
 | `_combat_outline_off` | `finish` / `clearNeutralOutlines` Combat.ts:338 | ✅ | | |
@@ -300,7 +300,7 @@ Top findings, most severe first:
 - **"X is killed by Y!"** message in `perish` (Combat.ts:1690). CE prints no such line (the kill shows as "… and was killed" in `_combat_display`).
 - **"out of ammo!" / "can't attack — both arms are crippled!"** uiLog lines in `attack()` (Combat.ts:797/804) are invented strings (CE uses combat.msg 101 / 105 in `_combat_attack_this`).
 - **Jinxed from Pariah Dog**: `isJinxed` (Combat.ts:1210) also triggers when the attacker or target has a perk named "Pariah Dog". CE checks only TRAIT_JINXED or the dude's PERK_JINXED.
-- **Called-shot screen greys out crippled limbs** and blocks clicks on them (ui_calledshot.ts:81–101); CE lets you target them.
+- **Called-shot screen greys out crippled limbs** and blocks clicks on them (uiCalledShot.ts:81–101); CE lets you target them.
 - **Blue outline for neutral critters** (`refreshHighlights`, CI11, documented).
 - **Solar Scorcher daylight gate in `attack()`** (via `aiHaveAmmo`, Combat.ts:796) applies to the player too and returns after `playerUse` has already paid the AP.
 - **AI `aiLastItem` retry** (Combat.ts:2543): CE never stores a last item (see `aiInfoSetLastItem`).

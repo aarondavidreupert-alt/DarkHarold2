@@ -46,7 +46,7 @@ Top findings, most severe first:
 | `aiGetPacket` (:731) | `AI.ts:25 AI` constructor | ✅ | | The packet comes from `combatant.aiNum`, with custom overrides merged. |
 | `aiGetPacketByNum` (:741) | `aiPackets.ts:257 getAiPacket` | ✅ | | Falls back to the first packet, as CE. |
 | `aiGetAreaAttackMode` / `aiGetBestWeapon` / `aiGetDistance` / `aiGetAttackWho` / `aiGetChemUse` (:756–808) | `obj.ai.packet.<field>` | ✅ | | Plain field reads. |
-| `aiGetRunAwayMode` (:763) | `ui_companion.ts:92` (shows `packet.runAwayMode`) | ✅ FIXED (2026-10-26) | LOW | CE derives the mode from `100*min_hp/maxHP` against `_hp_run_away_value` when run_away_mode == -1. DH2 shows the packet string. Unverified for packets without run_away_mode. — **2026-10-26:** without run_away_mode the companion screen derives it from 100 × min_hp / Max HP against _hp_run_away_value (aiPackets.ts aiGetRunAwayMode). |
+| `aiGetRunAwayMode` (:763) | `uiCompanion.ts:92` (shows `packet.runAwayMode`) | ✅ FIXED (2026-10-26) | LOW | CE derives the mode from `100*min_hp/maxHP` against `_hp_run_away_value` when run_away_mode == -1. DH2 shows the packet string. Unverified for packets without run_away_mode. — **2026-10-26:** without run_away_mode the companion screen derives it from 100 × min_hp / Max HP against _hp_run_away_value (aiPackets.ts aiGetRunAwayMode). |
 | `aiSetAreaAttackMode` / `aiSetBestWeapon` / `aiSetDistance` / `aiSetAttackWho` / `aiSetChemUse` (:811–889) | `party.ts setCompanionCustomSetting` → `customAiOverrides` | ✅ | | Override instead of mutating the shared packet. |
 | `aiSetRunAwayMode` (:823) | `Combat.ts:268 aiMinHp` | ✅ | | `min_hp = max − trunc(max × pct / 100)`, with pct by enum index (none 0 … tourniquet 100). |
 | `aiGetDisposition` (:892) | `packet.disposition` | ✅ | | |
@@ -86,7 +86,7 @@ Top findings, most severe first:
 | `_ai_attack` (:2670) | `Combat.ts:2248 aiAttack` | ✅ FIXED (2026-10-26) | LOW | No `CRITTER_MANUEVER_FLEEING → -1` guard (unreachable in practice: the flee paths end the turn). Rotate-to-target is implicit. — **2026-10-26:** a fleeing critter doesn't attack. |
 | `_ai_try_attack` (:2692) | `Combat.ts:2160 aiTryAttackStep` + `:2289 aiWieldOrRetrieve` + `:1345 aiWieldInventoryWeapon` | ⚠️ | MED-HIGH | AI-01. Reload / no-ammo / out-of-range / aim-blocked / OK branches and the 10-attempt cap are present. |
 | `_cAIPrepWeaponItem` (:2905) | `Combat.ts:1673` (takeThrownItem) | ✅ | | INT ≥ 3, flare, ambient < 85 %. |
-| `aiAttemptWeaponReload` (:2914) | `Combat.ts:2892 combatOver`; `ui_companion.ts` (Use Best Weapon) | ✅ FIXED (2026-10-26) | LOW | combatOver reloads silently. CE plays the READY sfx for party members (animate = 0 at combat end, so no magic hands). — **2026-10-26:** a party member's end-of-combat reload sounds the weapon's READY. |
+| `aiAttemptWeaponReload` (:2914) | `Combat.ts:2892 combatOver`; `uiCompanion.ts` (Use Best Weapon) | ✅ FIXED (2026-10-26) | LOW | combatOver reloads silently. CE plays the READY sfx for party members (animate = 0 at combat end, so no magic hands). — **2026-10-26:** a party member's end-of-combat reload sounds the weapon's READY. |
 | `_combat_ai_begin` (:2945) | `this.combatants` | 🚫 | | List copy. |
 | `_combat_ai_over` (:2960) | — | 🚫 | | |
 | `_cai_perform_distance_prefs` (:2970) | `Combat.ts:2664 aiDistancePrefs` | ✅ | | stay_close / charge / snipe (sfall fix) plus the retarget tail. CE's `a2->ap & DAM_DEAD` typo (it tests AP bits) is not reproduced (harmless). |

@@ -4,7 +4,7 @@ Merged reference for item types, data structures, inventory management, equip/un
 
 Cross-references: `wiki/map_scripting.md` (script proc list), `wiki/skill_checks.md` (lockpick/traps formula), `wiki/known_bugs.md` §IU, `wiki/economy.md`.
 
-Ground truth: `raw/fallout2-ce/src/item.cc`, `item.h`, `inventory.cc`, `inventory.h`, `proto_instance.cc`, `scripts.cc`, `scripts.h`, `proto_types.h`, `obj_types.h`. DH2 sources: `src/object.ts` (barrel; `src/object/{Obj,items,Critter}.ts`), `src/ui_inventory.ts`, `src/drugs.ts`, `src/scripting.ts`, `src/vm_bridge.ts`, `src/skillUse.ts`.
+Ground truth: `raw/fallout2-ce/src/item.cc`, `item.h`, `inventory.cc`, `inventory.h`, `proto_instance.cc`, `scripts.cc`, `scripts.h`, `proto_types.h`, `obj_types.h`. DH2 sources: `src/object.ts` (barrel; `src/object/{Obj,items,Critter}.ts`), `src/uiInventory.ts`, `src/drugs.ts`, `src/scripting.ts`, `src/vmBridge.ts`, `src/skillUse.ts`.
 
 ---
 
@@ -145,7 +145,7 @@ data->baseStats[STAT_CARRY_WEIGHT] = 25 * strength + 25;
 - Weapon type → adds loaded ammo weight
 - Otherwise → `proto->item.weight`
 
-**DH2 formula** (`src/ui_inventory/panel.ts`):
+**DH2 formula** (`src/uiInventory/panel.ts`):
 ```typescript
 const max = 25 + p.getStat('STR') * 25
 ```
@@ -218,17 +218,17 @@ Accessors:
 `(obj as Critter).rightHand = item` only. No left-hand support, no equip
 animation, no `_adjust_ac` call.
 
-**UI-driven** (`src/ui_inventory/dragdrop.ts`, `uiMoveSlot`): drag-and-drop slots
+**UI-driven** (`src/uiInventory/dragdrop.ts`, `uiMoveSlot`): drag-and-drop slots
 `leftHand`, `rightHand`, `armor`. Directly writes to `player.leftHand`,
 `player.rightHand`, `player.armor` via `playerUnsafe[target] = obj`. Triggers
 `applyArmorArt()` on armor slot changes.
 
-`applyArmorArt` (`src/ui_inventory/dragdrop.ts`): updates `player.art` to the armor's
+`applyArmorArt` (`src/uiInventory/dragdrop.ts`): updates `player.art` to the armor's
 `maleFID` / `femaleFID` sprite path. Saves original art in `player._baseArt`
 for restoration on unequip. Plays armor equip sound (`ltharmor`, `pwrarmor`,
 `mtlarmor`, or `robe`).
 
-**AC calculation** (`src/ui_inventory/panel.ts`, `src/object/Critter.ts`): armor AC is
+**AC calculation** (`src/uiInventory/panel.ts`, `src/object/Critter.ts`): armor AC is
 read directly from `armor.pro.extra.AC` at render/query time — no bonus stat is
 mutated on the critter object. `getArmorDR/DT/AC()` (`src/object/Critter.ts`)
 similarly reads `pro.extra.stats['DR Type']` directly.
@@ -330,7 +330,7 @@ item.msg 6 / 7 on and off, 8 the Geiger reading. The trickle event
 **Pipeline note**: this uncovered a real, separate gap — `tools/proto.py`'s
 `readItem()` had no `SUBTYPE_MISC` branch at all, so `charges`/`powerType`/
 `powerTypePid` were silently dropped for every misc item. Fixed alongside
-(new branch + `MiscItemProtoExtra` in `proto_types.ts`); needs a pipeline
+(new branch + `MiscItemProtoExtra` in `protoTypes.ts`); needs a pipeline
 re-run against real assets locally to regenerate `proto/items/*.json`.
 
 **Mechanics**: `Obj.use()` (the inventory "Use" action) toggles via
@@ -479,7 +479,7 @@ Lock/open opcodes (`src/scripting.ts`):
 | `obj_close` | 0x8132 | calls `setObjectOpen(obj, false)` |
 | `jam_lock` | 0x814D | sets `obj.jammed` (CE `opJamLock`); cleared by `objectUnjamAll` at midnight and on entering a map unvisited for 24 h (CE `gameTimeEventProcess` / `mapLoadSaved`) |
 
-All wired in `vm_bridge.ts`.
+All wired in `vmBridge.ts`.
 
 `setObjectOpen()` (`src/object/Obj.ts`): when `obj.locked === true`, returns
 `false` immediately with no sound or message. CE plays the locked SFX and "That

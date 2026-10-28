@@ -191,7 +191,7 @@ export const statDependencies: { [name: string]: Stat } = {
     // GVARs with no engine-enforced clamp. Registered so StatSet.getBase() doesn't
     // throw when the karma panel reads back a value written by
     // Script.set_global_var()'s TOWN_REP_GVARS sync. Names must match TOWN_NAMES in
-    // ui_character/viewer.ts and TOWN_REP_GVARS in scripting.ts exactly.
+    // uiCharacter/viewer.ts and TOWN_REP_GVARS in scripting.ts exactly.
     // (Restored 2026-10-06 — lost in the 2026-07-07 revert commit b282cca.)
     Rep_Arroyo: new Stat(-99999999, 99999999, 0, []),
     Rep_Klamath: new Stat(-99999999, 99999999, 0, []),

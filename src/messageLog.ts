@@ -1,9 +1,9 @@
 // The HUD's message window (CE display_monitor.cc): uiLog and friends. Its own module, importing
 // only the DOM helpers and globalState, so the game logic that reports to the player does not
-// import the HUD (wiki/code_quality.md Q14); ui_hud.ts re-exports it.
+// import the HUD (wiki/code_quality.md Q14); uiHud.ts re-exports it.
 
 import globalState from './globalState.js'
-import { $id } from './ui_dom.js'
+import { $id } from './uiDom.js'
 
 const LOG_LINE_HEIGHT = 13 // approx px per line for 8pt font
 

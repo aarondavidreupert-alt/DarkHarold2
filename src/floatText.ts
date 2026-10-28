@@ -22,7 +22,7 @@ limitations under the License.
 
 import { Point } from './geometry.js'
 import globalState from './globalState.js'
-import { font1, font3 } from './ui_font.js'
+import { font1, font3 } from './uiFont.js'
 import type { FontRenderer } from './ui/fontCore.js'
 
 const WRAP_WIDTH = 200

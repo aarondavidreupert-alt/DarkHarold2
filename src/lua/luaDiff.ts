@@ -1,5 +1,5 @@
 // VM-vs-Lua differential test (tools/luadiff.html). Every procedure of a script runs
-// once in the bytecode VM (src/vm.ts + vm_bridge.ts) and once as decompiled Lua
+// once in the bytecode VM (src/vm.ts + vmBridge.ts) and once as decompiled Lua
 // (src/lua/), each against an identical simulated game: every intrinsic call is
 // recorded with its arguments and answered from a seeded random world (stored
 // LVARs/GVARs/MVARs, a pool of fake objects). The two call traces must match.
@@ -14,7 +14,7 @@
 import globalState from '../globalState.js'
 import { parseIntFile } from '../intfile.js'
 import { BinaryReader } from '../util.js'
-import * as ScriptVMBridge from '../vm_bridge.js'
+import * as ScriptVMBridge from '../vmBridge.js'
 import { setVMFatalHook } from '../vm.js'
 import { attachLuaScript, detachLuaScript, initLuaRuntime, setLuaErrorHook, sslValue } from './luaRuntime.js'
 

@@ -11,8 +11,8 @@
 **DH2 ref:** `src/heart.ts` (`_getKeyChar`, `window.onkeydown`),
 `src/input.ts` (`heart.keydown` handler — all in-game keys),
 `src/config.ts` (`Config.controls.*` — full binding map),
-`src/ui_options.ts` (`optionsKeyHandler`),
-`src/ui_skilldex.ts` (`skilldexKeyHandler`)
+`src/uiOptions.ts` (`optionsKeyHandler`),
+`src/uiSkilldex.ts` (`skilldexKeyHandler`)
 
 ---
 

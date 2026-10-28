@@ -20,8 +20,8 @@
 // scanning) and pixel-accurate color compositing.
 //
 // Usage:
-//   import { FoText } from '../ui_font.js'
-//   import { font3 } from '../ui_font.js'
+//   import { FoText } from '../uiFont.js'
+//   import { font3 } from '../uiFont.js'
 //
 //   const label = new FoText(font3, 'HELLO', '#c8b466')
 //   label.appendTo(container)
@@ -42,7 +42,7 @@ export class FoText {
     private _color: string | undefined
 
     /**
-     * @param renderer  A FontRenderer instance (e.g. font1, font3, font4 from ui_font.ts).
+     * @param renderer  A FontRenderer instance (e.g. font1, font3, font4 from uiFont.ts).
      * @param text      Initial text string.
      * @param color     Optional CSS hex color (e.g. '#c8b466'). If omitted the
      *                  sprite's native color is used (white in the atlas).

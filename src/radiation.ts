@@ -29,7 +29,7 @@ import * as Scripting from './scripting.js'
 import { critterKill } from './critter/lifecycle.js'
 import { updateIndicatorBar } from './hudRefresh.js'
 import { uiLog } from './messageLog.js'
-import { showAlert } from './ui_dialog.js'
+import { showAlert } from './uiDialog.js'
 import { getMessage, getRandomInt } from './util.js'
 
 const TICKS_PER_HOUR = 36000 // CE GAME_TIME_TICKS_PER_HOUR (10 ticks/s)

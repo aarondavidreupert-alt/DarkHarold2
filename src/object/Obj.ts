@@ -20,7 +20,7 @@ limitations under the License.
 import * as GameTime from '../gametime.js'
 import { playOpenSfx, SCENERY_SOUND_EFFECT } from '../sfxNames.js'
 import { ammoFromRounds, ammoGetCapacity, ammoGetQuantity, ammoMergeInto, initWeaponAmmo } from '../weaponAmmo.js'
-import type { Proto } from '../proto_types.js'
+import type { Proto } from '../protoTypes.js'
 
 // Object kinds as getPROTypeName() names them (plus map-object kinds that carry no proto).
 export type ObjType = 'item' | 'critter' | 'scenery' | 'wall' | 'tile' | 'misc' | 'spatial'
@@ -39,7 +39,7 @@ import { uiDrawWeapon } from '../hudRefresh.js'
 import { uiLog } from '../messageLog.js'
 import { getMessage, getRandomInt, RollResult } from '../util.js'
 import { skillRoll } from '../skillUse.js'
-import { uiGetTimer } from '../ui_barter/swap.js'
+import { uiGetTimer } from '../uiBarter/swap.js'
 import { Config } from '../config.js'
 import type { Critter } from './Critter.js'
 import { sfallIniGetString } from '../sfallIni.js'

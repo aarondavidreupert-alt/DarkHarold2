@@ -1,7 +1,7 @@
 // Lua script backend: runs the decompiled scripts (tools/int2lua.py output,
 // data/scripts/<name>.lua) in place of the bytecode VM (src/vm.ts).
 //
-// The Lua code calls the same Script methods the VM bridge (src/vm_bridge.ts)
+// The Lua code calls the same Script methods the VM bridge (src/vmBridge.ts)
 // calls, so every intrinsic keeps one implementation. What differs from the VM:
 //   * procedures run as Lua coroutines; gsay_end / gsay_message yield and the
 //     dialogue resumes them (CE game_dialog.cc: the dialogue loop runs inside
@@ -80,7 +80,7 @@ export function isLuaReady(): boolean {
     return engine !== null
 }
 
-/** vm_bridge.ts registers its built-in variable readers here, so both
+/** vmBridge.ts registers its built-in variable readers here, so both
  *  backends read self_obj, game_time, ... the same way. */
 export function setBuiltinVarReader(reader: BuiltinVarReader): void {
     readBuiltin = reader
@@ -92,7 +92,7 @@ export async function initLuaRuntime(wasmUri = 'lib/wasmoon/glue.wasm', factory?
     if (engine) return
     const Factory: LuaFactoryCtor | undefined = factory ?? (globalThis as any).wasmoon?.LuaFactory
     if (!Factory) throw Error('initLuaRuntime: wasmoon is not loaded (lib/wasmoon/index.js)')
-    if (!readBuiltin) throw Error('initLuaRuntime: no built-in variable reader (vm_bridge.ts)')
+    if (!readBuiltin) throw Error('initLuaRuntime: no built-in variable reader (vmBridge.ts)')
     const lua = await new Factory(wasmUri).createEngine({ injectObjects: false, enableProxy: true })
 
     lua.global.set('__host_call', (script: LuaHostScript, name: string, ...args: any[]) => {
@@ -114,7 +114,7 @@ export async function initLuaRuntime(wasmUri = 'lib/wasmoon/glue.wasm', factory?
         return stop
     })
     lua.global.set('__host_var', (script: LuaHostScript, name: string) => sslValue(readBuiltin!(script, name)))
-    // CE exported variables live on the map script (vm_bridge.ts op_fetch_external)
+    // CE exported variables live on the map script (vmBridge.ts op_fetch_external)
     lua.global.set('__host_get_ext', (script: LuaHostScript, name: string) =>
         sslValue((script._mapScript ?? script)[name]),
     )

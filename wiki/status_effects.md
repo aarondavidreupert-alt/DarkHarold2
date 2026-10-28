@@ -9,7 +9,7 @@ CE refs: `item.cc` (`_item_d_take_drug`, `_insert_drug_effect`, `_insert_withdra
 `interpreter_extra.cc` (`opPoison`, `opGetPoison`, `opRadiationIncrease`, `opRadiationDecrease`),
 `scripts.cc` (`gameTimeEventProcess`), `stat_defs.h`  
 DH2 refs: `src/drugs.ts`, `src/scripting.ts` (drug/poison/radiation opcode methods,
-metarule case 18), `src/vm_bridge.ts` (wiring), `src/object/Critter.ts` (field declarations),
+metarule case 18), `src/vmBridge.ts` (wiring), `src/object/Critter.ts` (field declarations),
 `src/gameTick.ts` (tick handling), `src/char.ts`
 
 Cross-references: see `wiki/perks_traits.md` for perk/trait effect application; see

@@ -1,6 +1,6 @@
 // Script opcodes: the sfall extensions: arrays, file I/O, globals, hooks, ini settings, proto and stat access (sfall_opcodes.cc, sfall_arrays.cc).
 // Methods of the Script class (scripting.ts), kept here by topic and installed on its prototype
-// there; vm_bridge.ts and the Lua prelude call them as before (wiki/code_quality.md Q16).
+// there; vmBridge.ts and the Lua prelude call them as before (wiki/code_quality.md Q16).
 
 import type { Script } from '../../scripting.js'
 import { Config } from '../../config.js'
@@ -26,7 +26,7 @@ import { loadPRO, lookupArt } from '../../pro.js'
 import { scriptNumberOf } from '../../data.js'
 import { sfallIniGetInt, sfallIniGetString, sfallIniSet } from '../../sfallIni.js'
 import { sfallKeyPressed, sfallMouseButtons } from '../../sfallInput.js'
-import { showAlert } from '../../ui_dialog.js'
+import { showAlert } from '../../uiDialog.js'
 import { toTileNum } from '../../tile.js'
 import {
     ATTACK_FIELDS_BY_OFFSET,
@@ -493,7 +493,7 @@ export const sfallOpcodes = {
         for (const type of ['keydown', 'keyup']) document.dispatchEvent(new KeyboardEvent(type, { key, bubbles: true }))
     },
     // sfall register_hook_proc (0x8262): `proc` a procedure of this script (a function on
-    // both backends: vm_bridge.ts wraps the procedure number), 0 unregisters
+    // both backends: vmBridge.ts wraps the procedure number), 0 unregisters
     register_hook_proc(this: Script, hookId: number, proc: any) {
         SfallHooks.registerHookProc(hookId, this, typeof proc === 'function' ? () => proc.call(this) : null)
     },

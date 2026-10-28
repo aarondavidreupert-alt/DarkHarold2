@@ -13,7 +13,7 @@ import { assetUrl } from '../modAssets.js'
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Number-dial sprite helpers split out of ui_font.ts.
+// Number-dial sprite helpers split out of uiFont.ts.
 // See wiki/ts-split-refactor.md → "Per-file split proposals" §17.
 
 // ---- Sprite-based number dial (matches HUD HP/AC/AP digits) ----------------

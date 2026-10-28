@@ -223,7 +223,7 @@ local function new_env(id, script, name)
             host_set_ext(script, n, v == nil and 0 or v)
         end,
         entry = function(n) rawset(env, "__entry", n) end,
-        -- the VM's own versions (vm_bridge.ts): roll_dice is CE's predefined
+        -- the VM's own versions (vmBridge.ts): roll_dice is CE's predefined
         -- error stub and pushes 0, display shows nothing (interpreter_lib.cc opDisplay)
         roll_dice = function() return 0 end,
         display = function() end,

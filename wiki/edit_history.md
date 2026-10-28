@@ -11,13 +11,13 @@ Ordered newest-first. Each entry covers one or more consecutive git sessions wit
 
 **Summary:**
 
-- **P23 — Movemult dialog CE-accurate** (`src/ui_barter/swap.ts`): Rewrote the quantity-select
+- **P23 — Movemult dialog CE-accurate** (`src/uiBarter/swap.ts`): Rewrote the quantity-select
   modal to use `movemult.png` (FRM 305, 259×162) as the background, a canvas-rendered 5-digit
   BIGNUM counter (FRM 170, 14×24 px glyphs), item icon drawn aspect-ratio-preserving into the
   left panel slot, and correct click zones for Plus/Minus/Done/Cancel per
   `inventory.cc:5743 inventoryQuantityWindowInit`.
 
-- **P24 — Three movemult follow-up bugs** (`src/ui_barter/swap.ts`, `src/ui_inventory/dragdrop.ts`):
+- **P24 — Three movemult follow-up bugs** (`src/uiBarter/swap.ts`, `src/uiInventory/dragdrop.ts`):
   - Done/Cancel hit zones were too wide and overlapping; corrected to cover full text+dot area
     (Done x=5 w=120, Cancel x=133 w=122) per CE's actual button dot positions.
   - ALL button (120,80) 94×33 from `inventory.cc:5929` was missing a hit zone; wired to set count
@@ -25,7 +25,7 @@ Ordered newest-first. Each entry covers one or more consecutive git sessions wit
   - Armor inventory slot accepted any item subtype; guard added in `dragdrop.ts:uiMoveSlot`:
     `if (target === 'armor' && obj.subtype !== 'armor') return`.
 
-**Files changed:** `src/ui_barter/swap.ts`, `src/ui_inventory/dragdrop.ts`
+**Files changed:** `src/uiBarter/swap.ts`, `src/uiInventory/dragdrop.ts`
 
 ---
 
@@ -35,7 +35,7 @@ Ordered newest-first. Each entry covers one or more consecutive git sessions wit
 
 **Summary:**
 
-- **P17/P18 — Dialogue review window** (`src/ui_dialogue_review.ts`, new): CE-accurate review log
+- **P17/P18 — Dialogue review window** (`src/uiDialogueReview.ts`, new): CE-accurate review log
   records every `gsay_reply`/`gsay_message` line and the player's chosen reply; modal opens via
   `#dialogueReviewButton` (di_rest1/di_rest2 FRMs, 13,154). Done button 82×46 di_done1/di_done2;
   scroll arrows di_bgup1/di_bgdn1; mounted inside `#uiStage` at (80,20) matching `#dialogueContainer`
@@ -64,18 +64,18 @@ Major dialogue/companion plumbing sprint fixing a cascade of state-machine bugs 
 - **Dialogue re-entry** (`scripting.ts:268-283`): `dialogueReply()` now exits early for any
   non-dialogue UIMode (not just barter), preventing `currentDialogueObject = null` while
   Control/Trade screens are open.
-- **Double-animate on re-entry** (`ui_dialogue.ts:58`): `uiStartDialogue()` is now idempotent —
+- **Double-animate on re-entry** (`uiDialogue.ts:58`): `uiStartDialogue()` is now idempotent —
   skips reset+re-animate when `#dialogueBox` is already visible.
-- **Barter→Talk return** (`ui_barter/screen.ts`, `ui_companion_trade.ts`): both now call
+- **Barter→Talk return** (`uiBarter/screen.ts`, `uiCompanionTrade.ts`): both now call
   `Scripting.reenterDialogue()` after restoring `#dialogueBox`, rebuilding the option list.
 - **Companion/vendor barter branching** (`scripting.ts gsay_end`): `[Barter]` injected option
   branches on `isPartyMember(npc)` to call `uiCompanionTrade()` vs `uiBarterMode()`.
-- **Real fixed-position buttons** (`play.html`, `ui_dialogue.ts`): `#dialogueBarterButton` and
+- **Real fixed-position buttons** (`play.html`, `uiDialogue.ts`): `#dialogueBarterButton` and
   `#dialogueCombatControlButton` replace old synthesized text options; wired via
   `setupDialogueActionButtons()` called on every `uiStartDialogue()`.
-- **Walk-before-talk** (`src/input.ts`, `ui_contextmenu.ts`): both Talk paths now wrap the call in
+- **Walk-before-talk** (`src/input.ts`, `uiContextMenu.ts`): both Talk paths now wrap the call in
   `walkInFrontOf(critter.position, ...)` matching CE `actionTalk` walk-to-target distance check.
-- **Barter body portrait backgrounds** (`ui_barter/screen.ts`, `ui_companion_trade.ts`): vendor
+- **Barter body portrait backgrounds** (`uiBarter/screen.ts`, `uiCompanionTrade.ts`): vendor
   uses `barter.png` (FRM 111), companion uses `trade.png` (FRM 420).
 - **Barter scroll buttons** (P19/P20): outer-inventory arrows at CE (+80 offset) corrected positions
   (x=189/422); offer-table arrows added at (x=208/413). `invupout`/`invdnout`/`invupin`/`invdnin`
@@ -104,7 +104,7 @@ Major dialogue/companion plumbing sprint fixing a cascade of state-machine bugs 
   pass over all live critters; hostile=red, same-team=green, else=blue.
 - **M5 — Missing main map JSON handled** (`src/map/mapLoader.ts`): `loadNewMap` now wraps the
   main JSON fetch in try/catch, resets `isLoading=false` and shows `showAlert()` on parse error.
-- **P5 corrected** (`src/input.ts`, `ui_contextmenu.ts`): Talk no longer bypasses `talk_p_proc`;
+- **P5 corrected** (`src/input.ts`, `uiContextMenu.ts`): Talk no longer bypasses `talk_p_proc`;
   companion `[Combat Control]` injected as dialogue option in `gsay_end()`.
 - **RD16 egg fixes** (`src/render/webglDraw.ts`, `tools/proto.py`): `extendedFlags` parsed for
   walls and scenery; `isCEOccludingWall()` implements all 4 CE branch cases; `'alpha'` mode

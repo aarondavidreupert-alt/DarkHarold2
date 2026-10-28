@@ -36,7 +36,7 @@ import { saveLoadInit } from './saveload.js'
 import { initUI } from './ui.js'
 import { drawAC, drawHP, uiDrawWeapon } from './hudRefresh.js'
 import { uiLog } from './messageLog.js'
-import { initMainMenu, showMainMenu } from './ui_mainmenu.js'
+import { initMainMenu, showMainMenu } from './uiMainMenu.js'
 import { takeMainMenuReturn } from './mainMenuReturn.js'
 import { hideSplash, waitForSplashClick } from './splash.js'
 import { sfallIniGetString } from './sfallIni.js'
@@ -46,8 +46,8 @@ export function skipOpeningMoviesLevel(): number {
     const v = parseInt(sfallIniGetString('ddraw.ini|Misc|SkipOpeningMovies') ?? '', 10)
     return !isNaN(v) ? v : Config.ui.skipOpeningMovies ? 1 : 0
 }
-import { initCharacterCreator } from './ui_charactercreator.js'
-import { initCharacterSelector, showCharacterSelector } from './ui_charselect.js'
+import { initCharacterCreator } from './uiCharacterCreator.js'
+import { initCharacterSelector, showCharacterSelector } from './uiCharSelect.js'
 import * as Worldmap from './worldmap.js'
 import { initAutomapTracking } from './automapData.js'
 import { requestGlobalScriptsStart } from './sfallGlobalScripts.js'
@@ -109,7 +109,7 @@ export function initGame() {
     initAutomapTracking()
 
     // Wire main menu + character creator after UI is ready. Callbacks break the
-    // potential circular import: ui_mainmenu ↔ ui_charactercreator.
+    // potential circular import: uiMainMenu ↔ uiCharacterCreator.
     // CE main.cc:114 — after character creation: gameMoviePlay(MOVIE_ELDER, STOP_MUSIC),
     // reseed the RNG, then load the starting map.
     const startNewGame = () => {

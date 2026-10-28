@@ -1,7 +1,7 @@
 # CE parity audit — Inventory / use-on / loot / steal / barter screens
 
 Scope: CE files `raw/fallout2-ce/src/inventory.cc` (+ `inventory.h`), with the callees needed to judge behaviour (`item.cc objectGetInventoryWeight / itemMoveAllHidden`, `critter.cc critterIsActive`, `reaction.cc reactionGetValue`, `game_dialog.cc gameDialogBarter`, `interpreter_extra.cc opObjectIsCarryingObjectWithPid`).
-DH2 files: `src/ui_inventory/panel.ts`, `src/ui_inventory/dragdrop.ts`, `src/ui_barter/screen.ts`, `src/ui_barter/swap.ts`, `src/ui_loot.ts`, `src/ui_steal.ts`, `src/ui_companion_trade.ts`, `src/inventoryWield.ts`, `src/weaponAmmo.ts`, `src/examine.ts`, `src/useItemOn.ts`, `src/playerUse.ts`, `src/input.ts`, `src/hotkeys.ts`, `src/scripting.ts` (inventory opcodes), `src/object/Critter.ts`, `src/ui_dom.ts`.
+DH2 files: `src/uiInventory/panel.ts`, `src/uiInventory/dragdrop.ts`, `src/uiBarter/screen.ts`, `src/uiBarter/swap.ts`, `src/uiLoot.ts`, `src/uiSteal.ts`, `src/uiCompanionTrade.ts`, `src/inventoryWield.ts`, `src/weaponAmmo.ts`, `src/examine.ts`, `src/useItemOn.ts`, `src/playerUse.ts`, `src/input.ts`, `src/hotkeys.ts`, `src/scripting.ts` (inventory opcodes), `src/object/Critter.ts`, `src/uiDom.ts`.
 Audited 2026-10-24.
 
 ## Summary
@@ -35,13 +35,13 @@ Top findings (by severity):
 |---|---|---|---|---|
 | `_inven_reset_dude` (inventory.cc:525) | — (DH2 always uses `globalState.player`) | 🚫 N/A | — | `_inven_dude` / `_inven_pid` state has no DH2 equivalent; only the dude opens the inventory. |
 | `inventoryMessageListInit` / `inventoryMessageListFree` (:533/:549) | `util.ts getMessage('inventry', n)` | 🚫 N/A | — | Message list loading replaced by the global msg cache. |
-| `inventoryOpen` (:556) | `ui_inventory/panel.ts:123 showInventory`, `:116` INV button, `hotkeys.ts:218`, `input.ts:158` | ✅ FIXED (INV-07) | MED | 4 − 2×Quick Pockets AP ✅. Refusal with msg 19 when short of AP ❌ (INV-07), and no `_combat_whose_turn` check. Esc / I close ✅. Home / End / PgUp / PgDn / arrow scrolling keys ❌ (LOW). Right-click toggles the hand/arrow cursor in CE; DH2 right-click opens the context menu directly (documented deviation). Closing: `_adjust_fid`, AC redraw, `interfaceUpdateItems` ✅ via `uiDrawWeapon` / `drawAC`. |
-| `_setup_inventory` (:735) | static DOM `#inventoryBox`, `#lootBox`, `#barterBox` + `panel.ts:78 initInventory` | ✅ FIXED (2026-10-26) | LOW | Layout / button art replaced by DOM. Done button red-button sounds ✅ (C66). Take All hidden while stealing ✅ (`ui_steal.ts:285`). The use-item-on window reuses the normal panel with Done instead of Cancel (LOW). — **2026-10-26:** the use-item-on window is CE's own: use.frm (292 wide), the list and the body view, CANCEL at (233, 328), no hand / armour slots. |
+| `inventoryOpen` (:556) | `uiInventory/panel.ts:123 showInventory`, `:116` INV button, `hotkeys.ts:218`, `input.ts:158` | ✅ FIXED (INV-07) | MED | 4 − 2×Quick Pockets AP ✅. Refusal with msg 19 when short of AP ❌ (INV-07), and no `_combat_whose_turn` check. Esc / I close ✅. Home / End / PgUp / PgDn / arrow scrolling keys ❌ (LOW). Right-click toggles the hand/arrow cursor in CE; DH2 right-click opens the context menu directly (documented deviation). Closing: `_adjust_fid`, AC redraw, `interfaceUpdateItems` ✅ via `uiDrawWeapon` / `drawAC`. |
+| `_setup_inventory` (:735) | static DOM `#inventoryBox`, `#lootBox`, `#barterBox` + `panel.ts:78 initInventory` | ✅ FIXED (2026-10-26) | LOW | Layout / button art replaced by DOM. Done button red-button sounds ✅ (C66). Take All hidden while stealing ✅ (`uiSteal.ts:285`). The use-item-on window reuses the normal panel with Done instead of Cancel (LOW). — **2026-10-26:** the use-item-on window is CE's own: use.frm (292 wide), the list and the body view, CANCEL at (233, 328), no hand / armour slots. |
 | `_exit_inventory` (:1525) | `panel.ts:58 closeInventory` | ✅ FIXED (INV-14) | MED | Re-flagging the hand items is N/A (DH2 keeps the dude's hands outside the list). The **`_dropped_explosive` watcher** is ❌: CE, after an armed explosive is dropped from the inventory, makes every non-team critter in the blast extras that passes a PE roll mark the dude as who-hit-me and requests combat (INV-14). |
 | `_display_inventory` (:1605) | `panel.ts:355 drawInventory` | 🟡 PARTLY FIXED (2026-10-26) | LOW | CE lists the inventory **newest-first** (`items[length − (i+offset+1)]`), DH2 in array order (all four DH2 screens). Scrolling: CE moves one slot per wheel or arrow step; DH2 scrolls the DOM by 60 px. — **2026-10-26:** newest first; scrolling is still DH2's. |
-| `_display_target_inventory` (:1809) | `ui_loot.ts:94`, `ui_barter/screen.ts:319`, `ui_steal.ts:205` | ✅ FIXED (2026-10-26) | LOW | Same reverse-order difference. — **2026-10-26:** newest first. |
-| `_display_inventory_info` (:1933) | `ui_dom.ts:119 appendItemSlot` | ✅ FIXED (2026-10-26) | LOW | CE: ammo shows **rounds** (`capacity×(boxes−1)+top`, the dragged box excluded), other items `x<n>` only when n > 1, capped at 99999. DH2 always shows `x<amount>` (box count for ammo, and "x1" for singles). — **2026-10-26:** ammo in rounds, x<n> above 1. |
-| `_display_body` (:1982) | `panel.ts:301 drawCharacterPortrait`; `ui_barter/screen.ts:39 renderBarterPortrait`, `:103` | ✅ FIXED (2026-10-26) | LOW | CE spins the dude every 1000/6 ≈ 166 ms in the normal / use-on windows (DH2: 250 ms). In trade and loot windows (`fid != -1`) the dude is static ROTATION_SW and the target faces its own rotation. DH2's barter screen spins the dude; the loot / steal window has no body views (unverified in CSS). — **2026-10-26:** the dude turns every 1000 / 6 ms; trade: he stands facing south-west; loot / steal: the dude at (48, 39) and the target at (426, 39) on its last frame (an open bag takes the spot). |
+| `_display_target_inventory` (:1809) | `uiLoot.ts:94`, `uiBarter/screen.ts:319`, `uiSteal.ts:205` | ✅ FIXED (2026-10-26) | LOW | Same reverse-order difference. — **2026-10-26:** newest first. |
+| `_display_inventory_info` (:1933) | `uiDom.ts:119 appendItemSlot` | ✅ FIXED (2026-10-26) | LOW | CE: ammo shows **rounds** (`capacity×(boxes−1)+top`, the dragged box excluded), other items `x<n>` only when n > 1, capped at 99999. DH2 always shows `x<amount>` (box count for ammo, and "x1" for singles). — **2026-10-26:** ammo in rounds, x<n> above 1. |
+| `_display_body` (:1982) | `panel.ts:301 drawCharacterPortrait`; `uiBarter/screen.ts:39 renderBarterPortrait`, `:103` | ✅ FIXED (2026-10-26) | LOW | CE spins the dude every 1000/6 ≈ 166 ms in the normal / use-on windows (DH2: 250 ms). In trade and loot windows (`fid != -1`) the dude is static ROTATION_SW and the target faces its own rotation. DH2's barter screen spins the dude; the loot / steal window has no body views (unverified in CSS). — **2026-10-26:** the dude turns every 1000 / 6 ms; trade: he stands facing south-west; loot / steal: the dude at (48, 39) and the target at (426, 39) on its last frame (an open bag takes the spot). |
 | `inventoryCommonInit` / `inventoryCommonFree` (:2121/:2177) | — | 🚫 N/A | — | Cursor FRM locking and game-UI enable/disable. |
 | `inventorySetCursor` (:2194) | — | 🚫 N/A | — | Hand / arrow / blank cursors replaced by HTML5 drag plus the right-click menu (documented approximation "Action menu on right-click"). |
 | `inventoryItemSlotOnMouseEnter` / `…OnMouseExit` (:2207/:2240) | `panel.ts:146 showItemInfo` (on click) | 🚫 N/A (2026-10-26) | LOW | In arrow mode, CE hovering prints `_obj_look_at_func` ("You see: …", look_at_p_proc) into the info area. DH2 shows name + proto description on click, with no look_at_p_proc. — **2026-10-26:** CE prints the look text on hover only in the arrow cursor mode; DH2's inventory has no cursor modes (drag + the action menu), and the click shows the item's text. |
@@ -64,14 +64,14 @@ Top findings (by severity):
 | `inventoryRenderItemDescription` (:3558) | CSS wrapping in `#inventoryBoxInfo` | ✅ MATCH | — | Line wrap at 152 px / 17 lines; DOM wraps automatically. |
 | `inventoryExamineItem` (:3645) | `panel.ts:146 showItemInfo` | ✅ FIXED (INV-11) | MED | INV-11: no `description_p_proc`, no `_obj_examine_func` extra lines (weapon ammo, ammo modifiers), no "It weighs %d pounds." (proto.msg 540/541). `examine.ts objExamine` exists but is not used here. |
 | `inventoryWindowOpenContextMenu` (:3712) | `panel.ts:550 makeItemContextMenu`, `:408 itemAction`, `:508` | ✅ FIXED (INV-12) | MED | INV-12. Normal-window menu sets ✅ for list items. Equipped items: CE uses the same sets, so Drop and Use are available; DH2 drops Drop (it uses the `_act_weap2`-style sets meant for other windows) and adds Unequip. No context menu at all in loot, steal or barter (CE: look / unload / use-bag / drop). Drop details: money special case, armed explosive → `_dropped_explosive`, N separate `_obj_drop` calls for N items. Use on a container → `_container_enter` ❌. Unload ✅. |
-| `inventoryOpenLooting` (:4057) | `ui_loot.ts:51 uiLoot` (callers `playerUse.ts:145/412`, `ui_contextmenu.ts:168`, `Obj.ts:356`, `input.ts:538`) | ✅ FIXED (INV-05, INV-16) | MED | INV-05 (pickup_p_proc + override, NO_STEAL msg 50, hidden items, corpse cycling). Closed animated container returns early ✅ (DH2 opens it first). Take All: INV-16. |
-| `inventoryOpenStealing` (:4505) | `playerUse.ts:141-146`, `ui_steal.ts:193 uiSteal` | ✅ FIXED (INV-04, INV-06) | MED | INV-04 (equipped items stealable), INV-06 (KO target → steal). Steal-XP accrual (+10, +20, …, capped at 300 − Steal, none if caught or vs a party member) ✅. Caught → window closes, then the target's pickup_p_proc runs ✅. |
-| `_move_inventory` (:4525) | `ui_steal.ts:251 attemptSteal`, `ui_loot.ts:55 uiLootMove` | ✅ MATCH | LOW | Quantity first, then `skillsPerformStealing` (planting too), then the move ✅; `_gStealCount` incremented per click (cancel included) ✅. Minor: when the dude can't carry a stolen item, CE shows msg 25 and DH2 msg 26 (`ui_steal.ts:273`). Taking a right-hand item from a target doesn't reset the target's FID weapon code (CE does). |
-| `_barter_compute_value` (:4673) | `ui_barter/screen.ts:220 barterMinPlayerOffer`; companion: weight (`ui_companion_trade.ts`) | ✅ MATCH | — | `(160+npcBarter)/(160+partyBestBarter) × (cost−caps) × 2 × (mod+100−MasterTrader25)×0.01 + caps`, reaction modifier added as in `inventoryOpenTrade`, party best Barter (C49). DH2 clamps the multiplier with `max(0.01, …)`; CE replaces it with 0.01 only when it is < 0 (negligible). |
-| `_barter_attempt_transaction` (:4706) | `ui_barter/screen.ts:251 offer`, `ui_companion_trade.ts:101 offer` | ✅ FIXED (2026-10-26) | LOW | Weight check (31), party-member weight check (32), empty or low offer (28) ✅. Missing: the `itemIsQueued` check on the offer table (a running device or armed item makes the offer bad; a Geiger counter is switched off). Companion trade: the dude's weight excludes his equipped items (CE `objectGetInventoryWeight` includes them) (LOW). — **2026-10-26:** the itemIsQueued refusal (28) on the offer; the companion-trade weight still excludes equipped items. — **2026-10-26, follow-up:** the companion trade goes through the same offer check, which counts the dude's equipped items — stale row. |
-| `_barter_move_inventory` / `_barter_move_from_table_inventory` (:4765/:4852) | `ui_barter/screen.ts:341 uiBarterMove`, `swap.ts:282 uiSwapItem` | ✅ MATCH | — | Quantity window for stacks ✅; ammo top-box split ✅ (C36). |
-| `inventoryWindowRenderInnerInventories` (:4939) | `ui_barter/screen.ts:449 redrawBarterInventory` | ✅ FIXED (INV-08) | MED | INV-08: the right table shows the raw `stackCost` sum; CE shows `_barter_compute_value`. Party member: "msg 30 + weight" (unverified in DH2's readout). |
-| `inventoryOpenTrade` (:5031) | `ui_barter/screen.ts:156 uiBarterMode`, `ui_companion_trade.ts:60` | ✅ FIXED (INV-03, INV-08) | MED | INV-03 (equipped items tradable), INV-08 (msg 27, T/M keys). Reaction modifier (bad +25, neutral 0, good −15 from LVAR 0) ✅. Scroll buttons ✅ (P19/P20). |
+| `inventoryOpenLooting` (:4057) | `uiLoot.ts:51 uiLoot` (callers `playerUse.ts:145/412`, `uiContextMenu.ts:168`, `Obj.ts:356`, `input.ts:538`) | ✅ FIXED (INV-05, INV-16) | MED | INV-05 (pickup_p_proc + override, NO_STEAL msg 50, hidden items, corpse cycling). Closed animated container returns early ✅ (DH2 opens it first). Take All: INV-16. |
+| `inventoryOpenStealing` (:4505) | `playerUse.ts:141-146`, `uiSteal.ts:193 uiSteal` | ✅ FIXED (INV-04, INV-06) | MED | INV-04 (equipped items stealable), INV-06 (KO target → steal). Steal-XP accrual (+10, +20, …, capped at 300 − Steal, none if caught or vs a party member) ✅. Caught → window closes, then the target's pickup_p_proc runs ✅. |
+| `_move_inventory` (:4525) | `uiSteal.ts:251 attemptSteal`, `uiLoot.ts:55 uiLootMove` | ✅ MATCH | LOW | Quantity first, then `skillsPerformStealing` (planting too), then the move ✅; `_gStealCount` incremented per click (cancel included) ✅. Minor: when the dude can't carry a stolen item, CE shows msg 25 and DH2 msg 26 (`uiSteal.ts:273`). Taking a right-hand item from a target doesn't reset the target's FID weapon code (CE does). |
+| `_barter_compute_value` (:4673) | `uiBarter/screen.ts:220 barterMinPlayerOffer`; companion: weight (`uiCompanionTrade.ts`) | ✅ MATCH | — | `(160+npcBarter)/(160+partyBestBarter) × (cost−caps) × 2 × (mod+100−MasterTrader25)×0.01 + caps`, reaction modifier added as in `inventoryOpenTrade`, party best Barter (C49). DH2 clamps the multiplier with `max(0.01, …)`; CE replaces it with 0.01 only when it is < 0 (negligible). |
+| `_barter_attempt_transaction` (:4706) | `uiBarter/screen.ts:251 offer`, `uiCompanionTrade.ts:101 offer` | ✅ FIXED (2026-10-26) | LOW | Weight check (31), party-member weight check (32), empty or low offer (28) ✅. Missing: the `itemIsQueued` check on the offer table (a running device or armed item makes the offer bad; a Geiger counter is switched off). Companion trade: the dude's weight excludes his equipped items (CE `objectGetInventoryWeight` includes them) (LOW). — **2026-10-26:** the itemIsQueued refusal (28) on the offer; the companion-trade weight still excludes equipped items. — **2026-10-26, follow-up:** the companion trade goes through the same offer check, which counts the dude's equipped items — stale row. |
+| `_barter_move_inventory` / `_barter_move_from_table_inventory` (:4765/:4852) | `uiBarter/screen.ts:341 uiBarterMove`, `swap.ts:282 uiSwapItem` | ✅ MATCH | — | Quantity window for stacks ✅; ammo top-box split ✅ (C36). |
+| `inventoryWindowRenderInnerInventories` (:4939) | `uiBarter/screen.ts:449 redrawBarterInventory` | ✅ FIXED (INV-08) | MED | INV-08: the right table shows the raw `stackCost` sum; CE shows `_barter_compute_value`. Party member: "msg 30 + weight" (unverified in DH2's readout). |
+| `inventoryOpenTrade` (:5031) | `uiBarter/screen.ts:156 uiBarterMode`, `uiCompanionTrade.ts:60` | ✅ FIXED (INV-03, INV-08) | MED | INV-03 (equipped items tradable), INV-08 (msg 27, T/M keys). Reaction modifier (bad +25, neutral 0, good −15 from LVAR 0) ✅. Scroll buttons ✅ (P19/P20). |
 | `_container_enter` / `_container_exit` (:5362/:5404) | — | ✅ FIXED (INV-13) | MED | INV-13: no nested bag / backpack inventories in any window. |
 | `_drop_into_container` (:5429) | — | ✅ FIXED (INV-13) | MED | INV-13. |
 | `_drop_ammo_into_weapon` (:5469) | `dragdrop.ts:77 tryLoadAmmoIntoWeapon` | ✅ MATCH | — | Compatibility, quantity of boxes, reload loop, READY sound ✅. |
@@ -98,13 +98,13 @@ Top findings (by severity):
 
 ### INV-03 — Merchants and companions trade away their equipped weapon and armor (MED, NEW) — **FIXED 2026-10-25**
 - CE: `inventory.cc:5040-5055 inventoryOpenTrade` removes `critterGetArmor` and `critterGetItem2` from the barterer before the window opens. If there is no right-hand item and the barterer is not a party member, it removes the first weapon instead (`_inven_find_type(…, ITEM_TYPE_WEAPON)`). All of them are re-added with their flags at exit.
-- DH2: `src/ui_barter/screen.ts:193-194`, `src/ui_companion_trade.ts` (`companion.inventory.map(cloneItem)`). NPC equipped items stay in `inventory[]` (`inventoryWield.ts` header, `Critter.ts:222`), so they appear and can be bought. After a deal, `merchant.inventory` is replaced by clones, so `merchant.rightHand` / `armor` keep pointing at objects no longer in the inventory.
+- DH2: `src/uiBarter/screen.ts:193-194`, `src/uiCompanionTrade.ts` (`companion.inventory.map(cloneItem)`). NPC equipped items stay in `inventory[]` (`inventoryWield.ts` header, `Critter.ts:222`), so they appear and can be bought. After a deal, `merchant.inventory` is replaced by clones, so `merchant.rightHand` / `armor` keep pointing at objects no longer in the inventory.
 - **Impact:** you can buy a guard-merchant's gun or a vendor's armor, or strip a companion's armor through Trade, which CE forbids. Stale hand references follow.
 - **Fix:** filter out (or hold aside) the flagged hand / worn items (plus CE's first-weapon rule for vendors) when building the working inventory, and re-link the hand references to the new clones after a deal.
 
 ### INV-04 — Stealing equipped items (MED, NEW) — **FIXED 2026-10-25**
 - CE: `inventoryOpenLooting:4135-4148` (`_gIsSteal`) removes item1, item2 and armor from the target and restores them at exit.
-- DH2: `src/ui_steal.ts:221` shows `target.inventory` in full; `uiSwapItem` moves the item without clearing `target.rightHand` / `armor`.
+- DH2: `src/uiSteal.ts:221` shows `target.inventory` in full; `uiSwapItem` moves the item without clearing `target.rightHand` / `armor`.
 - **Impact:** you can pickpocket a raider's wielded weapon or worn armor, and the NPC keeps fighting with a weapon that is now in your inventory (shared object).
 - **Fix:** exclude the hand / worn flagged items from the steal view.
 
@@ -114,7 +114,7 @@ Top findings (by severity):
   - Not stealing → the target's `pickup_p_proc` (source = looter); `script_overrides` aborts.
   - `itemMoveAllHidden` keeps hidden items out of view.
   - With several dead or KO critters on the hex, PgUp / PgDn arrows cycle the bodies.
-- DH2: `src/ui_loot.ts:51` and all callers (`playerUse.ts:145/412`, `ui_contextmenu.ts:168`, `Obj.ts:356`; only the dev key in `input.ts:533` runs `use_p_proc`). None of these exist.
+- DH2: `src/uiLoot.ts:51` and all callers (`playerUse.ts:145/412`, `uiContextMenu.ts:168`, `Obj.ts:356`; only the dev key in `input.ts:533` runs `use_p_proc`). None of these exist.
 - **Impact:** script-protected containers and corpses (scripts that react to looting, or override it) don't work. NO_STEAL critters (some bodies flagged so) can be looted. Script-hidden inventory shows up.
 - **Fix:** port the pre-checks into `uiLoot` (or a wrapper), plus the hidden-items filter.
 
@@ -125,12 +125,12 @@ Top findings (by severity):
 
 ### INV-07 — Inventory in combat without enough AP (MED, NEW) — **FIXED 2026-10-25**
 - CE: `inventoryOpen:566-590`: with 4 − 2×QP AP required and fewer AP left → inventry.msg 19 "You don't have enough action points to use inventory" and no window. It also returns unless it is the dude's turn.
-- DH2: `src/ui_inventory/panel.ts:134-142`: `subtractCombatAP` returns false when short (`combat/actionPoints.ts:74`), the result is ignored, and the window opens for free.
+- DH2: `src/uiInventory/panel.ts:134-142`: `subtractCombatAP` returns false when short (`combat/actionPoints.ts:74`), the result is ignored, and the window opens for free.
 - **Fix:** check `getAvailableCombatAP() < apCost` → uiLog(msg 19) and don't open.
 
 ### INV-08 — Barter merchant-table price and trade feedback (MED, NEW) — **FIXED 2026-10-25**
 - CE: `inventoryWindowRenderInnerInventories:4999-5010` prints `$<_barter_compute_value>` under the merchant's table (for party members, msg 30 + weight). `inventoryOpenTrade` shows msg 27 "Ok, that's a good trade." after a successful vendor deal; `T` = talk, `M` = offer.
-- DH2: `src/ui_barter/screen.ts:462-466` shows the raw cost sum on both sides; `offer()` succeeds silently; no keys.
+- DH2: `src/uiBarter/screen.ts:462-466` shows the raw cost sum on both sides; `offer()` succeeds silently; no keys.
 - **Impact:** the player can't see what the merchant actually wants (the price is often 2× or more the raw cost) and has to guess.
 - **Fix:** `$id('barterBoxRightAmount').textContent = '$' + barterMinPlayerOffer(merchantBarterTable)`; add msg 27 and the T / M keys.
 
@@ -140,7 +140,7 @@ Top findings (by severity):
   - `Ammo: q/cap <ammo name>` when the weapon has capacity;
   - armor held in a hand: "(Not worn)".
   - "Total Wt" turns red when encumbered.
-- DH2: `src/ui_inventory/panel.ts:255-296`:
+- DH2: `src/uiInventory/panel.ts:255-296`:
   - AC = `getStat('AGI') + armor AC` (ignores Dodger, Kamikaze, drugs);
   - DR = the armor proto only;
   - no DT;
@@ -151,13 +151,13 @@ Top findings (by severity):
 
 ### INV-10 — Equipping fires pickup_p_proc; hand → armor slot accepts any item (MED, NEW) — **FIXED 2026-10-25**
 - CE: `_inven_pickup` / `_switch_hand` run no script proc. The armor slot accepts only `ITEM_TYPE_ARMOR` from any source (`inventory.cc:2440`).
-- DH2: `src/ui_inventory/dragdrop.ts:164-168` calls `Scripting.pickup(obj, player)` when an item goes into a hand. The cited "inventory.cc:4494" is the caught-stealing pickup, not equip. The armor-type guard at `:114` runs only for drags from the list; a drag from a hand slot to the armor slot (`data = 'leftHand'`) puts a weapon in `armor`.
+- DH2: `src/uiInventory/dragdrop.ts:164-168` calls `Scripting.pickup(obj, player)` when an item goes into a hand. The cited "inventory.cc:4494" is the caught-stealing pickup, not equip. The armor-type guard at `:114` runs only for drags from the list; a drag from a hand slot to the armor slot (`data = 'leftHand'`) puts a weapon in `armor`.
 - **Impact:** scripted items' pickup_p_proc fires again on every equip (double rewards or messages, or a script refusing a pickup the player already made). A weapon can be "worn" as armor.
 - **Fix:** remove the pickup call; apply the armor-type check for every source.
 
 ### INV-11 — Inventory "Look" skips the examine pipeline (MED, NEW) — **FIXED 2026-10-25**
 - CE: `inventoryExamineItem` → name, separator, `_obj_examine_func` (the item's `description_p_proc`, with override; proto description or msg 493; weapon "loaded with" line 526; ammo AC/DR/damage-mod lines 510-512), then "It weighs %d pound(s)." (proto.msg 540/541). In loot and barter windows Look prints `_obj_examine_func` to the monitor.
-- DH2: `src/ui_inventory/panel.ts:146 showItemInfo` → name + `getDescription()` only. `src/examine.ts:objExamine` implements the CE text but isn't used here.
+- DH2: `src/uiInventory/panel.ts:146 showItemInfo` → name + `getDescription()` only. `src/examine.ts:objExamine` implements the CE text but isn't used here.
 - **Fix:** render `objExamine(player, item)` lines plus the weight line.
 
 ### INV-12 — Context menus (MED, NEW) — **FIXED 2026-10-25**
@@ -165,10 +165,10 @@ Top findings (by severity):
   - Normal window: the same action set for list and equipped items. A weapon that can be unloaded gets look / unload / drop / cancel; use-able items get look / use / drop / cancel; anything else gets look / drop / cancel. Dropping an equipped item moves it out of the slot first.
   - Loot / trade windows: menus too (`_act_weap2`, `_act_just_use` for bags, `_act_nothing`, own items `_act_use` / `_act_no_use`).
   - Drop: money uses the quantity window and `itemSetMoney`; an armed explosive sets `_dropped_explosive`; N items are dropped as N separate `_obj_drop` calls.
-- DH2: `src/ui_inventory/panel.ts:567-594`: equipped slots get the "no drop" sets plus a DH2 Unequip; the loot, barter and steal screens have no menu (`ui_loot.ts`, `ui_barter/screen.ts`, `ui_steal.ts` only drag).
+- DH2: `src/uiInventory/panel.ts:567-594`: equipped slots get the "no drop" sets plus a DH2 Unequip; the loot, barter and steal screens have no menu (`uiLoot.ts`, `uiBarter/screen.ts`, `uiSteal.ts` only drag).
 - **Impact:** you can't unload a weapon or examine an item in a container or corpse before taking it, and you can't drop an equipped item directly.
 - **Fix:** use the same set selection as CE for slots; add right-click menus (Look / Unload) to the other windows.
-- **Fixed 2026-10-25:** CE's action sets in every window (`src/ui_inventory/itemMenu.ts`); USE on a bag opens it in the inventory, loot, steal, barter and companion-trade windows (in the trade windows only from either side's list, not the tables).
+- **Fixed 2026-10-25:** CE's action sets in every window (`src/uiInventory/itemMenu.ts`); USE on a bag opens it in the inventory, loot, steal, barter and companion-trade windows (in the trade windows only from either side's list, not the tables).
 
 ### INV-13 — No nested containers (bags / backpacks) (MED, NEW) — **FIXED 2026-10-25**
 - CE: `_container_enter` / `_container_exit` (up to 9 levels, in every window type), `_drop_into_container` (drag onto a bag in the list, a hand slot, or the body view while inside a bag; `itemAttemptAdd` with the bag's capacity).
@@ -189,8 +189,8 @@ Top findings (by severity):
 
 ### INV-16 — Take All is partial and uses a hardcoded message (LOW, NEW) — **FIXED 2026-10-25**
 - CE: `inventoryOpenLooting` `KEY_UPPERCASE_A`: if the target's whole inventory weight exceeds the remaining capacity → msg 31 "Sorry, you cannot carry that much." and **nothing** moves; otherwise `itemMoveAll`. The `A` key also triggers it.
-- DH2: `src/ui_loot.ts:121-136` moves every item that fits, skips the rest, and logs the hardcoded English "You can't carry any more."; no `A` key.
-- **Fixed 2026-10-25:** everything or nothing: the target's whole inventory weight against the room left, else inventry.msg 31 in a dialog box; Shift+A (the button's key) takes all and Esc closes the loot window (`ui_loot.ts lootKey`).
+- DH2: `src/uiLoot.ts:121-136` moves every item that fits, skips the rest, and logs the hardcoded English "You can't carry any more."; no `A` key.
+- **Fixed 2026-10-25:** everything or nothing: the target's whole inventory weight against the room left, else inventry.msg 31 in a dialog box; Shift+A (the button's key) takes all and Esc closes the loot window (`uiLoot.ts lootKey`).
 
 ## DH2-only behaviour
 
@@ -199,8 +199,8 @@ Top findings (by severity):
 - **Armor-change sounds** `ltharmor` / `pwrarmor` / `mtlarmor` / `robe` chosen from the armor art name (`dragdrop.ts:174-188`); CE plays only `ipickup1` / `iputdown` on any drag.
 - **Quantity window extras:** Up / Down arrow keys change the amount (`swap.ts:160-161`); hold-to-repeat uses a fixed 300 / 60 ms cadence.
 - **Stack into a hand:** dragging a stack into a hand slot asks for a quantity and can put several items in one hand (`dragdrop.ts:125-138`); CE moves one.
-- **Barter screen spins the player portrait** (`ui_barter/screen.ts:103-111`); CE keeps the dude static (ROTATION_SW) in the trade window.
+- **Barter screen spins the player portrait** (`uiBarter/screen.ts:103-111`); CE keeps the dude static (ROTATION_SW) in the trade window.
 - **The dude's armor via `wield_obj_critter`** applies AC and perk effects (`inventoryWield.ts:44-46`); CE's `_invenWieldFunc` changes only the dude's FID (CE quirk not reproduced, undocumented).
 - **NPC armor fallback** to the first carried armor (`Critter.ts:336`, INV-15).
-- **Story-crawler hook** `activeBarter` (`ui_barter/screen.ts:122-132`): test tooling, not CE.
+- **Story-crawler hook** `activeBarter` (`uiBarter/screen.ts:122-132`): test tooling, not CE.
 - **Inventory-list ammo-onto-weapon drop target** (`panel.ts:389-402`) — equivalent to CE dropping onto a list item; matches CE's `_drop_ammo_into_weapon` path, kept for completeness.

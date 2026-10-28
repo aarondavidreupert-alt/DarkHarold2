@@ -4,7 +4,7 @@ Reference doc for the Fallout 2 animation system as implemented in DarkHarold2.
 Covers FRM binary format, FID/animation ID encoding, the `reg_anim_*` batch system, palette cycling, and DH2 implementation status.
 
 > **Source anchor:** `raw/fallout2-ce/src/art.cc`, `art.h`, `animation.cc`, `animation.h`, `obj_types.h`, `cycle.cc`, `object.cc`  
-> **DH2 files:** `src/object/critterAnimation.ts`, `src/object/Critter.ts`, `src/scripting.ts`, `src/vm_bridge.ts`, `src/renderer.ts`, `tools/frmpixels.py` (pipeline)  
+> **DH2 files:** `src/object/critterAnimation.ts`, `src/object/Critter.ts`, `src/scripting.ts`, `src/vmBridge.ts`, `src/renderer.ts`, `tools/frmpixels.py` (pipeline)  
 > **Last audited:** 2026-10-17 — reg_anim opcodes rewired to CE; anim ids played by `buildFid`; FPS default 10. AN table re-checked (§ Known gaps).
 
 ---

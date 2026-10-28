@@ -49,7 +49,7 @@ import {
     currentPreferences,
     savePreferences,
     type SavedPreferences,
-} from './ui_options/preferences.js'
+} from './uiOptions/preferences.js'
 import { scheduleKnockoutEvent } from './combat/results.js'
 import { Combat, type SavedCombat } from './combat/Combat.js'
 

@@ -1,6 +1,6 @@
 // Script opcodes: metarule / metarule3 and the sfall explosions metarule (CE interpreter_extra.cc op_metarule, op_metarule3).
 // Methods of the Script class (scripting.ts), kept here by topic and installed on its prototype
-// there; vm_bridge.ts and the Lua prelude call them as before (wiki/code_quality.md Q16).
+// there; vmBridge.ts and the Lua prelude call them as before (wiki/code_quality.md Q16).
 
 import type { Script } from '../../scripting.js'
 import { CHEM_USE_MAP, getAiPacket } from '../../aiPackets.js'

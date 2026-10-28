@@ -1,5 +1,5 @@
 // Top-level UI mode the game is currently in (globalState.uiMode). Its own module with no
-// imports, so globalState.ts does not import the UI (wiki/code_quality.md Q14); ui_panels.ts and
+// imports, so globalState.ts does not import the UI (wiki/code_quality.md Q14); uiPanels.ts and
 // ui.ts re-export it.
 export enum UIMode {
     none = 0,

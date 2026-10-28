@@ -1,6 +1,6 @@
 // The element top-level UI windows are appended into. Its own module with no imports, so a
-// window that only needs its container (ui_dialog.ts) does not import the panels
-// (wiki/code_quality.md Q14); ui_panels.ts re-exports it.
+// window that only needs its container (uiDialog.ts) does not import the panels
+// (wiki/code_quality.md Q14); uiPanels.ts re-exports it.
 
 let $uiContainer: HTMLElement | null = null
 
