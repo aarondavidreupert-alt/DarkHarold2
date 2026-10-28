@@ -673,9 +673,21 @@ def export_maps(overwrite=True):
 
 	return True
 
+def _typescript_version(path):
+	# the "version" of a package.json / package-lock.json entry, or None
+	try:
+		with open(path, encoding="utf-8") as f:
+			data = json.load(f)
+	except (OSError, ValueError):
+		return None
+	if path.endswith("package-lock.json"):
+		data = data.get("packages", {}).get("node_modules/typescript", {})
+	return data.get("version")
+
 def compile_ts(overwrite=True):
 	# src/**/*.ts -> js/ (play.html loads js/main.js). npm install first when
-	# node_modules has no TypeScript yet (package.json: dev dependencies only).
+	# node_modules has no TypeScript yet, or another version than package-lock.json
+	# pins (a checkout from before an upgrade: an old tsc reports false errors).
 	# Always compiles: tsc is quick and js/ must match src/.
 	import subprocess
 	npm = shutil.which("npm")
@@ -685,7 +697,11 @@ def compile_ts(overwrite=True):
 		     "Install it, then run `npm install` and `npx tsc` in the project folder.")
 		return False
 	tsc = os.path.join("node_modules", "typescript", "bin", "tsc")
-	if not os.path.exists(tsc):
+	installed = _typescript_version(os.path.join("node_modules", "typescript", "package.json"))
+	wanted = _typescript_version("package-lock.json")
+	if wanted is not None and installed is not None and installed != wanted:
+		info("node_modules has TypeScript %s, package-lock.json pins %s" % (installed, wanted))
+	if not os.path.exists(tsc) or (wanted is not None and installed != wanted):
 		info("Installing the TypeScript compiler (npm install)...")
 		progress.busy("npm install")
 		sys.stdout.flush()  # our lines before the tool's
