@@ -1,87 +1,37 @@
-/*
-Copyright 2014 darkf, Stratege
-Copyright 2015 darkf
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-import { addFloatMessage } from '../floatText.js'
-import {
-    ammoGetCapacity,
-    ammoGetQuantity,
-    ammoSetQuantity,
-    ammoUseTopBox,
-    findReloadAmmo,
-    weaponGetBurstRounds,
-    weaponReload,
-} from '../weaponAmmo.js'
-import { AudioEngine } from '../audio.js'
+import { ammoGetCapacity, ammoGetQuantity, ammoUseTopBox, weaponReload } from '../weaponAmmo.js'
 import { Config } from '../config.js'
-import { ANIM_KICK_LEG, critterDamage, critterKill, isHitFromFront, unarmedAttackAnim } from '../critter.js'
+import { critterKill } from '../critter.js'
 import * as GameTime from '../gametime.js'
-import * as Lightmap from '../lightmap.js'
-import {
-    hexDirectionTo,
-    hexDistance,
-    hexFromScreen,
-    hexInDirection,
-    hexInDirectionDistance,
-    hexLine,
-    hexLineBeyond,
-    hexNearestNeighbor,
-    hexToScreen,
-    Point,
-} from '../geometry.js'
+import { hexDistance, hexLine, Point } from '../geometry.js'
 import globalState from '../globalState.js'
 import { eventLogPush, dbg, dbgWarn } from '../logger.js'
-import {
-    cloneItem,
-    createObjectWithPID,
-    Critter,
-    itemIsHidden,
-    Obj,
-    PROTO_ID_FLARE,
-    PROTO_ID_LIT_FLARE,
-    refillHand,
-    useFlare,
-} from '../object.js'
-import { invenUnwield, invenWield, invenWieldAnimated } from '../inventoryWield.js'
+import { Critter, itemIsHidden, Obj } from '../object.js'
+import { invenUnwield } from '../inventoryWield.js'
 import { weaponCanBeReloadedWith } from '../weaponAmmo.js'
 import { Player } from '../player.js'
-import * as Scripting from '../scripting.js'
 import { uiEndCombat, uiEndButtonsGreenLights, uiEndButtonsRedLights, uiStartCombat } from '../ui.js'
-import { drawAC, drawAP, drawHP, uiDrawWeapon } from '../hudRefresh.js'
+import { drawAC, drawAP, drawHP } from '../hudRefresh.js'
 import { uiLog } from '../messageLog.js'
-import { getMessage, getProtoMsg, getRandomInt, randomRoll, RollResult, rollIsSuccess } from '../util.js'
+import { getProtoMsg, getRandomInt } from '../util.js'
 import { randomBetween } from '../random.js'
 import { perkNameById } from '../perks.js'
-import { toTileNum } from '../tile.js'
-import { currentUnarmed, PUNCH, unarmedAPCost, type UnarmedMode } from '../unarmed.js'
-import { useDrug } from '../drugs.js'
+import { currentUnarmed, type UnarmedMode } from '../unarmed.js'
 import type { AiPacket } from '../aiPackets.js'
-import { ANIM, CHARACTER_SOUND_EFFECT, playCharAnimSfx, sfxBuildWeaponName } from '../sfxNames.js'
-import { filterBadwordsText } from '../badwords.js'
+import { sfxBuildWeaponName } from '../sfxNames.js'
 import { ActionPoints } from './actionPoints.js'
 import { AI } from './AI.js'
-import { computeDamage } from './damage.js'
-import { combatIsShotBlocked, nextShootObstacle } from './lineOfFire.js'
+import { combatIsShotBlocked } from './lineOfFire.js'
 import { sfallIniGetString } from '../sfallIni.js'
-import { pathfinderFindPathPoints } from '../map/pathfinder.js'
 
 // CE combat.cc burstModInit: ddraw.ini [Misc] ComputeSprayMod (off by default) and its
 // ComputeSpray_CenterMult / CenterDiv (1 / 3) and TargetMult / TargetDiv (1 / 2); a
 // multiplier above its divisor is cut to it. Null when the mod is off.
-function burstModSettings(): { centerMult: number; centerDiv: number; targetMult: number; targetDiv: number } | null {
+export function burstModSettings(): {
+    centerMult: number
+    centerDiv: number
+    targetMult: number
+    targetDiv: number
+} | null {
     const int = (key: string, def: number) => {
         const v = parseInt(sfallIniGetString('ddraw.ini|Misc|' + key) ?? '', 10)
         return isNaN(v) ? def : v
@@ -97,29 +47,21 @@ function burstModSettings(): { centerMult: number; centerDiv: number; targetMult
     }
 }
 import { explosionRingCritters } from './explosion.js'
-import { combatAiRating, critterSetWhoHitMe, noteHit } from './whoHitMe.js'
-import { lazyLoadImage } from '../images.js'
-import { canSee, isWithinPerception } from '../perception.js'
-import { getLstJson } from '../data.js'
+import { critterSetWhoHitMe } from './whoHitMe.js'
+import { isWithinPerception } from '../perception.js'
 import { type CriticalHitDescription } from '../criticalEffects/ceTables.js'
 import { CRITICAL_HIT_TABLES, PLAYER_CRITICAL_HIT_TABLE } from '../criticalEffects/table.js'
 import {
-    attackFindInvalidFlags,
     combatStandup,
     critterIsProne,
-    doRandomCripple,
     knockoutEventProcess,
     removeKnockoutEvents,
-    DAM_BACKWASH,
-    DAM_BYPASS,
     DAM_CRIP_RANDOM,
-    DAM_CRITICAL,
     DAM_DEAD,
     DAM_DESTROY,
     DAM_DROP,
     DAM_DUD,
     DAM_EXPLODE,
-    DAM_HIT,
     DAM_HIT_SELF,
     DAM_HURT_SELF,
     DAM_KNOCKED_DOWN,
@@ -129,15 +71,13 @@ import {
     DAM_ON_FIRE,
     DAM_RANDOM_HIT,
 } from './results.js'
-import { critterArtShouldRun, loadPRO, makePID } from '../pro.js'
-import {
-    accountForPartialCover as _accountForPartialCover,
-    getAmmoStats as _getAmmoStats,
-    getHitChance as _getHitChance,
-    getHitDistanceModifier as _getHitDistanceModifier,
-    objectDistance,
-    weaponAttackType,
-} from './hitChance.js'
+import { objectDistance, weaponAttackType } from './hitChance.js'
+import { installMethods } from '../installMethods.js'
+import { combatAttackMethods } from './combatAttack.js'
+import { combatDisplayMethods } from './combatDisplay.js'
+import { combatProjectileMethods } from './combatProjectiles.js'
+import { combatAiTurnMethods } from './combatAiTurn.js'
+import { combatAiActionMethods } from './combatAiActions.js'
 
 // A combat in a save game (CE combatSave)
 export interface SavedCombat {
@@ -150,41 +90,45 @@ export interface SavedCombat {
 
 // Turn-based combat system
 
-// Re-entry guard: prevents Combat.start() from firing while a combat instance
-// is still tearing down (e.g. map-script callbacks during end() can otherwise
-// immediately restart combat).
-let combatActive = false
+// Module state the Combat methods share (an object, so the methods in the combat/combat*.ts
+// files can change it too).
+export const combatState = {
+    // Re-entry guard: prevents Combat.start() from firing while a combat instance
+    // is still tearing down (e.g. map-script callbacks during end() can otherwise
+    // immediately restart combat).
+    combatActive: false,
+    // CE combat.cc _main_ctd: the attack being (or last) resolved; sfall's combat_data
+    // (sfall_metarules.cc mf_combat_data → combat_get_data) reads it while in combat
+    mainAttack: null as Attack | null,
+}
 export function isCombatActive(): boolean {
-    return combatActive
+    return combatState.combatActive
 }
 
-// CE combat.cc _main_ctd: the attack being (or last) resolved; sfall's combat_data
-// (sfall_metarules.cc mf_combat_data → combat_get_data) reads it while in combat
-let mainAttack: Attack | null = null
 export function combatGetData(): Attack | null {
-    return combatActive ? mainAttack : null
+    return combatState.combatActive ? combatState.mainAttack : null
 }
 
 /** Free-form combat trace, gated by Config.scripting.debugLogShowType.combat.
  *  Player-visible combat messages go through uiLog() — never mix the two.
  *  Structured events go through eventLogPush() so they survive into the save. */
-function combatDebug(...args: any[]): void {
+export function combatDebug(...args: any[]): void {
     dbg('combat', ...args)
 }
 
-function combatWarn(...args: any[]): void {
+export function combatWarn(...args: any[]): void {
     dbgWarn('combat', ...args)
 }
 
-function actorName(c: Critter): string {
+export function actorName(c: Critter): string {
     return c.isPlayer ? 'you' : (c.name ?? c.art ?? 'unknown')
 }
 
-const PERK_WEAPON_PENETRATE = 60 // perk_defs.h
-const PERK_WEAPON_KNOCKBACK = 61
-const PERK_WEAPON_ENHANCED_KNOCKOUT = 117
-const CRITTER_INVULNERABLE = 0x400 // proto critter flags
-const CRITTER_NO_KNOCKBACK = 0x4000
+export const PERK_WEAPON_PENETRATE = 60 // perk_defs.h
+export const PERK_WEAPON_KNOCKBACK = 61
+export const PERK_WEAPON_ENHANCED_KNOCKOUT = 117
+export const CRITTER_INVULNERABLE = 0x400 // proto critter flags
+export const CRITTER_NO_KNOCKBACK = 0x4000
 const OBJECT_SHOOT_THRU = 0x80000000
 
 // CE hit locations in table order (HIT_LOCATION_HEAD … HIT_LOCATION_UNCALLED).
@@ -202,7 +146,7 @@ export const HIT_LOCATIONS = [
 
 // CE combat.cc _cf_table — critical-failure flags by the weapon's critical-failure type
 // (unarmed, melee, firearms, energy, grenades, rocket launcher, flamers) and effect.
-const CF_TABLE: readonly (readonly number[])[] = [
+export const CF_TABLE: readonly (readonly number[])[] = [
     [0, DAM_LOSE_TURN, DAM_LOSE_TURN, DAM_HURT_SELF | DAM_KNOCKED_DOWN, DAM_CRIP_RANDOM],
     [0, DAM_LOSE_TURN, DAM_DROP, DAM_RANDOM_HIT, DAM_HIT_SELF],
     [0, DAM_LOSE_AMMO, DAM_DROP, DAM_RANDOM_HIT, DAM_DESTROY],
@@ -220,14 +164,14 @@ const CF_TABLE: readonly (readonly number[])[] = [
 
 // CE item.cc weaponGetCriticalFailureType — the proto's criticalFailureType (DH2
 // `critFail`); no weapon (or -1) is row 0.
-function weaponCriticalFailureType(weaponObj: Obj | null): number {
+export function weaponCriticalFailureType(weaponObj: Obj | null): number {
     const t = weaponObj?.pro?.extra?.critFail
     return typeof t === 'number' && t >= 0 && t < CF_TABLE.length ? t : 0
 }
 
 // CE combat.cc attackComputeCriticalHit: gPlayerCriticalHitTable for the player, else
 // gCriticalHitTables[killType].
-function criticalHitDescription(defender: Critter, location: number, effect: number): CriticalHitDescription {
+export function criticalHitDescription(defender: Critter, location: number, effect: number): CriticalHitDescription {
     if (defender.isPlayer) return PLAYER_CRITICAL_HIT_TABLE[location][effect]
     const table = CRITICAL_HIT_TABLES[defender.killType ?? 0] ?? CRITICAL_HIT_TABLES[0]
     return table[location][effect]
@@ -235,20 +179,20 @@ function criticalHitDescription(defender: Critter, location: number, effect: num
 
 // CE stat.cc statRoll: success when d10 <= stat + modifier (STAT_STRENGTH … STAT_LUCK).
 const PRIMARY_STATS = ['STR', 'PER', 'END', 'CHA', 'INT', 'AGI', 'LUK']
-function statRoll(c: Critter, stat: number, modifier: number): boolean {
+export function statRoll(c: Critter, stat: number, modifier: number): boolean {
     const value = c.getStat(PRIMARY_STATS[stat]) + modifier
     return randomBetween(1, 10) <= value
 }
 
 // The attack is in a mode other than the primary one (CE hit modes other than the left /
 // right primary and the punch): a weapon's burst or secondary mode
-function weaponSecondaryMode(weaponObj: Obj | null | undefined): boolean {
+export function weaponSecondaryMode(weaponObj: Obj | null | undefined): boolean {
     const mode = (weaponObj as any)?.weapon?.mode
     return mode === 'burst' || mode === 'secondary'
 }
 
 // CE combat.cc _check_for_death: damage that takes the critter to 0 HP adds DAM_DEAD.
-function checkForDeath(c: Critter, damage: number, flags: number): number {
+export function checkForDeath(c: Critter, damage: number, flags: number): number {
     if (!c || c.type !== 'critter') return flags
     if (((c.pro as any)?.extra?.flags ?? 0) & CRITTER_INVULNERABLE) return flags
     if (damage > 0 && c.getStat('HP') - damage <= 0) flags |= DAM_DEAD
@@ -256,7 +200,7 @@ function checkForDeath(c: Critter, damage: number, flags: number): number {
 }
 
 // Take `item` out of the critter's hands (a critter's empty hand is its fist).
-function removeFromHands(c: Critter, item: Obj): void {
+export function removeFromHands(c: Critter, item: Obj): void {
     const h = c as any
     for (const hand of ['leftHand', 'rightHand']) {
         if (h[hand] === item) h[hand] = c.isPlayer ? undefined : Critter.makeFist()
@@ -271,7 +215,7 @@ interface AttackExtra {
     flags: number
     knockback: number
 }
-interface Attack {
+export interface Attack {
     attacker: Critter
     defender: Critter
     oops: Critter
@@ -297,12 +241,12 @@ interface Attack {
 // CE item.cc weaponGetDamageType: with no weapon, the critter proto's damage type
 // (critterGetDamageType) — Normal for most, plasma / electrical for a few creatures
 const DAMAGE_TYPE_NAMES = ['Normal', 'Laser', 'Fire', 'Plasma', 'Electrical', 'EMP', 'Explosive']
-function unarmedDamageType(critter: Critter): string {
+export function unarmedDamageType(critter: Critter): string {
     return DAMAGE_TYPE_NAMES[critter.pro?.extra?.damageType ?? 0] ?? 'Normal'
 }
 
 // CE combat.cc attackInit
-function attackInit(attacker: Critter, defender: Critter, weaponObj: Obj | null, region: string): Attack {
+export function attackInit(attacker: Critter, defender: Critter, weaponObj: Obj | null, region: string): Attack {
     return {
         attacker,
         defender,
@@ -346,7 +290,7 @@ export interface CombatStartData {
 
 // CE combat.cc attackComputeDamage — the combat-difficulty damage modifier applies
 // only to attackers outside the player's team.
-function combatDifficultyDamageModifier(attacker: Critter): number {
+export function combatDifficultyDamageModifier(attacker: Critter): number {
     const player = globalState.player
     if (player && attacker.teamNum === player.teamNum) return 100
     return Config.combat.difficultyModifier
@@ -355,7 +299,7 @@ function combatDifficultyDamageModifier(attacker: Critter): number {
 // CE item.cc weaponGetDamage — randomBetween(min, max + Melee Damage) for melee and
 // unarmed attacks; sfall's Bonus HtH Damage fix (CE default on) also raises the
 // player's minimum by 2 per rank.
-function rollWeaponDamage(attacker: Critter, min: number, max: number, melee: boolean): number {
+export function rollWeaponDamage(attacker: Critter, min: number, max: number, melee: boolean): number {
     if (!melee) return getRandomInt(min, max)
     if (attacker.isPlayer) min += 2 * attacker.perks.filter((p) => p === 'Bonus HtH Damage').length
     return getRandomInt(min, max + attacker.getStat('Melee'))
@@ -363,7 +307,7 @@ function rollWeaponDamage(attacker: Critter, min: number, max: number, melee: bo
 
 // A ranged miss (CE attack->tile and the accidental victim); `landing` is where a
 // thrown item comes to rest.
-interface RangedMiss {
+export interface RangedMiss {
     tile: Point
     victim: Critter | null
     landing: Point
@@ -374,7 +318,7 @@ export type BadShot =
     'ok' | 'noAmmo' | 'outOfRange' | 'notEnoughAp' | 'dead' | 'aimBlocked' | 'armCrippled' | 'bothArmsCrippled'
 
 // Per-turn state of the CE AI port (Combat.doAITurn phases).
-interface AiTurnState {
+export interface AiTurnState {
     safetyChecked?: boolean // CE _ai_try_attack's weapon safety check ran this turn
     phase: 'start' | 'drugs' | 'prefs' | 'attack' | 'end'
     target: Critter | null
@@ -390,7 +334,7 @@ interface AiTurnState {
 }
 
 // CE item.cc gHealingItemPids: stimpak, super stimpak, healing powder.
-const HEALING_PIDS = [40, 144, 273]
+export const HEALING_PIDS = [40, 144, 273]
 
 // CE game_dialog.cc _custom_settings stores a run-away choice as RUN_AWAY_MODE_X − 1, the
 // index into combat_ai.cc _hp_run_away_value {0, 25, 40, 60, 75, 100} that
@@ -409,7 +353,7 @@ const RUN_AWAY_HP_PCT: { [mode: string]: number } = {
 // CE AiPacket.min_hp — the flee threshold (_combat_ai: HP < min_hp). It is the ai.txt
 // value; a party member's run-away setting (aiSetRunAwayMode) sets it to
 // max HP − max HP × percent / 100.
-function aiMinHp(obj: Critter, packet: AiPacket): number {
+export function aiMinHp(obj: Critter, packet: AiPacket): number {
     const custom = packet.disposition === 'custom' ? obj.customAiOverrides?.runAwayMode : undefined
     if (custom !== undefined && RUN_AWAY_HP_PCT[custom] !== undefined) {
         const maxHp = obj.getStat('Max HP') ?? obj.getStat('HP')
@@ -420,7 +364,7 @@ function aiMinHp(obj: Critter, packet: AiPacket): number {
 
 // CE AiPacket.hurt_too_much (_rmatchHurtVals): blind, crippled (any limb),
 // crippled_legs, crippled_arms.
-function aiHurtTooMuch(obj: Critter, packet: AiPacket): boolean {
+export function aiHurtTooMuch(obj: Critter, packet: AiPacket): boolean {
     for (const h of packet.hurtTooMuch) {
         if (h === 'blind' && obj.isBlinded) return true
         const legs = obj.crippledLeftLeg || obj.crippledRightLeg
@@ -434,7 +378,7 @@ function aiHurtTooMuch(obj: Critter, packet: AiPacket): boolean {
 
 // CE combat_ai.cc aiCanUseItem: a primary chem desire, or — for a human / super mutant
 // / ghoul / child with INT >= 3 — a healing item when HP is at the chem_use ratio.
-function aiCanUseItem(obj: Critter, item: Obj, packet: AiPacket): boolean {
+export function aiCanUseItem(obj: Critter, item: Obj, packet: AiPacket): boolean {
     if (packet.chemPrimaryDesire.includes(item.pid)) return true
     if ((obj.pro?.extra?.bodyType ?? 0) !== 0) return false
     const kt = obj.killType ?? 0
@@ -455,25 +399,25 @@ function aiCanUseItem(obj: Critter, item: Obj, packet: AiPacket): boolean {
 
 // CE _inven_find_id after _ai_retrieve_object: the picked-up item in the inventory
 // (addInventoryItem may stack it into an existing entry).
-function inventoryCopyOf(obj: Critter, item: Obj): Obj | null {
+export function inventoryCopyOf(obj: Critter, item: Obj): Obj | null {
     return obj.inventory.find((i) => i === item) ?? obj.inventory.find((i) => i.pid === item.pid) ?? null
 }
 
 // CE _ai_try_attack: ((defender->fid & 0xF000) >> 12) == 0 — nothing in the hand the
 // critter fights with (its weapon code), read from the held item, not the sprite.
-function defenderUnarmedNow(c: Critter): boolean {
+export function defenderUnarmedNow(c: Critter): boolean {
     const w = c.equippedWeapon
     return !w || w.pid === undefined
 }
 
 // CE weaponGetAttackTypeForHitMode: a fist (no item) or no weapon is unarmed.
-function attackTypeOf(weaponObj: Obj | null): 'unarmed' | 'melee' | 'throw' | 'ranged' | 'none' {
+export function attackTypeOf(weaponObj: Obj | null): 'unarmed' | 'melee' | 'throw' | 'ranged' | 'none' {
     if (!weaponObj || weaponObj.pid === undefined) return 'unarmed'
     return weaponAttackType(weaponObj)
 }
 
 // Returns true when the weapon can be fired (melee/unarmed always ok; ranged ok if rounds > 0)
-function aiHaveAmmo(weaponObj: Obj | null): boolean {
+export function aiHaveAmmo(weaponObj: Obj | null): boolean {
     if (!weaponObj) return true // unarmed — always valid
     // CE combat_ai.cc aiHaveAmmo: the Solar Scorcher only works in daylight (ambient > 95 %)
     if (weaponObj.pid === 390) return GameTime.getAmbientLight() > 65536 * 0.95 // PROTO_ID_SOLAR_SCORCHER
@@ -485,7 +429,7 @@ function aiHaveAmmo(weaponObj: Obj | null): boolean {
 // otherwise the first inventory ammo the weapon takes. Its quirk is kept: each ammo box
 // that doesn't fit puts the critter's right-hand item away (_inven_unwield) — unless the
 // weapon has an animation code and the right hand reaches 3 hexes or more.
-function aiFindAmmo(critter: Critter, weaponObj: Obj): { ok: boolean; ammo: Obj | null } {
+export function aiFindAmmo(critter: Critter, weaponObj: Obj): { ok: boolean; ammo: Obj | null } {
     if (weaponObj.pid === 390) return { ok: GameTime.getAmbientLight() > 65536 * 0.95, ammo: null }
     for (const item of critter.inventory.slice()) {
         if (item.subtype !== 'ammo') continue
@@ -530,10 +474,12 @@ function clearNeutralOutlines(): void {
 // A combat encounter
 // CE item.cc itemGetType: the item's proto type, except the Shiv (PROTO_ID_SHIV 383), which
 // counts as ITEM_TYPE_MISC — the AI's weapon searches pass it over.
-function ceItemType(item: Obj): string | undefined {
+export function ceItemType(item: Obj): string | undefined {
     return item.pid === 383 ? 'misc' : item.subtype
 }
 
+// the class + interface merge is intended: the interface carries the methods installed below
+// eslint-disable-next-line @typescript-eslint/no-unsafe-declaration-merging
 export class Combat {
     combatants: Critter[]
     playerIdx: number
@@ -600,1041 +546,11 @@ export class Combat {
         combatDebug(msg)
     }
 
-    /** Load ammo stats for a loaded weapon. Returns defaults (X=1,Y=1,RM=0,ACmod=0) if no ammo.
-     *  Vanilla: weaponGetAmmoDamageMultiplier / weaponGetAmmoDamageDivisor return 1/1 for no ammo. */
-    getAmmoStats(weaponObj: Obj): { X: number; Y: number; RM: number; ACmod: number } {
-        return _getAmmoStats(weaponObj)
-    }
-
-    accountForPartialCover(obj: Critter, target: Critter): number {
-        return _accountForPartialCover(obj, target)
-    }
-
-    getHitDistanceModifier(obj: Critter, target: Critter, weapon: Obj): number {
-        return _getHitDistanceModifier(obj, target, weapon)
-    }
-
-    getHitChance(obj: Critter, target: Critter, region: string, from?: Point, useDistance = true) {
-        return _getHitChance(obj, target, region, from ?? obj.position, useDistance)
-    }
-
     // CE combat.cc _gcsd — attack_complex's start data, for the first combatant's turn.
     gcsd: CombatStartData | null = null
 
-    // CE attackCompute (SFALL form): explosive damage — or a thrown Plasma/EMP grenade —
-    // explodes.
-    private isExplosiveAttack(weaponObj: Obj, dmgType: string): boolean {
-        if (dmgType === 'Explosive') return true
-        return weaponAttackType(weaponObj) === 'throw' && (dmgType === 'Plasma' || dmgType === 'EMP')
-    }
-
-    // ── CE attack pipeline ────────────────────────────────────────────────────────
-    // combat.cc attackInit → attackCompute (roll, criticals, damage, ranged miss,
-    // explosions) → actions.cc _action_melee/_action_ranged (animation, projectile) →
-    // combat.cc _combat_display + _apply_damage.
-
-    // CE combat.cc attackCompute.
-    private attackCompute(a: Attack): void {
-        const attacker = a.attacker
-        const weaponObj = a.weapon
-        const weapon = (weaponObj as any)?.weapon
-        const attackType = attackTypeOf(weaponObj)
-        const isBurst = !!weapon?.isBurst?.()
-        const dmgType = a.damageType
-        const isGrenade =
-            attackType === 'throw' && (dmgType === 'Explosive' || dmgType === 'Plasma' || dmgType === 'EMP')
-        const range = weapon?.getMaximumRange?.() ?? 1
-        if (a.hitLocation === 'uncalled') a.hitLocation = 'torso'
-
-        let ammoQuantity = 1 // rounds on the main target
-        let roundsSpent = 1
-        let damageMultiplier = 2
-        let roll: RollResult
-        const chance = this.getHitChance(attacker, a.defender, a.hitLocation)
-        if (isBurst) {
-            let q = ammoGetQuantity(weaponObj)
-            const burst = weaponGetBurstRounds(weaponObj)
-            if (burst < q) q = burst
-            roundsSpent = q
-            const spray = this.computeSpray(attacker, a.defender, q, range, !!weapon?.isContinuous?.())
-            roll = spray.roll
-            ammoQuantity = spray.mainHits
-            // _shoot_along_path: each extra takes its rounds at ×2 (attackComputeDamage)
-            for (const [victim, rounds] of spray.extras) {
-                const d = this.damageAgainst(attacker, weaponObj, victim, rounds, 2, 0, true)
-                a.extras.push({ critter: victim, damage: d.damage, flags: 0, knockback: d.knockback })
-            }
-        } else {
-            roll = randomRoll(chance.hit, chance.crit).roll
-        }
-        dbg(
-            'rolls',
-            `${actorName(attacker)} attacks ${actorName(a.defender)} — hit chance ${chance.hit}%, roll ${RollResult[roll]}`,
-        )
-
-        if (roll === RollResult.Failure && this.isJinxed(attacker, a.defender) && randomBetween(0, 1) === 1) {
-            roll = RollResult.CriticalFailure
-        }
-        const meleeType = attackType === 'melee' || attackType === 'unarmed'
-        const silentDeath = meleeType && attacker.isPlayer && this.silentDeathApplies(attacker, a.defender)
-        if (roll === RollResult.Success && meleeType && attacker.isPlayer) {
-            if (attacker.hasPerk('Slayer')) roll = RollResult.CriticalSuccess
-            if (silentDeath) damageMultiplier = 4
-            // SFALL: the unarmed move's bonus critical chance (unarmedGetBonusCriticalChance)
-            const bonus = weaponObj === null ? currentUnarmed(attacker).mode.critBonus : 0
-            if (bonus !== 0 && randomBetween(1, 100) <= bonus) roll = RollResult.CriticalSuccess
-        }
-        if (attackType === 'ranged') {
-            if (
-                roll === RollResult.Success &&
-                attacker.isPlayer &&
-                attacker.hasPerk('Sniper') &&
-                randomBetween(1, 10) <= attacker.getStat('LUK')
-            ) {
-                roll = RollResult.CriticalSuccess
-            }
-        }
-        a.ammoQuantity = weaponObj && ammoGetCapacity(weaponObj) > 0 ? (attackType === 'ranged' ? roundsSpent : 1) : 0
-        // CE item.cc _item_w_compute_ammo_cost: the Super Cattle Prod and the Mega Power Fist use
-        // two charges a hit
-        if (a.ammoQuantity > 0 && (weaponObj?.pid === 399 || weaponObj?.pid === 407)) a.ammoQuantity *= 2
-
-        switch (roll) {
-            case RollResult.CriticalSuccess:
-                damageMultiplier = this.computeCriticalHit(a)
-                // SFALL: Silent Death also doubles a critical
-                if (silentDeath) damageMultiplier *= 2
-            // falls through
-            case RollResult.Success:
-                a.attackerFlags |= DAM_HIT
-                this.computeEnhancedKnockout(a)
-                this.attackComputeDamage(a, ammoQuantity, damageMultiplier)
-                break
-            case RollResult.CriticalFailure:
-                this.computeCriticalFailure(a)
-                break
-            default:
-                // CE ROLL_FAILURE: _check_ranged_miss for a ranged / thrown attack (its
-                // rolls only — the result is ignored, and it never hits anyway)
-                if (attackType === 'ranged' || attackType === 'throw') {
-                    this.checkRangedMiss(attacker, a.defender, range, 'torso')
-                }
-                break
-        }
-
-        // Ranged / thrown miss: the shot flies on and may hit someone else (attack->tile).
-        if ((attackType === 'ranged' || attackType === 'throw') && (a.attackerFlags & (DAM_HIT | DAM_CRITICAL)) === 0) {
-            const miss = this.computeRangedMiss(attacker, a.defender, weaponObj!, dmgType)
-            if (miss) {
-                a.tile = miss.tile
-                a.landing = miss.landing
-                if (miss.victim) {
-                    a.attackerFlags |= DAM_HIT
-                    a.defender = miss.victim
-                    this.attackComputeDamage(a, 1, 2)
-                }
-            }
-        }
-
-        // SFALL form: explosive damage (or a thrown plasma / EMP grenade) blasts the
-        // extras unless the attack critically failed; a DAM_EXPLODE failure blasts
-        // around the attacker.
-        if (
-            (dmgType === 'Explosive' || isGrenade) &&
-            ((a.attackerFlags & DAM_HIT) !== 0 || (a.attackerFlags & DAM_CRITICAL) === 0)
-        ) {
-            this.computeExplosionOnExtras(a, false, isGrenade)
-        } else if ((a.attackerFlags & DAM_EXPLODE) !== 0) {
-            this.computeExplosionOnExtras(a, true, isGrenade)
-        }
-
-        // CE combat.cc attackComputeDeathFlags / _check_for_death
-        a.attackerFlags = checkForDeath(attacker, a.attackerDamage, a.attackerFlags)
-        a.defenderFlags = checkForDeath(a.defender, a.defenderDamage, a.defenderFlags)
-        for (const x of a.extras) x.flags = checkForDeath(x.critter, x.damage, x.flags)
-    }
-
-    // CE combat.cc attackCompute: PERK_SILENT_DEATH — the player sneaking up from behind
-    // on someone who hasn't hit them.
-    private silentDeathApplies(attacker: Critter, defender: Critter): boolean {
-        return (
-            attacker.hasPerk('Silent Death') &&
-            !isHitFromFront(attacker, defender) &&
-            !!attacker.isSneaking &&
-            defender.whoHitMe !== attacker
-        )
-    }
-
-    // CE combat.cc attackComputeEnhancedKnockout: PERK_WEAPON_ENHANCED_KNOCKOUT knocks out
-    // with d100 <= ST − 8.
-    private computeEnhancedKnockout(a: Attack): void {
-        if ((a.weapon?.pro?.extra?.perk ?? -1) !== PERK_WEAPON_ENHANCED_KNOCKOUT) return
-        if (randomBetween(1, 100) > a.attacker.getStat('STR') - 8) return
-        const defWeapon = a.defender.isPlayer ? null : this.rightHandWeapon(a.defender)
-        if ((attackFindInvalidFlags(a.defender, defWeapon) & 1) === 0) a.defenderFlags |= DAM_KNOCKED_OUT
-    }
-
-    private rightHandWeapon(c: Critter): Obj | null {
-        const w = c.rightHand
-        return w && w.pid !== undefined ? w : null
-    }
-
-    // CE combat.cc attackComputeCriticalHit — d100 + Better Criticals picks the effect
-    // (bands 20/45/70/90/100), the defender's table (gPlayerCriticalHitTable for the
-    // player) gives the multiplier and flags; a failed stat roll adds the massive flags.
-    computeCriticalHit(a: Attack): number {
-        const defender = a.defender
-        if ((defender.pro?.extra?.flags ?? 0) & CRITTER_INVULNERABLE) return 2
-        a.attackerFlags |= DAM_CRITICAL
-        const chance = randomBetween(1, 100) + a.attacker.getStat('Better Criticals')
-        const effect = chance <= 20 ? 0 : chance <= 45 ? 1 : chance <= 70 ? 2 : chance <= 90 ? 3 : chance <= 100 ? 4 : 5
-        const location = Math.max(0, HIT_LOCATIONS.indexOf(a.hitLocation))
-        const desc = criticalHitDescription(defender, location, effect)
-        a.defenderFlags |= desc[1]
-        a.criticalMessageId = desc[5]
-        if (desc[2] !== -1 && !statRoll(defender, desc[2], desc[3])) {
-            a.defenderFlags |= desc[4]
-            a.criticalMessageId = desc[6]
-        }
-        if ((a.defenderFlags & DAM_CRIP_RANDOM) !== 0) a.defenderFlags = doRandomCripple(a.defenderFlags)
-        if ((a.weapon?.pro?.extra?.perk ?? -1) === PERK_WEAPON_ENHANCED_KNOCKOUT) a.defenderFlags |= DAM_KNOCKED_OUT
-        const defWeapon = defender.isPlayer ? null : this.rightHandWeapon(defender)
-        a.defenderFlags &= ~attackFindInvalidFlags(defender, defWeapon)
-        combatDebug(`crit hit: roll=${chance} effect=${effect} flags=0x${a.defenderFlags.toString(16)} DM=${desc[0]}`)
-        return desc[0]
-    }
-
-    // CE combat.cc attackComputeCriticalFailure — d100 − 5 × (LK − 5) picks the _cf_table
-    // effect of the weapon's critical-failure type; no effect before game day 6 for the
-    // player (CE's criticals time limit).
-    private computeCriticalFailure(a: Attack): void {
-        const attacker = a.attacker
-        a.attackerFlags &= ~DAM_HIT
-        if ((attacker.pro?.extra?.flags ?? 0) & CRITTER_INVULNERABLE) return
-        if (attacker.isPlayer && Math.floor((globalState.gameTickTime ?? 0) / GameTime.TICKS_PER_DAY) < 6) return
-        const attackType = attackTypeOf(a.weapon)
-        const typeIndex = weaponCriticalFailureType(a.weapon)
-        const chance = randomBetween(1, 100) - 5 * (attacker.getStat('LUK') - 5)
-        const effect = chance <= 20 ? 0 : chance <= 50 ? 1 : chance <= 75 ? 2 : chance <= 95 ? 3 : 4
-        const flags = CF_TABLE[typeIndex][effect]
-        combatDebug(`crit fail: type=${typeIndex} roll=${chance} effect=${effect} flags=0x${flags.toString(16)}`)
-        if (flags === 0) return
-
-        a.attackerFlags |= DAM_CRITICAL | flags
-        a.attackerFlags &= ~attackFindInvalidFlags(attacker, a.weapon)
-
-        if ((a.attackerFlags & DAM_HIT_SELF) !== 0) {
-            this.attackComputeDamage(a, attackType === 'ranged' ? a.ammoQuantity : 1, 2)
-        } else if ((a.attackerFlags & DAM_EXPLODE) !== 0) {
-            this.attackComputeDamage(a, 1, 2)
-        }
-        if ((a.attackerFlags & DAM_LOSE_TURN) !== 0 && attacker.AP) attacker.AP.combat = 0
-        if ((a.attackerFlags & DAM_LOSE_AMMO) !== 0) {
-            if (attackType === 'ranged') a.ammoQuantity = ammoGetQuantity(a.weapon)
-            else a.attackerFlags &= ~DAM_LOSE_AMMO
-        }
-        if ((a.attackerFlags & DAM_CRIP_RANDOM) !== 0) a.attackerFlags = doRandomCripple(a.attackerFlags)
-        if ((a.attackerFlags & DAM_RANDOM_HIT) !== 0) {
-            const victim = this.aiRandomTarget(a)
-            if (victim) {
-                a.defender = victim
-                a.attackerFlags |= DAM_HIT
-                a.hitLocation = 'torso'
-                a.attackerFlags &= ~DAM_CRITICAL
-                this.attackComputeDamage(a, attackType === 'ranged' ? a.ammoQuantity : 1, 2)
-            } else {
-                a.defender = a.oops
-            }
-            a.tile = { ...a.defender.position }
-        }
-    }
-
-    // CE combat_ai.cc _combat_ai_random_target: from a random start, the first other
-    // combatant the attacker faces (_can_see) and could shoot (_combat_check_bad_shot).
-    private aiRandomTarget(a: Attack): Critter | null {
-        const list = this.combatants.filter((c) => !c.dead)
-        if (list.length === 0) return null
-        const start = randomBetween(0, list.length - 1)
-        for (let i = 0; i < list.length; i++) {
-            const c = list[(start + i) % list.length]
-            if (c === a.attacker || c === a.defender) continue
-            if (!canSee(a.attacker, c)) continue
-            if (this.checkBadShot(a.attacker, c, false) === 'ok') return c
-        }
-        return null
-    }
-
-    // CE combat.cc attackComputeDamage — `rounds` rounds against the defender (DAM_HIT)
-    // or the attacker (critical failure).
-    private attackComputeDamage(a: Attack, rounds: number, multiplier: number): void {
-        const hit = (a.attackerFlags & DAM_HIT) !== 0
-        const target = hit ? a.defender : a.attacker
-        const flags = hit ? a.defenderFlags : a.attackerFlags
-        const d = this.damageAgainst(a.attacker, a.weapon, target, rounds, multiplier, flags, hit, a.hitMode)
-        if (hit) {
-            a.defenderDamage = d.damage
-            a.defenderKnockback = d.knockback
-        } else {
-            a.attackerDamage = d.damage
-        }
-    }
-
-    // CE combat.cc attackComputeDamage body: per round weaponGetDamage + bonus, × multiplier
-    // × ammo multiplier / divisor, / 2, × difficulty, − DT, − DR%; Living Anatomy and
-    // Pyromaniac add 5 once; knockback is damage / 10 (/ 5 with PERK_WEAPON_KNOCKBACK).
-    private damageAgainst(
-        attacker: Critter,
-        weaponObj: Obj | null,
-        target: Critter,
-        rounds: number,
-        multiplier: number,
-        flags: number,
-        withKnockback: boolean,
-        hitMode?: UnarmedMode,
-    ): { damage: number; knockback: number } {
-        if (target.type !== 'critter') return { damage: 0, knockback: 0 }
-        const unarmed = weaponObj === null
-        const mode = hitMode ?? (unarmed ? currentUnarmed(attacker).mode : null)
-        const wep = (weaponObj as any)?.weapon
-        const damageType = unarmed ? unarmedDamageType(attacker) : (wep?.getDamageType?.() ?? 'Normal')
-        let DT = target.getStat('DT ' + damageType) + target.getArmorDT(damageType)
-        let DR = target.getStat('DR ' + damageType) + target.getArmorDR(damageType)
-        if ((flags & DAM_BYPASS) !== 0 && damageType !== 'EMP') {
-            DT = Math.trunc((20 * DT) / 100)
-            DR = Math.trunc((20 * DR) / 100)
-        } else {
-            const penetrate = unarmed ? !!mode?.penetrate : weaponObj?.pro?.extra?.perk === PERK_WEAPON_PENETRATE
-            if (penetrate) DT = Math.trunc((20 * DT) / 100)
-            if (attacker.isPlayer && (attacker.traits ?? []).includes('Finesse')) DR += 30
-        }
-        const attackType = attackTypeOf(weaponObj)
-        const damageBonus =
-            attacker.isPlayer && attackType === 'ranged'
-                ? 2 * attacker.perks.filter((p) => p === 'Bonus Ranged Damage').length
-                : 0
-        const ammo = unarmed ? { X: 1, Y: 1, RM: 0, ACmod: 0 } : this.getAmmoStats(weaponObj!)
-        // (DR without the ammo modifier: each ruleset applies it its own way, damage.ts)
-        const CD = combatDifficultyDamageModifier(attacker)
-        const melee = attackType === 'melee' || attackType === 'unarmed'
-
-        let damage = 0
-        for (let i = 0; i < rounds; i++) {
-            const RD = unarmed
-                ? rollWeaponDamage(attacker, mode!.bonusDamage + mode!.minDmg, mode!.bonusDamage + mode!.maxDmg, true)
-                : rollWeaponDamage(attacker, wep.minDmg, wep.maxDmg, melee)
-            damage += computeDamage({
-                RD,
-                bonus: damageBonus,
-                critMult: multiplier,
-                ammoX: ammo.X,
-                ammoY: ammo.Y,
-                ammoRM: ammo.RM,
-                DT,
-                DR,
-                CD,
-            })
-        }
-        if (attacker.isPlayer) {
-            if (attacker.hasPerk('Living Anatomy')) {
-                const kt = target.killType ?? 0
-                if (kt !== 10 && kt !== 16) damage += 5 // not KILL_TYPE_ROBOT / KILL_TYPE_ALIEN
-            }
-            if (attacker.hasPerk('Pyromaniac') && damageType === 'Fire') damage += 5
-        }
-
-        let knockback = 0
-        const multihex = (((target.flags ?? 0) >>> 0) & 0x800) !== 0 // OBJECT_MULTIHEX
-        if (
-            withKnockback &&
-            !multihex &&
-            (damageType === 'Explosive' ||
-                weaponObj === null ||
-                weaponObj.pid === undefined ||
-                attackType === 'melee') &&
-            !((target.pro?.extra?.flags ?? 0) & CRITTER_NO_KNOCKBACK)
-        ) {
-            let should = true
-            let stonewall = false
-            if (target.isPlayer && target.hasPerk('Stonewall')) {
-                stonewall = true
-                if (randomBetween(0, 100) < 50) should = false
-            }
-            if (should) {
-                const divisor = (weaponObj?.pro?.extra?.perk ?? -1) === PERK_WEAPON_KNOCKBACK ? 5 : 10
-                knockback = Math.trunc(damage / divisor)
-                if (stonewall) knockback = Math.trunc(knockback / 2)
-            }
-        }
-        combatDebug(
-            `damage: ${actorName(attacker)} → ${actorName(target)} ×${rounds} M=${multiplier} DT=${DT} DR=${DR}% CD=${CD} → ${damage} (kb ${knockback})`,
-        )
-        eventLogPush({
-            actor: actorName(attacker),
-            action: 'damage',
-            target: actorName(target),
-            result: 'computed',
-            damage,
-            rounds,
-            critMultiplier: multiplier,
-            DT,
-            DR,
-            CD,
-            damageType,
-            weapon: weaponObj ? (weaponObj.name ?? null) : `unarmed:${mode?.name}`,
-            message: `${actorName(attacker)} → ${actorName(target)}: ${damage} ${damageType} dmg`,
-        })
-        return { damage, knockback }
-    }
-
-    // CE combat.cc _compute_explosion_on_extras — rings around the impact (or the
-    // attacker for DAM_EXPLODE; grenades radius 2, rockets 3) hit up to 6 live critters
-    // with a clear line to the blast, one round at ×2 with knockback; the attacker caught
-    // in it takes the round too (DAM_BACKWASH).
-    private computeExplosionOnExtras(a: Attack, fromAttacker: boolean, isGrenade: boolean): void {
-        const gMap = globalState.gMap
-        if (!gMap) return
-        const attacker = a.attacker
-        let center: Point
-        let centerObj: Obj | null
-        if (fromAttacker) {
-            centerObj = attacker
-            center = attacker.position
-        } else if ((a.attackerFlags & DAM_HIT) !== 0) {
-            centerObj = a.defender
-            center = a.defender.position
-        } else {
-            centerObj = null
-            center = a.tile ?? a.defender.position
-        }
-        a.explosionTile = { ...center }
-        // The attacker caught in the blast doesn't count towards the 6 extras.
-        const ring = explosionRingCritters(center, attacker.elevation, centerObj, isGrenade, 6 - a.extras.length + 1)
-        for (const c of ring) {
-            if (c === attacker) {
-                const hit = a.attackerFlags & DAM_HIT
-                a.attackerFlags &= ~DAM_HIT
-                this.attackComputeDamage(a, 1, 2)
-                a.attackerFlags |= hit | DAM_BACKWASH
-            } else if (a.extras.length < 6 && !a.extras.some((x) => x.critter === c)) {
-                const d = this.damageAgainst(attacker, a.weapon, c, 1, 2, 0, true)
-                a.extras.push({ critter: c, damage: d.damage, flags: 0, knockback: d.knockback })
-            }
-        }
-    }
-
-    // Visual only: one explosion sprite at the impact (misc proto 14, as Obj.explode uses).
-    private spawnExplosionSprite(pos: Point): void {
-        if (window.__test?.fastMode) return
-        const sprite = createObjectWithPID(makePID(5 /* misc */, 14 /* Explosion */), -1)
-        sprite.position = { x: pos.x, y: pos.y }
-        lazyLoadImage(sprite.art, () => {
-            if (!globalState.gMap) return
-            globalState.gMap.addObject(sprite)
-            sprite.singleAnimation(false, () => {
-                sprite.anim = null
-                globalState.gMap?.destroyObject(sprite)
-            })
-        })
-    }
-
-    getCombatMsg(id: number) {
-        return getMessage('combat', id)
-    }
-
-    attack(obj: Critter, target: Critter, region = 'torso', callback?: () => void) {
-        this.hasAttacked = true
-        // CE _combat_sequence_init: attacker and defender are combatants and have each
-        // other as who-hit-me when the fight starts with this attack.
-        if (!target.isPlayer && !target.hostile && target.teamNum !== this.player.teamNum) {
-            target.hostile = true
-            if (!target.whoHitMe) critterSetWhoHitMe(target, obj)
-        }
-        // turn to face the target
-        const hex = hexNearestNeighbor(obj.position, target.position)
-        if (hex !== null) obj.orientation = hex.direction
-        // CE actions.cc _action_attack: reg_anim_clear on the defender, so a defender still
-        // busy with an animation (a dodge, a hit from the last burst) shows this attack's
-        // reaction. Not a dead or knocked-down one (their lying art would be reset).
-        if (target !== obj && !target.dead && !target.isKnockedDown && target.inAnim()) target.clearAnim()
-
-        let weaponObj = obj.equippedWeapon
-        // CE combat_ai.cc _ai_pick_hit_mode: an item that isn't ITEM_TYPE_WEAPON — the Shiv
-        // (itemGetType MISC) — makes the AI punch (HIT_MODE_PUNCH); the Shiv stays in hand
-        if (!obj.isPlayer && weaponObj && weaponObj.pid === 383) weaponObj = Critter.makeFist()
-        const who = obj.isPlayer ? 'You' : obj.name
-
-        // Early ammo guard — no animation, no AP loss for any attacker
-        if (!aiHaveAmmo(weaponObj)) {
-            // CE _combat_attack → combat.msg 101 "Out of ammo." (the AI checks before it attacks)
-            if (obj.isPlayer) uiLog(getMessage('combat', 101) ?? 'Out of ammo.')
-            if (callback) callback()
-            return
-        }
-
-        // (CE _combat_check_bad_shot refuses a weapon with both arms crippled — checkBadShot;
-        // punches and kicks stay possible)
-
-        // CE combat.cc _combat_attack: attackInit + attackCompute before the animation.
-        const a = attackInit(obj, target, weaponObj, region)
-        mainAttack = a // CE _main_ctd (sfall combat_data)
-        const gcsd = this.gcsd
-        if (gcsd) a.accuracyBonus = gcsd.accuracyBonus // (sfall combat data; getHitChance adds it)
-        this.attackCompute(a)
-        // CE combat.cc _combat_attack: the dude remembers whom he attacks (_ai_danger_source,
-        // the party's attack_who), and every attacker its last target
-        if (obj.isPlayer) critterSetWhoHitMe(obj, a.defender)
-        // (aiInfoSetLastTarget: a dead target is stored as none, oneself not at all)
-        if (a.defender !== obj) obj.aiLastTarget = a.defender?.dead ? null : a.defender
-        if (gcsd) {
-            // CE _combat_attack: the attack_complex bonuses and clamps, on every attack of the
-            // first combatant's turn (_gcsd is cleared when that turn ends, beginTurn)
-            a.defenderDamage += gcsd.damageBonus
-            if (a.defenderDamage < gcsd.minDamage) a.defenderDamage = gcsd.minDamage
-            if (a.defenderDamage > gcsd.maxDamage) a.defenderDamage = gcsd.maxDamage
-            if (gcsd.overrideAttackResults) a.defenderFlags = gcsd.targetResults
-        }
-
-        // CE ref: actions.cc:629 _action_melee / _action_ranged — the weapon's ATTACK
-        // sound is registered with delay 0 (frame 0); only the HIT sound and the damage
-        // display wait for the action frame.
-        const rawAttackSoundID = weaponObj?.pro?.extra?.soundID
-        const attackSoundChar = typeof rawAttackSoundID === 'number' ? String.fromCharCode(rawAttackSoundID) : null
-        if (attackSoundChar && !window.__test?.fastMode) {
-            // CE sfxBuildWeaponName(WEAPON_SOUND_EFFECT_ATTACK): a missing file stays silent
-            globalState.audioEngine.playSfxByName(
-                sfxBuildWeaponName(1, weaponObj, weaponSecondaryMode(weaponObj), null).toLowerCase(),
-                obj,
-            )
-        }
-        // CE combat.cc _combat_attack: a critter other than the player kicks instead of
-        // punching 1 time in 4 when it has the kick art (same damage and AP).
-        const fist = weaponObj === null || weaponObj.pid === undefined
-        let unarmedAnim = fist ? unarmedAttackAnim(obj) : -1
-        let attackAnim = 'attack'
-        if (fist && !obj.isPlayer && randomBetween(1, 4) === 1 && obj.hasAnimation('anim:' + ANIM_KICK_LEG)) {
-            unarmedAnim = ANIM_KICK_LEG
-            attackAnim = 'anim:' + ANIM_KICK_LEG
-        }
-        a.unarmedAnim = unarmedAnim
-        // CE ref: actions.cc:625 — punches and kicks use sfxBuildCharName(attacker,
-        // anim, UNUSED) instead of a weapon sound.
-        if (fist && !window.__test?.fastMode) playCharAnimSfx(obj, unarmedAnim)
-
-        // FA3 — CE ref: animation.cc / combat.cc _action_melee/_action_ranged: the hit,
-        // impact sound and target reaction happen on the attacker's FRM action frame,
-        // not on frame 0. resolveAttack() runs then (or at animation end at the latest,
-        // always before the turn-continuation callback).
-        // A ranged attack's projectile flies after the action frame (CE _action_ranged);
-        // the turn continues once both the attack animation and the flight are done.
-        let resolved = false
-        let finished = false
-        let animDone = false
-        const proceed = (): void => {
-            if (!animDone || !finished) return
-            // CE combat.cc _combat_attack tail: an attacker its own critical failure
-            // knocked down stands up at once (unless out cold or its turn is lost).
-            const r = obj.injuryFlags
-            if (
-                !obj.dead &&
-                (r & (DAM_KNOCKED_OUT | DAM_KNOCKED_DOWN)) !== 0 &&
-                (r & (DAM_KNOCKED_OUT | DAM_DEAD | DAM_LOSE_TURN)) === 0
-            ) {
-                return combatStandup(obj, () => {
-                    if (callback) callback()
-                })
-            }
-            if (callback) callback()
-            else if (!obj.isKnockedDown) obj.clearAnim()
-        }
-        // CE actions.cc _action_ranged: a ranged (non-throw) attack aims first (ANIM_POINT)
-        // and lowers the weapon at the end (ANIM_UNPOINT) unless knocked down or dead
-        const POINT = 'anim:43',
-            UNPOINT = 'anim:44' // ANIM_POINT / ANIM_UNPOINT
-        const aims = attackTypeOf(weaponObj) === 'ranged'
-        let fireDone = false
-        let unpointed = false
-        const afterAttack = (): void => {
-            if (!fireDone || !finished || unpointed) return
-            unpointed = true
-            if (aims && !obj.dead && !obj.isKnockedDown && obj.hasAnimation(UNPOINT)) {
-                obj.staticAnimation(
-                    UNPOINT,
-                    () => {
-                        animDone = true
-                        proceed()
-                    },
-                    true,
-                )
-            } else {
-                animDone = true
-                proceed()
-            }
-        }
-        const resolveAttack = (): void => {
-            if (resolved) return
-            resolved = true
-            const deferred = this.resolveAttack(a, who, () => {
-                finished = true
-                afterAttack()
-            })
-            if (!deferred) finished = true
-        }
-        const fire = (): void =>
-            obj.staticAnimation(
-                attackAnim,
-                () => {
-                    resolveAttack()
-                    fireDone = true
-                    afterAttack()
-                },
-                attackAnim !== 'attack',
-                undefined,
-                resolveAttack,
-            )
-        if (aims && obj.hasAnimation(POINT)) obj.staticAnimation(POINT, fire, true)
-        else fire()
-    }
-
-    // Second half of attack(): on the action frame — the projectile (CE _action_ranged:
-    // only when the attack hit or did not critically fail), the dodge, then
-    // _combat_display and _apply_damage. Returns true when a projectile is in flight;
-    // `done` then runs after its impact.
-    private resolveAttack(a: Attack, who: string, done: () => void): boolean {
-        const obj = a.attacker
-        const weaponObj = a.weapon
-        const audio: AudioEngine = globalState.audioEngine
-        const rawSoundID = weaponObj?.pro?.extra?.soundID
-        const soundIdChar = typeof rawSoundID === 'number' ? String.fromCharCode(rawSoundID) : null
-        const attackType = attackTypeOf(weaponObj)
-        const thrown = attackType === 'throw'
-        const isRangedType = attackType === 'ranged' || attackType === 'throw'
-        const hit = (a.attackerFlags & DAM_HIT) !== 0
-        const critical = (a.attackerFlags & DAM_CRITICAL) !== 0
-        const intended = a.oops
-
-        // Rounds leave the magazine (CE _combat_attack: ammo − attack->ammoQuantity).
-        if (weaponObj && a.ammoQuantity > 0 && ammoGetCapacity(weaponObj) > 0) {
-            ammoSetQuantity(weaponObj, Math.max(0, ammoGetQuantity(weaponObj) - a.ammoQuantity))
-            if (obj.isPlayer) uiDrawWeapon()
-        }
-
-        const flies = isRangedType && (hit || !critical)
-        const projectilePid = flies ? this.projectilePid(weaponObj!) : null
-        const thrownItem = flies && thrown ? this.takeThrownItem(obj, weaponObj!) : null
-        const targetTile = { ...intended.position }
-
-        const impact = (): void => {
-            if (hit) {
-                if (!window.__test?.fastMode) {
-                    // CE ref: actions.cc:637 — an unarmed hit sounds sfxBuildCharName(attacker,
-                    // anim, CONTACT); a weapon its HIT sound.
-                    if (a.unarmedAnim >= 0) playCharAnimSfx(obj, a.unarmedAnim, CHARACTER_SOUND_EFFECT.contact)
-                    else if (soundIdChar)
-                        audio.playSfxByName(
-                            sfxBuildWeaponName(
-                                4,
-                                weaponObj,
-                                weaponSecondaryMode(weaponObj),
-                                a.defender ?? intended,
-                            ).toLowerCase(),
-                            a.defender ?? intended,
-                        )
-                }
-            } else {
-                if (!window.__test?.fastMode && isRangedType) audio.playSfxByName('cmbtflx', intended)
-                // CE actions.cc: a miss dodges unless prone; a ranged miss only when the
-                // weapon has no visible projectile. Melee dodges play their sound.
-                if (
-                    !projectilePid &&
-                    !intended.dead &&
-                    !intended.isKnockedDown &&
-                    !intended.inAnim() &&
-                    intended.hasAnimation('dodge')
-                ) {
-                    if (!isRangedType) playCharAnimSfx(intended, ANIM.dodge)
-                    intended.staticAnimation('dodge', () => intended.clearAnim())
-                }
-            }
-            if (thrownItem)
-                this.placeThrownItem(
-                    thrownItem,
-                    hit ? { ...a.defender.position } : (a.landing ?? targetTile),
-                    weaponObj!,
-                    a.damageType,
-                )
-            if (a.explosionTile) this.spawnExplosionSprite(a.explosionTile)
-            this.combatDisplay(a)
-            this.applyDamage(a)
-            if (!globalState.combat) return
-            // CE actions.cc _action_melee:676 / _action_ranged:918 — after a melee attack
-            // the attacker says its hit / miss line, after a ranged one the defender
-            // (vanilla); no hit line for a killing blow.
-            const speaker = isRangedType ? a.defender : obj
-            if (hit) {
-                if ((a.defenderFlags & DAM_DEAD) === 0) this.maybeTaunt(speaker, 'hit', a.hitLocation)
-            } else {
-                this.maybeTaunt(isRangedType ? intended : obj, 'miss')
-            }
-        }
-
-        if (projectilePid !== null) {
-            const dest = hit ? { ...a.defender.position } : (a.tile ?? targetTile)
-            this.flyProjectile(obj, intended, dest, projectilePid, () => {
-                try {
-                    impact()
-                } finally {
-                    done()
-                }
-            })
-            return true
-        }
-        impact()
-        return false
-    }
-
-    // CE combat.cc _apply_damage (+ actions.cc _show_damage_to_object for the animation):
-    // the results first (_set_new_results), then the damage, the who-hit-me bookkeeping,
-    // the critter's damage reaction and death.
-    private applyDamage(a: Attack): void {
-        const attacker = a.attacker
-        const dmgType = a.damageType
-        if (!attacker.dead) {
-            this.attackerWeaponEffects(a)
-            if (a.attackerFlags !== 0 || a.attackerDamage > 0) {
-                critterDamage(attacker, a.attackerDamage, attacker, true, true, dmgType, undefined, {
-                    flags: a.attackerFlags & ~DAM_HIT,
-                    weapon: a.weapon,
-                    hitFromFront: true,
-                    noDamageProc: a.defender === a.oops,
-                }) // CE _apply_damage: a4 = defender == oops
-                if (attacker.isPlayer) drawHP(attacker.getStat('HP'))
-                if (!globalState.combat) return
-                if (attacker.dead) this.perish(attacker, attacker, dmgType)
-            }
-        }
-
-        const defender = a.defender
-        if ((a.attackerFlags & DAM_HIT) !== 0 && !defender.dead) {
-            const accidental = defender !== a.oops
-            critterDamage(defender, a.defenderDamage, attacker, true, true, dmgType, undefined, {
-                flags: a.defenderFlags,
-                weapon: a.weapon,
-                knockback: a.defenderKnockback,
-                knockbackRotation: hexDirectionTo(attacker.position, defender.position),
-                hitFromFront: isHitFromFront(defender, attacker),
-                noDamageProc: accidental, // CE _apply_damage: a4 = defender != oops
-            })
-            noteHit(defender, attacker, accidental) // CE combat.cc:4706
-            if (defender.isPlayer) drawHP(defender.getStat('HP'))
-            this.notifyOnlookers(defender)
-            // CE _apply_damage: the attacker's combat_p_proc, fixed param 2 (hit), target
-            // the defender.
-            if (a.defenderDamage >= 0 && attacker._script?.combat_p_proc && !attacker.dead) {
-                if (Scripting.combatEvent(attacker, 'hit', defender)) return
-            }
-            if (!globalState.combat) return
-            if (defender.dead) this.perish(defender, attacker, dmgType)
-        } else if (defender.type === 'critter' && !defender.dead) {
-            // CE _apply_damage: the defender block runs on a miss too (no damage, no flags) —
-            // the intended target considers retaliating, the onlookers notice
-            noteHit(defender, attacker, defender !== a.oops)
-            this.notifyOnlookers(defender)
-        }
-
-        for (const x of a.extras) {
-            const c = x.critter
-            if (c.dead) continue
-            critterDamage(c, x.damage, attacker, true, true, dmgType, undefined, {
-                flags: x.flags,
-                weapon: a.weapon,
-                knockback: x.knockback,
-                // CE _show_damage_extras: tileGetRotationTo(attacker->tile, obj->tile) — a
-                // grenade's extras fly away from the thrower, not the blast
-                knockbackRotation: hexDirectionTo(attacker.position, c.position),
-                hitFromFront: isHitFromFront(c, attacker),
-                noDamageProc: a.defender === a.oops, // CE _apply_damage: a4 = defender == oops for extras
-            })
-            noteHit(c, attacker, true)
-            if (c.isPlayer) drawHP(c.getStat('HP'))
-            this.notifyOnlookers(c)
-            if (x.damage >= 0 && attacker._script?.combat_p_proc && !attacker.dead) {
-                if (Scripting.combatEvent(attacker, 'hit', c)) return
-            }
-            if (!globalState.combat) return
-            if (c.dead) this.perish(c, attacker, dmgType)
-        }
-    }
-
-    // CE actions.cc _show_damage_to_object for the attacker of a critical failure: its
-    // weapon explodes (gone, with an explosion), is destroyed, or is dropped at its feet.
-    private attackerWeaponEffects(a: Attack): void {
-        const weaponObj = a.weapon
-        if (!weaponObj || weaponObj.pid === undefined) return
-        const attacker = a.attacker
-        const flags = a.attackerFlags
-        if ((flags & (DAM_EXPLODE | DAM_DESTROY | DAM_DROP)) === 0) return
-        removeFromHands(attacker, weaponObj)
-        if ((flags & (DAM_EXPLODE | DAM_DESTROY)) === 0) {
-            // DAM_DROP: CE _obj_drop — is_dropping_p_proc / drop_p_proc may keep it
-            // (then it stays in the inventory, out of the hand)
-            if (!attacker.inventory.includes(weaponObj)) attacker.inventory.push(weaponObj)
-            if (globalState.gMap) weaponObj.drop(attacker)
-        } else {
-            const idx = attacker.inventory.indexOf(weaponObj)
-            if (idx !== -1) attacker.inventory.splice(idx, 1)
-            if ((flags & DAM_EXPLODE) !== 0) this.spawnExplosionSprite(attacker.position)
-        }
-        if (attacker.isPlayer) uiDrawWeapon()
-        else attacker.setIdleArt()
-    }
-
-    // CE combat.cc _combat_display — the attack's lines in the message window.
-    private combatDisplay(a: Attack): void {
-        const msg = (id: number) => this.getCombatMsg(id) || ''
-        const fmt = (s: string, ...args: (string | number)[]) => {
-            let i = 0
-            return s.replace(/%[sd]/g, () => String(args[i++] ?? ''))
-        }
-        const player = globalState.player
-        const male = (c: Critter) => (c.isPlayer ? c.gender !== 'female' : (c.getStat('Gender') ?? 0) === 0)
-        const attacker = a.attacker
-
-        if (attacker.isPlayer && a.weapon && a.weapon.pid !== undefined) {
-            let strengthRequired = a.weapon.pro?.extra?.minST ?? 0
-            if (attacker.hasPerk('Weapon Handling')) strengthRequired -= 3
-            if (strengthRequired > attacker.getStat('STR')) uiLog(msg(107))
-        }
-
-        const hit = (a.attackerFlags & DAM_HIT) !== 0
-        const critical = (a.attackerFlags & DAM_CRITICAL) !== 0
-        const mainCritter = hit ? a.defender : attacker
-        const you = player && male(player) ? msg(506) : msg(556)
-        let mainName = '.'
-        let base = 600
-        if (mainCritter.isPlayer) {
-            mainName = you
-            base = male(mainCritter) ? 500 : 550
-        } else {
-            mainName = mainCritter.name ?? ''
-            base = male(mainCritter) ? 600 : 700
-        }
-
-        // Oops! someone else was hit instead.
-        if (a.defender !== a.oops && hit) {
-            const text = a.oops.isPlayer
-                ? fmt(msg(base + 8), mainName)
-                : fmt(msg(base + 9), mainName, a.oops.name ?? '')
-            uiLog(text + '.')
-        }
-
-        if (
-            (hit && !a.defender.dead && (a.defenderFlags & DAM_DEAD) === 0) ||
-            (hit && (a.defenderFlags & DAM_DEAD) !== 0 && !a.defender.dead)
-        ) {
-            const v = a.defender
-            const dmg = a.defenderDamage
-            let text = ''
-            if (a.hitLocation === 'torso' || a.hitLocation === 'uncalled') {
-                if (critical) {
-                    const id = dmg === 0 ? base + 28 : dmg === 1 ? base + 24 : base + 20
-                    text = dmg <= 1 ? fmt(msg(id), mainName) : fmt(msg(id), mainName, dmg)
-                } else {
-                    text = this.damageAmountDescription(v, dmg)
-                }
-            } else {
-                const locName = this.hitLocationName(v, a.hitLocation)
-                if (locName) {
-                    const id = critical
-                        ? dmg === 0
-                            ? base + 25
-                            : dmg === 1
-                              ? base + 21
-                              : base + 11
-                        : dmg === 0
-                          ? base + 26
-                          : dmg === 1
-                            ? base + 22
-                            : base + 12
-                    text = dmg <= 1 ? fmt(msg(id), mainName, locName) : fmt(msg(id), mainName, locName, dmg)
-                }
-            }
-            if (Config.ui.combatMessages !== 'brief' && critical && a.criticalMessageId !== -1) {
-                text += msg(a.criticalMessageId)
-                if ((a.defenderFlags & DAM_DEAD) !== 0) {
-                    uiLog(text + '.')
-                    const killed = v.isPlayer ? (male(v) ? 207 : 257) : male(v) ? 307 : 407
-                    text = `${mainName} ${msg(killed)}`
-                }
-            } else {
-                text += this.damageFlagsDescription(a.defenderFlags, v)
-            }
-            uiLog(text + '.')
-        }
-
-        if (!attacker.dead) {
-            if (!hit) {
-                let text: string
-                if (critical) {
-                    const d = a.attackerDamage
-                    const id = d === 0 ? base + 14 : d === 1 ? base + 33 : base + 34
-                    text = d <= 1 ? fmt(msg(id), mainName) : fmt(msg(id), mainName, d)
-                } else {
-                    text = fmt(msg(base + 15), mainName)
-                }
-                text += this.damageFlagsDescription(a.attackerFlags, attacker)
-                uiLog(text + '.')
-            }
-            if ((hit || !critical) && a.attackerDamage > 0) {
-                uiLog(
-                    this.damageAmountDescription(attacker, a.attackerDamage) +
-                        this.damageFlagsDescription(a.attackerFlags, attacker) +
-                        '.',
-                )
-            }
-        }
-
-        for (const x of a.extras) {
-            if (x.critter.dead) continue
-            uiLog(
-                this.damageAmountDescription(x.critter, x.damage) +
-                    this.damageFlagsDescription(x.flags, x.critter) +
-                    '.',
-            )
-        }
-    }
-
-    // CE combat.cc combatCopyDamageAmountDescription
-    private damageAmountDescription(c: Critter, damage: number): string {
-        const msg = (id: number) => this.getCombatMsg(id) || ''
-        const male = c.isPlayer ? c.gender !== 'female' : (c.getStat('Gender') ?? 0) === 0
-        let id = c.isPlayer ? (male ? 500 : 550) : male ? 600 : 700
-        const name = c.isPlayer ? msg(id + 6) : (c.name ?? '')
-        id += damage === 0 ? 27 : damage === 1 ? 23 : 13
-        const text = msg(id)
-        let i = 0
-        const args: (string | number)[] = damage <= 1 ? [name] : [name, damage]
-        return text.replace(/%[sd]/g, () => String(args[i++] ?? ''))
-    }
-
-    // CE combat.cc combatAddDamageFlagsDescription — ", knocked down and blinded".
-    private damageFlagsDescription(flags: number, c: Critter): string {
-        if (flags === 0) return ''
-        const msg = (id: number) => this.getCombatMsg(id) || ''
-        const male = c.isPlayer ? c.gender !== 'female' : (c.getStat('Gender') ?? 0) === 0
-        const num = c.isPlayer ? (male ? 200 : 250) : male ? 300 : 400
-        if ((flags & DAM_DEAD) !== 0) return msg(108) + msg(num + 7)
-        const bits: number[] = []
-        for (let i = 0; i < 32; i++) {
-            const bit = (1 << i) >>> 0
-            if (bit !== DAM_CRITICAL && bit !== DAM_HIT && (flags & bit) !== 0) bits.push(i)
-        }
-        if (bits.length === 0) return ''
-        let text = ''
-        for (let i = 0; i < bits.length - 1; i++) text += ', ' + msg(num + bits[i])
-        return text + msg(108) + msg(num + bits[bits.length - 1])
-    }
-
-    // CE combat.cc hitLocationGetName — combat.msg 1000 + 10 × art alias + location.
-    private hitLocationName(c: Critter, region: string): string | null {
-        const loc = HIT_LOCATIONS.indexOf(region)
-        if (loc < 0) return null
-        const entry = getLstJson('art/critters/critters', (c.frmPID ?? 0) & 0xfff)
-        const alias = typeof entry?.walk === 'number' ? entry.walk : 0
-        return this.getCombatMsg(1000 + 10 * alias + loc) || null
-    }
-
-    // CE combat.cc _compute_spray — the roll and the rounds per victim, no damage. Also
-    // used by the AI safety check (_combat_safety_invalidate_weapon), as in CE.
-    // `continuous` is CE's anim == ANIM_FIRE_CONTINUOUS (flamers): one round per line,
-    // one per critter on it.
-    private computeSpray(
-        obj: Critter,
-        target: Critter,
-        ammoQuantity: number,
-        range: number,
-        continuous = false,
-    ): { roll: RollResult; mainHits: number; extras: Map<Critter, number> } {
-        const chance = this.getHitChance(obj, target, 'torso')
-        let accuracy = chance.hit
-        let { roll } = randomRoll(accuracy, chance.crit)
-        combatDebug(`spray: rounds=${ammoQuantity} accuracy=${accuracy} roll=${RollResult[roll]}`)
-
-        const extras = new Map<Critter, number>() // victim → rounds that hit (attack->extras)
-        let mainHits = 0
-
-        if (roll !== RollResult.CriticalFailure) {
-            if (roll === RollResult.CriticalSuccess) accuracy += 20
-
-            let centerRounds = 1,
-                leftRounds = 1,
-                rightRounds = 1,
-                mainTargetRounds = 1
-            const burstMod = !continuous ? burstModSettings() : null
-            if (burstMod) {
-                // CE combat.cc burstModComputeRounds (sfall ddraw.ini [Misc] ComputeSprayMod=1):
-                // the centre gets ceil(rounds × CenterMult / CenterDiv) (at least 1), the
-                // sides split the rest, the main target ceil(centre × TargetMult / TargetDiv)
-                const total = ammoQuantity
-                centerRounds = Math.ceil((total * burstMod.centerMult) / burstMod.centerDiv)
-                if (centerRounds === 0) centerRounds = 1
-                leftRounds = Math.trunc((total - centerRounds) / 2)
-                rightRounds = total - centerRounds - leftRounds
-                mainTargetRounds = Math.ceil((centerRounds * burstMod.targetMult) / burstMod.targetDiv)
-            } else if (!continuous) {
-                centerRounds = Math.trunc(ammoQuantity / 3)
-                if (centerRounds === 0) centerRounds = 1
-                leftRounds = Math.trunc(ammoQuantity / 3)
-                rightRounds = ammoQuantity - centerRounds - leftRounds
-                mainTargetRounds = Math.trunc(centerRounds / 2)
-                if (mainTargetRounds === 0) {
-                    mainTargetRounds = 1
-                    centerRounds -= 1
-                }
-            }
-
-            for (let i = 0; i < mainTargetRounds; i++) {
-                if (rollIsSuccess(randomRoll(accuracy, 0).roll)) mainHits += 1
-            }
-            if (mainHits === 0 && this.checkRangedMiss(obj, target, range, 'torso')) mainHits = 1
-
-            const mainEnd = hexLineBeyond(obj.position, target.position, range)
-            mainHits += this.shootAlongPath(obj, target, mainEnd, centerRounds - mainHits, extras, continuous)
-
-            const centerTile =
-                hexDistance(obj.position, target.position) <= 3
-                    ? hexLineBeyond(obj.position, target.position, 3)
-                    : target.position
-            const rotation = hexDirectionTo(centerTile, obj.position)
-            const leftEnd = hexLineBeyond(obj.position, hexInDirection(centerTile, (rotation + 1) % 6), range)
-            mainHits += this.shootAlongPath(obj, target, leftEnd, leftRounds, extras, continuous)
-            const rightEnd = hexLineBeyond(obj.position, hexInDirection(centerTile, (rotation + 5) % 6), range)
-            mainHits += this.shootAlongPath(obj, target, rightEnd, rightRounds, extras, continuous)
-
-            if (roll !== RollResult.Failure || (mainHits <= 0 && extras.size <= 0)) {
-                if (rollIsSuccess(roll) && mainHits === 0 && extras.size === 0) roll = RollResult.Failure
-            } else {
-                roll = RollResult.Success
-            }
-        }
-
-        return { roll, mainHits, extras }
-    }
-
-    private isJinxed(obj: Critter, target: Critter): boolean {
-        // CE: traitIsSelected(TRAIT_JINXED) || perkHasRank(gDude, PERK_JINXED) — both the
-        // player's; DH2 keeps the attacker/target Pariah Dog check from rollHit.
-        const player = globalState.player
-        return (
-            !!player &&
-            ((player.traits?.includes('Jinxed') ?? false) ||
-                player.hasPerk('Jinxed') ||
-                obj.hasPerk('Pariah Dog') ||
-                target.hasPerk('Pariah Dog'))
-        )
-    }
-
     // CE combat_ai.cc _caiHasWeapPrefType — _weapPrefOrderings[best_weapon + 1].
-    private static readonly WEAP_PREF_ORDERINGS: { [best: string]: string[] } = {
+    static readonly WEAP_PREF_ORDERINGS: { [best: string]: string[] } = {
         no_pref: ['ranged', 'throw', 'melee', 'unarmed'],
         melee: ['melee'],
         melee_over_ranged: ['melee', 'ranged'],
@@ -1770,445 +686,12 @@ export class Combat {
         return a.order > b.order ? w2 : w1
     }
 
-    // CE combat_ai.cc _ai_try_attack → _ai_switch_weapons: with nothing in hand the AI
-    // wields its best inventory weapon (_inven_wield, HAND_RIGHT). It keeps punching
-    // only if the target is an unarmed biped it can punch (throw-punch FRM) and within
-    // reach; out of reach CE switches too (COMBAT_BAD_SHOT_OUT_OF_RANGE, weapon ==
-    // nullptr). 'animating' while _inven_wield's take-out plays (then `again`), 'wielded' when
-    // the weapon is in hand at once, 'none' without a switch.
-    private aiWieldInventoryWeapon(
-        attacker: Critter,
-        defender: Critter,
-        again: () => void,
-    ): 'none' | 'wielded' | 'animating' {
-        const inHand = attacker.equippedWeapon
-        if (inHand && inHand.pid !== undefined) return 'none'
-        const defenderBiped = (defender.pro?.extra?.bodyType ?? 0) === 0
-        const defenderUnarmed = defenderUnarmedNow(defender) // CE: the fid's weapon code is 0
-        const canPunch = !!globalState.imageInfo![attacker.getBase() + 'ap']
-        const punchRange = inHand?.weapon?.getMaximumRange(1) ?? 1
-        const inReach = hexDistance(attacker.position, defender.position) <= punchRange
-        if (defenderBiped && defenderUnarmed && canPunch && inReach) return 'none'
-        const weapon = Combat.aiSearchInvenWeap(attacker, defender)
-        if (!weapon) return 'none'
-        attacker.activeHand = 'rightHand'
-        dbg('ai', `[AI] ${actorName(attacker)} wields ${weapon.name} (CE _ai_switch_weapons)`)
-        // _inven_wield(attacker, weapon, HAND_RIGHT), animated
-        return invenWieldAnimated(attacker, weapon, 'rightHand', again) ? 'animating' : 'wielded'
-    }
-
-    // CE combat_ai.cc _ai_pick_hit_mode. DH2 weapons only expose a burst secondary,
-    // so 'secondary' means burst.
-    private aiPickHitMode(attacker: Critter, weaponObj: Obj, defender: Critter): 'primary' | 'secondary' {
-        const weapon = (weaponObj as any).weapon
-        // Any secondary attack (burst, a spear's throw, …) that the critter can use
-        // (_ai_can_use_weapon: the attack FRM exists).
-        const secondaryMode = Combat.secondaryModeName(weapon)
-        if (secondaryMode === null) return 'primary'
-        const packet = attacker.ai?.packet
-        if (!packet) return 'primary'
-        const withSecondary = <T>(fn: () => T): T => {
-            const prev = weapon.mode
-            weapon.mode = secondaryMode
-            try {
-                return fn()
-            } finally {
-                weapon.mode = prev
-            }
-        }
-        if (!withSecondary(() => !!globalState.imageInfo![attacker.getAnimation('attack')])) return 'primary'
-
-        const secondaryToHit = (): number => withSecondary(() => this.getHitChance(attacker, defender, 'torso').hit)
-        const safe = () => !this.combatSafetyInvalidateWeapon(attacker, weaponObj, 'secondary', defender, false)
-        const freq = Math.max(1, packet.secondaryFreq || 1)
-
-        let useSecondary = false
-        switch (packet.areaAttackMode) {
-            case 'always':
-                useSecondary = true
-                break
-            case 'sometimes':
-                useSecondary = randomBetween(1, freq) === 1
-                break
-            case 'be_sure':
-                useSecondary = secondaryToHit() >= 85 && safe()
-                break
-            case 'be_careful':
-                useSecondary = secondaryToHit() >= 50 && safe()
-                break
-            case 'be_absolutely_sure':
-                useSecondary = secondaryToHit() >= 95 && safe()
-                break
-            default: // no_pref (-1)
-                if (attacker.getStat('INT') < 6 || hexDistance(attacker.position, defender.position) < 10) {
-                    useSecondary = randomBetween(1, freq) === 1
-                }
-        }
-        // CE _ai_pick_hit_mode: _caiHasWeapPrefType(ai, the secondary mode's attack type)
-        const secondaryType = withSecondary(() => weaponAttackType(weaponObj))
-        if (useSecondary && !(Combat.WEAP_PREF_ORDERINGS[packet.bestWeapon] ?? []).includes(secondaryType))
-            useSecondary = false
-        // SFALL fixes kept by CE: range and AP of the secondary mode.
-        if (useSecondary && hexDistance(attacker.position, defender.position) > weapon.getMaximumRange(2))
-            useSecondary = false
-        if (useSecondary && (attacker.AP?.getAvailableCombatAP() ?? 0) < weapon.getAPCost(2)) useSecondary = false
-        // CE: a throw (the spear's, the knife's) only with another weapon to fall back on, or
-        // on a failed INT roll (statRoll <= ROLL_FAILURE)
-        if (
-            useSecondary &&
-            secondaryType === 'throw' &&
-            Combat.aiSearchInvenWeap(attacker, defender, false) === null &&
-            statRoll(attacker, 4, 0)
-        )
-            useSecondary = false
-        return useSecondary ? 'secondary' : 'primary'
-    }
-
     // The Weapon mode naming a weapon's secondary attack: 'burst' for burst /
     // continuous fire, 'secondary' for any other; null without one.
     static secondaryModeName(weapon: any): string | null {
         const mode = weapon?.attackModeOf?.(2) ?? 0
         if (mode === 0) return null
         return mode === 7 || mode === 8 ? 'burst' : 'secondary'
-    }
-
-    // CE combat.cc _combat_safety_invalidate_weapon_func — true if the attack would
-    // hurt the attacker's team: a blast weapon with a team-mate (or, without a safe-
-    // distance out-param, the attacker) inside its radius, or a spray whose simulated
-    // extras include a team-mate. The DR × (maxDmg - DT) test is CE's literal formula.
-    // `withSafeDistance` mirrors CE passing safeDistancePtr: the attacker standing in its
-    // own blast then isn't disqualifying (CE would step back first; DH2 doesn't).
-    // `attackerFriend` (CE _combatTestIncidentalHit): a critter of any team that must not be
-    // caught — inside the blast radius or among the spray's extras.
-    combatSafetyInvalidateWeapon(
-        attacker: Critter,
-        weaponObj: Obj,
-        hitMode: 'primary' | 'secondary',
-        defender: Critter,
-        withSafeDistance: boolean,
-        out?: { safeDistance: number },
-        attackerFriend: Critter | null = null,
-    ): boolean {
-        if (out) out.safeDistance = 0
-        const weapon = (weaponObj as any).weapon
-        if (!weapon) return false
-        const team = attacker.teamNum
-        const damageType = weapon.getDamageType()
-        const maxDamage = weapon.maxDmg ?? 0
-        const hurts = (c: Critter) => {
-            const dt = c.getStat('DT ' + damageType) + c.getArmorDT(damageType)
-            const dr = c.getStat('DR ' + damageType) + c.getArmorDR(damageType)
-            return Math.trunc((dr * (maxDamage - dt)) / 100) > 0
-        }
-        const isTeamMate = (c: Critter) =>
-            c.teamNum === team && c !== attacker && c !== defender && !c.dead && c !== c.whoHitMe
-
-        // weaponGetDamageRadius: rockets (single-fire Explosive) 3, grenades 2.
-        const attackType = weaponAttackType(weaponObj)
-        let damageRadius = 0
-        if (hitMode === 'primary' && attackType === 'ranged' && damageType === 'Explosive') damageRadius = 3
-        else if (attackType === 'throw' && this.isExplosiveAttack(weaponObj, damageType)) damageRadius = 2
-
-        if (damageRadius > 0) {
-            const intelligence = attacker.getStat('INT')
-            if (intelligence < 5) damageRadius = Math.max(0, damageRadius - (5 - intelligence))
-            if (attackerFriend && hexDistance(defender.position, attackerFriend.position) < damageRadius) return true
-            for (const c of this.combatants) {
-                if (isTeamMate(c) && hexDistance(defender.position, c.position) < damageRadius && hurts(c)) return true
-            }
-            if (hexDistance(defender.position, attacker.position) <= damageRadius) {
-                // CE: *safeDistancePtr = damageRadius - distance + 1 (the steps back to take)
-                if (withSafeDistance) {
-                    if (out) out.safeDistance = damageRadius - hexDistance(defender.position, attacker.position) + 1
-                    return false
-                }
-                return true
-            }
-            return false
-        }
-
-        // only a burst / continuous attack sprays — CE checks the hit mode's anim, primary or secondary
-        const slot = hitMode === 'secondary' ? 2 : 1
-        const sprayMode = weapon.attackModeOf(slot)
-        if (sprayMode !== 7 && sprayMode !== 8) return false
-        const ammo = Math.min(ammoGetQuantity(weaponObj), weaponGetBurstRounds(weaponObj))
-        const { extras } = this.computeSpray(attacker, defender, ammo, weapon.getMaximumRange(slot), sprayMode === 8)
-        if (attackerFriend && extras.has(attackerFriend)) return true
-        for (const c of extras.keys()) if (isTeamMate(c) && hurts(c)) return true
-        return false
-    }
-
-    // CE combat.cc _shoot_along_path — walks the line of fire from the attacker to
-    // `endTile`; each critter met rolls its own to-hit per remaining round. Rounds on the
-    // main target are returned; others accumulate in `extras` (max 6 victims).
-    private shootAlongPath(
-        attacker: Critter,
-        defender: Critter,
-        endTile: Point,
-        rounds: number,
-        extras: Map<Critter, number>,
-        continuous = false,
-    ): number {
-        let remaining = rounds
-        let mainHits = 0
-        let current = attacker.position
-        let critter: Obj | null = attacker
-        while (critter !== null) {
-            if (
-                (remaining <= 0 && !continuous) ||
-                (current.x === endTile.x && current.y === endTile.y) ||
-                extras.size >= 6
-            )
-                break
-            critter = nextShootObstacle(attacker, current, endTile, critter)
-            if (critter === null) break
-            if (critter.type !== 'critter') break
-
-            const accuracy = this.getHitChance(attacker, critter as Critter, 'torso').hit
-            if (continuous) remaining = 1
-            let roundsHit = 0
-            while (randomBetween(1, 100) <= accuracy && remaining > 0) {
-                remaining -= 1
-                roundsHit += 1
-            }
-            if (roundsHit !== 0) {
-                if (critter === defender) mainHits += roundsHit
-                // CE: a burst adds up a critter's hits over the lines; continuous fire
-                // keeps the first.
-                else if (!continuous || !extras.has(critter as Critter))
-                    extras.set(critter as Critter, (extras.get(critter as Critter) ?? 0) + roundsHit)
-            }
-            current = critter.position
-        }
-        // CE: continuous fire's path hits never count on the main target
-        return continuous ? 0 : mainHits
-    }
-
-    // CE combat.cc _check_ranged_miss — looks for someone on the line of fire to take a
-    // missed shot. Vanilla quirk kept by CE: the final test requires OBJECT_SHOOT_THRU on
-    // the obstacle, which the shoot-mode walk never returns, so it rolls but never hits.
-    private checkRangedMiss(attacker: Critter, defender: Critter, range: number, region: string): boolean {
-        const to = hexLineBeyond(attacker.position, defender.position, range)
-        let success = false
-        let critter: Obj | null = attacker
-        let curr = attacker.position
-        while (curr.x !== to.x || curr.y !== to.y) {
-            critter = nextShootObstacle(attacker, curr, to, critter)
-            if (critter === null) break
-            if (critter.type !== 'critter') {
-                success = true
-                break
-            }
-            if (critter !== defender) {
-                const c = critter as Critter
-                const chance = c.dead ? 5 : Math.trunc(this.getHitChance(attacker, c, region).hit / 3)
-                if (randomBetween(1, 100) <= chance) {
-                    success = true
-                    break
-                }
-            }
-            curr = critter.position
-        }
-        const SHOOT_THRU = 0x80000000
-        if (!success || critter === null || (((critter.flags ?? 0) >>> 0) & SHOOT_THRU) === 0) return false
-        return false // unreachable in practice (see above)
-    }
-
-    // CE combat.cc attackCompute, ranged/throw tail: a shot that hit nothing flies on to
-    // _tile_num_beyond(attacker, defender, range) (a grenade lands up to distance/2 away
-    // in a random direction); the first shoot-blocking object past the defender — or
-    // whatever blocks the landing tile — takes one round at ×2.
-    // CE combat.cc attackCompute, ranged miss tail: the shot flies on to _tile_num_beyond
-    // (grenades scatter up to distance/2 around the target); the first shoot-blocker past
-    // the target becomes attack->tile and, if it is a live critter, the accidental victim.
-    // Pure — the damage is applied by applyRangedMiss after the projectile arrived.
-    private computeRangedMiss(
-        attacker: Critter,
-        defender: Critter,
-        weaponObj: Obj,
-        dmgType: string,
-    ): RangedMiss | null {
-        const gMap = globalState.gMap
-        const weapon = (weaponObj as any).weapon
-        if (!gMap || !weapon) return null
-        const range = weapon.getMaximumRange()
-
-        const isGrenade =
-            weaponAttackType(weaponObj) === 'throw' &&
-            (dmgType === 'Explosive' || dmgType === 'Plasma' || dmgType === 'EMP')
-        let tile: Point
-        if (isGrenade) {
-            const distance = objectDistance(attacker, attacker.position, defender) // attackCompute: objectGetDistanceBetween
-            const throwDistance = Math.max(1, randomBetween(1, Math.max(1, Math.trunc(distance / 2))))
-            tile = hexInDirectionDistance(defender.position, randomBetween(0, 5), throwDistance)
-        } else {
-            tile = hexLineBeyond(attacker.position, defender.position, range)
-        }
-
-        let accidental: Obj | null = gMap.straightPathObstacle(defender, defender.position, tile, 1, defender)
-        if (accidental === null || accidental === defender) {
-            accidental = gMap.blockingObjectAt(toTileNum(tile), defender.elevation, 0, null)
-        }
-        const SHOOT_THRU = 0x80000000
-        if (accidental === null || (((accidental.flags ?? 0) >>> 0) & SHOOT_THRU) !== 0) {
-            return { tile, victim: null, landing: tile }
-        }
-        // A wall or scenery blocker: a thrown item comes to rest on the hex before it.
-        if (accidental.type !== 'critter') {
-            const line = hexLine(defender.position, accidental.position) ?? []
-            const before = line.length >= 2 ? line[line.length - 2] : defender.position
-            return { tile: { ...accidental.position }, victim: null, landing: { x: before.x, y: before.y } }
-        }
-        // Only critters take damage in DH2 (CE's damage to scenery has no effect either).
-        const victim = accidental as Critter
-        const pos = { ...victim.position }
-        if (victim.dead || victim === attacker) return { tile: pos, victim: null, landing: pos }
-        return { tile: pos, victim, landing: pos }
-    }
-
-    // The proto pid of the weapon's projectile when it has a visible one (CE
-    // _action_ranged: weaponGetProjectilePid, projectileProto->fid != -1).
-    private projectilePid(weaponObj: Obj): number | null {
-        const pid = weaponObj.pro?.extra?.projPID
-        if (pid === undefined || pid === null || pid < 0) return null
-        const pro = loadPRO(pid, pid & 0xffff)
-        if (!pro || pro.frmPID === undefined || pro.frmPID === -1) return null
-        return pid
-    }
-
-    // CE animation.cc _make_straight_path_func (a6 = 32 for non-critters): a Bresenham
-    // line in screen pixels between the two hex centres, one node every 32 steps.
-    private straightPathNodes(from: Point, to: Point): { tile: Point; x: number; y: number }[] {
-        const center = (t: Point) => {
-            const p = hexToScreen(t.x, t.y)
-            return { x: p.x, y: p.y - 1 }
-        }
-        const a = center(from),
-            b = center(to)
-        const stepX = Math.sign(b.x - a.x),
-            stepY = Math.sign(b.y - a.y)
-        const ddx = 2 * Math.abs(b.x - a.x),
-            ddy = 2 * Math.abs(b.y - a.y)
-        let x = a.x,
-            y = a.y,
-            count = 0
-        const nodes: { tile: Point; x: number; y: number }[] = []
-        const record = () => {
-            if (++count !== 32) return
-            count = 0
-            const tile = hexFromScreen(x, y)
-            const c = center(tile)
-            nodes.push({ tile, x: x - c.x, y: y - c.y })
-        }
-        if (ddx <= ddy) {
-            let middle = ddx - ddy / 2
-            for (;;) {
-                record()
-                if (y === b.y || nodes.length >= 200) break
-                if (middle >= 0) {
-                    x += stepX
-                    middle -= ddy
-                }
-                y += stepY
-                middle += ddx
-            }
-        } else {
-            let middle = ddy - ddx / 2
-            for (;;) {
-                record()
-                if (x === b.x || nodes.length >= 200) break
-                if (middle >= 0) {
-                    y += stepY
-                    middle -= ddx
-                }
-                x += stepX
-                middle += ddy
-            }
-        }
-        return nodes
-    }
-
-    // CE actions.cc _action_ranged + animation.cc animateMoveObjectToTileStraight /
-    // _object_straight_move: the projectile appears on the hex next to the attacker
-    // (_combat_bullet_start), faces the target and moves one path node per frame at the
-    // FRM's fps (+ combat speed in combat, ANIM_WALK), cycling its frames; on arrival it
-    // is removed and `onArrive` applies the impact.
-    private flyProjectile(attacker: Critter, target: Critter, dest: Point, pid: number, onArrive: () => void): void {
-        const gMap = globalState.gMap
-        if (!gMap || window.__test?.fastMode) return onArrive()
-        const rotation = hexDirectionTo(attacker.position, target.position)
-        const start = hexInDirection(attacker.position, rotation)
-        const nodes = start ? this.straightPathNodes(start, dest) : []
-        if (!start || nodes.length === 0) return onArrive()
-
-        const proj = createObjectWithPID(pid, -1)
-        proj.position = { ...start }
-        proj.orientation = rotation
-        proj.frame = 0
-        lazyLoadImage(proj.art, () => {
-            if (globalState.gMap !== gMap) return onArrive()
-            gMap.addObject(proj)
-            proj.shift = { x: 0, y: 0 }
-            const info = globalState.imageInfo![proj.art]
-            const fps = (info?.fps || 10) + (globalState.inCombat ? Config.combat.combatSpeed : 0)
-            // Shown on the start hex for one frame, then one node per frame; the last node
-            // stays visible for a frame before the projectile is removed (CE hides it in
-            // the next animation step).
-            let index = 0
-            let last = window.performance.now()
-            proj.updateAnim = function (this: Obj): void {
-                const now = window.performance.now()
-                if (now - last < 1000 / fps) return
-                last = now
-                if (index >= nodes.length) {
-                    this.updateAnim = () => {}
-                    gMap.destroyObject(this)
-                    onArrive()
-                    return
-                }
-                if (info && info.numFrames > 1) this.frame = (this.frame + 1) % info.numFrames
-                const node = nodes[index++]
-                this.position = { x: node.tile.x, y: node.tile.y }
-                this.shift = { x: node.x, y: node.y }
-            }
-        })
-    }
-
-    // CE actions.cc _action_ranged (ANIM_THROW_ANIM): itemRemove(attacker, weapon, 1)    // CE actions.cc _action_ranged (ANIM_THROW_ANIM): itemRemove(attacker, weapon, 1)
-    // makes one item of the stack the projectile while the rest stays in the hand
-    // (itemReplace); it lands on `landing` — the target's tile on a hit, where the miss
-    // stopped otherwise — and stays there. Grenades (explosive / plasma / EMP) explode
-    // and are gone.
-    private takeThrownItem(attacker: Critter, weaponObj: Obj): Obj | null {
-        if (weaponObj.pid === undefined) return null
-        const a = attacker
-        let item: Obj
-        if ((weaponObj.amount ?? 1) > 1) {
-            weaponObj.amount -= 1
-            item = createObjectWithPID(weaponObj.pid)
-            item.amount = 1
-        } else {
-            const idx = attacker.inventory.indexOf(weaponObj)
-            if (idx !== -1) attacker.inventory.splice(idx, 1)
-            for (const hand of ['leftHand', 'rightHand'] as const) {
-                if (a[hand] === weaponObj) refillHand(attacker, hand, weaponObj) // CE actions.cc:763 itemReplace
-            }
-            item = weaponObj
-        }
-        if (attacker.isPlayer) uiDrawWeapon()
-        // CE actions.cc _action_ranged → combat_ai.cc _cAIPrepWeaponItem: a thrown flare is
-        // lit first when it is dark (ambient < 85 %) and the thrower has INT 3+.
-        if (item.pid === PROTO_ID_FLARE && attacker.getStat('INT') >= 3 && GameTime.getAmbientLight() < 65536 * 0.85)
-            useFlare(item, attacker)
-        return item
-    }
-
-    private placeThrownItem(item: Obj, landing: Point, weaponObj: Obj, dmgType: string): void {
-        const gMap = globalState.gMap
-        if (!gMap || this.isExplosiveAttack(weaponObj, dmgType)) return
-        gMap.addObject(item)
-        item.move({ x: landing.x, y: landing.y }, gMap.getObjects().length - 1, false)
-        if (item.pid === PROTO_ID_LIT_FLARE && Config.engine.doFloorLighting) Lightmap.rebuildLight() // the flare lights where it lands
     }
 
     perish(obj: Critter, attacker?: Critter, damageType?: string) {
@@ -2265,373 +748,6 @@ export class Combat {
         const fmt = getProtoMsg(621)
         const prefix = getProtoMsg(prefixId)
         if (fmt && prefix) uiLog(fmt.replace('%s', prefix).replace('%d', String(gained)))
-    }
-
-    getCombatAIMessage(id: number) {
-        const text = getMessage('combatai', id)
-        return text === null ? null : filterBadwordsText(text) // CE combat_ai.cc:3572 messageListFilterBadwords
-    }
-
-    // CE combat_ai.cc _combatai_msg / _ai_print_msg — a floating line for run / move /
-    // attack / miss / hit (hit by hit location): not for the player or a dead / knocked-
-    // out critter, only with combat taunts on, d100 <= the packet's chance, and only
-    // when no other floating text is showing.
-    maybeTaunt(obj: Critter, type: 'run' | 'move' | 'attack' | 'miss' | 'hit', region?: string) {
-        if (!obj || obj.type !== 'critter' || obj.isPlayer || !obj.ai) return
-        if (!Config.ui.combatTaunts) return
-        if ((obj.injuryFlags & (DAM_DEAD | DAM_KNOCKED_OUT)) !== 0 || obj.dead) return
-        const packet = obj.ai.packet
-        if (randomBetween(1, 100) > (packet.chance ?? 0)) return
-        const LOCATION_KEYS: { [region: string]: string } = {
-            head: 'hit_head',
-            leftArm: 'hit_left_arm',
-            rightArm: 'hit_right_arm',
-            torso: 'hit_torso',
-            rightLeg: 'hit_right_leg',
-            leftLeg: 'hit_left_leg',
-            eyes: 'hit_eyes',
-            groin: 'hit_groin',
-            uncalled: 'hit_torso',
-        }
-        const key = type === 'hit' ? (LOCATION_KEYS[region ?? 'torso'] ?? 'hit_torso') : type
-        const range = packet.messageRanges[key]
-        if (!range) return
-        const [start, end] = range
-        if (end < start) return
-        const msg = this.getCombatAIMessage(randomBetween(start, end))
-        if (!msg) return
-        if (globalState.floatMessages.length > 0) return // _ai_print_msg: textObjectsGetCount() > 0
-        // CE combat_ai.cc:3401 — the AI packet's font / color / outline_color
-        // (ai.txt: 101, palette 58, palette 55 for every packet).
-        addFloatMessage({
-            msg,
-            obj,
-            startTime: window.performance.now(),
-            color: '#e4d80c',
-            outline: '#1c0c18',
-        })
-    }
-
-    // CE combat_ai.cc _combatai_rating (combat/whoHitMe.ts): best of melee damage and the
-    // wielded weapons' max damage, plus AC. (DH2 used HP + AC.)
-    private combataiRating(c: Critter): number {
-        return combatAiRating(c)
-    }
-
-    findTarget(obj: Critter): Critter | null {
-        // CE ref: combat_ai.cc _ai_danger_source / isWithinPerception
-        // Target must be within PER*5 tiles with LOS, or PER*2 tiles without.
-        const targets = this.combatants.filter(
-            (x) => !x.dead && x.teamNum !== obj.teamNum && this.isWithinPerception(obj, x),
-        )
-        if (targets.length === 0) return null
-        const attackWho = obj.ai?.packet.attackWho ?? 'closest'
-        switch (attackWho) {
-            // same order as CE _compare_strength / _compare_weakness (see aiDangerSource)
-            case 'strongest':
-                targets.sort((a, b) => this.combataiRating(a) - this.combataiRating(b))
-                return targets[0]
-            case 'weakest':
-                targets.sort((a, b) => this.combataiRating(b) - this.combataiRating(a))
-                return targets[0]
-            case 'whomever':
-            case 'whomever_attacking_me': {
-                const whoHitMe = obj.whoHitMe
-                if (whoHitMe instanceof Critter && !whoHitMe.dead && targets.includes(whoHitMe)) {
-                    return whoHitMe
-                }
-                // Fall through to 'closest'
-                targets.sort((a, b) => hexDistance(obj.position, a.position) - hexDistance(obj.position, b.position))
-                return targets[0]
-            }
-            case 'closest':
-            default:
-                targets.sort((a, b) => hexDistance(obj.position, a.position) - hexDistance(obj.position, b.position))
-                return targets[0]
-        }
-    }
-
-    walkUpTo(obj: Critter, idx: number, target: Point, maxDistance: number, callback: () => void): boolean {
-        // Walk up to `maxDistance` hexes, adjusting AP to fit
-        if (obj.walkTo(target, false, callback, maxDistance)) {
-            // OK
-            if (obj.AP!.subtractMoveAP(obj.path.path.length - 1) === false)
-                throw new Error(
-                    'subtraction issue: has AP: ' +
-                        obj.AP!.getAvailableMoveAP() +
-                        ' needs AP:' +
-                        obj.path.path.length +
-                        ' and maxDist was:' +
-                        maxDistance,
-                )
-            return true
-        }
-
-        return false
-    }
-
-    // ── CE combat_ai.cc _combat_ai ──────────────────────────────────────────────
-    // One NPC turn. DH2 actions are asynchronous (animations), so CE's function runs as
-    // phases across repeated doAITurn calls — every action's callback re-enters:
-    //   start  — the flee test (CRITTER_MANUEVER_FLEEING, hurt_too_much, HP < min_hp)
-    //   drugs  — _ai_check_drugs: healing items, chem use, items from the floor
-    //   prefs  — _ai_danger_source + _cai_perform_distance_prefs
-    //   attack — _ai_try_attack, at most 10 attempts (reload, switch weapons, move, attack)
-    //   end    — disengage past max_dist, keep up with the team, extra-AP distance prefs
-    doAITurn(obj: Critter, idx: number, depth: number): void {
-        if (depth > Config.combat.maxAIDepth) {
-            combatWarn(`Bailing out of ${depth}-deep AI turn recursion`)
-            eventLogPush({ actor: actorName(obj), action: 'ai-bailout', depth, message: 'AI recursion bail-out' })
-            return this.nextTurn()
-        }
-        const AP = obj.AP!
-        const again = (): void => {
-            obj.clearAnim()
-            this.doAITurn(obj, idx, depth + 1)
-        }
-        const endTurn = (): void => {
-            obj.clearAnim()
-            this.nextTurn()
-        }
-
-        if (depth === 1) {
-            obj._aiTurn = {
-                phase: 'start',
-                target: null,
-                attempts: 0,
-                drugUsed: false,
-                healed: false,
-                healSearchDone: false,
-                envSearched: false,
-                chemActive: null,
-                chemCount: 0,
-                endStep: 0,
-                whoHitSet: false,
-            } as AiTurnState
-            dbg(
-                'ai',
-                `[AI] ${actorName(obj)} turn start — AP: ${AP.getAvailableCombatAP()}, packet: ${obj.ai?.packet.name ?? '?'}`,
-            )
-            // CE: a critter other than the player fights with its right-hand item
-            const a = obj
-            if (!obj.isPlayer && a.rightHand?.pid !== undefined && a.activeHand !== 'rightHand') {
-                a.activeHand = 'rightHand'
-                obj.setIdleArt()
-            }
-            // CE combat.cc _combat_turn: combat_p_proc once at the start of the turn
-            if (Config.engine.doLoadScripts === true && obj._script !== undefined) {
-                if (Scripting.combatEvent(obj, 'turnBegin') === true) return
-                // CE combat.cc _combat_turn: script_overrides in that combat_p_proc takes the turn
-                // over — no AI turn
-                if (obj._script?._didOverride) return this.nextTurn()
-            }
-        }
-        const st: AiTurnState = obj._aiTurn
-        if (AP.getAvailableMoveAP() <= 0) return this.nextTurn()
-        const packet = obj.ai!.packet
-
-        switch (st.phase) {
-            case 'start': {
-                st.target = this.aiDangerSource(obj)
-                const minHp = aiMinHp(obj, packet)
-                if (obj.fleeing || aiHurtTooMuch(obj, packet) || obj.getStat('HP') < minHp) {
-                    dbg('ai', `[AI] ${actorName(obj)}: FLEEING: I'm Hurt!`)
-                    eventLogPush({
-                        actor: actorName(obj),
-                        action: 'ai-decision',
-                        result: 'flee',
-                        target: st.target ? actorName(st.target) : null,
-                        hp: obj.getStat('HP'),
-                        minHp,
-                        message: `${actorName(obj)} flees`,
-                    })
-                    // CE _combat_ai(a1, a2): _ai_run_away(a1, a2), a2 being the attack_complex defender
-                    // or null — and null means away from the dude (the companion runs from the player)
-                    const fleeFrom = this.gcsd && this.gcsd.attacker === obj ? this.gcsd.defender : null
-                    if (!this.aiRunAway(obj, fleeFrom, endTurn)) this.nextTurn()
-                    return
-                }
-                st.phase = 'drugs'
-                return this.doAITurn(obj, idx, depth + 1)
-            }
-            case 'drugs':
-                if (this.aiCheckDrugsStep(obj, st, again)) return
-                st.phase = 'prefs'
-            // falls through
-            case 'prefs': {
-                st.phase = 'attack'
-                if (!st.target || st.target.dead) st.target = this.aiDangerSource(obj)
-                if (this.aiDistancePrefs(obj, st.target, again)) return
-            }
-            // falls through
-            case 'attack': {
-                const target = st.target
-                if (target && !target.dead && st.attempts < 10) {
-                    st.attempts++
-                    const r = this.aiTryAttackStep(obj, target, st, again, endTurn)
-                    if (r === 'acting') return
-                    if (r === 'retry') return this.doAITurn(obj, idx, depth + 1)
-                }
-                st.phase = 'end'
-            }
-            // falls through
-            case 'end': {
-                if (this.aiEndOfTurn(obj, st, again)) return
-                return this.nextTurn()
-            }
-        }
-    }
-
-    // CE combat_ai.cc _ai_danger_source. A party member follows its attack_who (and
-    // ignores fleeing critters unless berserk / charging); anyone else goes for whoever
-    // hit it. Otherwise the critters that attacked it, its team or were hit by its
-    // team, sorted by attack_who, the first one it perceives and can reach or shoot.
-    // DH2: when none qualifies, the nearest perceived enemy (Combat.findTarget) — DH2
-    // doesn't set whoHitMe for every way a fight can start.
-    aiDangerSource(obj: Critter, fallback = true): Critter | null {
-        const player = globalState.player
-        if (!obj.ai) return null
-        const party = !!globalState.gParty?.isPartyMember(obj)
-        const packet = obj.ai!.packet
-        const alive = (c: Critter | null | undefined): c is Critter =>
-            !!c && c.type === 'critter' && !c.dead && ((c.injuryFlags ?? 0) & 0x01) === 0
-        let attackWho: string | null = null
-        let ignoreFleeing = false
-        if (party) {
-            attackWho = packet.attackWho
-            ignoreFleeing =
-                packet.disposition !== 'berserk' && packet.disposition !== 'none' && packet.distance !== 'charge'
-            if (attackWho === 'whomever_attacking_me' && player) {
-                const last = obj.aiLastTarget as Critter | undefined
-                if (
-                    alive(last) &&
-                    last.teamNum !== obj.teamNum &&
-                    last.aiLastTarget === player &&
-                    !(ignoreFleeing && last.fleeing)
-                )
-                    return last
-                const sorted = this.combatants.filter(
-                    (c) =>
-                        c !== obj &&
-                        alive(c) &&
-                        c.teamNum !== obj.teamNum &&
-                        c.aiLastTarget === player &&
-                        !(ignoreFleeing && c.fleeing),
-                )
-                sorted.sort((a, b) => hexDistance(obj.position, a.position) - hexDistance(obj.position, b.position))
-                for (const c of sorted) {
-                    if (
-                        this.checkBadShot(obj, c, false) === 'ok' ||
-                        globalState.gMap!.recalcPath(obj.position, c.position, false, obj).length > 0
-                    )
-                        return c
-                }
-            }
-            if (attackWho === 'strongest' || attackWho === 'weakest' || attackWho === 'closest') obj.whoHitMe = null
-        }
-
-        const targets: (Critter | null)[] = [null, null, null, null]
-        const whoHitMe: Critter | null = obj.whoHitMe ?? null
-        if (whoHitMe && whoHitMe !== obj) {
-            if (!whoHitMe.dead) {
-                if (attackWho === 'whomever' || attackWho === null) return whoHitMe
-            } else if (whoHitMe.teamNum !== obj.teamNum) {
-                targets[0] = this.nearestOfTeam(obj, whoHitMe.teamNum)
-            }
-        }
-        // aiFindAttackers: the one I attacked, my team's attacker, the one my team attacked
-        const byDistance = this.combatants
-            .slice()
-            .sort((a, b) => hexDistance(obj.position, a.position) - hexDistance(obj.position, b.position))
-        for (const c of byDistance) {
-            if (c === obj) continue
-            const hit: Critter | null = c.whoHitMe ?? null
-            // CE aiFindAttackers: a dead team-mate still points at its killer (slot 2)
-            if (!targets[1] && !c.dead && hit === obj) {
-                targets[1] = c
-                continue
-            }
-            if (
-                !targets[2] &&
-                c.teamNum === obj.teamNum &&
-                hit &&
-                hit !== obj &&
-                hit.teamNum !== obj.teamNum &&
-                !hit.dead
-            ) {
-                targets[2] = hit
-                continue
-            }
-            if (!targets[3] && !c.dead && c.teamNum !== obj.teamNum && hit && hit.teamNum === obj.teamNum) {
-                targets[3] = c
-                continue
-            }
-        }
-        const list = targets.filter((t): t is Critter => !!t && !(ignoreFleeing && t.fleeing))
-        // CE _compare_strength sorts "strongest" by rating ascending and _compare_weakness
-        // "weakest" descending — a vanilla oddity CE keeps (its comments say "melee then
-        // ranged" / "ranged then melee")
-        if (attackWho === 'strongest') list.sort((a, b) => this.combataiRating(a) - this.combataiRating(b))
-        else if (attackWho === 'weakest') list.sort((a, b) => this.combataiRating(b) - this.combataiRating(a))
-        else list.sort((a, b) => hexDistance(obj.position, a.position) - hexDistance(obj.position, b.position))
-        for (const c of list) {
-            if (!this.isWithinPerception(obj, c)) continue
-            if (
-                globalState.gMap!.recalcPath(obj.position, c.position, false, obj).length > 0 ||
-                this.checkBadShot(obj, c, false) === 'ok'
-            )
-                return c
-        }
-        return fallback ? this.findTarget(obj) : null
-    }
-
-    // CE combat_ai.cc _combatai_want_to_join — a non-combatant joins when it took damage,
-    // its combat_p_proc (fixed param 5) or an onlooker / friend notice made it ENGAGING,
-    // or it has a danger source; not when hidden, elsewhere, out cold, disengaging or
-    // fleeing.
-    private wantToJoin(c: Critter): boolean {
-        const a = c
-        if (c.visible === false || (((a.flags ?? 0) >>> 0) & 0x01) !== 0) return false // OBJECT_HIDDEN
-        if (globalState.player && c.elevation !== globalState.player.elevation) return false
-        if ((c.injuryFlags & (DAM_DEAD | DAM_KNOCKED_OUT)) !== 0 || c.dead) return false
-        if ((a.damageLastTurn ?? 0) > 0) return true
-        if (c._script?.combat_p_proc) Scripting.combatEvent(c, 'wantToJoin')
-        if (a.engaging) return true
-        if (a.disengaging || a.fleeing) return false
-        return this.aiDangerSource(c, false) !== null
-    }
-
-    // CE combat_ai.cc _combatai_want_to_stop
-    private wantToStop(c: Critter): boolean {
-        const a = c
-        if (a.disengaging) return true
-        if ((c.injuryFlags & (DAM_KNOCKED_OUT | DAM_DEAD)) !== 0 || c.dead) return true
-        if (a.fleeing) return true
-        const enemy = this.aiDangerSource(c, false)
-        return enemy === null || !this.isWithinPerception(c, enemy)
-    }
-
-    // CE combat_ai.cc _combatai_notify_onlookers: whoever perceives the victim of an
-    // attack becomes ENGAGING; seeing it die without seeing its killer marks a friendly
-    // death to move away from.
-    private notifyOnlookers(victim: Critter): void {
-        for (const c of this.combatants) {
-            const a = c
-            if (a.engaging || c === victim || c.isPlayer || c.dead) continue
-            if (!this.isWithinPerception(c, victim)) continue
-            a.engaging = true
-            if (victim.dead && !this.isWithinPerception(c, victim.whoHitMe ?? null)) a.aiFriendlyDead = victim
-        }
-    }
-
-    // CE combat_ai.cc _combatai_notify_friends: the player's team-mates who perceive the
-    // player become ENGAGING.
-    private notifyFriends(who: Critter): void {
-        for (const c of this.combatants) {
-            const a = c
-            if (a.engaging || c === who || c.dead || c.teamNum !== who.teamNum) continue
-            if (this.isWithinPerception(c, who)) a.engaging = true
-        }
     }
 
     // CE combat.cc _combat_sequence — between rounds: non-combatants that want to join
@@ -2733,7 +849,7 @@ export class Combat {
         return this.nearestOfTeam(obj, team)
     }
 
-    private nearestOfTeam(obj: Critter, team: number): Critter | null {
+    nearestOfTeam(obj: Critter, team: number): Critter | null {
         let best: Critter | null = null
         for (const c of this.combatants) {
             if (c.dead || c.teamNum !== team) continue
@@ -2765,836 +881,7 @@ export class Combat {
         return range
     }
 
-    // CE combat.cc _combat_check_bad_shot for the critter's current action.
-    checkBadShot(attacker: Critter, defender: Critter, aiming: boolean): BadShot {
-        if (defender.dead) return 'dead'
-        const wObj = attacker.equippedWeapon
-        const real = !!wObj && wObj.pid !== undefined
-        if (real) {
-            if (attacker.crippledLeftArm && attacker.crippledRightArm) return 'bothArmsCrippled'
-            const twoHanded = ((wObj.pro?.extra?.weaponFlags ?? 0) & 0x02) !== 0 // WEAPON_TWO_HAND
-            if ((attacker.crippledLeftArm || attacker.crippledRightArm) && twoHanded) return 'armCrippled'
-        }
-        const cost = !wObj
-            ? unarmedAPCost(attacker, currentUnarmed(attacker).mode, aiming)
-            : wObj.weapon!.getAttackAPCost(attacker, undefined, aiming)
-        if (cost > (attacker.AP?.getAvailableCombatAP() ?? 0)) return 'notEnoughAp'
-        const range = this.attackRange(attacker, wObj)
-        if (range < objectDistance(attacker, attacker.position, defender)) return 'outOfRange' // objectGetDistanceBetween
-        if (real && ammoGetCapacity(wObj) > 0 && ammoGetQuantity(wObj) === 0) return 'noAmmo'
-        const at = attackTypeOf(wObj)
-        if (
-            (at === 'ranged' || at === 'throw' || range > 1) &&
-            combatIsShotBlocked(attacker, attacker.position, defender.position, defender).blocked
-        )
-            return 'aimBlocked'
-        return 'ok'
-    }
-
-    // CE combat_ai.cc _ai_try_attack — one pass of its attempt loop. 'acting': an
-    // animation runs and re-enters; 'retry': try again at once; 'done': stop attacking.
-    private aiTryAttackStep(
-        obj: Critter,
-        target: Critter,
-        st: AiTurnState,
-        again: () => void,
-        endTurn: () => void,
-    ): 'acting' | 'retry' | 'done' {
-        const packet = obj.ai!.packet
-        const AP = obj.AP!
-        if (!st.whoHitSet) {
-            st.whoHitSet = true
-            critterSetWhoHitMe(obj, target) // _critter_set_who_hit_me(attacker, defender)
-            obj.aiLastTarget = target
-            const r = this.aiWieldOrRetrieve(obj, target, again)
-            if (r !== 'retry') return r
-        }
-
-        const wObj = obj.equippedWeapon
-        const real = !!wObj && wObj.pid !== undefined
-        const weapon: any = real ? wObj!.weapon : null
-        // _ai_pick_hit_mode: primary or the secondary attack
-        const prevMode = weapon?.mode
-        if (weapon) {
-            weapon.mode =
-                this.aiPickHitMode(obj, wObj!, target) === 'secondary'
-                    ? (Combat.secondaryModeName(weapon) ?? 'single')
-                    : 'single'
-        }
-        // CE _ai_try_attack: the held weapon in the chosen hit mode is checked for the team's
-        // safety (switching weapons if it would hurt a team-mate), and the attacker standing in
-        // its own blast learns how far to step back (safeDistance)
-        const safety = { safeDistance: 0 }
-        if (weapon && !st.safetyChecked) {
-            st.safetyChecked = true
-            const mode: 'primary' | 'secondary' = weapon.usesSecondary?.() ? 'secondary' : 'primary'
-            if (this.combatSafetyInvalidateWeapon(obj, wObj!, mode, target, true, safety)) {
-                if (weapon && prevMode !== undefined) weapon.mode = prevMode
-                const r = this.aiSwitchWeapons(obj, target, again)
-                if (r !== 'fail') return r
-            }
-        }
-        const minToHit = packet.minToHit
-        const bad = this.checkBadShot(obj, target, false)
-        const restore = () => {
-            if (weapon && prevMode !== undefined && weapon.mode !== prevMode) weapon.mode = prevMode
-        }
-
-        switch (bad) {
-            case 'dead':
-                restore()
-                return 'done'
-            case 'noAmmo':
-                restore()
-                return this.aiNoAmmo(obj, wObj!, target, again)
-            case 'notEnoughAp':
-            case 'armCrippled':
-            case 'bothArmsCrippled': {
-                restore()
-                const r = this.aiSwitchWeapons(obj, target, again)
-                return r === 'fail' ? 'done' : r
-            }
-            case 'outOfRange': {
-                const noRange = this.getHitChance(obj, target, 'torso', obj.position, false).hit
-                if (noRange < minToHit) {
-                    restore()
-                    dbg('ai', `[AI] ${actorName(obj)}: FLEEING: Can't possibly Hit Target!`)
-                    if (!this.aiRunAway(obj, target, endTurn)) return 'done'
-                    return 'acting'
-                }
-                restore()
-                if (real) {
-                    return this.aiMoveStepsCloser(obj, target, AP.getAvailableMoveAP(), true, again) ? 'acting' : 'done'
-                }
-                const r = this.aiSwitchWeapons(obj, target, again)
-                if (r !== 'fail' && obj.equippedWeapon?.pid !== undefined) return r
-                return this.aiMoveStepsCloser(obj, target, AP.getAvailableMoveAP(), true, again) ? 'acting' : 'done'
-            }
-            case 'aimBlocked':
-                restore()
-                return this.aiMoveStepsCloser(obj, target, AP.getAvailableMoveAP(), true, again) ? 'acting' : 'done'
-            case 'ok': {
-                const accuracy = this.getHitChance(obj, target, 'torso').hit
-                if (safety.safeDistance > 0) {
-                    // CE: _ai_move_away(attacker, defender, safeDistance) before the attack
-                    if (
-                        this.aiMoveAway(obj, target, safety.safeDistance, false, () => {
-                            restore()
-                            again()
-                        })
-                    )
-                        return 'acting'
-                }
-                if (accuracy < minToHit) {
-                    const noRange = this.getHitChance(obj, target, 'torso', obj.position, false).hit
-                    if (noRange < minToHit) {
-                        restore()
-                        dbg('ai', `[AI] ${actorName(obj)}: FLEEING: Can't possibly Hit Target!`)
-                        if (!this.aiRunAway(obj, target, endTurn)) return 'done'
-                        return 'acting'
-                    }
-                    // Step along the path until the chance from a tile reaches min_to_hit.
-                    const path = globalState.gMap!.recalcPath(obj.position, target.position, false, obj)
-                    let steps = AP.getAvailableMoveAP()
-                    if (path.length > 1) {
-                        steps = 0
-                        for (let i = 1; i < path.length - 1 && steps < AP.getAvailableMoveAP(); i++) {
-                            steps++
-                            const from = { x: path[i][0], y: path[i][1] }
-                            if (this.getHitChance(obj, target, 'torso', from).hit >= minToHit) break
-                        }
-                    }
-                    if (steps > 0) {
-                        if (
-                            this.aiMoveStepsCloser(obj, target, steps, true, () => {
-                                restore()
-                                again()
-                            })
-                        )
-                            return 'acting'
-                        // CE: _ai_move_steps_closer == -1 → "FLEEING: Can't possibly get closer"
-                        restore()
-                        dbg('ai', `[AI] ${actorName(obj)}: FLEEING: Can't possibly get closer to Target!`)
-                        if (!this.aiRunAway(obj, target, endTurn)) return 'done'
-                        return 'acting'
-                    }
-                }
-                return this.aiAttack(obj, target, () => {
-                    restore()
-                    again()
-                })
-                    ? 'acting'
-                    : (restore(), 'done')
-            }
-        }
-    }
-
-    // CE combat_ai.cc _ai_attack (+ _ai_called_shot): face the target, pick the hit
-    // location, pay the AP and attack.
-    private aiAttack(obj: Critter, target: Critter, then: () => void): boolean {
-        // CE _ai_attack: a fleeing critter doesn't attack (CRITTER_MANUEVER_FLEEING → −1)
-        if (obj.fleeing) return false
-        const wObj = obj.equippedWeapon
-        const region = this.aiCalledShot(obj, target)
-        const aimed = region !== 'torso'
-        const cost = !wObj
-            ? unarmedAPCost(obj, currentUnarmed(obj).mode, aimed)
-            : wObj.weapon!.getAttackAPCost(obj, undefined, aimed)
-        if (cost > obj.AP!.getAvailableCombatAP()) return false
-        obj.AP!.subtractCombatAP(cost)
-        dbg('ai', `[AI] ${actorName(obj)} → attack on ${actorName(target)} (${region}, AP cost: ${cost})`)
-        eventLogPush({
-            actor: actorName(obj),
-            action: 'ai-decision',
-            result: 'attack',
-            target: actorName(target),
-            distance: hexDistance(obj.position, target.position),
-            AP: obj.AP!.getAvailableCombatAP(),
-            weapon: wObj?.weapon?.name ?? null,
-            region,
-            message: `${actorName(obj)} attacks ${actorName(target)}`,
-        })
-        this.maybeTaunt(obj, 'attack')
-        this.attack(obj, target, region, then)
-        return true
-    }
-
-    // CE combat_ai.cc _ai_called_shot: with AP for the aimed attack and an aimable hit
-    // mode, one in called_freq tries a random location if INT reaches 7 / 5 / 3 (easy /
-    // normal / hard combat); below min_to_hit it stays on the torso.
-    private aiCalledShot(obj: Critter, target: Critter): string {
-        const wObj = obj.equippedWeapon
-        const packet = obj.ai!.packet
-        const cost = !wObj
-            ? unarmedAPCost(obj, currentUnarmed(obj).mode, true)
-            : wObj.weapon!.getAttackAPCost(obj, undefined, true)
-        if (cost > obj.AP!.getAvailableCombatAP()) return 'torso'
-        const weapon: any = wObj?.weapon
-        if (
-            weapon &&
-            wObj!.pid !== undefined &&
-            !weapon.modes.includes(weapon.usesSecondary() ? 'secondaryCalled' : 'called')
-        )
-            return 'torso'
-        if (randomBetween(1, packet.calledFreq) !== 1) return 'torso'
-        const d = Config.combat.difficultyModifier
-        const intRequired = d === 75 ? 7 : d === 125 ? 3 : 5
-        if (obj.getStat('INT') < intRequired) return 'torso'
-        const LOCATIONS = ['head', 'leftArm', 'rightArm', 'torso', 'rightLeg', 'leftLeg', 'eyes', 'groin', 'torso']
-        const region = LOCATIONS[randomBetween(0, 8)]
-        // CE calls _determine_to_hit(attacker, defender, hitMode, hitLocation) against its
-        // (…, hitLocation, hitMode) signature — a vanilla bug kept: the chance tested is the
-        // one for the location numbered like the hit mode (right-hand primary 2 = right arm,
-        // secondary 3 = torso, a punch 4 = right leg)
-        const hitModeIndex = !wObj || wObj.pid === undefined ? 4 : weapon.usesSecondary() ? 3 : 2
-        if (this.getHitChance(obj, target, LOCATIONS[hitModeIndex]).hit < packet.minToHit) return 'torso'
-        return region
-    }
-
-    // CE _ai_try_attack (weapon == nullptr) → _ai_switch_weapons: with nothing in hand
-    // wield the best inventory weapon, else fetch one lying within reach.
-    private aiWieldOrRetrieve(obj: Critter, target: Critter, again: () => void): 'acting' | 'retry' | 'done' {
-        const wielded = this.aiWieldInventoryWeapon(obj, target, again)
-        if (wielded !== 'none') return wielded === 'animating' ? 'acting' : 'retry'
-        const inHand = obj.equippedWeapon
-        if (inHand && inHand.pid !== undefined) return 'retry'
-        const defenderBiped = (target.pro?.extra?.bodyType ?? 0) === 0
-        const defenderUnarmed = defenderUnarmedNow(target) // CE: the fid's weapon code is 0
-        if (defenderBiped && defenderUnarmed && globalState.imageInfo![obj.getBase() + 'ap']) return 'retry'
-        const r = this.aiSwitchWeapons(obj, target, again)
-        return r === 'fail' ? 'retry' : r
-    }
-
-    // CE combat_ai.cc _ai_switch_weapons: the best usable inventory weapon (AP checked),
-    // else one from the floor (_ai_search_environ + _ai_retrieve_object), else the
-    // fist if its AP fits.
-    private aiSwitchWeapons(obj: Critter, target: Critter, again: () => void): 'acting' | 'retry' | 'fail' {
-        const best = Combat.aiSearchInvenWeap(obj, target)
-        if (best) {
-            obj.activeHand = 'rightHand'
-            dbg('ai', `[AI] ${actorName(obj)} wields ${best.name} (CE _ai_switch_weapons)`)
-            // _inven_wield(attacker, weapon, HAND_RIGHT): the put-away and take-out play first
-            if (invenWieldAnimated(obj, best, 'rightHand', again)) return 'acting'
-            return this.checkBadShot(obj, target, false) === 'notEnoughAp' ? 'fail' : 'retry'
-        }
-        const found = this.aiSearchEnviron(obj, 'weapon', target)
-        if (found) {
-            dbg('ai', `[AI] ${actorName(obj)} goes for ${found.name} on the floor`)
-            // _ai_retrieve_object, then _inven_wield(attacker, weapon, HAND_RIGHT)
-            const wield = (): void => {
-                const got = inventoryCopyOf(obj, found)
-                if (got) {
-                    obj.activeHand = 'rightHand'
-                    invenWield(obj, got, 'rightHand')
-                }
-                again()
-            }
-            if (this.aiRetrieveObject(obj, found, wield)) return 'acting'
-        }
-        // No weapon to switch to: CE goes on with HIT_MODE_PUNCH (weapon = nullptr) if a
-        // punch is affordable — the item stays in the hand; DH2 punches with the free
-        // hand for the rest of the turn (doAITurn restores the right hand next turn).
-        // weaponGetActionPointCost(attacker, HIT_MODE_PUNCH, false)
-        if (obj.AP!.getAvailableCombatAP() < unarmedAPCost(obj, PUNCH, false)) return 'fail'
-        const a = obj
-        if (!obj.isPlayer && a[a.activeHand ?? 'leftHand']?.pid !== undefined) {
-            const other = (a.activeHand ?? 'leftHand') === 'leftHand' ? 'rightHand' : 'leftHand'
-            if (!a[other] || a[other].pid === undefined) {
-                if (!a[other]) a[other] = Critter.makeFist()
-                a.activeHand = other
-            } else {
-                return 'fail'
-            }
-        }
-        return 'retry'
-    }
-
-    // CE _ai_try_attack, COMBAT_BAD_SHOT_NO_AMMO: reload from the inventory (reload AP,
-    // READY sound, magic hands, "reloads the"), else fetch ammo from the floor, else
-    // "is out of ammo for the", put the weapon away and switch weapons.
-    private aiNoAmmo(obj: Critter, wObj: Obj, target: Critter, again: () => void): 'acting' | 'retry' | 'done' {
-        const ammo = aiFindAmmo(obj, wObj).ammo
-        if (ammo) {
-            this.aiReload(obj, wObj, ammo, again)
-            return 'acting'
-        }
-        const floorAmmo = this.aiSearchEnviron(obj, 'ammo', target)
-        if (floorAmmo && this.aiRetrieveObject(obj, floorAmmo, again)) return 'acting'
-        const soundId = (wObj as any).pro?.extra?.soundID
-        if (typeof soundId === 'number' && !window.__test?.fastMode) {
-            globalState.audioEngine.playWeaponSfx(String.fromCharCode(soundId), 'empty', undefined, obj)
-        }
-        uiLog(`${obj.name} ${getMessage('misc', 5001) ?? 'is out of ammo for the'} ${wObj.name}.`)
-        const a = obj as any
-        for (const hand of ['leftHand', 'rightHand']) if (a[hand] === wObj) a[hand] = Critter.makeFist()
-        obj.setIdleArt()
-        const r = this.aiSwitchWeapons(obj, target, again)
-        // _ai_magic_hands(attacker, weapon, 5001): the magic-hands anim goes with the line;
-        // played here when the switch doesn't animate itself
-        if (r === 'fail' && obj.hasAnimation('use') && !obj.inAnim()) obj.staticAnimation('use', () => obj.clearAnim())
-        return r === 'fail' ? 'done' : r
-    }
-
-    private aiReload(obj: Critter, wObj: Obj, ammo: Obj, then: () => void): void {
-        // CE combat_ai.cc aiAttemptWeaponReload: one box; an emptied box is used up
-        const before = ammoGetQuantity(wObj)
-        if (weaponReload(wObj, ammo) === 0) ammoUseTopBox(ammo, obj.inventory)
-        const loaded = ammoGetQuantity(wObj) - before
-        const AP = obj.AP!
-        const cost = (wObj as any).weapon?.getReloadAPCost?.() ?? 2
-        if (AP.getAvailableCombatAP() < cost) AP.combat = 0
-        else AP.subtractCombatAP(cost)
-        const soundId = wObj.pro?.extra?.soundID
-        if (typeof soundId === 'number' && !window.__test?.fastMode) {
-            globalState.audioEngine.playWeaponSfx(String.fromCharCode(soundId), 'reload', undefined, obj)
-        }
-        combatDebug(`AI ${obj.name}: reloaded ${loaded} rounds`)
-        this.aiMagicHands(obj, wObj, 5002, then)
-    }
-
-    // CE combat_ai.cc _ai_magic_hands: ANIM_MAGIC_HANDS_MIDDLE and "<name> <msg> <item>."
-    private aiMagicHands(obj: Critter, item: Obj | null, msgId: number, then: () => void): void {
-        const msg = getMessage('misc', msgId)
-        if (msg) uiLog(item ? `${obj.name} ${msg} ${item.name}.` : `${obj.name} ${msg}.`)
-        if (obj.hasAnimation('use')) obj.staticAnimation('use', then)
-        else then()
-    }
-
-    // CE combat_ai.cc _ai_check_drugs, one step per call (each drug is its own action).
-    private aiCheckDrugsStep(obj: Critter, st: AiTurnState, again: () => void): boolean {
-        if ((obj.pro?.extra?.bodyType ?? 0) !== 0) return false // BODY_TYPE_BIPED
-        const packet = obj.ai!.packet
-        const AP = obj.AP!
-        let hpRatio = 50
-        let chance = 0
-        // CE _combatNumTurns: completed combat rounds
-        const turn = this.numTurns
-        switch (packet.chemUse) {
-            case 'clean':
-                return false
-            case 'stims_when_hurt_little':
-                hpRatio = 60
-                break
-            case 'stims_when_hurt_lots':
-                hpRatio = 30
-                break
-            case 'sometimes':
-                if (turn % 3 === 0) chance = 25
-                break
-            case 'anytime':
-                if (turn % 3 === 0) chance = 75
-                break
-            case 'always':
-                chance = 100
-                break
-        }
-        const maxHp = obj.getStat('Max HP') ?? obj.getStat('HP')
-        // Healing items while HP is below the ratio.
-        if (
-            !st.healSearchDone &&
-            obj.getStat('HP') < Math.trunc((maxHp * hpRatio) / 100) &&
-            AP.getAvailableCombatAP() >= 2
-        ) {
-            const heal = obj.inventory.find((i) => i.subtype === 'drug' && HEALING_PIDS.includes(i.pid))
-            if (heal) {
-                st.drugUsed = true
-                st.healed = true
-                this.aiUseDrug(obj, heal, again)
-                return true
-            }
-            st.healSearchDone = true
-        }
-        // Random chem use (rolled once per turn), primary desires first.
-        if (!st.healed && chance > 0) {
-            if (st.chemActive === null) st.chemActive = randomBetween(0, 100) < chance
-            if (st.chemActive && AP.getAvailableCombatAP() >= 2) {
-                const drugs = obj.inventory.filter((i) => i.subtype === 'drug' && !HEALING_PIDS.includes(i.pid))
-                const primary = drugs.filter((d) => packet.chemPrimaryDesire.includes(d.pid))
-                const pool = primary.length > 0 ? primary : drugs
-                if (pool.length > 0) {
-                    const drug = pool[randomBetween(0, pool.length - 1)]
-                    st.drugUsed = true
-                    st.chemCount++
-                    if (packet.chemUse === 'sometimes' || (packet.chemUse === 'anytime' && st.chemCount >= 2))
-                        st.chemActive = false
-                    this.aiUseDrug(obj, drug, again)
-                    return true
-                }
-                st.chemActive = false
-                st.healSearchDone = true
-            }
-        }
-        // An item fetched last turn (aiInfoGetLastItem), or nothing usable carried: look
-        // for a usable item on the floor.
-        const last: Obj | null = obj.aiLastItem ?? null
-        if (last && !globalState.gMap!.getObjects().includes(last)) obj.aiLastItem = null
-        if ((obj.aiLastItem || (!st.drugUsed && st.healSearchDone)) && !st.envSearched) {
-            st.envSearched = true
-            const item =
-                obj.aiLastItem ?? this.aiSearchEnviron(obj, 'drug', null) ?? this.aiSearchEnviron(obj, 'misc', null)
-            obj.aiLastItem = null
-            if (
-                item &&
-                this.aiRetrieveObject(obj, item, () => {
-                    const got = inventoryCopyOf(obj, item)
-                    if (got && got.subtype === 'drug' && obj.AP!.getAvailableCombatAP() >= 2) {
-                        st.drugUsed = true
-                        this.aiUseDrug(obj, got, again)
-                    } else {
-                        again()
-                    }
-                })
-            )
-                return true
-        }
-        return false
-    }
-
-    // _item_d_take_drug + _ai_magic_hands ("uses"), 2 AP.
-    private aiUseDrug(obj: Critter, drug: Obj, then: () => void): void {
-        let used: Obj = drug
-        if ((drug.amount ?? 1) > 1) {
-            drug.amount -= 1
-            used = cloneItem(drug)
-            used.amount = 1
-        } else {
-            const i = obj.inventory.indexOf(drug)
-            if (i !== -1) obj.inventory.splice(i, 1)
-        }
-        if (!useDrug(used, obj)) {
-            if (used === drug) obj.inventory.push(drug)
-            else drug.amount += 1
-        }
-        const AP = obj.AP!
-        if (AP.getAvailableCombatAP() < 2) AP.combat = 0
-        else AP.subtractCombatAP(2)
-        this.aiMagicHands(obj, used, 5000, then)
-    }
-
-    // CE combat_ai.cc _ai_search_environ: the nearest item on the floor within PER + 5
-    // of the given kind the critter can use (bipeds only).
-    private aiSearchEnviron(
-        obj: Critter,
-        kind: 'weapon' | 'ammo' | 'drug' | 'misc',
-        target: Critter | null,
-    ): Obj | null {
-        if ((obj.pro?.extra?.bodyType ?? 0) !== 0) return null
-        const gMap = globalState.gMap
-        if (!gMap) return null
-        const reach = obj.getStat('PER') + 5
-        const items = gMap
-            .getObjects()
-            .filter((o) => o.type === 'item' && o.visible !== false && hexDistance(obj.position, o.position) <= reach)
-            .sort((a, b) => hexDistance(obj.position, a.position) - hexDistance(obj.position, b.position))
-        const packet = obj.ai!.packet
-        const inHand = obj.equippedWeapon
-        for (const item of items) {
-            const type = ceItemType(item)
-            if (kind === 'weapon' && type === 'weapon') {
-                if (this.aiCanUseWeapon(obj, item)) return item
-            } else if (kind === 'ammo' && item.subtype === 'ammo') {
-                if (inHand && inHand.pid !== undefined && findReloadAmmo(inHand, [item])) return item
-            } else if ((kind === 'drug' && type === 'drug') || (kind === 'misc' && type === 'misc')) {
-                if (aiCanUseItem(obj, item, packet)) return item
-            }
-        }
-        void target
-        return null
-    }
-
-    // CE combat_ai.cc _ai_can_use_weapon (arms, attack FRM, skill, preferred type).
-    private aiCanUseWeapon(obj: Critter, item: Obj): boolean {
-        const weapon: any = (item as any).weapon
-        if (!weapon) return false
-        if (obj.crippledLeftArm && obj.crippledRightArm) return false
-        const twoHanded = ((item.pro?.extra?.weaponFlags ?? 0) & 0x02) !== 0
-        if ((obj.crippledLeftArm || obj.crippledRightArm) && twoHanded) return false
-        if (!globalState.imageInfo![obj.getBase() + weapon.getAnim('attack')]) return false
-        const packet = obj.ai!.packet
-        if (obj.getSkill(weapon.weaponSkillType) < packet.minToHit) return false
-        return (Combat.WEAP_PREF_ORDERINGS[packet.bestWeapon] ?? []).includes(weaponAttackType(item))
-    }
-
-    // CE combat_ai.cc _ai_retrieve_object (actionPickUp): walk to the item with this
-    // turn's AP and pick it up; if it is out of reach this turn the walk still happens.
-    private aiRetrieveObject(obj: Critter, item: Obj, then: () => void): boolean {
-        const gMap = globalState.gMap
-        if (!gMap) return false
-        const pick = (): void => {
-            if (!gMap.getObjects().includes(item)) return then()
-            const take = (): void => {
-                obj.addInventoryItem(item, item.amount)
-                gMap.destroyObject(item)
-                if (!window.__test?.fastMode) globalState.audioEngine.playSfxByName('ipickup1')
-                obj.clearAnim()
-                then()
-            }
-            if (obj.hasAnimation('pickUp')) obj.staticAnimation('pickUp', take)
-            else take()
-        }
-        if (hexDistance(obj.position, item.position) <= 1) {
-            pick()
-            return true
-        }
-        const AP = obj.AP!
-        const steps = AP.getAvailableMoveAP()
-        if (steps <= 0) return false
-        const path = gMap.recalcPath(obj.position, item.position, false, obj)
-        if (path.length === 0) return false
-        const reach = path.length - 1 <= steps
-        // (CE calls aiInfoSetLastItem here, which always stores nullptr — so an item not
-        // reached this turn is not remembered; _ai_check_drugs searches again next turn)
-        if (
-            !obj.walkTo(
-                item.position,
-                false,
-                () => {
-                    obj.clearAnim()
-                    if (reach) pick()
-                    else then()
-                },
-                steps,
-                path,
-            )
-        )
-            return false
-        if (AP.subtractMoveAP(obj.path.path.length - 1) === false) AP.combat = 0
-        return true
-    }
-
-    // CE combat_ai.cc _ai_move_steps_closer: up to `steps` hexes toward the target (run
-    // with at least half the max AP), not with distance 'stay', not past stay_close.
-    private aiMoveStepsCloser(obj: Critter, target: Critter, steps: number, taunt: boolean, then: () => void): boolean {
-        if (steps <= 0) return false
-        const packet = obj.ai!.packet
-        if (packet.distance === 'stay') return false
-        const player = globalState.player
-        if (packet.distance === 'stay_close' && player && target !== player) {
-            const d = hexDistance(obj.position, player.position)
-            if (d > 5 && hexDistance(target.position, player.position) > 5 && d + steps > 5) return false
-        }
-        if (hexDistance(obj.position, target.position) <= 1) return false
-        const AP = obj.AP!
-        steps = Math.min(steps, AP.getAvailableMoveAP())
-        const run = steps >= Math.trunc(obj.AP!.getMaxAP() / 2) && obj.canRun() && critterArtShouldRun(obj.art)
-        // CE _ai_move_steps_closer: the "move" taunt comes first
-        if (taunt) this.maybeTaunt(obj, 'move')
-        const gMap = globalState.gMap!
-        const elevation = obj.elevation ?? gMap.currentElevation
-        // No path to the target's tile: the first critter in the way (_obj_ai_blocking_at's
-        // _moveBlockObj) becomes the one to move to
-        let goal: Critter = target
-        if (gMap.recalcPath(obj.position, target.position, false, obj).length === 0) {
-            const around = pathfinderFindPathPoints(obj, obj.position, target.position, false, 'ai')
-            for (const [x, y] of around.slice(1)) {
-                const c = gMap
-                    .getObjects(elevation)
-                    .find(
-                        (o) =>
-                            o.type === 'critter' &&
-                            o !== obj &&
-                            o !== target &&
-                            !(o as Critter).dead &&
-                            o.position.x === x &&
-                            o.position.y === y,
-                    ) as Critter | undefined
-                if (c) {
-                    goal = c
-                    break
-                }
-            }
-        }
-        // _cai_retargetTileFromFriendlyFire on the original target's tile
-        const tile = goal === target ? this.retargetTileFromFriendlyFire(obj, target, target.position) : goal.position
-        // animationRegisterMoveToTile: onto the tile, a step short when it is occupied
-        const path = gMap.recalcPath(obj.position, tile, false, obj)
-        if (path.length === 0) return false
-        if (gMap.blockingObjectAt(toTileNum(tile), elevation, 0, obj) !== null) path.pop()
-        if (path.length < 2) return false
-        const last = path[path.length - 1]
-        if (!obj.walkTo({ x: last[0], y: last[1] }, run, then, steps, path)) return false
-        eventLogPush({
-            actor: actorName(obj),
-            action: 'ai-decision',
-            result: 'creep',
-            target: actorName(goal),
-            AP: AP.getAvailableMoveAP(),
-            message: `${actorName(obj)} moves toward ${actorName(goal)}`,
-        })
-        if (AP.subtractMoveAP(obj.path.path.length - 1) === false) AP.combat = 0
-        return true
-    }
-
-    // CE combat_ai.cc _ai_move_away: away from `from` (straight, or one rotation to
-    // either side), at most `maxSteps` hexes, not with distance 'stay'.
-    private aiMoveAway(obj: Critter, from: Critter, maxSteps: number, run: boolean, then: () => void): boolean {
-        if (obj.ai!.packet.distance === 'stay' && !run) return false
-        // CE _ai_move_away: only when the other critter is within `a3` hexes
-        if (!run && hexDistance(obj.position, from.position) > maxSteps) return false
-        const AP = obj.AP!
-        let steps = Math.min(maxSteps, AP.getAvailableMoveAP())
-        const rotation = hexDirectionTo(from.position, obj.position)
-        const gMap = globalState.gMap!
-        for (; steps > 0; steps--) {
-            for (const rot of [rotation, (rotation + 1) % 6, (rotation + 5) % 6]) {
-                const dest = hexInDirectionDistance(obj.position, rot, steps)
-                if (!dest || dest.x < 0 || dest.y < 0 || dest.x >= 200 || dest.y >= 200) continue
-                const path = gMap.recalcPath(obj.position, dest, true, obj)
-                if (path.length === 0) continue
-                if (obj.walkTo(dest, run, then, steps, path)) {
-                    if (AP.subtractMoveAP(obj.path.path.length - 1) === false) AP.combat = 0
-                    return true
-                }
-            }
-        }
-        return false
-    }
-
-    // CE combat_ai.cc _ai_run_away: within max_dist of the threat the critter is
-    // FLEEING and runs away with all its AP (taunt "run"); beyond it, it disengages.
-    private aiRunAway(obj: Critter, from: Critter | null, then: () => void): boolean {
-        const threat = from ?? (globalState.player as Critter)
-        if (!threat) return false
-        const packet = obj.ai!.packet
-        if (hexDistance(obj.position, threat.position) < packet.maxDist) {
-            obj.fleeing = true
-            this.maybeTaunt(obj, 'run')
-            return this.aiMoveAway(obj, threat, obj.AP!.getAvailableMoveAP(), true, then)
-        }
-        obj.disengaging = true
-        return false
-    }
-
-    // CE combat_ai.cc _cai_retargetTileFromFriendlyFire: if the critter stands in the
-    // line of fire of a team-mate who rates at least as high and attacks the same target
-    // (_cai_attackWouldIntersect), step aside: one hex to either side of that team-mate's
-    // facing from `tile`, the free one nearest `tile`. Costs 2 INT per step (INT <= 0: none).
-    retargetTileFromFriendlyFire(source: Critter, target: Critter | null, tile: Point): Point {
-        if (!target || source.getStat('INT') <= 0) return tile
-        const rating = this.combataiRating(source)
-        const friends = this.combatants
-            .filter(
-                (c) =>
-                    !c.dead &&
-                    c !== source &&
-                    c.teamNum === source.teamNum &&
-                    c.aiLastTarget === target &&
-                    this.combataiRating(c) >= rating,
-            )
-            .sort((a, b) => hexDistance(source.position, a.position) - hexDistance(source.position, b.position))
-        const candidates: Point[] = []
-        for (const f of friends) {
-            if (this.attackWouldIntersect(f, target, source)) {
-                const r = f.orientation ?? 0
-                const a = hexInDirection(tile, (r + 1) % 6)
-                const b = hexInDirection(tile, (r + 5) % 6)
-                if (a) candidates.push(a)
-                if (b) candidates.push(b)
-                break
-            }
-        }
-        const gMap = globalState.gMap!
-        let best: Point | null = null
-        for (const c of candidates) {
-            if (gMap.blockingObjectAt(toTileNum(c), source.elevation, 0, null)) continue
-            if (!best || hexDistance(tile, c) < hexDistance(tile, best)) best = c
-        }
-        return best ?? tile
-    }
-
-    // CE combat_ai.cc _cai_attackWouldIntersect: the attacker's shot at the defender would
-    // first meet `friend`, or its spray / blast would catch a team-mate.
-    private attackWouldIntersect(attacker: Critter, defender: Critter, friend: Critter): boolean {
-        const w = attacker.equippedWeapon
-        if (!w || w.pid === undefined) return false
-        if (this.attackRange(attacker, w) < 1) return false
-        if (nextShootObstacle(attacker, attacker.position, defender.position, attacker) === friend) return true
-        // _combatTestIncidentalHit(attacker, defender, friend, weapon)
-        return this.combatSafetyInvalidateWeapon(attacker, w, 'primary', defender, false, undefined, friend)
-    }
-
-    // CE combat_ai.cc _cai_perform_distance_prefs (sfall's snipe fix), ending with the
-    // friendly-fire sidestep (_cai_retargetTileFromFriendlyFire on the critter's tile).
-    private aiDistancePrefs(obj: Critter, target: Critter | null, then: () => void): boolean {
-        const AP = obj.AP!
-        if (AP.getAvailableCombatAP() <= 0) return false
-        const packet = obj.ai!.packet
-        const player = globalState.player
-        switch (packet.distance) {
-            case 'stay_close':
-                if (player && obj.whoHitMe !== player) {
-                    const d = hexDistance(obj.position, player.position)
-                    if (d > 5 && this.aiMoveStepsCloser(obj, player, d - 5, false, then)) return true
-                }
-                break
-            case 'charge':
-                if (target && this.aiMoveStepsCloser(obj, target, AP.getAvailableMoveAP(), true, then)) return true
-                break
-            case 'snipe': {
-                if (!target) break
-                const d = hexDistance(obj.position, target.position)
-                if (d >= 10) break
-                const wObj = obj.equippedWeapon
-                const attackCost = wObj?.weapon ? wObj.weapon.getAttackAPCost(obj, 1, false) : 3
-                const movementPoints = AP.getAvailableCombatAP() - attackCost
-                if (movementPoints > 0) {
-                    if (
-                        movementPoints + d - 1 < 5 &&
-                        this.combataiRating(obj) < this.combataiRating(target) &&
-                        this.aiMoveAway(obj, target, 10, false, then)
-                    )
-                        return true
-                } else if (this.aiMoveAway(obj, target, 10, false, then)) {
-                    return true
-                }
-                break
-            }
-        }
-        // _cai_retargetTileFromFriendlyFire on the current tile: step out of a stronger
-        // team-mate's line of fire.
-        const tile = this.retargetTileFromFriendlyFire(obj, target, obj.position)
-        if (tile.x !== obj.position.x || tile.y !== obj.position.y) {
-            if (obj.walkTo(tile, false, then, AP.getAvailableMoveAP())) {
-                if (AP.subtractMoveAP(obj.path.path.length - 1) === false) AP.combat = 0
-                return true
-            }
-        }
-        return false
-    }
-
-    // The tail of CE _combat_ai, step by step (each may start a move and re-enter):
-    //   1. a live target beyond max_dist: move away from a dead friend, or join a friend
-    //      within PER × 2 (_ai_find_friend), else disengage
-    //   2. no target (not a party member) but hit this combat by someone still alive: move
-    //      away from a dead friend, else run ("somebody is shooting at me")
-    //   3. away from a friend who died for no visible reason, until 10 hexes apart
-    //   4. no target: keep within reach of the team (party: by distance setting);
-    //      otherwise spend leftover AP on the distance preferences
-    private aiEndOfTurn(obj: Critter, st: AiTurnState, then: () => void): boolean {
-        const packet = obj.ai!.packet
-        const target = st.target
-        const AP = obj.AP!
-        const a = obj as any
-        const player = globalState.player
-        const party = !!globalState.gParty?.isPartyMember(obj)
-        const steps: (() => boolean)[] = [
-            () => {
-                if (
-                    !target ||
-                    target.dead ||
-                    AP.getAvailableCombatAP() === 0 ||
-                    hexDistance(obj.position, target.position) <= packet.maxDist
-                )
-                    return false
-                const fd: Critter | null = a.aiFriendlyDead ?? null
-                if (fd) {
-                    a.aiFriendlyDead = null
-                    return this.aiMoveAway(obj, fd, 10, false, then)
-                }
-                // CE _ai_find_friend(PER × 2, 5): a friend that near keeps it engaged; the
-                // "move closer" there never runs (its step count, distance − 5, is computed
-                // only when distance < 5)
-                const friend = this.nearestOfTeamExcept(obj)
-                const per = obj.getStat('PER')
-                if (!friend || hexDistance(obj.position, friend.position) > per * 2) a.disengaging = true
-                return false
-            },
-            () => {
-                if (target || party) return false
-                const who: Critter | null = a.whoHitMe ?? null
-                if (!who || who.dead || !(a.damageLastTurn > 0)) return false
-                const fd: Critter | null = a.aiFriendlyDead ?? null
-                if (fd) {
-                    a.aiFriendlyDead = null
-                    return this.aiMoveAway(obj, fd, 10, false, then)
-                }
-                dbg('ai', `[AI] ${actorName(obj)}: FLEEING: Somebody is shooting at me that I can't see!`)
-                return this.aiRunAway(obj, null, then)
-            },
-            () => {
-                const fd: Critter | null = a.aiFriendlyDead ?? null
-                if (!fd) return false
-                if (hexDistance(obj.position, fd.position) >= 10) {
-                    a.aiFriendlyDead = null
-                    return false
-                }
-                return this.aiMoveAway(obj, fd, 10, false, then)
-            },
-            () => {
-                let teammate: Critter | null = null
-                let maxTeammateDistance = 5
-                if (player && obj.teamNum === player.teamNum) {
-                    teammate = player
-                    if (party) {
-                        const PARTY_DISTANCES: { [d: string]: number } = {
-                            stay_close: 5,
-                            charge: 7,
-                            snipe: 7,
-                            on_your_own: 7,
-                            stay: 50000,
-                        }
-                        maxTeammateDistance = PARTY_DISTANCES[packet.distance] ?? 5
-                    }
-                } else {
-                    // CE _ai_find_nearest_team_in_combat: a combatant team-mate someone hit
-                    teammate = this.nearestOfTeamExcept(obj, true)
-                }
-                if (!target && teammate && hexDistance(obj.position, teammate.position) > maxTeammateDistance) {
-                    const d = hexDistance(obj.position, teammate.position)
-                    return this.aiMoveStepsCloser(obj, teammate, d - maxTeammateDistance, false, then)
-                }
-                if (AP.getAvailableCombatAP() > 0) return this.aiDistancePrefs(obj, target, then)
-                return false
-            },
-        ]
-        while (st.endStep < steps.length) {
-            const step = steps[st.endStep++]
-            if (step()) return true
-        }
-        return false
-    }
-
-    private nearestOfTeamExcept(obj: Critter, inCombat = false): Critter | null {
+    nearestOfTeamExcept(obj: Critter, inCombat = false): Critter | null {
         let best: Critter | null = null
         for (const c of this.combatants) {
             if (c === obj || c.dead || c.teamNum !== obj.teamNum) continue
@@ -3605,11 +892,11 @@ export class Combat {
     }
 
     static start(forceTurn?: Critter, gcsd?: CombatStartData, teamCombat?: [Critter, Critter]): void {
-        if (combatActive) {
+        if (combatState.combatActive) {
             combatDebug('ignoring Combat.start(): already active')
             return
         }
-        combatActive = true
+        combatState.combatActive = true
         // begin combat
         globalState.inCombat = true
         const player = globalState.player!
@@ -3695,8 +982,8 @@ export class Combat {
     // the saved order (critters no longer there drop out) and turn;
     // on the player's turn the saved AP carry on.
     static restore(data: SavedCombat): void {
-        if (combatActive) return
-        combatActive = true
+        if (combatState.combatActive) return
+        combatState.combatActive = true
         globalState.inCombat = true
         const c = new Combat(globalState.gMap!.getObjects())
         globalState.combat = c
@@ -3743,7 +1030,7 @@ export class Combat {
         eventLogPush({ actor: null, action: 'combat-end', result, message: 'Combat ended' })
         globalState.combat = null // todo: invert control
         globalState.inCombat = false
-        combatActive = false
+        combatState.combatActive = false
         this.dudeWakeUp()
 
         // CE ref: interface.cc:1455 interfaceBarEndButtonsHide — plays icibcxx1 when buttons close
@@ -3803,7 +1090,7 @@ export class Combat {
         // before a new combat can be started (prevents the map_update_p_proc
         // → attack_complex → Combat.start() re-entry loop).
         Promise.resolve().then(() => {
-            combatActive = false
+            combatState.combatActive = false
         })
     }
 
@@ -3991,17 +1278,6 @@ export class Combat {
         return true
     }
 
-    private beginAITurn(critter: Critter): void {
-        eventLogPush({
-            actor: actorName(critter),
-            action: 'turn-begin',
-            AP: critter.AP!.getAvailableMoveAP(),
-            HP: critter.getStat('HP'),
-            message: `${actorName(critter)}: turn begins`,
-        })
-        this.doAITurn(critter, this.whoseTurn, 1)
-    }
-
     /** CE ref: combat.cc:2669 _combat_update_critter_outline_for_los() — red
      *  outline for hostile combatants, green for same-team (including
      *  companions); CE assigns these purely by team comparison, not a perk.
@@ -4056,3 +1332,22 @@ export class Combat {
         }
     }
 }
+
+// Combat's methods kept in other files by topic (wiki/code_quality.md Q16): installed on the prototype
+// here, typed through the interface merge below. Import those files only through this module: it
+// must be loaded first, so that their objects exist when it installs them.
+type CombatMethods = typeof combatAttackMethods &
+    typeof combatDisplayMethods &
+    typeof combatProjectileMethods &
+    typeof combatAiTurnMethods &
+    typeof combatAiActionMethods
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type, @typescript-eslint/no-unsafe-declaration-merging
+export interface Combat extends CombatMethods {}
+installMethods(
+    Combat.prototype,
+    combatAttackMethods,
+    combatDisplayMethods,
+    combatProjectileMethods,
+    combatAiTurnMethods,
+    combatAiActionMethods,
+)

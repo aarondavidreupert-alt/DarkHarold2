@@ -22,7 +22,7 @@ DarkHarold2 is a semi-faithful browser recreation of Fallout 2, forked from the 
   Needs the extracted game data: local only, not in CI
 - `npm run smoke` / `npm run storycrawl` — headless game boot (page errors, `SMOKE_SYNC_XHR=1` counts blocking
   requests) and the story crawler on both backends (VM = Lua, `--compare` a saved run). Local only, like parity
-- `npm run format` (Prettier, checked in CI), `npm run cycles` (import cycles; CI: largest ≤ 73 modules)
+- `npm run format` (Prettier, checked in CI), `npm run cycles` (import cycles; CI: largest ≤ 78 modules; a split class's files count one by one)
 - CI (`.github/workflows/ci.yml`): build (0 errors, `strict`), import-cycle ratchet, Prettier, lint ratchet, `npm test`.
   Everything else (play testing, story crawler) is manual in the browser
 
