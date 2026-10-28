@@ -23,8 +23,13 @@ import { hexDistance, hexToScreen } from './geometry.js'
 import type { Obj } from './object.js'
 import { objectBoundingBox, SCREEN_HEIGHT, SCREEN_WIDTH, worldToScreen } from './renderer.js'
 
+// CE _gsound_compute_relative_volume measures from the owner of a carried item. An item's
+// position does not tell: every object starts at { x: -1, y: -1 } and a picked-up item keeps
+// its old map hex, so the ownership is checked first (only items can be carried).
 function carrier(obj: Obj): Obj {
-    if (obj.position) return obj
+    if (obj.type !== 'item') {
+        return obj
+    }
     const has = (c: any) =>
         c && (c.inventory?.includes(obj) || c.leftHand === obj || c.rightHand === obj || c.armor === obj)
     const player = globalState.player

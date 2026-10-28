@@ -27,7 +27,14 @@ export function returnToMainMenu(): void {
     } catch (_) {
         /* private mode: the movies play */
     }
-    location.reload()
+    // without the query string: play.html?<map> (and ?crawl=) would start that map again
+    // instead of the menu (init.ts reads the query first); the #hash options stay. With no
+    // query, a reload: a URL that only keeps its #hash would not load the page again.
+    if (location.search) {
+        location.replace(location.pathname + location.hash)
+    } else {
+        location.reload()
+    }
 }
 
 /** True when this page load comes from returnToMainMenu (without taking the flag). */
