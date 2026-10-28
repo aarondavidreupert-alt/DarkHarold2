@@ -15,7 +15,8 @@ limitations under the License.
 */
 
 import { getFileJSON, getFileText, parseIni } from './util.js'
-import globalState from './globalState.js'
+import { world } from './state/world.js'
+import { assets } from './state/assets.js'
 import { dbg } from './logger.js'
 import { Point } from './geometry.js'
 import { lookupInterfaceArt } from './pro.js'
@@ -145,11 +146,11 @@ function parseAreas(data: string): AreaMap {
 }
 
 export function areaContainingMap(mapName: string) {
-    if (!globalState.mapAreas) throw Error('globalState.mapAreas not loaded')
-    for (const area in globalState.mapAreas) {
-        const entrances = globalState.mapAreas[area].entrances
+    if (!world.mapAreas) throw Error('globalState.mapAreas not loaded')
+    for (const area in world.mapAreas) {
+        const entrances = world.mapAreas[area].entrances
         for (let i = 0; i < entrances.length; i++) {
-            if (entrances[i].mapName === mapName) return globalState.mapAreas[area]
+            if (entrances[i].mapName === mapName) return world.mapAreas[area]
         }
     }
     return null
@@ -210,8 +211,8 @@ export function parseMsgFile(src: string, fileName = ''): MsgEntry[] {
 export function loadMessage(name: string) {
     name = name.toLowerCase()
     const msg = getFileText('data/text/english/game/' + name + '.msg')
-    if (globalState.messageFiles[name] === undefined) globalState.messageFiles[name] = {}
-    for (const e of parseMsgFile(msg, name)) globalState.messageFiles[name][e.num] = e.text
+    if (assets.messageFiles[name] === undefined) assets.messageFiles[name] = {}
+    for (const e of parseMsgFile(msg, name)) assets.messageFiles[name][e.num] = e.text
 }
 
 function loadLst(lst: string): string[] {
@@ -396,10 +397,10 @@ export function mapDeadBodiesAge(mapName: string): boolean {
 
 // CE worldmap.cc wmMapCanRestHere
 export function mapCanRestHere(elevation: number): boolean {
-    const info = globalState.gMap?.name ? getMapInfo(globalState.gMap.name) : null
+    const info = world.gMap?.name ? getMapInfo(world.gMap.name) : null
     return info ? info.canRestHere[elevation] !== false : true
 }
 
 export function getCurrentMapInfo() {
-    return getMapInfo(globalState.gMap!.name!)
+    return getMapInfo(world.gMap!.name!)
 }

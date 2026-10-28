@@ -15,7 +15,7 @@ import { dbg, dbgWarn } from '../../logger.js'
 import { drawAC } from '../../hudRefresh.js'
 import { fromTileNum } from '../../tile.js'
 import { getMessage } from '../../util.js'
-import globalState from '../../globalState.js'
+import { world } from '../../state/world.js'
 import { itemDropAll, killCounts } from '../../critter.js'
 import { loadPRO, lookupArt, makePID } from '../../pro.js'
 import { returnToMainMenu } from '../../mainMenuReturn.js'
@@ -55,9 +55,8 @@ export const metaruleOpcodes = {
                 // _getPartyMemberCount: the dude plus every member that is a live, visible critter.
                 return (
                     1 +
-                    (globalState.gParty?.party ?? []).filter(
-                        (m) => m.type === 'critter' && !m.dead && m.visible !== false,
-                    ).length
+                    (world.gParty?.party ?? []).filter((m) => m.type === 'critter' && !m.dead && m.visible !== false)
+                        .length
                 )
             case 17: // METARULE_AREA_KNOWN — CE wmAreaVisitedState
                 return Worldmap.areaVisitedState(target)
@@ -77,9 +76,9 @@ export const metaruleOpcodes = {
                 // CE ref: interpreter_extra.cc:3228 METARULE_MAP_KNOWN → worldmap.cc wmMapIsKnown:
                 // the first entrance to that map (maps.txt index) decides — its state == 1
                 const mapName = typeof target === 'number' && target >= 0 ? lookupMapName(target) : null
-                if (!mapName || !globalState.mapAreas) return 0
-                for (const key of Object.keys(globalState.mapAreas)) {
-                    const e = globalState.mapAreas[key].entrances.find(
+                if (!mapName || !world.mapAreas) return 0
+                for (const key of Object.keys(world.mapAreas)) {
+                    const e = world.mapAreas[key].entrances.find(
                         (x: any) => (x.mapName ?? '').toLowerCase() === mapName.toLowerCase(),
                     )
                     if (e) return e.state ? 1 : 0
@@ -93,7 +92,7 @@ export const metaruleOpcodes = {
                 // itemDropAll: everything (hands and armor too) onto the critter's
                 // tile, no scripts run; the dude's interface items refresh.
                 const dropTarget = target as any
-                if (!isGameObject(dropTarget) || dropTarget.type !== 'critter' || !globalState.gMap) return 0
+                if (!isGameObject(dropTarget) || dropTarget.type !== 'critter' || !world.gMap) return 0
                 itemDropAll(dropTarget as Critter)
                 if ((dropTarget as Critter).isPlayer) {
                     uiDrawWeapon()
@@ -106,7 +105,7 @@ export const metaruleOpcodes = {
                 // moves the active-hand weapon back to inventory (unwield)
                 const unObj = target as any
                 if (!isGameObject(unObj)) return 0
-                const isPlayer = unObj === globalState.player
+                const isPlayer = unObj === world.player
                 const handKey: 'leftHand' | 'rightHand' = isPlayer
                     ? ((unObj.activeHand as 'leftHand' | 'rightHand') ?? 'rightHand')
                     : 'rightHand'
@@ -120,8 +119,8 @@ export const metaruleOpcodes = {
             case 40: {
                 // CE ref: interpreter_extra.cc:3243 METARULE_SKILL_CHECK_TAG
                 const skillName = SKILL_NAMES[target as number]
-                if (!skillName || !globalState.player) return 0
-                return globalState.player.skills.isTagged(skillName) ? 1 : 0
+                if (!skillName || !world.player) return 0
+                return world.player.skills.isTagged(skillName) ? 1 : 0
             }
             case 44: {
                 // CE ref: interpreter_extra.cc:3280 METARULE_GET_WORLDMAP_XPOS
@@ -190,7 +189,7 @@ export const metaruleOpcodes = {
                 }
                 Worldmap.setIsInCar(true)
                 Worldmap.updateCarUI()
-                const outOfGas = globalState.mapAreas?.[21] // CITY_CAR_OUT_OF_GAS
+                const outOfGas = world.mapAreas?.[21] // CITY_CAR_OUT_OF_GAS
                 if (outOfGas) {
                     Worldmap.setAreaVisible(21, false)
                     outOfGas.visitedState = 0
@@ -272,7 +271,7 @@ export const metaruleOpcodes = {
                 const previous = radius as any
                 log('metarule3 106 (tile_get_next_critter)', [id, obj, userdata, radius])
                 let found = !previous
-                for (const o of globalState.gMap!.getObjects(userdata as number)) {
+                for (const o of world.gMap!.getObjects(userdata as number)) {
                     if (o.position?.x !== p.x || o.position?.y !== p.y) continue
                     if (o.type === 'critter' && found) return o
                     if (o === previous) found = true
@@ -312,7 +311,7 @@ export const metaruleOpcodes = {
             case 111: {
                 // METARULE3_111 (_map_target_load_area) — CE ref: map.cc:1202.
                 // Returns the worldmap area index containing the current map, or -1.
-                const mapName = lookupMapName(globalState.gMap!.mapID)
+                const mapName = lookupMapName(world.gMap!.mapID)
                 const area = mapName ? areaContainingMap(mapName) : null
                 return area ? area.id : -1
             }

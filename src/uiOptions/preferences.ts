@@ -19,7 +19,7 @@ limitations under the License.
 // "Per-file split proposals" §24.
 
 import { Config } from '../config.js'
-import globalState from '../globalState.js'
+import { services } from '../state/services.js'
 
 export interface SavedPreferences {
     gameDifficultyModifier?: 75 | 100 | 125
@@ -93,17 +93,17 @@ export function applyPreferences(prefs: SavedPreferences): void {
     applyBrightness()
 
     // Audio volumes — applied after audioEngine may be set
-    if (globalState.audioEngine) {
-        if (prefs.masterVolume !== undefined) globalState.audioEngine.setVolume('master', prefs.masterVolume)
-        if (prefs.musicVolume !== undefined) globalState.audioEngine.setVolume('music', prefs.musicVolume)
-        if (prefs.sfxVolume !== undefined) globalState.audioEngine.setVolume('sfx', prefs.sfxVolume)
-        if (prefs.speechVolume !== undefined) globalState.audioEngine.setVolume('speech', prefs.speechVolume)
+    if (services.audioEngine) {
+        if (prefs.masterVolume !== undefined) services.audioEngine.setVolume('master', prefs.masterVolume)
+        if (prefs.musicVolume !== undefined) services.audioEngine.setVolume('music', prefs.musicVolume)
+        if (prefs.sfxVolume !== undefined) services.audioEngine.setVolume('sfx', prefs.sfxVolume)
+        if (prefs.speechVolume !== undefined) services.audioEngine.setVolume('speech', prefs.speechVolume)
     }
 }
 
 /** Returns the raw 0–100 volume value for the given channel. */
 export function getVolumeValue(channel: 'master' | 'music' | 'sfx' | 'speech'): number {
-    const eng = globalState.audioEngine
+    const eng = services.audioEngine
     if (!eng || !('masterVolume' in eng)) return 100
     const he = eng as unknown as { masterVolume: number; musicVolume: number; sfxVolume: number; speechVolume: number }
     if (channel === 'master') return Math.round(he.masterVolume * 100)
@@ -123,7 +123,7 @@ export function savePreferences(): void {
 /** The preferences as they are now (CE preferences.cc preferencesSave writes these into
  *  every save game, handler 17 of loadsave.cc). */
 export function currentPreferences(): SavedPreferences {
-    const eng = globalState.audioEngine
+    const eng = services.audioEngine
     const hasVol = eng && 'masterVolume' in eng
     const he = hasVol ? (eng as unknown as { masterVolume: number; musicVolume: number; sfxVolume: number }) : null
 

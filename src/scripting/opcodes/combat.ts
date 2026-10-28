@@ -8,7 +8,7 @@ import { Config } from '../../config.js'
 import { Critter, Obj } from '../../object.js'
 import * as SfallArrays from '../../sfallArrays.js'
 import * as SfallHooks from '../../sfallHooks.js'
-import globalState from '../../globalState.js'
+import { world } from '../../state/world.js'
 import { info, isGameObject, log, requestScript, scriptingState } from '../../scripting.js'
 
 export const combatOpcodes = {
@@ -34,7 +34,7 @@ export const combatOpcodes = {
         const inactive = (c: Critter) => c.dead || (c.injuryFlags & 0x01) !== 0 || c.visible === false
         if (inactive(initiator) || inactive(target)) return
         if (target.fleeing) return
-        if (isCombatActive() || globalState.combat) {
+        if (isCombatActive() || world.combat) {
             // In combat: the attacker engages the target.
             if (!initiator.hostile && !initiator.isPlayer) {
                 initiator.hostile = true
@@ -66,7 +66,7 @@ export const combatOpcodes = {
     },
     terminate_combat(this: Script) {
         info('[terminate_combat]')
-        if (globalState.combat) globalState.combat.forceEnd()
+        if (world.combat) world.combat.forceEnd()
     },
     // CE opAttackSetup (0x8143) — attacker engages defender (starts combat if needed).
     attack_setup(this: Script, attacker: Obj, defender: Obj) {
@@ -76,7 +76,7 @@ export const combatOpcodes = {
         if (a.dead || a.visible === false) return
         if (d.dead || d.visible === false) return
         if ((d as any).isFleeing) return // CRITTER_MANUEVER_FLEEING
-        if (globalState.inCombat) {
+        if (world.inCombat) {
             // in combat: ENGAGING with the defender as who hit it (unless already engaging)
             if (!a.engaging) {
                 a.engaging = true
@@ -105,25 +105,25 @@ export const combatOpcodes = {
     // party
     party_member_obj(this: Script, pid: number) {
         log('party_member_obj', [pid], 'party')
-        return globalState.gParty.getPartyMemberByPID(pid) || 0
+        return world.gParty.getPartyMemberByPID(pid) || 0
     },
     party_add(this: Script, obj: Critter) {
         log('party_add', [obj])
-        globalState.gParty.addPartyMember(obj)
+        world.gParty.addPartyMember(obj)
         if (scriptingState.currentDialogueObject) SfallHooks.gameModeSpecial(true) // sfall: joins in dialogue
     },
     party_remove(this: Script, obj: Critter) {
         // CE ref: interpreter_extra.cc:3956 — silently no-ops when obj isn't a
         // party member (dismissal dialogue hook).
         log('party_remove', [obj])
-        globalState.gParty.dismissPartyMember(obj)
+        world.gParty.dismissPartyMember(obj)
         if (scriptingState.currentDialogueObject) SfallHooks.gameModeSpecial(true) // sfall: leaves in dialogue
     },
     // CE opPartyMemberList (0x8271): a temporary array of the party (party_member.cc
     // get_all_party_members_objects: the dude first; without include_hidden only
     // living, visible critters)
     party_member_list(this: Script, includeHidden: number) {
-        const members = [globalState.player, ...(globalState.gParty?.getPartyMembers() ?? [])].filter(
+        const members = [world.player, ...(world.gParty?.getPartyMembers() ?? [])].filter(
             (o: any) => o && (includeHidden || (o.type === 'critter' && !o.dead && o.visible !== false)),
         )
         return SfallArrays.arrayFromObjects(members as object[])

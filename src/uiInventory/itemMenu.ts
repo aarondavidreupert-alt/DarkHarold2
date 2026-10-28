@@ -17,7 +17,7 @@ limitations under the License.
 // CE inventory.cc inventoryWindowOpenContextMenu: the item action menu of the inventory,
 // loot (and steal) and trade windows — which actions an item gets, and the menu itself.
 
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
 import { Obj, createObjectWithPID } from '../object.js'
 import { objExamine } from '../examine.js'
 import { uiLog } from '../messageLog.js'
@@ -61,7 +61,7 @@ export function itemMenuActions(item: Obj, normal: boolean, ownerIsDude: boolean
 /** CE GAME_MOUSE_ACTION_MENU_ITEM_LOOK outside the inventory window: _obj_examine_func to
  *  the message window */
 export function examineToLog(item: Obj): void {
-    const player = globalState.player
+    const player = world.player
     if (!player) return
     for (const line of objExamine(player, item)) uiLog(line)
 }

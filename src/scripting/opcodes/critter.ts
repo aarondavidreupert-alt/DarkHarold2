@@ -14,7 +14,7 @@ import { SKILL_NAMES } from '../../skills.js'
 import { critterAdjustRadiation } from '../../radiation.js'
 import { dbg, dbgWarn } from '../../logger.js'
 import { fromTileNum } from '../../tile.js'
-import globalState from '../../globalState.js'
+import { world } from '../../state/world.js'
 import { isWithinPerception } from '../../perception.js'
 import { skillRoll } from '../../skillUse.js'
 import { uiDrawWeapon } from '../../hudRefresh.js'
@@ -49,7 +49,7 @@ export const critterOpcodes = {
             // STAT_ARMOR_CLASS — CE stat.cc critterGetStat: base + bonus (the worn armor's
             // AC, _adjust_ac) + in combat the unused AP while it isn't the critter's turn
             // (Combat.unusedApAC, HtH Evade included).
-            return obj.getStat('AC') + obj.getArmorAC() + (globalState.combat?.unusedApAC(obj as Critter) ?? 0)
+            return obj.getStat('AC') + obj.getArmorAC() + (world.combat?.unusedApAC(obj as Critter) ?? 0)
         }
         if (stat === 10) {
             // STAT_UNARMED_DAMAGE — CE ref: stat.cc critterStatBaseGetter (default 0 bonus)
@@ -188,7 +188,7 @@ export const critterOpcodes = {
             ]
             const traitName = TRAIT_NAMES[trait]
             if (!traitName) return 0
-            return globalState.player?.traits?.includes(traitName) ? 1 : 0
+            return world.player?.traits?.includes(traitName) ? 1 : 0
         }
 
         dbgWarn('script', `has_trait: unknown traitType ${traitType}`)
@@ -224,7 +224,7 @@ export const critterOpcodes = {
                     // game loads; then combat_ai.cc critterSetTeam — who hit it is forgotten if
                     // now on that team, and so is its last target
                     const c = <Critter>obj
-                    if (globalState.gParty?.isPartyMember(c) || c.teamNum === amount || loadingGame) return
+                    if (world.gParty?.isPartyMember(c) || c.teamNum === amount || loadingGame) return
                     c.teamNum = amount
                     const who = c.whoHitMe
                     if (who && who.teamNum === amount) (c as any).whoHitMe = null
@@ -376,10 +376,10 @@ export const critterOpcodes = {
     critter_attempt_placement(this: Script, obj: Obj, tileNum: number, elevation: number) {
         // CE opCritterAttemptPlacement: the critter leaves its tile (tile 0) first, then
         // proto_instance.cc _obj_attempt_placement(critter, tile, elevation, 1)
-        if (!isGameObject(obj) || !globalState.gMap) return -1
+        if (!isGameObject(obj) || !world.gMap) return -1
         if (tileNum === -1) return -1
         obj.position = fromTileNum(0)
-        const placed = globalState.gMap.attemptPlacement(tileNum, elevation, 1)
+        const placed = world.gMap.attemptPlacement(tileNum, elevation, 1)
         this.move_to(obj, placed, elevation)
         return 0
     },
@@ -418,7 +418,7 @@ export const critterOpcodes = {
         const FT_LIST = [62, 51, 52, 53, 63, 62, 54, 56, 59, 62, 63]
         let ft = 0
         let count = 0
-        for (const obj of globalState.gMap!.getObjects().slice()) {
+        for (const obj of world.gMap!.getObjects().slice()) {
             if (obj.type !== 'critter' || obj.pid !== pid || (obj as Critter).dead || obj.visible === false) continue
             if (++count > 200) {
                 warn('kill_critter_type: infinite loop destroying critters!')
@@ -426,7 +426,7 @@ export const critterOpcodes = {
             }
             const c = obj as Critter
             if (deathFrame === 0) {
-                globalState.gMap!.destroyObject(c)
+                world.gMap!.destroyObject(c)
             } else {
                 // CE _combat_delete_critter: critterKill below drops it from combat via its dead flag.
                 let frame: number
@@ -451,15 +451,15 @@ export const critterOpcodes = {
         // FO2-CE ref: stat.cc pcGetStat() — PCSTAT constants from stat_defs.h
         switch (pcstat) {
             case 0: // PCSTAT_unspent_skill_points
-                return globalState.player?.skills?.skillPoints ?? 0
+                return world.player?.skills?.skillPoints ?? 0
             case 1: // PCSTAT_level
-                return globalState.player?.getStat('Level') ?? 1
+                return world.player?.getStat('Level') ?? 1
             case 2: // PCSTAT_experience
-                return globalState.player?.getStat('Experience') ?? 0
+                return world.player?.getStat('Experience') ?? 0
             case 3: // PCSTAT_reputation
-                return globalState.player?.stats.getBase('Reputation') ?? 0
+                return world.player?.stats.getBase('Reputation') ?? 0
             case 4: // PCSTAT_karma
-                return globalState.player?.stats.getBase('Karma') ?? 0
+                return world.player?.stats.getBase('Karma') ?? 0
             case 5: // PCSTAT_max_pc_stat (sentinel, always 5)
                 return 5
             default:
@@ -468,7 +468,7 @@ export const critterOpcodes = {
     },
     set_pc_stat(this: Script, pcstat: number, value: number) {
         // FO2-CE ref: stat.cc pcSetStat()
-        const p = globalState.player
+        const p = world.player
         if (!p) return -1
         switch (pcstat) {
             case 0: // PCSTAT_unspent_skill_points
@@ -504,7 +504,7 @@ export const critterOpcodes = {
     },
     mod_pc_stat(this: Script, pcstat: number, delta: number) {
         // FO2-CE ref: scripts.cc opModifyPcStat()
-        const p = globalState.player
+        const p = world.player
         if (!p) return -1
         switch (pcstat) {
             case 0: // PCSTAT_unspent_skill_points

@@ -20,7 +20,9 @@ limitations under the License.
 // the main menu. The editor's CANCEL comes back here.
 
 import { SkillSet, StatSet } from './char.js'
-import globalState from './globalState.js'
+import { world } from './state/world.js'
+import { uiState } from './state/uiState.js'
+import { services } from './state/services.js'
 import { dbg } from './logger.js'
 import { loadPremade, loadPremadeBio, PREMADE_CHARACTERS, PremadeCharacter } from './premade.js'
 import { CreatorInitialState, showCharacterCreator, STATS } from './uiCharacter.js'
@@ -49,7 +51,7 @@ export function initCharacterSelector(startCb: () => void, backCb: () => void): 
     onBack = backCb
 }
 
-const sfx = (name: string) => globalState.audioEngine?.playSfxByName?.(name)
+const sfx = (name: string) => services.audioEngine?.playSfxByName?.(name)
 
 function button(
     frame: HTMLElement,
@@ -167,7 +169,7 @@ function onKey(e: KeyboardEvent): void {
 // the editor keeps the premade that was shown.
 export function showCharacterSelector(fromMainMenu = true): void {
     if (!overlay) build()
-    globalState.uiMode = UIMode.characterCreator
+    uiState.uiMode = UIMode.characterCreator
     overlay!.style.display = 'block'
     if (fromMainMenu) current = 0
     refresh()
@@ -192,7 +194,7 @@ function refresh(): void {
 }
 
 function applyToPlayer(p: PremadeCharacter): void {
-    const player = globalState.player!
+    const player = world.player!
     const stats = new StatSet()
     for (const s of STATS) stats.setBase(s, p.special[s])
     const skills = new SkillSet()
@@ -218,7 +220,7 @@ function drawPage(face: HTMLImageElement | null): void {
     ctx.clearRect(0, 0, W, H)
     // Face — characterSelectorWindowRenderFace, blitted at (27, 23).
     if (face) ctx.drawImage(face, 27, 23)
-    const player = globalState.player!
+    const player = world.player!
     const lineH = font1.renderCanvas('Ag', COLOR).height
 
     const text = (s: string, x: number, y: number, align: 'left' | 'right' | 'center' = 'left') => {
@@ -275,7 +277,7 @@ function drawPage(face: HTMLImageElement | null): void {
 
 function take(): void {
     hide()
-    globalState.uiMode = UIMode.none
+    uiState.uiMode = UIMode.none
     onStart?.()
 }
 
@@ -299,10 +301,10 @@ function create(): void {
 
 function openEditor(initial: CreatorInitialState | undefined): void {
     hide()
-    globalState.uiMode = UIMode.characterCreator
+    uiState.uiMode = UIMode.characterCreator
     showCharacterCreator(
         () => {
-            globalState.uiMode = UIMode.none
+            uiState.uiMode = UIMode.none
             onStart?.()
         },
         () => showCharacterSelector(false),
@@ -312,6 +314,6 @@ function openEditor(initial: CreatorInitialState | undefined): void {
 
 function back(): void {
     hide()
-    globalState.uiMode = UIMode.none
+    uiState.uiMode = UIMode.none
     onBack?.()
 }

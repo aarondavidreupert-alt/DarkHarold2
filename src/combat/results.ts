@@ -18,7 +18,7 @@ limitations under the License.
 // bits of obj_types.h). DH2 keeps them in Critter.injuryFlags; the cripple / blind
 // booleans on Critter read and write the same bits.
 
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
 import * as Scripting from '../scripting.js'
 import { randomBetween } from '../random.js'
 import type { Critter } from '../object/Critter.js'
@@ -140,7 +140,7 @@ export function scheduleKnockoutEvent(c: Critter, ticks: number): void {
 export function knockoutEventProcess(c: Critter): void {
     if ((results(c) & DAM_DEAD) !== 0 || c.dead) return
     c.injuryFlags = ((results(c) & ~(DAM_KNOCKED_OUT | DAM_KNOCKED_DOWN)) | DAM_KNOCKED_DOWN) >>> 0
-    if (!globalState.inCombat) dudeStandup(c)
+    if (!world.inCombat) dudeStandup(c)
 }
 
 // CE animation.cc _dude_standup: ANIM_BACK_TO_STANDING ('getUpFront', cj) after

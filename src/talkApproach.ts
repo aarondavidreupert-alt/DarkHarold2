@@ -20,7 +20,7 @@ limitations under the License.
 // else runs up to it (animationRegisterRunToObject).
 
 import { Config } from './config.js'
-import globalState from './globalState.js'
+import { world } from './state/world.js'
 import { hexDistance } from './geometry.js'
 import { combatIsShotBlocked } from './combat/lineOfFire.js'
 import type { Critter, Obj } from './object.js'
@@ -41,7 +41,7 @@ function canTalkTo(player: Critter, target: Obj): boolean {
 }
 
 export function approachToTalk(player: Critter, target: Obj, talk: () => void): void {
-    if (Config.engine.talkMode === 'ce' && !globalState.inCombat) {
+    if (Config.engine.talkMode === 'ce' && !world.inCombat) {
         const near = hexDistance(player.position, target.position) < 9
         if (near && !combatIsShotBlocked(player, player.position, target.position, target).blocked) {
             talk()

@@ -18,7 +18,7 @@ limitations under the License.
 // sfxBuildOpenName / sfxBuildCharName, plus the human-critter fallback of
 // gameSoundPlayFile (game_sound.cc:1115).
 
-import globalState from './globalState.js'
+import { services } from './state/services.js'
 import { dbg } from './logger.js'
 import type { Obj } from './object.js'
 import { artGetCode } from './pro.js'
@@ -94,7 +94,7 @@ export function critterWeaponCode(critter: Obj): number {
 // HMXXXX<code> for female critters. CE game_sound.cc:1161: the Lieutenant and the second
 // mutant (MALIEU… / MAMTN2…) fall back to the generic mutant's MAMTNT….
 export function playCharSfx(critter: Obj, name: string | null): void {
-    const audio = globalState.audioEngine
+    const audio = services.audioEngine
     if (!audio || !name) return
     const candidates = [name]
     if (critter.type === 'critter' && (name[0] === 'H' || name[0] === 'N')) {
@@ -114,7 +114,7 @@ export function playCharSfx(critter: Obj, name: string | null): void {
 
 // Scenery/container action sound by CE name (no fallback in CE).
 export function playOpenSfx(obj: Obj, action: number): void {
-    const audio = globalState.audioEngine
+    const audio = services.audioEngine
     if (!audio) return
     const name = sfxBuildOpenName(obj, action)
     const ok = audio.hasSfx(name)

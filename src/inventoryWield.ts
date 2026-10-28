@@ -13,7 +13,7 @@ import { applyArmorArt } from './uiInventory/dragdrop.js'
 import { drawAC, uiDrawWeapon } from './hudRefresh.js'
 import { updateHandFlareLight } from './object.js'
 import { ANIM, critterWeaponCode, playCharAnimSfx } from './sfxNames.js'
-import globalState from './globalState.js'
+import { uiState } from './state/uiState.js'
 import { UIMode } from './uiMode.js'
 
 const OBJECT_IN_LEFT_HAND = 0x1000000
@@ -87,7 +87,7 @@ export function invenWield(c: Critter, item: Obj, hand: Hand, animate = false): 
 
 // CE isoIsDisabled: no window over the map
 function mapShowing(): boolean {
-    return globalState.uiMode === UIMode.none
+    return uiState.uiMode === UIMode.none
 }
 
 /** CE _invenWieldFunc(animate) for a turn that waits (the AI's weapon switch): ANIM_PUT_AWAY of

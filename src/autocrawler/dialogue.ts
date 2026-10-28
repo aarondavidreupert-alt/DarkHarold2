@@ -3,6 +3,8 @@
 import { isCombatActive } from '../combat.js'
 import { Config } from '../config.js'
 import globalState from '../globalState.js'
+import { world } from '../state/world.js'
+import { uiState } from '../state/uiState.js'
 import { Critter } from '../object.js'
 import * as Scripting from '../scripting.js'
 import { toTileNum } from '../tile.js'
@@ -62,9 +64,9 @@ async function crawlOneNpc(npc: Critter): Promise<DialogueNpcResult> {
     }
 
     // Immediately check whether the talk proc triggered combat (rare but possible).
-    if (globalState.inCombat) {
+    if (world.inCombat) {
         result.status = 'combat-triggered'
-        globalState.combat?.forceEnd()
+        world.combat?.forceEnd()
         await waitFor(() => !isCombatActive(), COMBAT_ACTIVE_TIMEOUT_MS)
         result.durationMs = performance.now() - t0
         return result
@@ -81,8 +83,8 @@ async function crawlOneNpc(npc: Critter): Promise<DialogueNpcResult> {
     while (performance.now() < openDeadline) {
         stepEngine()
         await new Promise<void>((r) => setTimeout(r, DIALOGUE_POLL_MS))
-        const mode = globalState.uiMode
-        if (mode === UIMode.dialogue || globalState.inCombat) {
+        const mode = uiState.uiMode
+        if (mode === UIMode.dialogue || world.inCombat) {
             dialogueOpened = true
             break
         }
@@ -98,9 +100,9 @@ async function crawlOneNpc(npc: Critter): Promise<DialogueNpcResult> {
         return result
     }
 
-    if (globalState.inCombat) {
+    if (world.inCombat) {
         result.status = 'combat-triggered'
-        globalState.combat?.forceEnd()
+        world.combat?.forceEnd()
         await waitFor(() => !isCombatActive(), COMBAT_ACTIVE_TIMEOUT_MS)
         result.durationMs = performance.now() - t0
         return result
@@ -113,7 +115,7 @@ async function crawlOneNpc(npc: Critter): Promise<DialogueNpcResult> {
     // exits cleanly instead of cycling until MAX_DIALOGUE_CLICKS.
     let clicks = 0
     const visitedPerState = new Map<string, Set<string>>()
-    let loopMode: UIMode = globalState.uiMode
+    let loopMode: UIMode = uiState.uiMode
     while (loopMode === UIMode.dialogue && clicks < MAX_DIALOGUE_CLICKS) {
         const reply = getReplyText()
         if (reply && !result.replies.includes(reply)) result.replies.push(reply)
@@ -168,15 +170,15 @@ async function crawlOneNpc(npc: Critter): Promise<DialogueNpcResult> {
         // Yield so deferred async work (transitions, animation callbacks) can settle.
         await new Promise<void>((r) => setTimeout(r, 0))
 
-        if (globalState.inCombat) {
+        if (world.inCombat) {
             result.status = 'combat-triggered'
-            globalState.combat?.forceEnd()
+            world.combat?.forceEnd()
             await waitFor(() => !isCombatActive(), COMBAT_ACTIVE_TIMEOUT_MS)
             break
         }
 
         // Re-read after yielding — TypeScript would narrow the old variable.
-        loopMode = globalState.uiMode
+        loopMode = uiState.uiMode
 
         // Barter mode is a valid terminal state — dismiss and stop.
         if (loopMode === UIMode.barter) {
@@ -186,25 +188,25 @@ async function crawlOneNpc(npc: Critter): Promise<DialogueNpcResult> {
         }
     }
 
-    if (clicks >= MAX_DIALOGUE_CLICKS && globalState.uiMode === UIMode.dialogue) {
+    if (clicks >= MAX_DIALOGUE_CLICKS && uiState.uiMode === UIMode.dialogue) {
         result.status = 'stuck-max-clicks'
         try {
             Scripting.dialogueEnd()
         } catch {
             /* best-effort cleanup */
         }
-        await waitFor(() => globalState.uiMode === UIMode.none, 2000)
+        await waitFor(() => uiState.uiMode === UIMode.none, 2000)
     }
 
     // Final sanity: uiMode must be none after a successful run.
-    if (result.status === 'ok' && globalState.uiMode !== UIMode.none) {
+    if (result.status === 'ok' && uiState.uiMode !== UIMode.none) {
         result.status = 'stuck-no-exit'
         try {
             Scripting.dialogueEnd()
         } catch {
             /* best-effort cleanup */
         }
-        await waitFor(() => globalState.uiMode === UIMode.none, 2000)
+        await waitFor(() => uiState.uiMode === UIMode.none, 2000)
     }
 
     result.durationMs = performance.now() - t0
@@ -216,14 +218,14 @@ export async function runDialogueCrawler(mapName?: string): Promise<CrawlerRepor
         console.error('[AutoCrawler] Config.engine.debug must be true')
         return null
     }
-    if (!globalState.gMap || !globalState.player) {
+    if (!world.gMap || !world.player) {
         console.error('[AutoCrawler] No active map/player — start a game first')
         return null
     }
 
     if (mapName) {
         console.log(`[AutoCrawler] Loading map: ${mapName}`)
-        globalState.gMap.loadMap(mapName)
+        world.gMap.loadMap(mapName)
         if (!(await waitFor(() => !globalState.isLoading, 30000))) {
             console.error('[AutoCrawler] Map load timed out — aborting')
             return null
@@ -231,7 +233,7 @@ export async function runDialogueCrawler(mapName?: string): Promise<CrawlerRepor
     }
 
     const npcs = listTalkableNPCs()
-    const mapLabel = globalState.gMap.name ?? 'unknown'
+    const mapLabel = world.gMap.name ?? 'unknown'
     console.log(`[AutoCrawler] Dialogue crawl on "${mapLabel}": ${npcs.length} talkable NPC(s)`)
 
     // Silence noisy logs for the duration of the crawl.

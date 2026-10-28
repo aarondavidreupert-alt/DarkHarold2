@@ -21,7 +21,8 @@ limitations under the License.
 // Shown as canvases in a DOM layer over the game canvas.
 
 import { Point } from './geometry.js'
-import globalState from './globalState.js'
+import { world } from './state/world.js'
+import { uiState } from './state/uiState.js'
 import { font1, font3 } from './uiFont.js'
 import type { FontRenderer } from './ui/fontCore.js'
 
@@ -32,7 +33,7 @@ const TEXT_OBJECTS_MAX_COUNT = 20
 // owner replaces its old one (textObjectsRemoveByOwner); the text stays on the tile the
 // owner stood on (no owner: the centre tile, unbounded). False when not added.
 export function addFloatMessage(fm: any): boolean {
-    const list = globalState.floatMessages as any[]
+    const list = uiState.floatMessages as any[]
     if (list.length >= TEXT_OBJECTS_MAX_COUNT) return false
     if (!fm.msg) return false
     for (let i = list.length - 1; i >= 0; i--) if (list[i].obj === fm.obj) list.splice(i, 1)
@@ -43,7 +44,7 @@ export function addFloatMessage(fm: any): boolean {
 
 // CE text_object.cc textObjectsReset: every floating text goes (a dialogue starts)
 export function resetFloatMessages(): void {
-    ;(globalState.floatMessages as any[]).length = 0
+    ;(uiState.floatMessages as any[]).length = 0
 }
 
 // CE float_msg colours (interpreter_extra.cc opFloatMessage, FLOATING_MESSAGE_TYPE_*),
@@ -256,9 +257,9 @@ function findPlacement(
 export function updateFloatText(tileScreen: (tile: Point) => Point, z: number, viewW: number, viewH: number): void {
     const live = new Set<object>()
     const parent = ensureLayer()
-    for (const fm of globalState.floatMessages as any[]) {
+    for (const fm of uiState.floatMessages as any[]) {
         let c = canvases.get(fm)
-        const tile: Point = fm.tile ?? globalState.centerTile
+        const tile: Point = fm.tile ?? world.centerTile
         const ts = tileScreen(tile)
         if (!c) {
             const built = buildCanvas(

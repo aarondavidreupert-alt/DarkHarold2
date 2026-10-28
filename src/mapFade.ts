@@ -25,6 +25,7 @@ limitations under the License.
 // more and a few frames have been drawn, then fades in.
 
 import globalState from './globalState.js'
+import { assets } from './state/assets.js'
 import { heart } from './heart.js'
 import * as Events from './events.js'
 
@@ -38,7 +39,7 @@ let token = 0
 function busy(): boolean {
     return (
         globalState.isLoading ||
-        Object.values(globalState.lazyAssetLoadingQueue ?? {}).some((v) => v !== undefined) ||
+        Object.values(assets.lazyAssetLoadingQueue ?? {}).some((v) => v !== undefined) ||
         (heart._imagesLoading?.length ?? 0) > 0
     )
 }

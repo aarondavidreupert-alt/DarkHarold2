@@ -30,12 +30,13 @@ import { getMessage } from './util.js'
 
 // CE mainmenu.cc main_menu_play_sound: nmselec0 on a button press, nmselec1 on a choice
 function menuSound(name: string): void {
-    globalState.audioEngine?.playSfxByName?.(name)
+    services.audioEngine?.playSfxByName?.(name)
 }
 // _colorTable[21091] (palette 60), the menu's text colour
 const MENU_TEXT = '#b89c28'
 import { uiSaveLoad } from './uiSaveLoad.js'
-import globalState from './globalState.js'
+import { uiState } from './state/uiState.js'
+import { services } from './state/services.js'
 import { UIMode } from './uiMode.js'
 import { assetUrl } from './modAssets.js'
 
@@ -280,16 +281,16 @@ export function showMainMenu(): void {
     if (!overlayElem) return
     gameMovieFadeOut() // the menu fades in its own palette (after IPLOGO's FADE_IN)
     overlayElem.style.display = 'block'
-    globalState.uiMode = UIMode.mainMenu
+    uiState.uiMode = UIMode.mainMenu
     // CE main.cc main menu loop: _gsound_background_play_level_music("07desert") each time
     // the menu shows (a new game or a load replaces it with the map's music)
-    globalState.audioEngine.playMusic('07desert')
+    services.audioEngine.playMusic('07desert')
 }
 
 export function hideMainMenu(): void {
     if (!overlayElem) return
     overlayElem.style.display = 'none'
-    globalState.uiMode = UIMode.none
+    uiState.uiMode = UIMode.none
 }
 
 export function isMainMenuVisible(): boolean {

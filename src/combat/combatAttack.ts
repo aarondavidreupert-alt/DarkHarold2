@@ -46,7 +46,8 @@ import { critterSetWhoHitMe, noteHit } from './whoHitMe.js'
 import { dbg, eventLogPush } from '../logger.js'
 import { drawHP, uiDrawWeapon } from '../hudRefresh.js'
 import { explosionRingCritters } from './explosion.js'
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
+import { services } from '../state/services.js'
 import { lazyLoadImage } from '../images.js'
 import { makePID } from '../pro.js'
 import { randomBetween } from '../random.js'
@@ -277,7 +278,7 @@ export const combatAttackMethods = {
         const attacker = a.attacker
         a.attackerFlags &= ~DAM_HIT
         if ((attacker.pro?.extra?.flags ?? 0) & CRITTER_INVULNERABLE) return
-        if (attacker.isPlayer && Math.floor((globalState.gameTickTime ?? 0) / GameTime.TICKS_PER_DAY) < 6) return
+        if (attacker.isPlayer && Math.floor((world.gameTickTime ?? 0) / GameTime.TICKS_PER_DAY) < 6) return
         const attackType = attackTypeOf(a.weapon)
         const typeIndex = weaponCriticalFailureType(a.weapon)
         const chance = randomBetween(1, 100) - 5 * (attacker.getStat('LUK') - 5)
@@ -440,7 +441,7 @@ export const combatAttackMethods = {
     // with a clear line to the blast, one round at ×2 with knockback; the attacker caught
     // in it takes the round too (DAM_BACKWASH).
     computeExplosionOnExtras(this: Combat, a: Attack, fromAttacker: boolean, isGrenade: boolean): void {
-        const gMap = globalState.gMap
+        const gMap = world.gMap
         if (!gMap) return
         const attacker = a.attacker
         let center: Point
@@ -476,11 +477,11 @@ export const combatAttackMethods = {
         const sprite = createObjectWithPID(makePID(5 /* misc */, 14 /* Explosion */), -1)
         sprite.position = { x: pos.x, y: pos.y }
         lazyLoadImage(sprite.art, () => {
-            if (!globalState.gMap) return
-            globalState.gMap.addObject(sprite)
+            if (!world.gMap) return
+            world.gMap.addObject(sprite)
             sprite.singleAnimation(false, () => {
                 sprite.anim = null
-                globalState.gMap?.destroyObject(sprite)
+                world.gMap?.destroyObject(sprite)
             })
         })
     },
@@ -544,7 +545,7 @@ export const combatAttackMethods = {
         const attackSoundChar = typeof rawAttackSoundID === 'number' ? String.fromCharCode(rawAttackSoundID) : null
         if (attackSoundChar && !window.__test?.fastMode) {
             // CE sfxBuildWeaponName(WEAPON_SOUND_EFFECT_ATTACK): a missing file stays silent
-            globalState.audioEngine.playSfxByName(
+            services.audioEngine.playSfxByName(
                 sfxBuildWeaponName(1, weaponObj, weaponSecondaryMode(weaponObj), null).toLowerCase(),
                 obj,
             )
@@ -644,7 +645,7 @@ export const combatAttackMethods = {
     resolveAttack(this: Combat, a: Attack, who: string, done: () => void): boolean {
         const obj = a.attacker
         const weaponObj = a.weapon
-        const audio: AudioEngine = globalState.audioEngine
+        const audio: AudioEngine = services.audioEngine
         const rawSoundID = weaponObj?.pro?.extra?.soundID
         const soundIdChar = typeof rawSoundID === 'number' ? String.fromCharCode(rawSoundID) : null
         const attackType = attackTypeOf(weaponObj)
@@ -707,7 +708,7 @@ export const combatAttackMethods = {
             if (a.explosionTile) this.spawnExplosionSprite(a.explosionTile)
             this.combatDisplay(a)
             this.applyDamage(a)
-            if (!globalState.combat) return
+            if (!world.combat) return
             // CE actions.cc _action_melee:676 / _action_ranged:918 — after a melee attack
             // the attacker says its hit / miss line, after a ranged one the defender
             // (vanilla); no hit line for a killing blow.
@@ -749,7 +750,7 @@ export const combatAttackMethods = {
                     noDamageProc: a.defender === a.oops,
                 }) // CE _apply_damage: a4 = defender == oops
                 if (attacker.isPlayer) drawHP(attacker.getStat('HP'))
-                if (!globalState.combat) return
+                if (!world.combat) return
                 if (attacker.dead) this.perish(attacker, attacker, dmgType)
             }
         }
@@ -773,7 +774,7 @@ export const combatAttackMethods = {
             if (a.defenderDamage >= 0 && attacker._script?.combat_p_proc && !attacker.dead) {
                 if (Scripting.combatEvent(attacker, 'hit', defender)) return
             }
-            if (!globalState.combat) return
+            if (!world.combat) return
             if (defender.dead) this.perish(defender, attacker, dmgType)
         } else if (defender.type === 'critter' && !defender.dead) {
             // CE _apply_damage: the defender block runs on a miss too (no damage, no flags) —
@@ -801,7 +802,7 @@ export const combatAttackMethods = {
             if (x.damage >= 0 && attacker._script?.combat_p_proc && !attacker.dead) {
                 if (Scripting.combatEvent(attacker, 'hit', c)) return
             }
-            if (!globalState.combat) return
+            if (!world.combat) return
             if (c.dead) this.perish(c, attacker, dmgType)
         }
     },
@@ -818,7 +819,7 @@ export const combatAttackMethods = {
             // DAM_DROP: CE _obj_drop — is_dropping_p_proc / drop_p_proc may keep it
             // (then it stays in the inventory, out of the hand)
             if (!attacker.inventory.includes(weaponObj)) attacker.inventory.push(weaponObj)
-            if (globalState.gMap) weaponObj.drop(attacker)
+            if (world.gMap) weaponObj.drop(attacker)
         } else {
             const idx = attacker.inventory.indexOf(weaponObj)
             if (idx !== -1) attacker.inventory.splice(idx, 1)
@@ -907,7 +908,7 @@ export const combatAttackMethods = {
     isJinxed(this: Combat, obj: Critter, target: Critter): boolean {
         // CE: traitIsSelected(TRAIT_JINXED) || perkHasRank(gDude, PERK_JINXED) — both the
         // player's; DH2 keeps the attacker/target Pariah Dog check from rollHit.
-        const player = globalState.player
+        const player = world.player
         return (
             !!player &&
             ((player.traits?.includes('Jinxed') ?? false) ||

@@ -25,7 +25,8 @@ limitations under the License.
 // session ends so a later real loot session isn't left pointing at stale
 // steal-session state).
 
-import globalState from './globalState.js'
+import { world } from './state/world.js'
+import { uiState } from './state/uiState.js'
 import { Critter, itemIsHidden, Obj } from './object.js'
 import { UIMode } from './uiMode.js'
 import { uiGetAmount, uiSwapItem } from './uiBarter.js'
@@ -56,7 +57,7 @@ import { getMessage } from './util.js'
  * side to the target's side plants the item, with the same roll (isPlanting).
  */
 export function uiSteal(thief: Critter, target: Critter): void {
-    globalState.uiMode = UIMode.loot // reuse the loot UI mode/DOM
+    uiState.uiMode = UIMode.loot // reuse the loot UI mode/DOM
 
     let stealCount = 0
     // CE ref: inventory.cc:4368-4369,4470 — bonus XP accrues per successful,
@@ -133,7 +134,7 @@ export function uiSteal(thief: Critter, target: Critter): void {
         ended = true
 
         // CE ref: inventory.cc:4470 — no bonus XP if caught, or vs. a party member.
-        if (!caught && stealingXp > 0 && !globalState.gParty.isPartyMember(target)) {
+        if (!caught && stealingXp > 0 && !world.gParty.isPartyMember(target)) {
             const xp = Math.min(300 - thief.getSkill('Steal'), stealingXp)
             const p = thief as any
             const before = p.stats?.get?.('Experience') ?? 0
@@ -143,7 +144,7 @@ export function uiSteal(thief: Critter, target: Critter): void {
             if (msg) uiLog(msg.replace('%d', String((p.stats?.get?.('Experience') ?? 0) - before)))
         }
 
-        globalState.uiMode = UIMode.none
+        uiState.uiMode = UIMode.none
         hidev($id('lootBox'))
         off($id('lootBoxLeft'), 'drop dragenter dragover')
         off($id('lootBoxRight'), 'drop dragenter dragover')

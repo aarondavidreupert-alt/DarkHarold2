@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import { getCurrentMapInfo } from './data.js'
-import globalState from './globalState.js'
+import { world } from './state/world.js'
 import { dbg, dbgWarn } from './logger.js'
 import { getFileJSON, getRandomInt } from './util.js'
 import { getWeaponSounds, ImpactMaterial } from './soundMap.js'
@@ -426,14 +426,14 @@ export class HTMLAudioEngine implements AudioEngine {
     tick(): void {
         const curMapInfo = getCurrentMapInfo()
         if (!curMapInfo?.ambientSfx || curMapInfo.ambientSfx.length === 0) return
-        const now = globalState.gameTickTime
+        const now = world.gameTickTime
         if (this.nextSfxTime === 0) {
             this.nextSfx = this.rollNextSfx()
             this.nextSfxTime = now + 10 * getRandomInt(15, 20)
             return
         }
         if (now < this.nextSfxTime) return
-        const sfx = globalState.inCombat ? '' : this.nextSfx
+        const sfx = world.inCombat ? '' : this.nextSfx
         this.nextSfx = this.rollNextSfx()
         this.nextSfxTime = now + 10 * getRandomInt(15, 20)
         if (sfx) {

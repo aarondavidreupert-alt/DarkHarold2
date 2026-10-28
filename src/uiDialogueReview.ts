@@ -28,7 +28,7 @@ limitations under the License.
 
 import { makePanelDraggable } from './uiDrag.js'
 import * as Scripting from './scripting.js'
-import globalState from './globalState.js'
+import { world } from './state/world.js'
 import { endLips } from './talkingHead.js'
 import { getDialogueSpeaker } from './uiDialogue.js'
 import { getUiContainer } from './uiContainer.js'
@@ -78,7 +78,7 @@ export function uiShowDialogueReview(): void {
         fontSize: '.75em',
     })
     const speakerName = (getDialogueSpeaker()?.name ?? '') + ':'
-    const dudeName = (globalState.player?.name ?? '') + ':'
+    const dudeName = (world.player?.name ?? '') + ':'
     const line = (text: string, color: string, indent: number): HTMLDivElement => {
         const el = document.createElement('div')
         Object.assign(el.style, { color, paddingLeft: indent + 'px' })

@@ -17,7 +17,7 @@ You may obtain a copy of the License at
 // This module wraps reads and writes so callers never have to know the tick
 // math, and adds a day/night ambient-light curve used by the renderer.
 
-import globalState from './globalState.js'
+import { world } from './state/world.js'
 import { Config } from './config.js'
 import { dbg } from './logger.js'
 
@@ -56,37 +56,37 @@ const LIGHT_CURVE_NIGHT_FLOOR = Math.round(0.35 * LIGHT_INTENSITY_MAX)
 // Initialize game time once at startup. Called from init.ts. We preserve
 // any pre-existing value (non-zero) in case a save was already loaded.
 export function initGameTime(): void {
-    if (globalState.gameTickTime <= 0) {
-        globalState.gameTickTime = START_TICKS
+    if (world.gameTickTime <= 0) {
+        world.gameTickTime = START_TICKS
     }
 }
 
 // --- Queries ---
 
 export function getTime(): number {
-    return globalState.gameTickTime
+    return world.gameTickTime
 }
 
 export function setTime(ticks: number): void {
-    const before = globalState.gameTickTime
-    globalState.gameTickTime = Math.max(1, ticks)
-    const delta = globalState.gameTickTime - before
+    const before = world.gameTickTime
+    world.gameTickTime = Math.max(1, ticks)
+    const delta = world.gameTickTime - before
     if (delta > 0) timeJumpHandler?.(delta)
 }
 
 // Total elapsed seconds / minutes / hours / days since Jan 1 of year 1 of
 // the game world. These are monotonic; they are not the "hour of day".
 export function getTotalSeconds(): number {
-    return Math.floor(globalState.gameTickTime / TICKS_PER_SECOND)
+    return Math.floor(world.gameTickTime / TICKS_PER_SECOND)
 }
 export function getTotalMinutes(): number {
-    return Math.floor(globalState.gameTickTime / TICKS_PER_MINUTE)
+    return Math.floor(world.gameTickTime / TICKS_PER_MINUTE)
 }
 export function getTotalHours(): number {
-    return Math.floor(globalState.gameTickTime / TICKS_PER_HOUR)
+    return Math.floor(world.gameTickTime / TICKS_PER_HOUR)
 }
 export function getTotalDays(): number {
-    return Math.floor(globalState.gameTickTime / TICKS_PER_DAY)
+    return Math.floor(world.gameTickTime / TICKS_PER_DAY)
 }
 
 // Hour of day (0..23).
@@ -122,7 +122,7 @@ export interface GameDate {
     minutes: number // 0..59
 }
 // `ticks` defaults to the current game time (e.g. a save's gameTickTime).
-export function getDate(ticks: number = globalState.gameTickTime): GameDate {
+export function getDate(ticks: number = world.gameTickTime): GameDate {
     const totalDays = Math.floor(ticks / TICKS_PER_DAY)
     const totalMinutes = Math.floor(ticks / TICKS_PER_MINUTE)
     let year = START_YEAR
@@ -163,7 +163,7 @@ export function setTimeJumpHandler(fn: (deltaTicks: number) => void): void {
 
 export function advanceTicks(ticks: number): void {
     if (ticks <= 0) return
-    globalState.gameTickTime += ticks
+    world.gameTickTime += ticks
     timeJumpHandler?.(ticks)
 }
 export function advanceSeconds(seconds: number): void {
@@ -216,7 +216,7 @@ function curveAt(hourFloat: number): number {
 }
 
 function nightVisionBonus(): number {
-    const ranks = (globalState.player?.perks ?? []).filter((p: string) => p === 'Night Vision').length
+    const ranks = (world.player?.perks ?? []).filter((p: string) => p === 'Night Vision').length
     return ranks * Math.trunc(65536 / 5) // LIGHT_LEVEL_NIGHT_VISION_BONUS
 }
 

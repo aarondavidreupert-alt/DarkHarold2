@@ -1,4 +1,6 @@
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
+import { view } from '../state/view.js'
+import { services } from '../state/services.js'
 import * as GameTime from '../gametime.js'
 import { Obj } from '../object.js'
 import { getZoom, SCREEN_HEIGHT, SCREEN_WIDTH, TileMap } from '../renderer.js'
@@ -71,7 +73,7 @@ WebGLRenderer.prototype.renderText = function (
 WebGLRenderer.prototype.renderScrollBorderOverlay = function (): void {
     const b = getActiveScrollBarBounds()
     if (!b) return
-    const cam = globalState.cameraPosition
+    const cam = view.cameraPosition
     const z = getZoom()
     const ctx = this.textCtx
 
@@ -130,10 +132,10 @@ WebGLRenderer.prototype.drawTileMap = function (tilemap: TileMap, offsetY: numbe
             const scr = tileToScreen(i, j)
             scr.y += offsetY
             if (
-                scr.x + TILE_WIDTH < globalState.cameraPosition.x ||
-                scr.y + TILE_HEIGHT < globalState.cameraPosition.y ||
-                scr.x >= globalState.cameraPosition.x + viewW ||
-                scr.y >= globalState.cameraPosition.y + viewH
+                scr.x + TILE_WIDTH < view.cameraPosition.x ||
+                scr.y + TILE_HEIGHT < view.cameraPosition.y ||
+                scr.x >= view.cameraPosition.x + viewW ||
+                scr.y >= view.cameraPosition.y + viewH
             ) {
                 continue
             }
@@ -152,11 +154,7 @@ WebGLRenderer.prototype.drawTileMap = function (tilemap: TileMap, offsetY: numbe
             gl.activeTexture(gl.TEXTURE0)
 
             // draw — screen offset is zoomed world delta
-            gl.uniform2f(
-                this.offsetLocation,
-                (scr.x - globalState.cameraPosition.x) * z,
-                (scr.y - globalState.cameraPosition.y) * z,
-            )
+            gl.uniform2f(this.offsetLocation, (scr.x - view.cameraPosition.x) * z, (scr.y - view.cameraPosition.y) * z)
             gl.drawArrays(gl.TRIANGLES, 0, 6)
         }
     }
@@ -168,7 +166,7 @@ WebGLRenderer.prototype.drawTileMap = function (tilemap: TileMap, offsetY: numbe
 WebGLRenderer.prototype.setRoofLighting = function (): void {
     const gl = this.gl
     gl.uniform1f(this.uTileAmbient, GameTime.getAmbientLightNormalized())
-    gl.uniform2f(this.uTileCamera, globalState.cameraPosition.x, globalState.cameraPosition.y)
+    gl.uniform2f(this.uTileCamera, view.cameraPosition.x, view.cameraPosition.y)
     if (this.uTileZoom) gl.uniform1f(this.uTileZoom, getZoom())
     gl.activeTexture(gl.TEXTURE5)
     gl.bindTexture(gl.TEXTURE_2D, this.roofDummyTexture)
@@ -206,7 +204,7 @@ WebGLRenderer.prototype.renderRoof = function (roof: TileMap, hideSet?: Set<stri
         this.uEggMode &&
         this.uEggCenter
     ) {
-        const playerInfo = globalState.player ? this.objectRenderInfo(globalState.player) : null
+        const playerInfo = world.player ? this.objectRenderInfo(world.player) : null
         if (playerInfo) {
             const eggX = playerInfo.x + playerInfo.frameWidth / 2
             const eggY = playerInfo.y + playerInfo.frameHeight + 10
@@ -232,10 +230,10 @@ WebGLRenderer.prototype.renderRoof = function (roof: TileMap, hideSet?: Set<stri
             const scr = tileToScreen(i, j)
             scr.y += -96
             if (
-                scr.x + TILE_WIDTH < globalState.cameraPosition.x ||
-                scr.y + TILE_HEIGHT < globalState.cameraPosition.y ||
-                scr.x >= globalState.cameraPosition.x + viewW ||
-                scr.y >= globalState.cameraPosition.y + viewH
+                scr.x + TILE_WIDTH < view.cameraPosition.x ||
+                scr.y + TILE_HEIGHT < view.cameraPosition.y ||
+                scr.x >= view.cameraPosition.x + viewW ||
+                scr.y >= view.cameraPosition.y + viewH
             ) {
                 continue
             }
@@ -248,11 +246,7 @@ WebGLRenderer.prototype.renderRoof = function (roof: TileMap, hideSet?: Set<stri
             gl.activeTexture(gl.TEXTURE0)
             gl.bindTexture(gl.TEXTURE_2D, texture)
 
-            gl.uniform2f(
-                this.offsetLocation,
-                (scr.x - globalState.cameraPosition.x) * z,
-                (scr.y - globalState.cameraPosition.y) * z,
-            )
+            gl.uniform2f(this.offsetLocation, (scr.x - view.cameraPosition.x) * z, (scr.y - view.cameraPosition.y) * z)
             gl.drawArrays(gl.TRIANGLES, 0, 6)
         }
     }
@@ -450,7 +444,7 @@ export function isCEOccludingWallLiteral(obj: Obj, player: Obj): boolean {
 export function isBBoxOccludingWall(obj: Obj, player: Obj): boolean {
     if (!hexIsInFrontOf(obj.position, player.position)) return false
 
-    const renderer = globalState.renderer
+    const renderer = services.renderer
     if (!renderer) return false
     const objInfo = renderer.objectRenderInfo(obj)
     const playerInfo = renderer.objectRenderInfo(player)
@@ -477,7 +471,7 @@ function isEggObject(obj: Obj): boolean {
     if (Config.ui.eggMode === 'beta') return false
 
     if (obj.type !== 'scenery' && obj.type !== 'wall') return false
-    const player = globalState.player
+    const player = world.player
     if (!player) return false
     if (hexDistance(player.position, obj.position) > getEggRadius()) return false
 
@@ -573,7 +567,7 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
             this.uEggMode &&
             this.uEggCenter
         ) {
-            const playerInfo = this.objectRenderInfo(globalState.player!)
+            const playerInfo = this.objectRenderInfo(world.player!)
             if (playerInfo) {
                 // Use frameWidth/frameHeight (this frame's actual trimmed
                 // bounding box — what offsetX/offsetY were computed against
@@ -690,8 +684,8 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
 
     this.renderFrame(
         obj.art,
-        (renderInfo.x - globalState.cameraPosition.x) * z,
-        (renderInfo.y - globalState.cameraPosition.y) * z,
+        (renderInfo.x - view.cameraPosition.x) * z,
+        (renderInfo.y - view.cameraPosition.y) * z,
         renderInfo.uniformFrameWidth * z,
         renderInfo.uniformFrameHeight * z,
         renderInfo.cell,
@@ -793,8 +787,8 @@ WebGLRenderer.prototype.renderOutlinePass = function (objs: Obj[]): void {
         if (!renderInfo || !renderInfo.visible) continue
 
         const color = OUTLINE_COLORS[obj.outline] ?? OUTLINE_COLORS.red
-        const baseX = (renderInfo.x - globalState.cameraPosition.x) * z
-        const baseY = (renderInfo.y - globalState.cameraPosition.y) * z
+        const baseX = (renderInfo.x - view.cameraPosition.x) * z
+        const baseY = (renderInfo.y - view.cameraPosition.y) * z
         const w = renderInfo.uniformFrameWidth * z
         const h = renderInfo.uniformFrameHeight * z
 

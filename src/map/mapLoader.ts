@@ -25,6 +25,8 @@ import { itemDropAll } from '../critter.js'
 import * as Events from '../events.js'
 import { Point } from '../geometry.js'
 import globalState from '../globalState.js'
+import { world } from '../state/world.js'
+import { assets } from '../state/assets.js'
 import { heart } from '../heart.js'
 import { dbg, dbgWarn } from '../logger.js'
 import { createObjectWithPID, Critter, Obj, objectUnjamAll, objFromMapObject } from '../object.js'
@@ -59,7 +61,7 @@ function placeOnLevel(gMap: GameMap, obj: Obj, at: Obj): void {
 // CE map.cc mapLoadSaved: a revisited map unjams its locks after a day and ages its
 // critters (_map_age_dead_critters).
 function mapLoadSavedAging(gMap: GameMap): void {
-    const now = globalState.gameTickTime
+    const now = world.gameTickTime
     if (now < gMap.lastVisitTime) return
     if (Math.trunc((now - gMap.lastVisitTime) / TICKS_PER_HOUR) >= 24) objectUnjamAll()
     mapAgeDeadCritters(gMap, now)
@@ -76,7 +78,7 @@ function mapAgeDeadCritters(gMap: GameMap, now: number): void {
     if (!gMap.name || !mapDeadBodiesAge(gMap.name)) return
     const hours = Math.trunc((now - gMap.lastVisitTime) / TICKS_PER_HOUR)
     if (hours === 0) return
-    const party = globalState.gParty
+    const party = world.gParty
     const protoFlags = (c: Critter): number => c.pro?.extra?.flags ?? 0
     const critters: Critter[] = []
     for (let level = 0; level < (gMap.objects?.length ?? 0); level++) {
@@ -99,7 +101,7 @@ function mapAgeDeadCritters(gMap: GameMap, now: number): void {
         let frame = randomBetween(0, 3)
         if ((protoFlags(c) & CRITTER_FLAT) !== 0) frame += 6
         else if (c.killType !== KILL_TYPE_RAT && c.killType !== KILL_TYPE_MANTIS) frame += 3
-        if (frame < (globalState.imageInfo?.[blood.art]?.numFrames ?? 9)) blood.frame = frame
+        if (frame < (assets.imageInfo?.[blood.art]?.numFrames ?? 9)) blood.frame = frame
         placeOnLevel(gMap, blood, c)
         // objectDestroy — at once (nothing iterates the map yet), no destroy_p_proc
         for (const level of gMap.objects ?? []) {
@@ -149,10 +151,10 @@ GameMap.prototype.loadMap = function (
     // before mapHandleTransition() (map.cc:1244-1256) loads the new map, so you
     // are never in combat on arrival. Reproduce that end state here.
     // (Restored 2026-10-06; lost in b282cca.)
-    if (globalState.inCombat) {
-        globalState.combat?.forceEnd()
-        globalState.inCombat = false
-        globalState.combat = null
+    if (world.inCombat) {
+        world.combat?.forceEnd()
+        world.inCombat = false
+        world.combat = null
     }
 
     // CE ref: map.cc:1427 _map_save_in_game — the party is taken off the map, then
@@ -167,7 +169,7 @@ GameMap.prototype.loadMap = function (
             this.mapScript.map_exit_p_proc()
         }
         globalScriptsMapProc('map_exit_p_proc') // CE scriptsExecMapUpdateScripts
-        const party = new Set<Obj>(globalState.gParty.getPartyMembersAndPlayer())
+        const party = new Set<Obj>(world.gParty.getPartyMembersAndPlayer())
         const scripted = [...this.objects.flat(), ...((this.spatials ?? []) as any[]).flat()].filter(
             (o: any) => o && !party.has(o) && o._script?.map_exit_p_proc !== undefined,
         )
@@ -183,16 +185,16 @@ GameMap.prototype.loadMap = function (
     if (Config.engine.doSaveDirtyMaps && this.name !== null && this.objects !== null) {
         // if a map is already loaded, save it to the dirty map cache before loading
         dbg('map', `[Main] Serializing map ${this.name} and committing to dirty map cache`)
-        globalState.dirtyMapCache[this.name] = this.serialize()
+        world.dirtyMapCache[this.name] = this.serialize()
     }
 
-    if (mapName in globalState.dirtyMapCache) {
+    if (mapName in world.dirtyMapCache) {
         // Previously loaded; load from dirty map cache
         dbg('map', `[Main] Loading map ${mapName} from dirty map cache`)
 
         Events.emit('loadMapPre')
 
-        const map = globalState.dirtyMapCache[mapName]
+        const map = world.dirtyMapCache[mapName]
         // the scripts start in doEnterNewMap (CE scriptsExecStartProc), after their LVARs are back
         Scripting.setDeferObjectStart(true)
         this.deserialize(map)
@@ -200,14 +202,14 @@ GameMap.prototype.loadMap = function (
 
         // Set position and orientation
         if (startingPosition !== undefined) {
-            globalState.player!.position = startingPosition
+            world.player!.position = startingPosition
         }
         // Use default map starting position
         else {
-            globalState.player!.position = map.mapObj.startPosition
+            world.player!.position = map.mapObj.startPosition
         }
 
-        globalState.player!.orientation = map.mapObj.startOrientation
+        world.player!.orientation = map.mapObj.startOrientation
 
         // Set elevation: none / -1 is the map header's (CE map.cc mapLoad: gEnteringElevation
         // == -1 → gMapHeader.enteringElevation); out of bounds clamps to it as well
@@ -225,7 +227,7 @@ GameMap.prototype.loadMap = function (
                 `loadMap (dirty cache): starting elevation ${requestedElev} out of bounds (map has ${this.numLevels} levels), using ${safeElev}`,
             )
         }
-        this.currentElevation = globalState.currentElevation = safeElev
+        this.currentElevation = world.currentElevation = safeElev
 
         // Change to our new elevation (sets up map state)
         this.changeElevation(this.currentElevation, false, true)
@@ -242,7 +244,7 @@ GameMap.prototype.loadMap = function (
         dbg('map', `[Main] Loaded from dirty map cache`)
         loadedCallback && loadedCallback()
 
-        globalState.player?.updateNativeLook() // CE map.cc:999
+        world.player?.updateNativeLook() // CE map.cc:999
         Events.emit('loadMapPost')
     } else {
         dbg('map', `[Main] Loading map ${mapName} from clean load`)
@@ -257,14 +259,14 @@ GameMap.prototype.loadNewMap = function (
     loadedCallback?: () => void,
 ) {
     function load(file: string, callback?: (x: HTMLImageElement) => void) {
-        if (globalState.images[file] !== undefined) {
+        if (assets.images[file] !== undefined) {
             return
         } // don't load more than once
-        globalState.loadingAssetsTotal++
+        assets.loadingAssetsTotal++
         ensureCycleMask(file)
         heart.graphics.newImage(file + '.png', (r: HTMLImageElement) => {
-            globalState.images[file] = r
-            globalState.loadingAssetsLoaded++
+            assets.images[file] = r
+            assets.loadingAssetsLoaded++
             if (callback) {
                 callback(r)
             }
@@ -277,9 +279,9 @@ GameMap.prototype.loadNewMap = function (
     Events.emit('loadMapPre')
 
     globalState.isLoading = true
-    globalState.loadingAssetsTotal = 1 // this will remain +1 until we load the map, preventing it from exiting early
-    globalState.loadingAssetsLoaded = 0
-    globalState.loadingLoadedCallback = loadedCallback || null
+    assets.loadingAssetsTotal = 1 // this will remain +1 until we load the map, preventing it from exiting early
+    assets.loadingAssetsLoaded = 0
+    assets.loadingLoadedCallback = loadedCallback || null
 
     // clear any previous objects/events
     this.objects = null
@@ -289,7 +291,7 @@ GameMap.prototype.loadNewMap = function (
     Scripting.reset(this.name)
 
     // reset player animation status (to idle)
-    globalState.player!.clearAnim()
+    world.player!.clearAnim()
 
     dbg('map', 'loading map ' + mapName)
 
@@ -352,8 +354,8 @@ GameMap.prototype.loadNewMap = function (
     }
 
     // warp to the default position (may be overridden by map script)
-    globalState.player!.position = startingPosition || map.startPosition
-    globalState.player!.orientation = map.startOrientation
+    world.player!.position = startingPosition || map.startPosition
+    world.player!.orientation = map.startOrientation
 
     if (Config.engine.doSpatials) {
         this.spatials = map.levels.map((level: any) => level.spatials)
@@ -398,7 +400,7 @@ GameMap.prototype.loadNewMap = function (
 
     if (Config.engine.doLoadScripts) {
         // party member NPCs get the new map script
-        globalState.gParty.getPartyMembers().forEach((obj: Critter) => {
+        world.gParty.getPartyMembers().forEach((obj: Critter) => {
             obj._script!._mapScript = this.mapScript
         })
 
@@ -440,7 +442,7 @@ GameMap.prototype.loadNewMap = function (
     load('art/intrface/scrseast')
     load('art/intrface/scrswest')
 
-    globalState.loadingAssetsTotal-- // we should know all of the assets we need by now
+    assets.loadingAssetsTotal-- // we should know all of the assets we need by now
 
     // clear audio and use the map music
     this.playMapMusic()
@@ -451,7 +453,7 @@ GameMap.prototype.loadNewMap = function (
             `floorLightingMode=${Config.engine.floorLightingMode}`,
     )
 
-    globalState.player?.updateNativeLook() // CE map.cc:999
+    world.player?.updateNativeLook() // CE map.cc:999
     Events.emit('loadMapPost')
 }
 
@@ -470,7 +472,7 @@ GameMap.prototype.loadMapByID = function (
             startingOrientation === undefined || startingPosition === undefined
                 ? undefined
                 : () => {
-                      const player = globalState.player
+                      const player = world.player
                       if (!player) return
                       if (
                           startingElevation !== undefined &&

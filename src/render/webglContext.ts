@@ -1,5 +1,6 @@
 import { heart } from '../heart.js'
-import globalState from '../globalState.js'
+import { view } from '../state/view.js'
+import { assets } from '../state/assets.js'
 import * as GameTime from '../gametime.js'
 import { getZoom, Renderer, SCREEN_HEIGHT, SCREEN_WIDTH, TileMap } from '../renderer.js'
 import { Config } from '../config.js'
@@ -164,9 +165,9 @@ export class WebGLRenderer extends Renderer {
     getTextureFromHack(name: string): WebGLTexture | null {
         // TODO: hack (ideally it should already be in textures)
         if (this.textures[name] === undefined) {
-            if (globalState.images[name] !== undefined) {
+            if (assets.images[name] !== undefined) {
                 // generate a new texture
-                return this.newTexture(name, globalState.images[name])
+                return this.newTexture(name, assets.images[name])
             }
             return null
         }
@@ -181,7 +182,7 @@ export class WebGLRenderer extends Renderer {
         if (key in this.cycleMaskTextures) {
             return this.cycleMaskTextures[key] ?? this.cycleMaskNullTex!
         }
-        const cm = globalState.cycleMasks[key]
+        const cm = assets.cycleMasks[key]
         if (cm === undefined) {
             // Mask fetch not yet complete — return null tex without caching so we try again next frame
             return this.cycleMaskNullTex!
@@ -724,7 +725,7 @@ export class WebGLRenderer extends Renderer {
                 )
             }
             gl.uniform1f(this.uTileAmbient, ambient)
-            gl.uniform2f(this.uTileCamera, globalState.cameraPosition.x, globalState.cameraPosition.y)
+            gl.uniform2f(this.uTileCamera, view.cameraPosition.x, view.cameraPosition.y)
             // Zoom lets the fragment shader recover world coords from
             // gl_FragCoord for per-pixel tile-intensity sampling.
             if (this.uTileZoom) gl.uniform1f(this.uTileZoom, getZoom())

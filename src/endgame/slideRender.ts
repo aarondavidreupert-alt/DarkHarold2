@@ -1,7 +1,7 @@
 // Slide rendering primitives — split out of endgame.ts.
 // See wiki/ts-split-refactor.md → "Per-file split proposals" §19.
 
-import globalState from '../globalState.js'
+import { services } from '../state/services.js'
 import { getFileText } from '../util.js'
 import { dbgWarn } from '../logger.js'
 import { assetUrl } from '../modAssets.js'
@@ -55,7 +55,7 @@ function buildSubtitleTimings(lines: string[], durationMs: number): number[] {
 // Load narrator audio; returns element (already started) or null if missing.
 function playNarratorAudio(baseName: string): HTMLAudioElement | null {
     if (!baseName) return null
-    return globalState.audioEngine.playSound('narrator/' + baseName)
+    return services.audioEngine.playSound('narrator/' + baseName)
 }
 
 // Resolve with duration in ms once HTMLAudioElement metadata loads, 0 on failure.

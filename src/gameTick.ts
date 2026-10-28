@@ -28,6 +28,11 @@ import { checkRads } from './radiation.js'
 import { heart } from './heart.js'
 import { deleteAllTempArrays } from './sfallArrays.js'
 import globalState from './globalState.js'
+import { world } from './state/world.js'
+import { uiState } from './state/uiState.js'
+import { view } from './state/view.js'
+import { services } from './state/services.js'
+import { assets } from './state/assets.js'
 import { dbg } from './logger.js'
 import { Critter, objectUnjamAll } from './object.js'
 import { changeCursor } from './playerUse.js'
@@ -53,7 +58,7 @@ let nextMapUpdateTick = 600
 // CE map.cc mapLoad → gameTimeScheduleUpdateEvent: the next map update comes 600 ticks after
 // the map loads (a game time far past the old schedule doesn't fire it at once)
 Events.on('loadMapPost', () => {
-    nextMapUpdateTick = globalState.gameTickTime + 600
+    nextMapUpdateTick = world.gameTickTime + 600
 })
 // CE scripts.cc _script_chk_timed_events: map_update_p_proc also every 30 s of real time
 let lastRealTimeMapUpdate = -1
@@ -75,7 +80,7 @@ let lastMidnightDay = -1
 // crossed midnight and fire the timed events that expired, earliest first
 // (CE queueProcessEvents fires overdue events in due-time order).
 function processTimeJump(delta: number): void {
-    const now = globalState.gameTickTime
+    const now = world.gameTickTime
     const dayBefore = Math.floor((now - delta) / GameTime.TICKS_PER_DAY)
     const dayAfter = Math.floor(now / GameTime.TICKS_PER_DAY)
     for (let d = dayBefore + 1; d <= dayAfter; d++) processMidnightForDay(d)
@@ -107,7 +112,7 @@ export function processMidnightForDay(day: number): void {
     // CE gameTimeEventProcess: not while a dialogue is up (no movie plays here: it pauses the tick)
     if (!Scripting.dialogueActive()) scriptsCheckGameEvents(day)
     // CE ref: scripts.cc:424 gameTimeEventProcess → critter.cc:495 _critter_check_rads(gDude)
-    const player = globalState.player as Critter | null
+    const player = world.player as Critter | null
     if (player && !player.dead) checkRads(player)
 }
 
@@ -116,10 +121,10 @@ export function processMidnightForDay(day: number): void {
  *  Also called by the story crawler, which loads maps with the frame loop paused. */
 export function finishLoadingIfReady(): boolean {
     if (!globalState.isLoading) return true
-    if (globalState.loadingAssetsLoaded !== globalState.loadingAssetsTotal) return false
+    if (assets.loadingAssetsLoaded !== assets.loadingAssetsTotal) return false
     globalState.isLoading = false
-    if (globalState.loadingLoadedCallback) {
-        globalState.loadingLoadedCallback()
+    if (assets.loadingLoadedCallback) {
+        assets.loadingLoadedCallback()
     }
     return true
 }
@@ -143,12 +148,12 @@ export function tickGame(): void {
     // run every frame wherever the game is (CE's input ticker), type 2 / 3 on the world map
     pollGameMode()
     globalScriptsProcessInput()
-    if (globalState.uiMode === UIMode.worldMap) globalScriptsProcessWorldmap()
+    if (uiState.uiMode === UIMode.worldMap) globalScriptsProcessWorldmap()
 
     // FO2-CE ref: Skill targeting mode keeps the game loop running so the
     // player can scroll the map and see hover feedback while picking a target.
     // All other UI modes (dialogue, inventory, etc.) pause the loop.
-    if (globalState.uiMode !== UIMode.none && globalState.uiMode !== UIMode.useSkill) {
+    if (uiState.uiMode !== UIMode.none && uiState.uiMode !== UIMode.useSkill) {
         return
     }
     // CE scripts.cc scriptsHandleRequests, at the end of each game-loop pass: free the
@@ -157,29 +162,29 @@ export function tickGame(): void {
     globalScriptsProcessMain() // CE main.cc mainLoop: sfall_gl_scr_process_main
     const time = window.performance.now()
 
-    const $fps = globalState.$fpsOverlay
+    const $fps = services.$fpsOverlay
     if ($fps) $fps.style.display = Config.ui.showFPS ? '' : 'none'
     if (Config.ui.showFPS && time - globalState.lastFPSTime >= 500) {
-        globalState.$fpsOverlay!.textContent = 'fps: ' + heart.timer.getFPS()
+        services.$fpsOverlay!.textContent = 'fps: ' + heart.timer.getFPS()
         globalState.lastFPSTime = time
 
         if (globalState.lastUpdateTime != undefined) {
-            globalState.$fpsOverlay!.textContent += ' update: ' + globalState.lastUpdateTime + 'ms'
+            services.$fpsOverlay!.textContent += ' update: ' + globalState.lastUpdateTime + 'ms'
         }
 
         if (globalState.lastDrawTime) {
-            globalState.$fpsOverlay!.textContent += ' draw: ' + globalState.lastDrawTime + 'ms'
+            services.$fpsOverlay!.textContent += ' draw: ' + globalState.lastDrawTime + 'ms'
         }
     }
 
-    if (globalState.gameHasFocus) {
+    if (uiState.gameHasFocus) {
         const mousePos = heart.mouse.getPosition()
         // Screen-edge scrolling in world units per tick. Dividing the
         // base step by zoom keeps the *on-screen* scroll rate constant
         // regardless of how zoomed in or out the player is: zoomed in,
         // a 15-px-world step would fly across half the screen; zoomed
         // out, it would barely register.
-        const scrollStep = 15 / (globalState.cameraZoom || 1.0)
+        const scrollStep = 15 / (view.cameraZoom || 1.0)
         if (Config.ui.scrollMode === 'ce') {
             // CE game_mouse.cc gameMouseHandleScrolling → mapScroll: whole 32 × 24 px steps
             const pad = Config.ui.scrollPadding
@@ -188,32 +193,32 @@ export function tickGame(): void {
             ceMapScroll(dx, dy)
         } else {
             if (mousePos[0] <= Config.ui.scrollPadding) {
-                globalState.cameraPosition.x -= scrollStep
+                view.cameraPosition.x -= scrollStep
             }
             if (mousePos[0] >= SCREEN_WIDTH - Config.ui.scrollPadding) {
-                globalState.cameraPosition.x += scrollStep
+                view.cameraPosition.x += scrollStep
             }
             if (mousePos[1] <= Config.ui.scrollPadding) {
-                globalState.cameraPosition.y -= scrollStep
+                view.cameraPosition.y -= scrollStep
             }
             if (mousePos[1] >= SCREEN_HEIGHT - Config.ui.scrollPadding) {
-                globalState.cameraPosition.y += scrollStep
+                view.cameraPosition.y += scrollStep
             }
         }
         // Clamp to map bounds so we never scroll past the world edge.
         // CE ref: tile.cc:537 gTileBorderMin/MaxX/Y.
         clampCameraPosition()
 
-        if (time >= globalState.lastMousePickTime + 750) {
+        if (time >= uiState.lastMousePickTime + 750) {
             // every .75 seconds, check the object under the cursor
-            globalState.lastMousePickTime = time
+            uiState.lastMousePickTime = time
 
             const obj = getObjectUnderCursor((obj) => obj.isSelectable)
             if (obj !== null) {
                 changeCursor('pointer')
                 // CE game_mouse.cc:745 — the to-hit readout follows the attack cursor.
-                if (globalState.inCombat && globalState.cursorMode === 'attack') {
-                    uiShowCombatHover(obj, globalState.cursorPos.x, globalState.cursorPos.y)
+                if (world.inCombat && uiState.cursorMode === 'attack') {
+                    uiShowCombatHover(obj, uiState.cursorPos.x, uiState.cursorPos.y)
                 } else {
                     uiHideCombatHover()
                 }
@@ -227,14 +232,14 @@ export function tickGame(): void {
     // Expire old float messages regardless of focus state.
     // CE ref: text_object.cc:337 — delay = gTextObjectsLineDelay * linesCount + gTextObjectsBaseDelay
     // lineDelay derived from baseDelay per preferences.cc:548: (baseDelay - 1.0) * 0.4 (seconds)
-    for (let i = 0; i < globalState.floatMessages.length; i++) {
-        const fm = globalState.floatMessages[i]
+    for (let i = 0; i < uiState.floatMessages.length; i++) {
+        const fm = uiState.floatMessages[i]
         const baseDelay = Config.ui.textBaseDelay
         const lineDelay = Config.ui.textLineDelay ?? (baseDelay - 1.0) * 0.4
         const lineCount = fm.lines ?? (fm.msg.match(/\n/g)?.length ?? 0) + 1 // CE linesCount after word wrap
         const expiryMs = (baseDelay + lineDelay * lineCount) * 1000
         if (time >= fm.startTime + expiryMs) {
-            globalState.floatMessages.splice(i--, 1)
+            uiState.floatMessages.splice(i--, 1)
             continue
         }
     }
@@ -243,9 +248,9 @@ export function tickGame(): void {
     // scriptsExecMapUpdateScripts(MAP_UPDATE), in combat too — not while a dialogue runs
     // (GAME_STATE_4), which the uiMode gate above already ensures
     if (lastRealTimeMapUpdate < 0) lastRealTimeMapUpdate = time
-    if (globalState.gMap && time - lastRealTimeMapUpdate >= 30000) {
+    if (world.gMap && time - lastRealTimeMapUpdate >= 30000) {
         lastRealTimeMapUpdate = time
-        globalState.gMap.updateMap()
+        world.gMap.updateMap()
     }
 
     const didTick = time - globalState.lastGameTick >= 1000 / 10 // 10 Hz game tick
@@ -253,7 +258,7 @@ export function tickGame(): void {
     // TIMEOUT), which plays MOVIE_TIMEOUT (fade in / out, music paused), and
     // _game_user_wants_to_quit = 2: back to the main menu (no death scene). Checked every
     // frame, so a jump (rest, world-map travel) is caught at once too.
-    if (globalState.gameTickTime >= 13 * GameTime.TICKS_PER_YEAR && !gameEndingTriggered) {
+    if (world.gameTickTime >= 13 * GameTime.TICKS_PER_YEAR && !gameEndingTriggered) {
         gameEndingTriggered = true
         Endgame.setupDeathEnding(Endgame.DEATH_REASON_TIMEOUT)
         void gameMoviePlay(MOVIE_TIMEOUT, GAME_MOVIE_FADE_IN | GAME_MOVIE_FADE_OUT | GAME_MOVIE_PAUSE_MUSIC).then(() =>
@@ -265,12 +270,12 @@ export function tickGame(): void {
         globalState.lastGameTick = time
         // CE scripts.cc _script_chk_timed_events: the clock advances only out of combat;
         // combat time is the 5 s per round (combat.cc gameTimeAddSeconds)
-        if (!globalState.inCombat) globalState.gameTickTime++
+        if (!world.inCombat) world.gameTickTime++
 
         // CE main.cc mainLoop: the dude dead or knocked out outside combat ends the game.
         // (Death goes through critterKill's death animation → dudeDeathScene.)
-        const dude = globalState.player
-        if (dude && !globalState.inCombat && !dude.dead && ((dude.injuryFlags ?? 0) & DAM_KNOCKED_OUT) !== 0)
+        const dude = world.player
+        if (dude && !world.inCombat && !dude.dead && ((dude.injuryFlags ?? 0) & DAM_KNOCKED_OUT) !== 0)
             Endgame.dudeDeathScene()
 
         // CE ref: scripts.cc:405 gameTimeEventProcess — midnight queue event.
@@ -282,7 +287,7 @@ export function tickGame(): void {
             processMidnightForDay(currentDay)
         }
 
-        if (Config.engine.doTimedEvents && !globalState.inCombat) {
+        if (Config.engine.doTimedEvents && !world.inCombat) {
             // check and update timed events
             const timedEvents = Scripting.timeEventList
             let numEvents = timedEvents.length
@@ -315,13 +320,13 @@ export function tickGame(): void {
         // queued by mapUpdateEventProcess. Mirror that cadence here so
         // scripts can check `game_time_hour` and drive NPC behavior (shop
         // hours, sleep schedules, etc.) without any engine-level gates.
-        if (globalState.gMap) {
+        if (world.gMap) {
             // CE ref: scripts.cc:507 mapUpdateEventProcess (the queue runs in combat too) — a queue event whose time
             // has passed fires once on the next queueProcessEvents, also after a time
             // jump (rest, load), then re-queues itself 600 ticks ahead.
-            if (globalState.gameTickTime >= nextMapUpdateTick) {
-                nextMapUpdateTick = globalState.gameTickTime + 600
-                globalState.gMap.updateMap()
+            if (world.gameTickTime >= nextMapUpdateTick) {
+                nextMapUpdateTick = world.gameTickTime + 600
+                world.gMap.updateMap()
 
                 // Poison decay is now handled by a CE-faithful timed event queue in scripting.ts.
                 // CE ref: critter.cc poisonEventProcess — the event is scheduled by poison()
@@ -329,7 +334,7 @@ export function tickGame(): void {
             }
         }
 
-        globalState.audioEngine.tick()
+        services.audioEngine.tick()
     }
 
     // CE ref: scripts.cc:704 _script_chk_critters — outside combat and dialogue, ONE
@@ -340,14 +345,14 @@ export function tickGame(): void {
     // scripts (game_time_hour checks; party.h follow macros using tile_distance_objs /
     // rotation_to_tile / animate_move_obj_to_tile) — CE has no engine-side schedule,
     // wander or follow logic, so the DH2 inventions for those were removed 2026-10-06.
-    if (critterLoopLast < 0 || globalState.inCombat) critterLoopLast = time
-    if (Config.engine.doUpdateCritters && !globalState.inCombat) {
+    if (critterLoopLast < 0 || world.inCombat) critterLoopLast = time
+    if (Config.engine.doUpdateCritters && !world.inCombat) {
         // As many CE loop passes as have elapsed since the last frame (capped, so a
         // stalled tab doesn't burst).
         const passes = Math.min(8, Math.floor((time - critterLoopLast) / CE_LOOP_MS))
         critterLoopLast += passes * CE_LOOP_MS
         if (passes > 0) {
-            const scripted = globalState
+            const scripted = world
                 .gMap!.getObjects()
                 .filter((o) => o.type === 'critter' && o._script && !(o as Critter).dead)
             for (let i = 0; i < passes && scripted.length > 0; i++) {
@@ -359,11 +364,11 @@ export function tickGame(): void {
         if (time - critterLoopLast > 8 * CE_LOOP_MS) critterLoopLast = time
     }
 
-    for (const obj of globalState.gMap!.getObjects()) {
+    for (const obj of world.gMap!.getObjects()) {
         obj.updateAnim()
     }
 
-    globalState.gMap?.drainRemovalQueue()
+    world.gMap?.drainRemovalQueue()
 
     globalState.lastUpdateTime = Math.floor(window.performance.now() - time)
 }
@@ -391,7 +396,7 @@ export function scriptsCheckGameEvents(day: number): void {
         // the game ends straight back to the main menu (no slides).
         if (gameEndingTriggered) return
         gameEndingTriggered = true
-        const seen = globalState.seenMovies.has(MOVIE_AFAILED)
+        const seen = world.seenMovies.has(MOVIE_AFAILED)
         dbg('map', 'ARTIMER: AFAILED — Arroyo destroyed, game over')
         ;(seen ? Promise.resolve() : gameMoviePlay(MOVIE_AFAILED, GAME_MOVIE_FADE_IN | GAME_MOVIE_STOP_MUSIC)).then(
             () => returnToMainMenu(),
@@ -415,11 +420,11 @@ export function scriptsCheckGameEvents(day: number): void {
     if (movieIdx === -1) return
 
     const movieId = ARTIMER_MOVIE_BASE + movieIdx
-    if (globalState.seenMovies.has(movieId)) return // already fired
+    if (world.seenMovies.has(movieId)) return // already fired
 
     dbg('map', `ARTIMER: ARTIMER${movieIdx + 1} triggered (day ${day})`)
     // CE: gameMoviePlay(movie, FADE_IN | FADE_OUT | PAUSE_MUSIC) — marks it seen.
-    globalState.seenMovies.add(movieId)
+    world.seenMovies.add(movieId)
     Events.emit('queueBail') // CE gameTimeEventProcess: a movie stops queueProcessEvents
     void gameMoviePlay(movieId, GAME_MOVIE_FADE_IN | GAME_MOVIE_FADE_OUT | GAME_MOVIE_PAUSE_MUSIC)
 

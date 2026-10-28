@@ -22,7 +22,7 @@ limitations under the License.
 import { artGetCode } from '../pro.js'
 import { Config } from '../config.js'
 import { hexInDirection } from '../geometry.js'
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
 import type { Critter } from '../object/Critter.js'
 import type { Obj } from '../object/Obj.js'
 import { currentUnarmed } from '../unarmed.js'
@@ -173,7 +173,7 @@ export function pickDeath(defender: Critter, ctx: DeathContext): number {
         damageType = DAMAGE_TYPE_INDEX.Fire
         attackerAnim = ANIM_FIRE_SINGLE
     }
-    const attackerIsDude = ctx.attacker !== undefined && ctx.attacker === (globalState.player as unknown as Critter)
+    const attackerIsDude = ctx.attacker !== undefined && ctx.attacker === (world.player as unknown as Critter)
     if (attackerIsDude && ctx.attacker!.hasPerk?.('Pyromaniac') && damageType === DAMAGE_TYPE_INDEX.Fire) {
         normalThreshold = 1
         maximumBloodThreshold = 1
@@ -222,7 +222,7 @@ export function pickDeath(defender: Critter, ctx: DeathContext): number {
 function blockedAt(obj: Critter, dir: number, distance: number): boolean {
     let pos = obj.position
     for (let i = 0; i < distance; i++) pos = hexInDirection(pos, dir)
-    return (globalState.gMap?.objectsAtPosition(pos) ?? []).some((o: Obj) => o !== obj && o.blocks?.())
+    return (world.gMap?.objectsAtPosition(pos) ?? []).some((o: Obj) => o !== obj && o.blocks?.())
 }
 
 // actions.cc _pick_fall — fall the other way when a blocker is 1-2 hexes behind

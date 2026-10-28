@@ -76,7 +76,8 @@ the pipeline or the TS compiler.
 | `src/map/pathfinder.ts` | Hex path finder: literal CE `pathfinderFindPath` + `canUseDoor` (used by `GameMap.recalcPath`) | `animation.cc pathfinderFindPath` |
 | `src/hotkeys.ts` | The game keyboard: CE `gameHandleKey` + `_combat_input` (registered in `input.ts`) | `game.cc gameHandleKey`, `combat.cc _combat_input` |
 | `src/init.ts` | Engine boot sequence: asset loading, renderer init, scripting setup | `main.cc` init path |
-| `src/globalState.ts` | Central singleton: `gMap`, `player`, `combat`, `images`, `proMap`, camera, tick, eventLog | Spread across `game.cc`, `proto.cc` |
+| `src/globalState.ts` | Central singleton: loading flags, frame times, `eventLog`, use handlers; a getter / setter for every field of `src/state/*` (old names keep working) | Spread across `game.cc`, `proto.cc` |
+| `src/state/` | Owned state (code_quality Q15): `world.ts` (`gMap`, `player`, `gParty`, `combat`, `gameTickTime`, areas, movies), `uiState.ts` (UI mode, cursor, hover), `view.ts` (camera), `services.ts` (renderer, audio), `assets.ts` (images, `proMap`, message files, caches) | Spread across `game.cc`, `proto.cc` |
 | `src/config.ts` | `Config` singleton: all engine/UI/combat/scripting flags (debug, audio, lighting modes, etc.) | `preferences.cc` |
 
 ### Rendering

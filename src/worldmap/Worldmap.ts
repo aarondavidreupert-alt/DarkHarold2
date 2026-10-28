@@ -22,7 +22,7 @@ import * as Events from '../events.js'
 import { areaContainingMap, loadAreas, lookupMapName, mapIsSaved, type Area } from '../data.js'
 import * as GameTime from '../gametime.js'
 import { Point } from '../geometry.js'
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
 import { hidev, makeEl, showv, uiCloseWorldMap, uiWorldMapShowArea } from '../ui.js'
 import { showConfirm } from '../uiDialog.js'
 import { clamp, getFileBinarySync, getFileText, getMessage } from '../util.js'
@@ -162,13 +162,13 @@ export function giveCar(fuel: number = CAR_FUEL_MAX): void {
     _carFuel = Math.min(CAR_FUEL_MAX, Math.max(0, fuel))
     if (worldmapPlayer) worldmapPlayer.carFuel = _carFuel
     setGlobalVarHook?.(GVAR_PLAYER_GOT_CAR, 1)
-    const mapName = globalState.gMap?.name as string | undefined
-    if (!globalState.mapAreas) {
+    const mapName = world.gMap?.name as string | undefined
+    if (!world.mapAreas) {
         try {
-            globalState.mapAreas = loadAreas()
+            world.mapAreas = loadAreas()
         } catch (_) {}
     }
-    const area = mapName && globalState.mapAreas ? areaContainingMap(mapName) : null
+    const area = mapName && world.mapAreas ? areaContainingMap(mapName) : null
     if (area) {
         setIsInCar(false)
         _currentCarAreaId = area.id
@@ -428,7 +428,7 @@ function markSquare(x: number, y: number, state: number, force = false): void {
 export function markSubTileRadiusVisited(px: number, py: number, radiusOverride?: number): void {
     if (!worldmap) return
     // metarule3 101 (CE wmSubTileMarkRadiusVisited) passes the radius; travel uses Scout's
-    const radius = radiusOverride ?? (globalState.player?.perks.includes('Scout') ? 2 : 1)
+    const radius = radiusOverride ?? (world.player?.perks.includes('Scout') ? 2 : 1)
     const sx = Math.floor(px / SQUARE_SIZE)
     const sy = Math.floor(py / SQUARE_SIZE)
     for (let dy = -radius; dy <= radius; dy++) {
@@ -529,9 +529,9 @@ function areaLabelText(area: any): string {
 // One marker per area whose state isn't CITY_STATE_UNKNOWN (CE worldmap.cc:5225
 // wmInterfaceRefresh draws exactly those). Re-run whenever an area's state changes.
 export function refreshAreaMarkers(): void {
-    if (!$worldmap || !globalState.mapAreas) return
-    for (const key in globalState.mapAreas) {
-        const area = globalState.mapAreas[key]
+    if (!$worldmap || !world.mapAreas) return
+    for (const key in world.mapAreas) {
+        const area = world.mapAreas[key]
         const $existing = $worldmap.querySelector<HTMLElement>(`[data-area-key="${key}"]`)
         if (area.state !== true) {
             $existing?.remove()
@@ -569,16 +569,16 @@ export function refreshAreaMarkers(): void {
 // CE worldmap.cc wmAreaSetVisibleState (+ force) — known/unknown on the worldmap.
 // globalState.knownAreas mirrors it for the scripting/endgame checks that read it.
 export function setAreaVisible(areaId: number, visible: boolean): void {
-    const area = globalState.mapAreas?.[areaId]
+    const area = world.mapAreas?.[areaId]
     if (area) area.state = visible
-    if (visible) globalState.knownAreas.add(areaId)
-    else globalState.knownAreas.delete(areaId)
+    if (visible) world.knownAreas.add(areaId)
+    else world.knownAreas.delete(areaId)
     refreshAreaMarkers()
 }
 
 // CE worldmap.cc wmAreaMarkVisitedState — 1 known, 2 visited (a first visit lands on 1).
 export function setAreaVisitedState(areaId: number, state: number): void {
-    const area: any = globalState.mapAreas?.[areaId]
+    const area: any = world.mapAreas?.[areaId]
     if (!area) return
     const old = area.visitedState ?? 0
     // CE worldmap.cc wmAreaMarkVisitedState: a known area clears the fog around itself;
@@ -602,7 +602,7 @@ export function setCurrentAreaId(areaId: number): void {
 
 // CE wmAreaVisitedState: the visited state of a known area, else 0 (METARULE_AREA_KNOWN)
 export function areaVisitedState(areaId: number): number {
-    const area: any = globalState.mapAreas?.[areaId]
+    const area: any = world.mapAreas?.[areaId]
     if (!area || area.state !== true) return 0
     return area.visitedState ?? 0
 }
@@ -610,7 +610,7 @@ export function areaVisitedState(areaId: number): number {
 // CE wmTeleportToArea (map.cc mapHandleTransition after a map change): the party is
 // put on the area, the walk dropped.
 export function teleportToArea(areaId: number): void {
-    const area = globalState.mapAreas?.[areaId]
+    const area = world.mapAreas?.[areaId]
     if (!area) return
     currentAreaId = areaId
     if (!worldmapPlayer) return
@@ -629,21 +629,21 @@ export function teleportToArea(areaId: number): void {
 
 // CE worldmap.cc wmAreaIsKnown: known (state on) and visited at least once.
 export function areaIsKnown(areaId: number): boolean {
-    const area: any = globalState.mapAreas?.[areaId]
+    const area: any = world.mapAreas?.[areaId]
     return !!area && area.state === true && (area.visitedState ?? 0) !== 0
 }
 
 // CE worldmap.cc map.cc:1028 wmMapMarkVisited — entering a saved map marks its area visited.
 export function markMapVisited(mapName: string): void {
     if (!mapIsSaved(mapName)) return
-    const area = globalState.mapAreas ? areaContainingMap(mapName) : null
+    const area = world.mapAreas ? areaContainingMap(mapName) : null
     if (area) setAreaVisitedState(area.id, 2)
 }
 
 // CE worldmap.cc quick destinations (the town tabs, Ctrl+F1..F7): the party walks to
 // the area — wmPartyInitWalking to the centre of its circle.
 export function travelToArea(areaId: number): void {
-    const area = globalState.mapAreas?.[areaId]
+    const area = world.mapAreas?.[areaId]
     if (!area || !areaIsKnown(areaId) || !worldmapPlayer || !$worldmapPlayer) return
     const here = withinArea(worldmapPlayer)
     if (here && here.id === areaId) return
@@ -656,8 +656,8 @@ export function travelToArea(areaId: number): void {
 type SavedArea = { state: boolean; visitedState: number; x: number; y: number; entrances?: boolean[] }
 export function serializeAreaStates(): { [id: string]: SavedArea } {
     const out: { [id: string]: SavedArea } = {}
-    for (const key in globalState.mapAreas ?? {}) {
-        const area: any = globalState.mapAreas![key]
+    for (const key in world.mapAreas ?? {}) {
+        const area: any = world.mapAreas![key]
         out[key] = {
             state: area.state === true,
             visitedState: area.visitedState ?? 0,
@@ -669,9 +669,9 @@ export function serializeAreaStates(): { [id: string]: SavedArea } {
     return out
 }
 export function deserializeAreaStates(data: { [id: string]: SavedArea } | undefined): void {
-    if (!data || !globalState.mapAreas) return
+    if (!data || !world.mapAreas) return
     for (const key in data) {
-        const area: any = globalState.mapAreas[key]
+        const area: any = world.mapAreas[key]
         if (!area) continue
         area.state = data[key].state
         area.visitedState = data[key].visitedState
@@ -695,13 +695,13 @@ export function resetWorldmap(): void {
     _carFuel = CAR_FUEL_MAX
     _currentCarAreaId = -1
     currentAreaId = -1
-    globalState.knownAreas = new Set()
+    world.knownAreas = new Set()
     try {
-        globalState.mapAreas = loadAreas()
+        world.mapAreas = loadAreas()
     } catch (_) {
-        globalState.mapAreas = null
+        world.mapAreas = null
     }
-    if (!$worldmap || !worldmap || !globalState.mapAreas) return
+    if (!$worldmap || !worldmap || !world.mapAreas) return
 
     $worldmap.querySelectorAll('[data-area-key]').forEach((el) => el.remove())
     refreshAreaMarkers()
@@ -796,7 +796,7 @@ function enterArea(area: Area): void {
         setCarAreaId(area.id)
     }
     dbg('worldmap', `[Worldmap] entering ${area.name} → ${entrance.mapName} (no town map)`)
-    globalState.gMap!.loadMap(entrance.mapName)
+    world.gMap!.loadMap(entrance.mapName)
     uiCloseWorldMap()
 }
 
@@ -805,11 +805,11 @@ function enterArea(area: Area): void {
 // it the first entrance to the map whose elevation matches, -1 on either side matching
 // any (wmMatchEntranceElevFromMap). False when nothing matched (CE -1).
 export function markMapEntranceState(mapName: string, elevation: number, state: boolean): boolean {
-    if (!globalState.mapAreas || !mapIsSaved(mapName)) return false
+    if (!world.mapAreas || !mapIsSaved(mapName)) return false
     const name = mapName.toLowerCase()
     const sameMap = (e: any) => (e.mapName ?? '').toLowerCase() === name
-    for (const key of Object.keys(globalState.mapAreas)) {
-        const area = globalState.mapAreas[key]
+    for (const key of Object.keys(world.mapAreas)) {
+        const area = world.mapAreas[key]
         if (!area.entrances.some(sameMap)) continue
         const entrance = area.entrances.find(
             (e) => sameMap(e) && (elevation === -1 || e.elevation === -1 || e.elevation === elevation),
@@ -826,9 +826,9 @@ export function init(): void {
     // wmMapMarkMapEntranceState(gMapHeader.index, gElevation, 1): the town-map entrance
     // of the map the party reaches opens (exit grids and ladders land here too)
     Events.on('loadMapPost', () => {
-        if (!globalState.gMap?.name) return
-        markMapVisited(globalState.gMap.name)
-        markMapEntranceState(globalState.gMap.name, globalState.gMap.currentElevation, true)
+        if (!world.gMap?.name) return
+        markMapVisited(world.gMap.name)
+        markMapEntranceState(world.gMap.name, world.gMap.currentElevation, true)
         // CE wmCheckGameAreaEvents: at CITY_FAKE_VAULT_13_A (45) the real Vault 13 entry swaps
         // in — A unknown, B (46) known and visited
         if (currentAreaId === 45) {
@@ -839,7 +839,7 @@ export function init(): void {
     })
     // map.cc mapSetElevation → wmMapMarkMapEntranceState(gMapHeader.index, elevation, 1)
     Events.on('elevationChanged', (e: { elevation: number; isMapLoading?: boolean }) => {
-        if (globalState.gMap?.name && !e.isMapLoading) markMapEntranceState(globalState.gMap.name, e.elevation, true)
+        if (world.gMap?.name && !e.isMapLoading) markMapEntranceState(world.gMap.name, e.elevation, true)
     })
     // map.cc mapHandleTransition: a map change by exit grid / load_map puts the party on
     // the new map's area (wmMatchAreaContainingMapIdx → wmTeleportToArea)
@@ -859,7 +859,7 @@ export function init(): void {
 
     worldmap = parseWorldmap(getFileText('data/data/worldmap.txt'))
 
-    if (!globalState.mapAreas) globalState.mapAreas = loadAreas()
+    if (!world.mapAreas) world.mapAreas = loadAreas()
 
     const worldmapEl = $worldmap!
     worldmapEl.onclick = function (e: MouseEvent) {
@@ -1028,8 +1028,8 @@ export function withinArea(position: Point) {
     // position (window space: position + WM_VIEW_X/Y against city.txt world_pos)
     const vx = position.x + WM_VIEW_X
     const vy = position.y + WM_VIEW_Y
-    for (const areaNum in globalState.mapAreas) {
-        const area = globalState.mapAreas[areaNum]
+    for (const areaNum in world.mapAreas) {
+        const area = world.mapAreas[areaNum]
         if (area.state !== true) continue
         const s = AREA_CIRCLE_SIZE[area.size] ?? 0
         if (
@@ -1047,9 +1047,9 @@ export function withinArea(position: Point) {
 // CE ref: worldmap.cc:6541 wmMatchAreaContainingMapIdx — the area with an entrance
 // to `mapName`; CE leaves area 0 when none matches.
 export function areaIdContainingMap(mapName: string): number {
-    if (!globalState.mapAreas) {
+    if (!world.mapAreas) {
         try {
-            globalState.mapAreas = loadAreas()
+            world.mapAreas = loadAreas()
         } catch (_) {
             return 0
         }
@@ -1070,7 +1070,7 @@ function enterWilderness(): void {
         _currentCarAreaId = areaIdContainingMap(mapName)
         dbg('worldmap', `car parked at area ${_currentCarAreaId}`)
     }
-    globalState.gMap!.loadMap(mapName)
+    world.gMap!.loadMap(mapName)
     uiCloseWorldMap()
 }
 
@@ -1090,7 +1090,7 @@ function carRanOutOfGas(): void {
     } else {
         _currentCarAreaId = CITY_CAR_OUT_OF_GAS
         currentAreaId = CITY_CAR_OUT_OF_GAS
-        const outOfGas = globalState.mapAreas?.[CITY_CAR_OUT_OF_GAS]
+        const outOfGas = world.mapAreas?.[CITY_CAR_OUT_OF_GAS]
         if (outOfGas) {
             outOfGas.worldPosition = areaPosAtParty(outOfGas, worldmapPlayer!.x, worldmapPlayer!.y)
             outOfGas.visitedState = 1
@@ -1122,12 +1122,12 @@ export function revealAll(): void {
         for (let x = 0; x < NUM_SQUARES_X; x++)
             for (let y = 0; y < NUM_SQUARES_Y; y++) markSquare(x, y, WORLDMAP_DISCOVERED)
     }
-    for (const key in globalState.mapAreas ?? {}) {
-        const area: any = globalState.mapAreas![key]
+    for (const key in world.mapAreas ?? {}) {
+        const area: any = world.mapAreas![key]
         area.state = true
         area.visitedState = 2
         for (const e of area.entrances ?? []) e.state = true
-        globalState.knownAreas.add(area.id)
+        world.knownAreas.add(area.id)
     }
     refreshAreaMarkers()
 }
@@ -1225,7 +1225,7 @@ function partyWalkingStep(): void {
 // CE wmGameTimeIncrement: the Pathfinder perk takes 25 % per rank off (the remainder
 // carried, sfall fix); the queued events fire as the time passes.
 function gameTimeIncrement(ticks: number): void {
-    const rank = globalState.player?.perks.filter((p: string) => p === 'Pathfinder').length ?? 0
+    const rank = world.player?.perks.filter((p: string) => p === 'Pathfinder').length ?? 0
     const bonus = ticks * rank * 0.25 + gameTimeIncRemainder
     const whole = Math.trunc(bonus)
     gameTimeIncRemainder = bonus - whole
@@ -1237,12 +1237,12 @@ function gameTimeIncrement(ticks: number): void {
 // CE party_member.cc _partyMemberRestingHeal(3): once a second of travel every party
 // member (the dude too) heals its Healing Rate.
 function partyRestingHeal(): void {
-    for (const c of globalState.gParty?.getPartyMembersAndPlayer() ?? [globalState.player]) {
+    for (const c of world.gParty?.getPartyMembersAndPlayer() ?? [world.player]) {
         if (!c || c.type !== 'critter' || c.dead) continue
         const max = c.getStat('Max HP')
         c.stats.setBase('HP', Math.min(max, c.getStat('HP') + c.getStat('Healing Rate')))
     }
-    if (globalState.player) drawHP(globalState.player.getStat('HP'))
+    if (world.player) drawHP(world.player.getStat('HP'))
 }
 
 // CE wmBlinkRndEncounterIcon: 7 frames of 200 ms, dark and bright in turn
@@ -1279,7 +1279,7 @@ async function runEncounter(roll: EncounterRoll): Promise<void> {
     walk.isWalking = false
     walk.distance = 0
     worldmapPlayer!.target = null
-    globalState.gMap!.loadMap(mapName, undefined, undefined, roll.forced ? undefined : () => setupRandomEncounter())
+    world.gMap!.loadMap(mapName, undefined, undefined, roll.forced ? undefined : () => setupRandomEncounter())
     uiCloseWorldMap()
 }
 

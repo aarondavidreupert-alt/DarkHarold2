@@ -17,7 +17,8 @@ limitations under the License.
 // Loot screen: two-column inventory view (player on the left, container or
 // dead critter on the right) with drag-and-drop and a "take all" button.
 
-import globalState from './globalState.js'
+import { world } from './state/world.js'
+import { uiState } from './state/uiState.js'
 import { dbg } from './logger.js'
 import { itemIsHidden, Obj } from './object.js'
 import { UIMode } from './uiMode.js'
@@ -43,7 +44,7 @@ import { appendItemSlot, $id, clearEl, showv, hidev, off, makeEl } from './uiDom
 // --- Loot screen -----------------------------------------------------------
 
 function uiEndLoot() {
-    globalState.uiMode = UIMode.none
+    uiState.uiMode = UIMode.none
 
     hidev($id('lootBox'))
     off($id('lootBoxLeft'), 'drop dragenter dragover')
@@ -69,24 +70,24 @@ export function uiLoot(object: Obj) {
         uiLog(getMessage('inventry', 50) ?? "You can't find anything to take from that.")
         return
     }
-    if (object._script?.pickup_p_proc && globalState.player) {
+    if (object._script?.pickup_p_proc && world.player) {
         let overridden = false
         try {
-            overridden = Scripting.pickup(object, globalState.player)
+            overridden = Scripting.pickup(object, world.player)
         } catch (e) {
             dbg('inventory', '[Loot] pickup_p_proc error: ' + e)
         }
         if (overridden) return
     }
 
-    globalState.uiMode = UIMode.loot
+    uiState.uiMode = UIMode.loot
     $id('lootBoxTakeAllButton').style.visibility = '' // shown with the window (a steal hides it)
 
     // CE inventory.cc _container_enter in the loot window: each side can open its bags (up to
     // 9 deep); the body view (CE INVENTORY_LOOT_LEFT / RIGHT_BODY_VIEW) shows the open one
     const leftBags: Obj[] = []
     const rightBags: Obj[] = []
-    const leftList = () => (leftBags.length ? leftBags[leftBags.length - 1].inventory : globalState.player!.inventory)
+    const leftList = () => (leftBags.length ? leftBags[leftBags.length - 1].inventory : world.player!.inventory)
     const rightList = () => (rightBags.length ? rightBags[rightBags.length - 1].inventory : object.inventory)
 
     async function uiLootMove(data: string /* "l"|"r" */, where: 'left' | 'right') {
@@ -116,13 +117,10 @@ export function uiLoot(object: Obj) {
         const wantedAmount = obj.amount > 1 ? await uiGetAmount(obj) : 1
         // CE ref: item.cc itemAttemptAdd — enforce STAT_CARRY_WEIGHT on the receiving critter.
         const toBag = where === 'left' ? leftBags[leftBags.length - 1] : rightBags[rightBags.length - 1]
-        const toOwner: any = toBag ?? (where === 'left' ? globalState.player! : object)
+        const toOwner: any = toBag ?? (where === 'left' ? world.player! : object)
         // (an open bag of the dude's: its room and the dude's carry weight, CE itemAttemptAdd)
         const tooHeavy =
-            toBag &&
-            where === 'left' &&
-            from !== globalState.player!.inventory &&
-            !globalState.player!.canCarry(obj, wantedAmount)
+            toBag && where === 'left' && from !== world.player!.inventory && !world.player!.canCarry(obj, wantedAmount)
         if (wantedAmount > 0 && (tooHeavy || !toOwner.canCarry?.(obj, wantedAmount))) {
             // CE ref: inventory.cc:4622/4657 — msg 26 when the container is full,
             // msg 25 when the player is over their weight capacity.
@@ -166,18 +164,18 @@ export function uiLoot(object: Obj) {
                 e.preventDefault()
                 showItemMenu(e, itemMenuActions(item, false, ownerIsDude), (action) => {
                     const bags = ownerIsDude ? leftBags : rightBags
-                    const owner = bags[bags.length - 1] ?? (ownerIsDude ? globalState.player : object)
+                    const owner = bags[bags.length - 1] ?? (ownerIsDude ? world.player : object)
                     if (action === 'use' && item.subtype === 'container') {
                         if (bags.length < MAX_OPEN_BAGS) bags.push(item)
                     } else if (action === 'look') examineToLog(item)
                     else if (action === 'unload') unloadWeapon(item, (ammo) => owner.addInventoryItem(ammo, 1))
                     else if (action === 'drop') {
                         const list = ownerIsDude ? leftList() : rightList()
-                        if (list !== globalState.player!.inventory) {
+                        if (list !== world.player!.inventory) {
                             list.splice(list.indexOf(item), 1)
-                            globalState.player!.inventory.push(item)
+                            world.player!.inventory.push(item)
                         }
-                        item.drop(globalState.player!)
+                        item.drop(world.player!)
                     }
                     drawLoot()
                 })
@@ -202,7 +200,7 @@ export function uiLoot(object: Obj) {
     // or nothing — the target's whole inventory weight against the room left, else inventry.msg 31
     $id('lootBoxTakeAllButton').onclick = () => {
         dbg('inventory', '[Loot] take all')
-        const player = globalState.player!
+        const player = world.player!
         if (object.getInventoryWeight() > player.getStat('Carry') - player.getInventoryWeight()) {
             void showAlert(getMessage('inventry', 31) ?? 'Sorry, you cannot carry that much.')
             return
@@ -214,7 +212,7 @@ export function uiLoot(object: Obj) {
     function drawLoot() {
         drawInventory($id('lootBoxLeft'), 'l', leftList())
         drawInventory($id('lootBoxRight'), 'r', rightList())
-        drawLootBagViews(leftBags, rightBags, drawLoot, globalState.player ?? undefined, object)
+        drawLootBagViews(leftBags, rightBags, drawLoot, world.player ?? undefined, object)
     }
 
     drawLoot()

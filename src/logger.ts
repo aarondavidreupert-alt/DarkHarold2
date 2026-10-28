@@ -16,6 +16,7 @@
 import { Config } from './config.js'
 import type { EventLogEntry, EventLogInput } from './eventlog.types.js'
 import globalState from './globalState.js'
+import { world } from './state/world.js'
 
 export type { EventLogEntry } from './eventlog.types.js'
 
@@ -32,7 +33,7 @@ export function dbgWarn(category: DebugCategory, ...args: any[]): void {
 }
 
 function deriveRoundTurn(): { round: number; turn: number } {
-    const c = globalState.combat
+    const c = world.combat
     if (!c) return { round: 0, turn: 0 }
     const turn = c.turnNum
     const cycle = Math.max(c.combatants?.length ?? 1, 1)

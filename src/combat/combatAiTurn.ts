@@ -18,7 +18,9 @@ import { currentUnarmed, unarmedAPCost } from '../unarmed.js'
 import { dbg, eventLogPush } from '../logger.js'
 import { filterBadwordsText } from '../badwords.js'
 import { getMessage } from '../util.js'
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
+import { uiState } from '../state/uiState.js'
+import { assets } from '../state/assets.js'
 import { invenWieldAnimated } from '../inventoryWield.js'
 import { objectDistance, weaponAttackType } from './hitChance.js'
 import { randomBetween } from '../random.js'
@@ -66,7 +68,7 @@ export const combatAiTurnMethods = {
         if (inHand && inHand.pid !== undefined) return 'none'
         const defenderBiped = (defender.pro?.extra?.bodyType ?? 0) === 0
         const defenderUnarmed = defenderUnarmedNow(defender) // CE: the fid's weapon code is 0
-        const canPunch = !!globalState.imageInfo![attacker.getBase() + 'ap']
+        const canPunch = !!assets.imageInfo![attacker.getBase() + 'ap']
         const punchRange = inHand?.weapon?.getMaximumRange(1) ?? 1
         const inReach = hexDistance(attacker.position, defender.position) <= punchRange
         if (defenderBiped && defenderUnarmed && canPunch && inReach) return 'none'
@@ -96,7 +98,7 @@ export const combatAiTurnMethods = {
                 weapon.mode = prev
             }
         }
-        if (!withSecondary(() => !!globalState.imageInfo![attacker.getAnimation('attack')])) return 'primary'
+        if (!withSecondary(() => !!assets.imageInfo![attacker.getAnimation('attack')])) return 'primary'
 
         const secondaryToHit = (): number => withSecondary(() => this.getHitChance(attacker, defender, 'torso').hit)
         const safe = () => !this.combatSafetyInvalidateWeapon(attacker, weaponObj, 'secondary', defender, false)
@@ -241,7 +243,7 @@ export const combatAiTurnMethods = {
         if (end < start) return
         const msg = this.getCombatAIMessage(randomBetween(start, end))
         if (!msg) return
-        if (globalState.floatMessages.length > 0) return // _ai_print_msg: textObjectsGetCount() > 0
+        if (uiState.floatMessages.length > 0) return // _ai_print_msg: textObjectsGetCount() > 0
         // CE combat_ai.cc:3401 — the AI packet's font / color / outline_color
         // (ai.txt: 101, palette 58, palette 55 for every packet).
         addFloatMessage({
@@ -432,9 +434,9 @@ export const combatAiTurnMethods = {
     // DH2: when none qualifies, the nearest perceived enemy (Combat.findTarget) — DH2
     // doesn't set whoHitMe for every way a fight can start.
     aiDangerSource(this: Combat, obj: Critter, fallback = true): Critter | null {
-        const player = globalState.player
+        const player = world.player
         if (!obj.ai) return null
-        const party = !!globalState.gParty?.isPartyMember(obj)
+        const party = !!world.gParty?.isPartyMember(obj)
         const packet = obj.ai!.packet
         const alive = (c: Critter | null | undefined): c is Critter =>
             !!c && c.type === 'critter' && !c.dead && ((c.injuryFlags ?? 0) & 0x01) === 0
@@ -465,7 +467,7 @@ export const combatAiTurnMethods = {
                 for (const c of sorted) {
                     if (
                         this.checkBadShot(obj, c, false) === 'ok' ||
-                        globalState.gMap!.recalcPath(obj.position, c.position, false, obj).length > 0
+                        world.gMap!.recalcPath(obj.position, c.position, false, obj).length > 0
                     )
                         return c
                 }
@@ -520,7 +522,7 @@ export const combatAiTurnMethods = {
         for (const c of list) {
             if (!this.isWithinPerception(obj, c)) continue
             if (
-                globalState.gMap!.recalcPath(obj.position, c.position, false, obj).length > 0 ||
+                world.gMap!.recalcPath(obj.position, c.position, false, obj).length > 0 ||
                 this.checkBadShot(obj, c, false) === 'ok'
             )
                 return c
@@ -534,7 +536,7 @@ export const combatAiTurnMethods = {
     wantToJoin(this: Combat, c: Critter): boolean {
         const a = c
         if (c.visible === false || (((a.flags ?? 0) >>> 0) & 0x01) !== 0) return false // OBJECT_HIDDEN
-        if (globalState.player && c.elevation !== globalState.player.elevation) return false
+        if (world.player && c.elevation !== world.player.elevation) return false
         if ((c.injuryFlags & (DAM_DEAD | DAM_KNOCKED_OUT)) !== 0 || c.dead) return false
         if ((a.damageLastTurn ?? 0) > 0) return true
         if (c._script?.combat_p_proc) Scripting.combatEvent(c, 'wantToJoin')
@@ -603,7 +605,7 @@ export const combatAiTurnMethods = {
         const AP = obj.AP!
         if (AP.getAvailableCombatAP() <= 0) return false
         const packet = obj.ai!.packet
-        const player = globalState.player
+        const player = world.player
         switch (packet.distance) {
             case 'stay_close':
                 if (player && obj.whoHitMe !== player) {
@@ -658,8 +660,8 @@ export const combatAiTurnMethods = {
         const target = st.target
         const AP = obj.AP!
         const a = obj as any
-        const player = globalState.player
-        const party = !!globalState.gParty?.isPartyMember(obj)
+        const player = world.player
+        const party = !!world.gParty?.isPartyMember(obj)
         const steps: (() => boolean)[] = [
             () => {
                 if (

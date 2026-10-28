@@ -23,7 +23,7 @@ import { getMapInfoById, lookupMapName } from '../data.js'
 import * as Encounters from '../encounters.js'
 import * as GameTime from '../gametime.js'
 import { hexDirectionTo, hexDistance, hexInDirectionDistance, Point } from '../geometry.js'
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
 import { invenWield } from '../inventoryWield.js'
 import { dbg } from '../logger.js'
 import { pathfinderFindPath } from '../map/pathfinder.js'
@@ -102,7 +102,7 @@ function worldmapMsg(id: number): string {
 // included), hidden members not counted
 function partyBestSkill(skill: string): number {
     let best = 0
-    for (const c of globalState.gParty?.getPartyMembersAndPlayer() ?? [globalState.player]) {
+    for (const c of world.gParty?.getPartyMembersAndPlayer() ?? [world.player]) {
         if (!c || c.type !== 'critter' || c.visible === false) continue
         best = Math.max(best, c.getSkill(skill))
     }
@@ -125,7 +125,7 @@ export function rndEncounterOccurred(
     if (Math.abs(oldWorldPosY - pos.y) < 3) return null
     if (inArea) return null
 
-    if (!didMeetFrankHorrigan && Math.trunc(globalState.gameTickTime / TICKS_PER_DAY) > 35) {
+    if (!didMeetFrankHorrigan && Math.trunc(world.gameTickTime / TICKS_PER_DAY) > 35) {
         encounterMapId = -1
         didMeetFrankHorrigan = true
         return { mapId: MAP_IN_GAME_MOVIE1, blink: 'special', fadeOut: true, ask: null }
@@ -171,7 +171,7 @@ export function rndEncounterOccurred(
         // sphere / 2) and, unless locked, becomes known
         const mapName = lookupMapName(encounterMapId)
         const areaIdx = mapName ? areaIdContainingMap(mapName) : 0
-        const area: any = globalState.mapAreas?.[areaIdx]
+        const area: any = world.mapAreas?.[areaIdx]
         if (area) {
             area.worldPosition = areaPosAtParty(area, pos.x, pos.y)
             updateAreaMarkerPos(String(areaIdx), area.worldPosition.x, area.worldPosition.y)
@@ -184,7 +184,7 @@ export function rndEncounterOccurred(
     let detected = false
     if (frequency > chance) {
         let outdoorsman = partyBestSkill('Outdoorsman')
-        const player = globalState.player
+        const player = world.player
         if (player?.inventory.some((it) => it.pid === PROTO_ID_MOTION_SENSOR)) outdoorsman += 20
         if (outdoorsman > 95) outdoorsman = 95
         outdoorsman += square.difficulty ?? 0
@@ -249,7 +249,7 @@ function rndEncounterPick(square: Square): void {
         }
     })
 
-    const player = globalState.player
+    const player = world.player
     let chance = getRandomInt(0, totalChance) + ((player?.getStat('LUK') ?? 5) - 5)
     if (hasPerk(player, 'Explorer')) chance += 2
     if (hasPerk(player, 'Ranger')) chance += 1
@@ -309,9 +309,8 @@ export function setupRandomEncounter(): void {
     // CE _getPartyMemberCount: the dude and the living, visible critter members
     const party =
         1 +
-        (globalState.gParty?.getPartyMembers() ?? []).filter(
-            (c) => c.type === 'critter' && !c.dead && c.visible !== false,
-        ).length
+        (world.gParty?.getPartyMembers() ?? []).filter((c) => c.type === 'critter' && !c.dead && c.visible !== false)
+            .length
     let prevCritter: Critter | null = null
     let critter: Critter | null = null // CE's loop variable keeps its value when a group places nobody
     entry.subEntries.forEach((sub, index) => {
@@ -328,7 +327,7 @@ export function setupRandomEncounter(): void {
         if (sub.baseType !== -1)
             critter = setupCritterObjs(getWorldmap().encounters.baseTypes[sub.baseType], critterCount)
 
-        if (index > 0 && prevCritter !== null && prevCritter !== critter && critter !== null && !globalState.inCombat) {
+        if (index > 0 && prevCritter !== null && prevCritter !== critter && critter !== null && !world.inCombat) {
             if (entry.subEntries.length === 2 && Config.engine.doCombat === true) {
                 prevCritter.whoHitMe = critter
                 critter.whoHitMe = prevCritter
@@ -372,7 +371,7 @@ function rotationTo(from: number, to: number): number {
 
 // CE wmSetupRndNextTileNumInit
 function setupRndNextTileNumInit(base: EncBaseType): boolean {
-    const dude = globalState.player!
+    const dude = world.player!
     const dudeTile = toTileNum(dude.position)
     rndCenterTiles = [-1, -1]
     rndTileDirs = [0, 0]
@@ -383,7 +382,7 @@ function setupRndNextTileNumInit(base: EncBaseType): boolean {
         rndOriginalCenterTile = rndCenterTiles[0]
         return true
     }
-    const map = getMapInfoById(globalState.gMap?.mapID ?? -1)
+    const map = getMapInfoById(world.gMap?.mapID ?? -1)
     const points = map?.randomStartPoints ?? []
     if (points.length !== 0) {
         const rsp = points[getRandomInt(0, points.length - 1)]
@@ -398,8 +397,8 @@ function setupRndNextTileNumInit(base: EncBaseType): boolean {
 
 // CE wmEvalTileNumForPlacement: not blocked, and the dude can get there (shoot-blocking)
 function evalTileNumForPlacement(tile: number): boolean {
-    const dude = globalState.player!
-    const gMap = globalState.gMap!
+    const dude = world.player!
+    const gMap = world.gMap!
     if (gMap.blockingObjectAt(tile, dude.elevation ?? gMap.currentElevation, 0, dude) !== null) return false
     const to = fromTileNum(tile)
     if (to.x === dude.position.x && to.y === dude.position.y) return true
@@ -408,7 +407,7 @@ function evalTileNumForPlacement(tile: number): boolean {
 
 // CE wmSetupRndNextTileNum: the next tile of the formation (-1: none)
 function setupRndNextTileNum(base: EncBaseType, e: EncEntry): number {
-    const dude = globalState.player!
+    const dude = world.player!
     const dudeTile = toTileNum(dude.position)
     for (let attempt = 1; ; attempt++) {
         let tile: number
@@ -484,12 +483,12 @@ function setupRndNextTileNum(base: EncBaseType, e: EncEntry): number {
 
 // CE wmSetupCritterObjs: one group's critters. Returns the first critter created.
 function setupCritterObjs(base: EncBaseType | undefined, critterCount: number): Critter | null {
-    if (!base || !globalState.gMap || !globalState.player) return null
+    if (!base || !world.gMap || !world.player) return null
     dbg('worldmap', `setupCritterObjs: ${base.name}, formation ${base.formation}, ${critterCount} critters`)
     if (!setupRndNextTileNumInit(base)) return null
 
-    const gMap = globalState.gMap
-    const dude = globalState.player
+    const gMap = world.gMap
+    const dude = world.player
     const elevation = gMap.currentElevation
     let first: Critter | null = null
     for (const e of base.entries) {

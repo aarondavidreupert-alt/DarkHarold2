@@ -8,7 +8,7 @@
 //   endgameDeathEndingGetFileName (0x440D8C)
 
 import * as Scripting from '../scripting.js'
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
 import { getFileJSON, getRandomInt } from '../util.js'
 import { dbg, dbgWarn } from '../logger.js'
 
@@ -63,9 +63,9 @@ function validateDeathEndings(entries: EndgameDeathEnding[]): number {
     for (const e of entries) {
         e.enabled = false
         if (e.gvar !== -1 && Scripting.getGlobalVar(e.gvar) >= e.value) continue
-        if (e.worldAreaKnown !== -1 && !globalState.knownAreas.has(e.worldAreaKnown)) continue
-        if (e.worldAreaNotKnown !== -1 && globalState.knownAreas.has(e.worldAreaNotKnown)) continue
-        const lvl = globalState.player?.getStat('Level') ?? 1
+        if (e.worldAreaKnown !== -1 && !world.knownAreas.has(e.worldAreaKnown)) continue
+        if (e.worldAreaNotKnown !== -1 && world.knownAreas.has(e.worldAreaNotKnown)) continue
+        const lvl = world.player?.getStat('Level') ?? 1
         if (lvl < e.minLevel) continue
         e.enabled = true
         total += e.percentage

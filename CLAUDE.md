@@ -56,7 +56,8 @@ Meta/audit: `CE_PARITY_AUDIT.md` (+ `ce_audit/`, function-by-function CE parity 
 - src/combat/Combat.ts — combat loop, AI, hit/damage (src/combat.ts is its barrel; also combat/{AI,damage,hitChance,...}.ts, criticalEffects/)
 - src/critter/lifecycle.ts — critter damage/kill helpers (src/critter.ts is its barrel)
 - src/object/Obj.ts, src/object/Critter.ts — Obj / Critter types (src/object.ts is their barrel)
-- src/globalState.ts — central game state singleton (gMap, player, combat, etc.)
+- src/state/ — owned game state: `world` (gMap, player, gParty, combat, time), `uiState`, `view` (camera), `services` (renderer, audio), `assets` (images, protos, messages)
+- src/globalState.ts — engine runtime fields (loading flags, eventLog) plus a getter / setter for every `src/state/` field
 - src/config.ts — Config singleton with engine/UI/scripting/combat debug flags
 - src/main.ts — boot only: renderer, audio, fallout2.cfg, the asset caches, `initGame`
 - src/input.ts, src/hotkeys.ts — mouse and keyboard handlers; src/playerUse.ts — object interaction
@@ -84,7 +85,8 @@ Script variable scoping:
 - MVARs — per-map, persisted with map
 
 ## Key Singletons
-- `globalState` — exported from src/globalState.ts, also on `window`. Contains: `gMap`, `player`, `combatActive`, `knownAreas`, `eventLog`, `proMap` (proto cache), `images` (texture cache)
+- `world`, `uiState`, `view`, `services`, `assets` — `src/state/*.ts`; new code imports the owner (`world.player`)
+- `globalState` — exported from src/globalState.ts, also on `window`. Own fields: `isLoading`, `eventLog`, the use handlers; every `src/state/` field is reachable through it too (`globalState.player`, dev console, saves)
 - `Config` — exported from src/config.ts, also on `window`. Flags for debug, UI, combat, scripting verbosity
 
 ## Data Pipeline & Asset Conventions

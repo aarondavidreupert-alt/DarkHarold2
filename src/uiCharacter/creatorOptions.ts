@@ -18,7 +18,7 @@ limitations under the License.
 // SAVE / LOAD / PRINT TO FILE / ERASE / DONE (editor.msg 600-604) on opbase.frm. CE keeps
 // premade characters as .GCD files in the game folder; the browser keeps them in localStorage.
 
-import globalState from '../globalState.js'
+import { services } from '../state/services.js'
 import { Widget } from '../uiWidget.js'
 import { CE_COLOR, font1, font3, FoText } from '../uiFont.js'
 import { getMessage } from '../util.js'
@@ -65,7 +65,7 @@ export const BLANK_CHARACTER: CreatorInitialState = {
 
 // the large button sound (CE _gsound_lrg_butt_press)
 function playButtonSound(): void {
-    globalState.audioEngine?.playSfxByName?.('ib1p1xx1')
+    services.audioEngine?.playSfxByName?.('ib1p1xx1')
 }
 
 export function showCreatorOptions(parent: HTMLElement, ctx: CreatorOptionsContext): void {

@@ -18,7 +18,7 @@
 // tile grid, so the drawing is anchored to the tile's hex screen position, not
 // to any sprite bounding box.
 
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
 import { Obj } from '../object.js'
 import { getZoom } from '../renderer.js'
 import { worldToScreen } from './camera.js'
@@ -84,7 +84,7 @@ export function isLightSourceOverlayActive(): boolean {
 // Colour-code the centre dot by object kind so a glance tells you what is
 // emitting: white = player, orange = critter, yellow = item/scenery/other.
 function dotColorFor(obj: Obj): string {
-    if (obj === globalState.player) return '#FFFFFF'
+    if (obj === world.player) return '#FFFFFF'
     if (obj.type === 'critter') return '#FF8800'
     return '#FFFF44'
 }
@@ -92,7 +92,7 @@ function dotColorFor(obj: Obj): string {
 // Translucent fill for the 'tiles' mode, matching the dot colour so overlapping
 // sources stay distinguishable.
 function tileFillColorFor(obj: Obj): string {
-    if (obj === globalState.player) return 'rgba(255, 255, 255, 0.15)'
+    if (obj === world.player) return 'rgba(255, 255, 255, 0.15)'
     if (obj.type === 'critter') return 'rgba(255, 136, 0, 0.15)'
     return 'rgba(255, 255, 68, 0.15)'
 }
@@ -128,7 +128,7 @@ function drawTileFill(ctx: CanvasRenderingContext2D, centre: Obj, z: number): vo
 WebGLRenderer.prototype.drawLightSourceOverlay = function (): void {
     if (!overlayActive) return
 
-    const gm = globalState.gMap
+    const gm = world.gMap
     if (!gm) return
     // getObjects() defaults to the current elevation — sources on other floors
     // are correctly excluded.

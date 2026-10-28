@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import globalState from './globalState.js'
+import { world } from './state/world.js'
 import { Obj } from './object.js'
 import { fromTileNum, toTileNum } from './tile.js'
 import { hexToScreen, worldToHexBarycentric, Point } from './geometry.js'
@@ -457,7 +457,7 @@ function obj_adjust_light(obj: Obj, isSub: boolean = false, posOverride: Point |
                         // CE hexGridTileIsValid
                         let edi = 1
                         // for each object at position nextTile
-                        const objs = globalState.gMap!.objectsAtPosition(fromTileNum(nextTile))
+                        const objs = world.gMap!.objectsAtPosition(fromTileNum(nextTile))
                         for (let objsN = 0; objsN < objs.length; objsN++) {
                             const curObj = objs[objsN]
                             if (!curObj.pro)
@@ -536,7 +536,7 @@ export function rebuildLight(): void {
 // Call after map load or elevation change.
 export function bakeStaticLight(): void {
     light_reset()
-    globalState.gMap!.getObjects().forEach((obj) => {
+    world.gMap!.getObjects().forEach((obj) => {
         if (obj.type !== 'critter') {
             obj_adjust_light(obj, false)
         }
@@ -576,7 +576,7 @@ function playerLightSplits(obj: Obj): { x: number; y: number; w: number }[] | nu
 // Call once per render frame before drawing the lit floor.
 export function rebuildDynamicLight(): void {
     tile_intensity.set(staticTileIntensity)
-    for (const obj of globalState.gMap!.getObjects()) {
+    for (const obj of world.gMap!.getObjects()) {
         if (obj.type === 'critter' && obj.lightRadius > 0) {
             const splits = playerLightSplits(obj)
             if (splits) {

@@ -19,7 +19,9 @@ limitations under the License.
 // See wiki/ts-split-refactor.md → "Per-file split proposals" §12.
 
 import * as Events from '../events.js'
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
+import { uiState } from '../state/uiState.js'
+import { services } from '../state/services.js'
 import * as GameTime from '../gametime.js'
 import { UIMode } from '../uiMode.js'
 import { Config } from '../config.js'
@@ -119,7 +121,7 @@ function renderDateTimeBar(): void {
     bar.id = 'pipboyDateTimeBar'
     bar.style.cssText = 'position: absolute; left: 0; top: 18px; width: 240px; height: 20px;'
 
-    const { day, month, year, hours, minutes } = getGameDate(globalState.gameTickTime)
+    const { day, month, year, hours, minutes } = getGameDate(world.gameTickTime)
 
     // 1. DAY — 2 digits at left:20
     const d1 = Math.floor(day / 10)
@@ -220,7 +222,7 @@ Events.on('queueBail', () => {
 // CE party_member.cc partyIsAnyoneCanBeHealedByRest / partyGetMaxWoundToHealByRest:
 // living, visible, non-robot party members (the dude excluded).
 function restHealableParty(): Critter[] {
-    return (globalState.gParty?.getPartyMembers() ?? []).filter(
+    return (world.gParty?.getPartyMembers() ?? []).filter(
         (c) => c.type === 'critter' && !c.dead && c.visible !== false && c.killType !== KILL_TYPE_ROBOT,
     )
 }
@@ -239,7 +241,7 @@ function check4Health(minutes: number): boolean {
     return true
 }
 function addHealth(): void {
-    for (const c of globalState.gParty?.getPartyMembersAndPlayer() ?? [globalState.player]) {
+    for (const c of world.gParty?.getPartyMembersAndPlayer() ?? [world.player]) {
         if (!c || c.type !== 'critter' || c.dead) continue
         const hp = Math.min(c.getStat('HP') + c.getStat('Healing Rate'), c.getStat('Max HP'))
         c.stats.setBase('HP', hp)
@@ -250,10 +252,10 @@ function addHealth(): void {
 // CE: queueProcessEvents during the rest returns true (_proc_bail_flag) — an event that
 // starts combat, kills the dude or opens a dialogue ends the rest and closes the Pip-Boy.
 function restInterrupted(): boolean {
-    const mode = globalState.uiMode
+    const mode = uiState.uiMode
     if (
-        globalState.inCombat ||
-        globalState.player?.dead ||
+        world.inCombat ||
+        world.player?.dead ||
         mode === UIMode.dialogue ||
         mode === UIMode.barter ||
         mode === UIMode.worldMap
@@ -335,7 +337,7 @@ async function pipboyRest(hours: number, minutes: number, duration: number): Pro
             renderRestClock()
         }
     } else if (duration === REST_UNTIL_HEALED || duration === REST_UNTIL_PARTY_HEALED) {
-        const player = globalState.player!
+        const player = world.player!
         const wound = () => player.getStat('Max HP') - player.getStat('HP')
         if (wound() === 0 && !(duration === REST_UNTIL_PARTY_HEALED && partyMaxWound() > 0)) return false
         // first pass: the dude
@@ -361,7 +363,7 @@ async function pipboyRest(hours: number, minutes: number, duration: number): Pro
 function renderRestClock(): void {
     renderDateTimeBar()
     const hpEl = pipBoyContainer?.querySelector('#pipboyRestHP')
-    const player = globalState.player
+    const player = world.player
     if (hpEl && player)
         hpEl.textContent = `${getMessage('pipboy', 301) ?? 'Hit Points'} ${player.getStat('HP')}/${player.getStat('Max HP')}`
 }
@@ -381,7 +383,7 @@ function toggleWaitMenu(): void {
 
     // CE critter.cc _critter_can_obj_dude_rest — "You cannot rest at this location!" (215)
     if (!critterCanDudeRest()) {
-        globalState.audioEngine?.playSfxByName?.('iisxxxx1')
+        services.audioEngine?.playSfxByName?.('iisxxxx1')
         void showAlert(getMessage('pipboy', 215) ?? 'You cannot rest at this location!')
         return
     }
@@ -401,7 +403,7 @@ function toggleWaitMenu(): void {
     content.appendChild(hpRow)
 
     const count =
-        (globalState.gParty?.getPartyMembers().length ?? 0) > 0 &&
+        (world.gParty?.getPartyMembers().length ?? 0) > 0 &&
         restHealableParty().some((c) => c.getStat('HP') < c.getStat('Max HP'))
             ? REST_UNTIL_PARTY_HEALED + 1
             : REST_UNTIL_HEALED + 1
@@ -414,14 +416,14 @@ function toggleWaitMenu(): void {
             restBail = false
             for (const r of rows) r.style.color = '#3cf800' // CE _colorTable[992]
             row.style.color = '#fcfc7c' // 32747
-            globalState.audioEngine?.playSfxByName?.('ib1p1xx1')
+            services.audioEngine?.playSfxByName?.('ib1p1xx1')
             const stopCursor = pipBoyContainer ? waitWatchCursor(pipBoyContainer) : () => {}
             try {
                 await restFor(option)
             } finally {
                 stopCursor()
             }
-            globalState.audioEngine?.playSfxByName?.('ib2lu1x1')
+            services.audioEngine?.playSfxByName?.('ib2lu1x1')
             row.style.color = '#3cf800'
             isRestAnimating = false
             renderRestClock()
@@ -450,8 +452,8 @@ async function restFor(duration: number): Promise<void> {
 // hostile to the dude (its whoHitMe is the dude); where the map forbids resting
 // (maps.txt can_rest_here) every living critter of another team blocks it too.
 export function critterCanDudeRest(): boolean {
-    const gMap = globalState.gMap
-    const player = globalState.player
+    const gMap = world.gMap
+    const player = world.player
     if (!gMap || !player) return true
     const restricted = !mapCanRestHere(gMap.currentElevation)
     for (const o of gMap.getObjects()) {
@@ -592,7 +594,7 @@ export function openPipBoy(): void {
     const existing = document.getElementById('pipBoyContainer')
     if (existing) existing.remove()
 
-    globalState.uiMode = UIMode.pipBoy
+    uiState.uiMode = UIMode.pipBoy
 
     pipBoyContainer = document.createElement('div')
     pipBoyContainer.id = 'pipBoyContainer'
@@ -669,11 +671,11 @@ export function closePipBoy(): void {
     setIndicatorBarHidden(false) // CE pipboyWindowFree
     pipBoyContainer.remove()
     pipBoyContainer = null
-    if (globalState.uiMode === UIMode.pipBoy) globalState.uiMode = UIMode.none
+    if (uiState.uiMode === UIMode.pipBoy) uiState.uiMode = UIMode.none
 
     // CE ref: pipboy.cc:712 pipboyWindowFree — scriptsExecMapUpdateProc() on close,
     // so map scripts react to time spent resting (e.g. their time-of-day lighting).
-    globalState.gMap?.updateMap()
+    world.gMap?.updateMap()
 }
 
 // CE pipboyOpen(PIPBOY_OPEN_INTENT_REST) — the Z key: the Pip-Boy straight on the

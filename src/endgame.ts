@@ -24,7 +24,7 @@
 import { returnToMainMenu } from './mainMenuReturn.js'
 import { showConfirm } from './uiDialog.js'
 import * as Scripting from './scripting.js'
-import globalState from './globalState.js'
+import { services } from './state/services.js'
 import { getFileJSON, getMessage } from './util.js'
 import { dbg, dbgWarn } from './logger.js'
 import {
@@ -83,7 +83,7 @@ export async function playSlideshow(): Promise<void> {
         return
     }
 
-    globalState.audioEngine.stopMusic()
+    services.audioEngine.stopMusic()
 
     const overlay = createOverlay()
 
@@ -108,7 +108,7 @@ export async function playSlideshow(): Promise<void> {
 // 1. Load akiss music  2. Wait 3s  3. creditsOpen("credits.txt")  4. Continue dialog
 export async function playMovie(): Promise<void> {
     // CE: soundLoad/speechPlay("akiss.acm") before 3-second delay
-    const music = globalState.audioEngine.playSound('music/akiss')
+    const music = services.audioEngine.playSound('music/akiss')
 
     await new Promise((r) => setTimeout(r, 3000))
 

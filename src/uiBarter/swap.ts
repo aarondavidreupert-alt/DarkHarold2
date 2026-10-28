@@ -20,7 +20,7 @@ limitations under the License.
 
 import { Obj } from '../object.js'
 import { $id } from '../uiDom.js'
-import globalState from '../globalState.js'
+import { services } from '../state/services.js'
 import { ammoGetQuantity, ammoMergeInto, ammoSplitOff } from '../weaponAmmo.js'
 import { assetUrl } from '../modAssets.js'
 
@@ -185,7 +185,7 @@ export function uiGetAmount(item: Obj): Promise<number> {
         }
         function onDoneClick() {
             if (count >= 1 && count <= max) cleanup(count)
-            else globalState.audioEngine?.playSfxByName?.('iisxxxx1')
+            else services.audioEngine?.playSfxByName?.('iisxxxx1')
         }
         function onCancelClick() {
             cleanup(0)
@@ -207,9 +207,9 @@ export function uiGetAmount(item: Obj): Promise<number> {
         const keyHandler = (e: KeyboardEvent) => {
             if (e.key === 'Enter') {
                 if (count >= 1 && count <= max) {
-                    globalState.audioEngine?.playSfxByName?.('ib1p1xx1')
+                    services.audioEngine?.playSfxByName?.('ib1p1xx1')
                     cleanup(count)
-                } else globalState.audioEngine?.playSfxByName?.('iisxxxx1')
+                } else services.audioEngine?.playSfxByName?.('iisxxxx1')
                 return
             }
             if (e.key === 'Escape') {
@@ -338,7 +338,7 @@ export function uiGetTimer(item: Obj): Promise<number> {
         }
         const sfx = (name: string) => {
             try {
-                globalState.audioEngine?.playSfxByName(name)
+                services.audioEngine?.playSfxByName(name)
             } catch (e) {
                 void e
             }

@@ -3,6 +3,7 @@
 import { Combat, isCombatActive } from '../combat.js'
 import { Config } from '../config.js'
 import globalState from '../globalState.js'
+import { world } from '../state/world.js'
 import { Critter } from '../object.js'
 import { toTileNum } from '../tile.js'
 import { buildReport, printSummary } from './report.js'
@@ -31,7 +32,7 @@ async function crawlOneCritter(critter: Critter): Promise<CombatCritterResult> {
         durationMs: 0,
     }
 
-    const player = globalState.player!
+    const player = world.player!
 
     // Snapshot HP before boosting so we can restore it after the encounter.
     const prevHP = player.stats.getBase('HP')
@@ -47,7 +48,7 @@ async function crawlOneCritter(critter: Critter): Promise<CombatCritterResult> {
     // Snapshot hostile flags — include the target critter so its original value
     // is restored in finally even if it was naturally hostile before the crawl.
     const hostileSnapshots: Array<{ c: Critter; was: boolean }> = [{ c: critter, was: critter.hostile }]
-    for (const obj of globalState.gMap!.getObjects()) {
+    for (const obj of world.gMap!.getObjects()) {
         if (obj instanceof Critter && !obj.isPlayer && obj !== critter) {
             hostileSnapshots.push({ c: obj, was: obj.hostile })
             obj.hostile = false
@@ -87,7 +88,7 @@ async function crawlOneCritter(critter: Critter): Promise<CombatCritterResult> {
             // the next crawl doesn't immediately get stuck-combat-active.
             if (isCombatActive()) {
                 try {
-                    globalState.combat?.forceEnd()
+                    world.combat?.forceEnd()
                 } catch {
                     /* ignore */
                 }
@@ -97,7 +98,7 @@ async function crawlOneCritter(critter: Critter): Promise<CombatCritterResult> {
             return result
         }
 
-        if (!(await waitFor(() => globalState.inCombat === true, COMBAT_ACTIVE_TIMEOUT_MS))) {
+        if (!(await waitFor(() => world.inCombat === true, COMBAT_ACTIVE_TIMEOUT_MS))) {
             result.status = 'stuck-no-combat'
             result.durationMs = performance.now() - t0
             return result
@@ -105,24 +106,24 @@ async function crawlOneCritter(critter: Critter): Promise<CombatCritterResult> {
 
         // With forceTurn = critter, the NPC acts first. Wait for the player's first turn.
         const gotPlayerTurn = await waitFor(
-            () => globalState.combat?.inPlayerTurn === true || !globalState.inCombat,
+            () => world.combat?.inPlayerTurn === true || !world.inCombat,
             PLAYER_TURN_TIMEOUT_MS,
         )
         if (!gotPlayerTurn) {
             result.status = 'stuck-player-turn-timeout'
-            const _ptActive = globalState.combat?.combatants?.[globalState.combat?.whoseTurn]
+            const _ptActive = world.combat?.combatants?.[world.combat?.whoseTurn]
             if (_ptActive) {
                 console.warn(
                     `[AutoCrawler] stuck-player-turn-timeout: active uid=${_ptActive.uid} name="${_ptActive.name}" inAnim=${_ptActive.inAnim?.()}`,
                 )
             }
-            if (globalState.combat) globalState.combat.forceEnd()
+            if (world.combat) world.combat.forceEnd()
             await waitFor(() => !isCombatActive(), COMBAT_ACTIVE_TIMEOUT_MS)
             result.durationMs = performance.now() - t0
             return result
         }
 
-        if (!globalState.inCombat) {
+        if (!world.inCombat) {
             // Combat ended naturally (critter fled or died before player's turn).
             result.notes = 'combat ended before player turn'
             result.durationMs = performance.now() - t0
@@ -133,11 +134,11 @@ async function crawlOneCritter(critter: Critter): Promise<CombatCritterResult> {
 
         // End the player's turn — equivalent to pressing "End Turn".
         try {
-            globalState.combat!.nextTurn()
+            world.combat!.nextTurn()
         } catch (e) {
             result.status = 'exception-in-combat'
             result.error = String(e)
-            if (globalState.combat) globalState.combat.forceEnd()
+            if (world.combat) world.combat.forceEnd()
             await waitFor(() => !isCombatActive(), COMBAT_ACTIVE_TIMEOUT_MS)
             result.durationMs = performance.now() - t0
             return result
@@ -145,19 +146,16 @@ async function crawlOneCritter(critter: Critter): Promise<CombatCritterResult> {
 
         // Wait for AI turns to complete and the player's next turn to start,
         // or for combat to end naturally (all enemies dead / fled).
-        const aiDone = await waitFor(
-            () => globalState.combat?.inPlayerTurn === true || !globalState.inCombat,
-            AI_TURN_TIMEOUT_MS,
-        )
+        const aiDone = await waitFor(() => world.combat?.inPlayerTurn === true || !world.inCombat, AI_TURN_TIMEOUT_MS)
         if (!aiDone) {
             result.status = 'stuck-ai-turn-timeout'
-            const _aiActive = globalState.combat?.combatants?.[globalState.combat?.whoseTurn]
+            const _aiActive = world.combat?.combatants?.[world.combat?.whoseTurn]
             if (_aiActive) {
                 console.warn(
                     `[AutoCrawler] stuck-ai-turn-timeout: active uid=${_aiActive.uid} name="${_aiActive.name}" inAnim=${_aiActive.inAnim?.()}`,
                 )
             }
-        } else if (globalState.inCombat) {
+        } else if (world.inCombat) {
             result.turnsObserved++
         }
 
@@ -169,9 +167,9 @@ async function crawlOneCritter(critter: Critter): Promise<CombatCritterResult> {
         }
 
         // Force-end combat regardless of state.
-        if (globalState.inCombat) {
+        if (world.inCombat) {
             try {
-                globalState.combat!.forceEnd()
+                world.combat!.forceEnd()
             } catch {
                 /* ignore */
             }
@@ -192,14 +190,14 @@ export async function runCombatCrawler(mapName?: string): Promise<CrawlerReport 
         console.error('[AutoCrawler] Config.engine.debug must be true')
         return null
     }
-    if (!globalState.gMap || !globalState.player) {
+    if (!world.gMap || !world.player) {
         console.error('[AutoCrawler] No active map/player — start a game first')
         return null
     }
 
     if (mapName) {
         console.log(`[AutoCrawler] Loading map: ${mapName}`)
-        globalState.gMap.loadMap(mapName)
+        world.gMap.loadMap(mapName)
         if (!(await waitFor(() => !globalState.isLoading, 30000))) {
             console.error('[AutoCrawler] Map load timed out — aborting')
             return null
@@ -207,7 +205,7 @@ export async function runCombatCrawler(mapName?: string): Promise<CrawlerReport 
     }
 
     const critters = listHostileCritters()
-    const mapLabel = globalState.gMap.name ?? 'unknown'
+    const mapLabel = world.gMap.name ?? 'unknown'
     console.log(`[AutoCrawler] Combat crawl on "${mapLabel}": ${critters.length} target(s)`)
 
     const prevCombat = Config.scripting.debugLogShowType.combat

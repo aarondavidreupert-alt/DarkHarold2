@@ -17,7 +17,7 @@ limitations under the License.
 // Automap canvas renderer split out of automapData.ts.
 // See wiki/ts-split-refactor.md → "Per-file split proposals" §18.
 
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
 import { getSeenTiles, markSeenAt, getObjectSnapshot, ObjType } from './tracking.js'
 
 export interface RenderOptions {
@@ -53,8 +53,8 @@ export function drawAutomapInto(canvas: HTMLCanvasElement, opts: RenderOptions =
     // automap.png) show through.
     ctx.clearRect(0, 0, width, height)
 
-    const map = globalState.gMap
-    const player = globalState.player
+    const map = world.gMap
+    const player = world.player
     const mapName = opts.forMap ?? (map ? map.name : '')
     const elevation = opts.forElevation ?? (map ? map.currentElevation : 0)
     const isCurrentMap = !opts.forMap && map && map.name

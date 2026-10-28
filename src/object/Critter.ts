@@ -27,7 +27,8 @@ import { Weapon } from '../critter.js'
 import { directionOfDelta, hexDistance, HEX_GRID_SIZE, Point } from '../geometry.js'
 import { toTileNum } from '../tile.js'
 import { canUseDoor } from '../map/pathfinder.js'
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
+import { assets } from '../state/assets.js'
 import { dbg, dbgWarn } from '../logger.js'
 import * as Scripting from '../scripting.js'
 import { getMessage, getProtoMsg } from '../util.js'
@@ -368,8 +369,8 @@ export class Critter extends Obj {
 
     move(position: Point, curIdx?: number, signalEvents = true): boolean {
         // CE ref: animation.cc _object_move — doors on the way are opened (canUseDoor)
-        if (globalState.gMap) {
-            for (const obj of globalState.gMap.objectsAtPosition(position)) {
+        if (world.gMap) {
+            for (const obj of world.gMap.objectsAtPosition(position)) {
                 // _object_move: a blocking door the critter canUseDoor gets _obj_use_door
                 if (obj.subtype === 'door' && !obj.open && !obj.jammed && canUseDoor(this, obj)) {
                     setObjectOpen(obj, true, false, true)
@@ -394,7 +395,7 @@ export class Critter extends Obj {
         ) {
             spatialsBusy = true
             try {
-                const hitSpatials = hitSpatialTrigger(position, this.elevation ?? globalState.gMap!.currentElevation)
+                const hitSpatials = hitSpatialTrigger(position, this.elevation ?? world.gMap!.currentElevation)
                 for (let i = 0; i < hitSpatials.length; i++) {
                     const spatial = hitSpatials[i]
                     dbg(
@@ -424,8 +425,8 @@ export class Critter extends Obj {
             traits: this.isPlayer ? this.traits : undefined,
             // CE perkGetSkillModifier: Ghost reads objectGetLightIntensity(gDude).
             lightIntensity:
-                skill === 'Sneak' && this.perks.includes('Ghost') && globalState.player
-                    ? getObjectLightIntensity(globalState.player as Critter, true)
+                skill === 'Sneak' && this.perks.includes('Ghost') && world.player
+                    ? getObjectLightIntensity(world.player as Critter, true)
                     : undefined,
         })
     }
@@ -443,7 +444,7 @@ export class Critter extends Obj {
                 return remaining < 0 ? Math.max(1, value - (Math.trunc(-remaining / 40) + 1)) : value
             }
             case 'Age':
-                return value + Math.floor((globalState.gameTickTime ?? 0) / 315360000) // GAME_TIME_TICKS_PER_YEAR
+                return value + Math.floor((world.gameTickTime ?? 0) / 315360000) // GAME_TIME_TICKS_PER_YEAR
         }
         return value
     }
@@ -496,7 +497,7 @@ export class Critter extends Obj {
     }
 
     get directionalOffset(): Point {
-        const info = globalState.imageInfo![this.art]
+        const info = assets.imageInfo![this.art]
         if (info === undefined) {
             throw new Error('No image map info for: ' + this.art)
         }
@@ -515,7 +516,7 @@ export class Critter extends Obj {
                 dbgWarn('movement', '[Pathfinding] walkTo: invalid target tile', target.x, target.y)
                 return false
             }
-            path = globalState.gMap!.recalcPath(this.position, target, undefined, this)
+            path = world.gMap!.recalcPath(this.position, target, undefined, this)
         }
 
         if (path.length === 0) {
@@ -539,7 +540,7 @@ export class Critter extends Obj {
         if (running && this.getInventoryWeight() > this.getStat('Carry')) {
             running = false
             if (this.isPlayer) uiLog(getMessage('misc', 8000) ?? 'You are overloaded.')
-            else if (globalState.gParty?.isPartyMember(this)) {
+            else if (world.gParty?.isPartyMember(this)) {
                 const fmt = getMessage('misc', 8001) ?? '%s is overloaded.'
                 uiLog(fmt.replace('%s', this.getName()))
             }
@@ -550,7 +551,7 @@ export class Critter extends Obj {
         // Critters without a walk/run FRM (spore plants, floaters' stand-only art) can't
         // move: CE _object_move does nothing when artLock(sad->fid) fails (animation.cc).
         const moveArt = this.getAnimation(running ? 'run' : 'walk')
-        if (!globalState.imageInfo![moveArt]) {
+        if (!assets.imageInfo![moveArt]) {
             dbgWarn('movement', `[walkTo] ${this.name || this.pid} has no move art ${moveArt} — not moving`)
             return false
         }
@@ -572,7 +573,7 @@ export class Critter extends Obj {
         // CE ref: animation.cc _object_move (field_20 == -2000) — the walk starts on the
         // hex centre (objectSetLocation) and then adds frame 0's FRM delta.
         if (Config.engine.walkModel !== 'dh2') {
-            const d0 = globalState.imageInfo![this.art]?.frameOffsets[dir]?.[0]
+            const d0 = assets.imageInfo![this.art]?.frameOffsets[dir]?.[0]
             if (d0) this.shift = { x: d0.x, y: d0.y }
         }
 
@@ -580,7 +581,7 @@ export class Critter extends Obj {
     }
 
     walkInFrontOf(targetPos: Point, callback?: () => void): boolean {
-        const path = globalState.gMap!.recalcPath(this.position, targetPos, false, this)
+        const path = world.gMap!.recalcPath(this.position, targetPos, false, this)
         if (path.length === 0) {
             // invalid path
             return false
@@ -622,11 +623,11 @@ export class Critter extends Obj {
             }
             return this.walkTo(exactHex, Config.engine.doAlwaysRun || hexDistance(this.position, exactHex) >= 5, then)
         }
-        if (!globalState.inCombat || !this.isPlayer || !ap) {
+        if (!world.inCombat || !this.isPlayer || !ap) {
             walkThere(action)
             return
         }
-        if (!(globalState.combat?.inPlayerTurn || Config.combat.allowWalkDuringAnyTurn)) return
+        if (!(world.combat?.inPlayerTurn || Config.combat.allowWalkDuringAnyTurn)) return
         const redraw = () => drawAP(ap.getAvailableCombatAP(), ap.getTotalMaxAP(), ap.move)
         const act = () => {
             if (apCost > 0) {
@@ -640,8 +641,8 @@ export class Critter extends Obj {
             action()
         }
         const path = exactHex
-            ? globalState.gMap!.recalcPath(this.position, exactHex, true, this)
-            : globalState.gMap!.recalcPath(this.position, targetPos, false, this)
+            ? world.gMap!.recalcPath(this.position, exactHex, true, this)
+            : world.gMap!.recalcPath(this.position, targetPos, false, this)
         if (path.length === 0 && !(exactHex && this.position.x === exactHex.x && this.position.y === exactHex.y)) return
         const steps = exactHex ? Math.max(0, path.length - 1) : Math.max(0, path.length - 2) // walkInFrontOf stops next to the target
         if (steps > ap.getAvailableMoveAP()) {

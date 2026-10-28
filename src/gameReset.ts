@@ -23,6 +23,7 @@ import { killCounts } from './critter.js'
 import { sfallArraysReset } from './sfallArrays.js'
 import { START_TICKS } from './gametime.js'
 import globalState from './globalState.js'
+import { world } from './state/world.js'
 import { dbg } from './logger.js'
 import * as Scripting from './scripting.js'
 import * as Worldmap from './worldmap.js'
@@ -35,20 +36,20 @@ import { sfallHooksReset } from './sfallHooks.js'
 export function gameReset(): void {
     uiLogReset() // isoReset → interfaceReset → displayMonitorReset
     // combatReset
-    if (globalState.inCombat) globalState.combat?.forceEnd()
-    globalState.inCombat = false
-    globalState.combat = null
+    if (world.inCombat) world.combat?.forceEnd()
+    world.inCombat = false
+    world.combat = null
 
     Scripting.resetGameState() // gameLoadGlobalVars, _scr_reset, scriptsReset, queueExit
     Scripting.clearScriptRequests() // scriptsReset: gScriptsRequests = 0
-    globalState.seenMovies = new Set() // gameMoviesReset
-    globalState.gameTickTime = START_TICKS // gameTimeReset (via _scr_reset)
+    world.seenMovies = new Set() // gameMoviesReset
+    world.gameTickTime = START_TICKS // gameTimeReset (via _scr_reset)
     globalState.eventLog = []
-    globalState.dirtyMapCache = {} // other maps' saved state
+    world.dirtyMapCache = {} // other maps' saved state
     killCounts.clear() // critterReset → killsReset
     resetSkillUsage() // skillsReset → skill_use_slot_clear
-    globalState.gParty.deserialize([]) // partyMembersReset
-    globalState.gParty.deserializeLevels(undefined)
+    world.gParty.deserialize([]) // partyMembersReset
+    world.gParty.deserializeLevels(undefined)
     Worldmap.resetWorldmap() // wmWorldMap_reset
     Worldmap.resetEncounters() // wmGenDataReset (didMeetFrankHorrigan)
     resetAutomap() // automapReset: the automap belongs to the game
@@ -56,7 +57,7 @@ export function gameReset(): void {
     sfallGlobalVarsReset() // sfall_gl_vars_reset
     removeAllGlobalScripts() // sfall_gl_scr_reset
     sfallHooksReset() // (sfall: hooks belong to the global scripts)
-    globalState.player?.resetForNewGame() // stats/skills/perks/traits/_inven_reset_dude
-    globalState.player?.updateNativeLook() // _proto_dude_update_gender: tribal again
+    world.player?.resetForNewGame() // stats/skills/perks/traits/_inven_reset_dude
+    world.player?.updateNativeLook() // _proto_dude_update_gender: tribal again
     dbg('saveload', '[gameReset] per-game state cleared')
 }

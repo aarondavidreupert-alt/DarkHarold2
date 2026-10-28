@@ -18,7 +18,9 @@ limitations under the License.
 // targeting overlay (CE calledShotSelectHitLocation).
 
 import { Combat } from './combat.js'
-import globalState from './globalState.js'
+import { world } from './state/world.js'
+import { uiState } from './state/uiState.js'
+import { services } from './state/services.js'
 import { dbg } from './logger.js'
 import { Critter } from './object.js'
 import { drawDigits } from './uiHud.js'
@@ -46,16 +48,16 @@ export function initCalledShot(): void {
 }
 
 export function uiCloseCalledShot() {
-    globalState.uiMode = UIMode.none
+    uiState.uiMode = UIMode.none
     hide($id('calledShotBox'))
 }
 
 export function uiCalledShot(art: string, target: Critter, callback?: (regionHit: string) => void) {
-    globalState.uiMode = UIMode.calledShot
+    uiState.uiMode = UIMode.calledShot
     show($id('calledShotBox'))
 
     function drawChance(region: string) {
-        let chance: any = (globalState.combat ?? new Combat([])).getHitChance(globalState.player!, target, region).hit
+        let chance: any = (world.combat ?? new Combat([])).getHitChance(world.player!, target, region).hit
         dbg('combat', `[UI] called shot: id: #calledShot-${region}-chance #digit | chance: ${chance}`)
         // CE _print_tohit: two digits from 0 ("00"), dashes only below 0
         if (chance < 0) {
@@ -82,7 +84,7 @@ export function uiCalledShot(art: string, target: Critter, callback?: (regionHit
         $label.onclick = (evt: MouseEvent) => {
             const clickedRegion = (evt.target as HTMLElement).id.split('-')[1]
             dbg('combat', `[UI] called shot: clicked region ${clickedRegion}`)
-            globalState.audioEngine?.playSfxByName?.('icsxxxx1')
+            services.audioEngine?.playSfxByName?.('icsxxxx1')
             if (callback) {
                 callback(clickedRegion)
             }

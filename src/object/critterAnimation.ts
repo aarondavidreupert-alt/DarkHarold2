@@ -22,7 +22,8 @@ import { Config } from '../config.js'
 import { directionOfDelta, hexDistance, Point } from '../geometry.js'
 import { randomBetween } from '../random.js'
 import { objectOnScreen } from '../renderer.js'
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
+import { assets } from '../state/assets.js'
 import { lazyLoadImage } from '../images.js'
 import { dbg, dbgWarn } from '../logger.js'
 import { artGetCode } from '../pro.js'
@@ -105,7 +106,7 @@ interface PartialAction {
 }
 
 function getAnimDistance(art: string): number {
-    const info = globalState.imageInfo![art]
+    const info = assets.imageInfo![art]
     if (info === undefined) {
         throw new Error('no image info for ' + art)
     }
@@ -131,7 +132,7 @@ function getAnimPartialActions(art: string, anim: string): { movement: number; a
         numPartials = 1
     }
 
-    const delta = Math.floor(globalState.imageInfo![art].numFrames / numPartials)
+    const delta = Math.floor(assets.imageInfo![art].numFrames / numPartials)
     let startFrame = 0
     let endFrame = delta
     for (let i = 0; i < numPartials; i++) {
@@ -141,7 +142,7 @@ function getAnimPartialActions(art: string, anim: string): { movement: number; a
     }
 
     // extend last partial action to the last frame
-    partialActions.actions[partialActions.actions.length - 1].endFrame = globalState.imageInfo![art].numFrames
+    partialActions.actions[partialActions.actions.length - 1].endFrame = assets.imageInfo![art].numFrames
 
     return partialActions
 }
@@ -162,7 +163,7 @@ Critter.prototype.getAnimation = function (this: Critter, anim: string): string 
         const held = this.equippedWeapon
         const weaponCode = held && held.pid !== undefined ? (held.pro?.extra?.animCode ?? 0) : 0
         const armed = weaponCode ? artGetCode(id, weaponCode) : null
-        if (armed && globalState.imageInfo![base + armed[0] + armed[1]] !== undefined) return base + armed[0] + armed[1]
+        if (armed && assets.imageInfo![base + armed[0] + armed[1]] !== undefined) return base + armed[0] + armed[1]
         const code = artGetCode(id, 0)
         return code ? base + code[0] + code[1] : base + 'aa'
     }
@@ -178,7 +179,7 @@ Critter.prototype.getAnimation = function (this: Critter, anim: string): string 
             const key = base + wepAnim
             // CE ref: art.cc buildFid() — only use armed FRM set when it exists in the atlas;
             // fall through to unarmed fallback below when the FRM is absent.
-            if (globalState.imageInfo![key] !== undefined) return key
+            if (assets.imageInfo![key] !== undefined) return key
         }
     }
 
@@ -189,7 +190,7 @@ Critter.prototype.getAnimation = function (this: Critter, anim: string): string 
                 // Unarmed: pick punch ('aq') or kick ('ar') based on active hand/mode
                 const mode = currentUnarmed(this).mode
                 const candidate = base + (mode.family === 'kick' ? 'ar' : 'aq')
-                if (globalState.imageInfo![candidate] !== undefined) return candidate
+                if (assets.imageInfo![candidate] !== undefined) return candidate
                 return base + 'aa' // fallback to idle if FRM not present
             }
             dbg('animation', '[Animation] default attack animation instead of weapon animation')
@@ -271,14 +272,14 @@ Critter.prototype.setIdleArt = function (this: Critter): void {
 }
 
 Critter.prototype.hasAnimation = function (this: Critter, anim: string): boolean {
-    return globalState.imageInfo![this.getAnimation(anim)] !== undefined
+    return assets.imageInfo![this.getAnimation(anim)] !== undefined
 }
 
 // FA3 — CE ref: art.h ArtFrame.actionFrame; animation.cc fires the action-frame event
 // (hit / impact / projectile release) when the animation's frame index reaches it.
 // The pipeline stores it per direction (tools/frmpixels.py exportFRMs).
 function actionFrameFor(art: string, orientation: number): number | null {
-    const af = globalState.imageInfo![art]?.actionFrame
+    const af = assets.imageInfo![art]?.actionFrame
     if (Array.isArray(af)) return typeof af[orientation] === 'number' ? af[orientation] : (af[0] ?? null)
     return typeof af === 'number' ? af : null
 }
@@ -300,7 +301,7 @@ Critter.prototype.updateStaticAnim = function (this: Critter): void {
     }
 
     const time = window.performance.now()
-    const fps = globalState.imageInfo![this.art]?.fps || 10 // CE art.cc artGetFramesPerSecond: 0 → 10
+    const fps = assets.imageInfo![this.art]?.fps || 10 // CE art.cc artGetFramesPerSecond: 0 → 10
 
     if (time - this.lastFrameTime >= 1000 / fps) {
         const reversed = this.anim === 'reverse'
@@ -320,7 +321,7 @@ Critter.prototype.updateStaticAnim = function (this: Critter): void {
             if (af !== null && this.frame >= af) this.fireActionFrame()
         }
 
-        const done = reversed ? this.frame === -1 : this.frame === globalState.imageInfo![this.art].numFrames
+        const done = reversed ? this.frame === -1 : this.frame === assets.imageInfo![this.art].numFrames
         if (done) {
             if (reversed) this.frame++ // clamp back to frame 0
             // An action frame past the last frame (or missing data) still resolves first.
@@ -340,9 +341,9 @@ Critter.prototype.updateStaticAnim = function (this: Critter): void {
 let fidgetLastTime = 0
 let fidgetNextDelay = 0
 function dudeFidget(time: number): void {
-    const gMap = globalState.gMap
-    const dude = globalState.player
-    if (!gMap || !dude || globalState.inCombat || dude.visible === false) return
+    const gMap = world.gMap
+    const dude = world.player
+    if (!gMap || !dude || world.inCombat || dude.visible === false) return
     if (time - fidgetLastTime <= fidgetNextDelay) return
     fidgetLastTime = time
     const candidates: Critter[] = []
@@ -375,7 +376,7 @@ function dudeFidget(time: number): void {
 // it, then plays its stand animation once. Never sets animCallback, so inAnim() stays false
 // and movement is never blocked.
 Critter.prototype.updateLoopingAnim = function (this: Critter): void {
-    const info = globalState.imageInfo![this.art]
+    const info = assets.imageInfo![this.art]
     if (!info || !info.numFrames) return
     const time = window.performance.now()
     dudeFidget(time)
@@ -446,12 +447,12 @@ Critter.prototype.updateAnim = function (this: Critter): void {
     }
 
     const time = window.performance.now()
-    let fps = globalState.imageInfo![this.art].fps
+    let fps = assets.imageInfo![this.art].fps
     // CE animation.cc animationComputeTicksPerFrame: in combat ANIM_WALK (not running)
     // gets fps += combat_speed (the 0..50 preference, higher is faster); the dude only
     // with player_speedup.
-    if (globalState.inCombat && this.anim === 'walk') {
-        const isPlayer = globalState.player && this === globalState.player
+    if (world.inCombat && this.anim === 'walk') {
+        const isPlayer = world.player && this === world.player
         if (!isPlayer || Config.engine.playerSpeedup) {
             fps += Math.max(0, Math.min(50, Config.combat.combatSpeed))
         }
@@ -518,7 +519,7 @@ Critter.prototype.updateAnim = function (this: Critter): void {
             // advance frame
             this.frame++
 
-            const info = globalState.imageInfo![this.art]
+            const info = assets.imageInfo![this.art]
             if (info === undefined) {
                 throw new Error('No image map info for: ' + this.art)
             }
@@ -557,7 +558,7 @@ function crossedHexStep(dir: number, sx: number, sy: number): boolean {
 }
 
 Critter.prototype.walkFrameCE = function (this: Critter): void {
-    const info = globalState.imageInfo![this.art]
+    const info = assets.imageInfo![this.art]
     if (!info || !this.path || !this.shift) return
     this.frame = (this.frame + 1) % info.numFrames
     const d = info.frameOffsets[this.orientation!]?.[this.frame]
@@ -575,7 +576,7 @@ Critter.prototype.walkFrameCE = function (this: Critter): void {
     // CE animation.cc _object_move: a blocker on the next hex (one that moved into the path)
     // — a door the critter can use opens (move()); anything else makes it re-path to the goal,
     // within the hexes it set out to walk (their AP are paid), or the walk ends there.
-    const gMap = globalState.gMap
+    const gMap = world.gMap
     if (gMap) {
         const elevation = this.elevation ?? gMap.currentElevation
         const blocker = gMap.blockingObjectAt(pos[1] * 200 + pos[0], elevation, 0, this)
@@ -589,7 +590,7 @@ Critter.prototype.walkFrameCE = function (this: Critter): void {
                 this.clearAnim()
                 // in combat the turn goes on (the AI and the player's AP bookkeeping wait for it);
                 // out of combat the rest of the action is dropped, as CE's ended sequence
-                if (globalState.inCombat && callback) callback()
+                if (world.inCombat && callback) callback()
                 return
             }
             this.path.path = repath
@@ -626,7 +627,7 @@ Critter.prototype.walkFrameCE = function (this: Critter): void {
 Critter.prototype.walkFrameBlend = function (this: Critter): { x: number; y: number } {
     if (Config.engine.walkModel !== 'smooth' || !this.shift || (this.anim !== 'walk' && this.anim !== 'run'))
         return { x: 0, y: 0 }
-    const info = globalState.imageInfo![this.art]
+    const info = assets.imageInfo![this.art]
     if (!info) return { x: 0, y: 0 }
     const fps = info.fps || 10
     const t = Math.max(0, Math.min(1, ((window.performance.now() - this.lastFrameTime) * fps) / 1000))
@@ -645,7 +646,7 @@ Critter.prototype.getWalkLerp = function (this: Critter): { hexA: Point; hexB: P
     const hexB: Point = { x: nextPos[0], y: nextPos[1] }
     const hexA: Point = { x: this.position.x, y: this.position.y }
     if (hexA.x === hexB.x && hexA.y === hexB.y) return null
-    const info = globalState.imageInfo![this.art]
+    const info = assets.imageInfo![this.art]
     if (!info) return null
     if (Config.engine.walkModel !== 'dh2') {
         // CE model: progress = how much of this direction's hex step the offset covers.
@@ -687,8 +688,8 @@ Critter.prototype.staticAnimation = function (
     // y: height term compensates for the bottom-edge anchor (tileY - h); a taller sprite
     //    pushes the bottom edge down, so a height decrease shifts the sprite up without correction.
     let pendingArtOffset = prevArtOffset
-    const oldInfo = globalState.imageInfo![oldArt]
-    const newInfo = globalState.imageInfo![newArt]
+    const oldInfo = assets.imageInfo![oldArt]
+    const newInfo = assets.imageInfo![newArt]
     if (oldInfo && newInfo) {
         const orient = this.orientation ?? 0
         const oldDirOff = oldInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
@@ -735,7 +736,7 @@ Critter.prototype.staticAnimation = function (
         // start frame's delta (a walk ended on the hex centre, objectSetLocation).
         if (this.shift !== null) this.ceOff = { x: 0, y: 0 }
         if (newArt !== oldArt) {
-            const oldDir = globalState.imageInfo![oldArt]?.directionOffsets[this.orientation ?? 0]
+            const oldDir = assets.imageInfo![oldArt]?.directionOffsets[this.orientation ?? 0]
             if (oldDir) {
                 this.ceOff = { x: this.ceOff.x + oldDir.x, y: this.ceOff.y + oldDir.y }
             }
@@ -743,7 +744,7 @@ Critter.prototype.staticAnimation = function (
         this.art = newArt
         this.lastFrameTime = window.performance.now()
         if (reversed) {
-            this.frame = globalState.imageInfo![newArt].numFrames - 1
+            this.frame = assets.imageInfo![newArt].numFrames - 1
             this.anim = 'reverse'
         } else {
             this.frame = 0
@@ -808,7 +809,7 @@ Critter.prototype.clearAnim = function (this: Critter): void {
     Obj.prototype.clearAnim.call(this)
     if (this.path?.paid) {
         this.AP?.refundWalk(this.path)
-        if (this.isPlayer && globalState.inCombat && this.AP)
+        if (this.isPlayer && world.inCombat && this.AP)
             drawAP(this.AP.getAvailableCombatAP(), this.AP.getTotalMaxAP(), this.AP.move)
     }
     this.path = null
@@ -825,8 +826,8 @@ Critter.prototype.clearAnim = function (this: Critter): void {
         // loop (K_cycle ≠ 0), artOffset may be non-zero after each full draw/holster cycle;
         // a walk resets it to {0,0} via objectSetLocation (CE ref: object.cc).
         const orient = this.orientation ?? 0
-        const oldInfo = globalState.imageInfo![oldArt]
-        const newInfo = globalState.imageInfo![newArt]
+        const oldInfo = assets.imageInfo![oldArt]
+        const newInfo = assets.imageInfo![newArt]
         let newArtOffset: Point = { x: 0, y: 0 }
         if (oldInfo && newInfo) {
             const oldDirOff = oldInfo.directionOffsets[orient] ?? { x: 0, y: 0 }
@@ -869,7 +870,7 @@ Critter.prototype.clearAnim = function (this: Critter): void {
 // CE obj->x/y bookkeeping (Config.engine.animOffsetModel 'ce'): add `sign` times the
 // FRM delta of `frame` (no-op past the last frame).
 function ceOffsetAdd(c: Critter, frame: number, sign: 1 | -1): void {
-    const d = globalState.imageInfo![c.art]?.frameOffsets[c.orientation ?? 0]?.[frame]
+    const d = assets.imageInfo![c.art]?.frameOffsets[c.orientation ?? 0]?.[frame]
     if (!d) return
     c.ceOff = { x: c.ceOff.x + sign * d.x, y: c.ceOff.y + sign * d.y }
 }
@@ -882,8 +883,8 @@ function ceStandOffset(c: Critter): Point {
     if (!skin || skin === 'a') return { x: 0, y: 0 }
     const orient = c.orientation ?? 0
     const base = c.getBase()
-    const takeOut = globalState.imageInfo![base + skin + 'c']
-    const stand = globalState.imageInfo![base + 'aa']
+    const takeOut = assets.imageInfo![base + skin + 'c']
+    const stand = assets.imageInfo![base + 'aa']
     if (!takeOut || !stand) return { x: 0, y: 0 }
     let x = 0,
         y = 0

@@ -14,7 +14,10 @@
 
 import { Config } from '../config.js'
 import { hexDistance, hexIsInFrontOf, hexIsToRightOf } from '../geometry.js'
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
+import { view } from '../state/view.js'
+import { services } from '../state/services.js'
+import { assets } from '../state/assets.js'
 import { isCEOccludingWall, isCEOccludingWallLiteral, isBBoxOccludingWall, WebGLRenderer } from '../webglrenderer.js'
 
 // console commands are free-form globals (play.html#dev)
@@ -66,7 +69,7 @@ export function registerEggCommands(): void {
         console.log(`[Egg] radius=${Config.ui.eggRadius}`)
     }
     devWindow.debugEgg = () => {
-        const r = globalState.renderer as WebGLRenderer
+        const r = services.renderer as WebGLRenderer
         // Quick sanity check that proto/pro.json's wall extendedFlags data
         // actually made it into the cached proMap — if every sampled wall
         // shows extendedFlags=0, the browser is very likely still serving a
@@ -74,7 +77,7 @@ export function registerEggCommands(): void {
         // Run clearAssetCache() and reload if so.
         let wallsWithFlags = 0
         let wallsSampled = 0
-        const walls = (globalState.proMap as any)?.walls
+        const walls = (assets.proMap as any)?.walls
         if (walls) {
             for (const id of Object.keys(walls).slice(0, 50)) {
                 wallsSampled++
@@ -91,11 +94,9 @@ export function registerEggCommands(): void {
             uEggMode: !!r.uEggMode,
             uEggCenter: !!r.uEggCenter,
             uEggSize: !!r.uEggSize,
-            playerPosition: globalState.player
-                ? { x: globalState.player.position.x, y: globalState.player.position.y }
-                : null,
-            cameraPosition: globalState.cameraPosition,
-            zoom: globalState.cameraZoom,
+            playerPosition: world.player ? { x: world.player.position.x, y: world.player.position.y } : null,
+            cameraPosition: view.cameraPosition,
+            zoom: view.cameraZoom,
             wallExtendedFlagsSample:
                 `${wallsWithFlags}/${wallsSampled} sampled walls have nonzero extendedFlags` +
                 (wallsSampled > 0 && wallsWithFlags === 0 ? ' — STALE proMap cache? Try clearAssetCache()' : ''),
@@ -109,7 +110,7 @@ export function registerEggCommands(): void {
     // bbox/depth test ('bbox') — see wiki/extended_flags.md §8 for what differs and why.
     // Example: wall pos=21718 extFlags=0x2000 fOD=false fDO=true rOD=false rDO=true → egg=true ceLiteral=false bbox=false (DIFF)
     devWindow.eggDebug = () => {
-        const player = globalState.player
+        const player = world.player
         if (!player) {
             console.log('[EggDebug] no player')
             return
@@ -117,7 +118,7 @@ export function registerEggCommands(): void {
         const radius = Config.ui.eggRadius ?? 8
         const playerPos = player.position.y * 200 + player.position.x
         console.log(`[EggDebug] player pos=${playerPos} (radius=${radius}, mode=${Config.ui.eggMode})`)
-        const objs = globalState.gMap?.getObjects() ?? []
+        const objs = world.gMap?.getObjects() ?? []
         const nearby = objs.filter(
             (o) => (o.type === 'wall' || o.type === 'scenery') && hexDistance(player.position, o.position) <= radius,
         )
@@ -146,13 +147,13 @@ export function registerEggCommands(): void {
     // inspectPos(tileNum) — dump every object at a map position with all flag fields.
     // Example: inspectPos(22925)
     devWindow.inspectPos = (tileNum: number) => {
-        if (!globalState.gMap) {
+        if (!world.gMap) {
             console.log('[inspectPos] no map loaded')
             return
         }
         const x = tileNum % 200
         const y = Math.floor(tileNum / 200)
-        const objs = globalState.gMap.objectsAtPosition({ x, y })
+        const objs = world.gMap.objectsAtPosition({ x, y })
         if (objs.length === 0) {
             console.log(`[inspectPos] no objects at position ${tileNum}`)
             return

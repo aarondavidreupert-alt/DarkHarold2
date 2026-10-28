@@ -2,7 +2,7 @@
 // DOM/dialogue/engine helpers used by every crawler.
 
 import { aiPackets, getAiPacket } from '../aiPackets.js'
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
 import { hexNeighbors } from '../geometry.js'
 import { heart } from '../heart.js'
 import { Critter } from '../object.js'
@@ -64,7 +64,7 @@ export async function waitFor(pred: () => boolean, timeoutMs: number): Promise<b
 
 /** All living, visible, scripted NPCs on the current map that have a talk_p_proc. */
 export function listTalkableNPCs(): Critter[] {
-    const map = globalState.gMap
+    const map = world.gMap
     if (!map) return []
     return map.getObjects().filter((obj): obj is Critter => {
         if (!(obj instanceof Critter)) return false
@@ -77,7 +77,7 @@ export function listTalkableNPCs(): Critter[] {
 /** All living, visible critters on the current map that have a valid AI packet.
  *  These are the targets for the combat crawler. */
 export function listHostileCritters(): Critter[] {
-    const map = globalState.gMap
+    const map = world.gMap
     if (!map) return []
     getAiPacket(0) // trigger lazy init of ai.txt before checking the map
     return map.getObjects().filter((obj): obj is Critter => {
@@ -98,8 +98,8 @@ export function critterDisplayName(c: Critter): string {
 // Uses direct position assignment — no pathfinding, no blocking check.
 // Returns false only if the current map or player are unavailable.
 export function movePlayerAdjacent(target: Critter): boolean {
-    const player = globalState.player
-    if (!player || !globalState.gMap) return false
+    const player = world.player
+    if (!player || !world.gMap) return false
     const neighbors = hexNeighbors(target.position)
     if (neighbors.length === 0) return false
     player.position = neighbors[0]

@@ -30,6 +30,8 @@ import {
     Point,
 } from '../geometry.js'
 import globalState from '../globalState.js'
+import { world } from '../state/world.js'
+import { services } from '../state/services.js'
 import * as Lightmap from '../lightmap.js'
 import { dbg, dbgWarn } from '../logger.js'
 import { Critter, deserializeObj, Obj, zsortMap } from '../object.js'
@@ -157,7 +159,7 @@ export class GameMap {
 
     destroyObject(obj: Obj): void {
         // CE object.cc / opDestroyObject: _combat_delete_critter — out of the turn order
-        if (obj.type === 'critter' && globalState.inCombat) globalState.combat?.removeCombatant(obj as Critter)
+        if (obj.type === 'critter' && world.inCombat) world.combat?.removeCombatant(obj as Critter)
         Scripting.destroy(obj)
         this.removeObject(obj)
         // CE objectDestroy → _obj_turn_off_light / tileWindowRefresh: a light source, or a wall /
@@ -242,7 +244,7 @@ export class GameMap {
         }
         const oldElevation = this.currentElevation
         this.currentElevation = level
-        globalState.currentElevation = level // TODO: Get rid of this global
+        world.currentElevation = level // TODO: Get rid of this global
         // Invalidate outdoor detection cache — roof layer differs per elevation.
         this._isOutdoorCached = null
         this._isOutdoorCachedElevation = -1
@@ -255,15 +257,15 @@ export class GameMap {
         //this.spatials = this.mapObj.levels[level]["spatials"]
 
         // If we're in combat, end it since we're moving off of that elevation
-        if (globalState.inCombat) {
-            globalState.combat!.forceEnd()
+        if (world.inCombat) {
+            world.combat!.forceEnd()
         }
 
-        globalState.player!.clearAnim()
+        world.player!.clearAnim()
 
         // Remove player & party (unless we're loading a new map, in which case they're not present)
         // and place them on the new map
-        for (const obj of globalState.gParty.getPartyMembersAndPlayer()) {
+        for (const obj of world.gParty.getPartyMembersAndPlayer()) {
             if (!isMapLoading) {
                 arrayRemove(this.objects![oldElevation], obj)
             }
@@ -288,7 +290,7 @@ export class GameMap {
         computeObjectContentBounds(this.getObjects())
 
         // set up renderer data
-        globalState.renderer.initData(
+        services.renderer.initData(
             this.roofMap!,
             this.floorMap!,
             this.getObjects(),
@@ -308,7 +310,7 @@ export class GameMap {
             Lightmap.rebuildLight()
         }
 
-        centerCamera(globalState.player!.position)
+        centerCamera(world.player!.position)
 
         Events.emit('elevationChanged', { elevation: level, oldElevation, isMapLoading })
     }
@@ -346,13 +348,13 @@ export class GameMap {
     // 3, … via _objPMAttemptPlacement. Non-critters (the car trunk) and hidden members
     // stay where they are; their scripts place them.
     placeParty() {
-        const dude = globalState.player
+        const dude = world.player
         if (!dude) return
         const clockwise = (dude.orientation + 2) % 6
         const counterClockwise = (dude.orientation + 4) % 6
         let n = 0
         let distance = 2
-        for (const member of globalState.gParty.getPartyMembers()) {
+        for (const member of world.gParty.getPartyMembers()) {
             if (member.type !== 'critter' || GameMap.isHiddenObj(member)) continue
             const rotation = n % 2 !== 0 ? clockwise : counterClockwise
             const tile = hexInDirectionDistance(dude.position, rotation, Math.trunc(distance / 2))
@@ -369,7 +371,7 @@ export class GameMap {
     // radius + 2, any free neighbour (reachable or not). Returns the tile to use.
     attemptPlacement(tile: number, elevation: number, radius: number): number {
         if (tile === -1) return -1
-        const dude = globalState.player
+        const dude = world.player
         let newTile = tile
         if (this.blockingObjectAt(tile, elevation, 0, null) !== null) {
             let dist = radius >= 1 ? radius : 1
@@ -445,8 +447,8 @@ export class GameMap {
                 false,
             )
             if (overridenStartPos && this.mapObj.levels[overridenStartPos.elevation]) {
-                globalState.player!.position = overridenStartPos.position
-                globalState.player!.orientation = overridenStartPos.orientation
+                world.player!.position = overridenStartPos.position
+                world.player!.orientation = overridenStartPos.orientation
             }
             this.objects!.forEach((level) => {
                 for (const obj of level.slice()) {
@@ -478,15 +480,15 @@ export class GameMap {
         if (overridenStartPos) {
             // Starting position was overridden by map_enter_p_proc -- use the new one
             dbg('map', 'Starting position overriden to %o', overridenStartPos)
-            globalState.player!.position = overridenStartPos.position
-            globalState.player!.orientation = overridenStartPos.orientation
+            world.player!.position = overridenStartPos.position
+            world.player!.orientation = overridenStartPos.orientation
             // FO2-CE ref: map.cc mapSetupEnter() — elevation from override_map_start is validated
             // against the number of map levels before use. Maps with fewer levels than the script
             // expects (e.g. modinn exported with 2 levels but script targets elevation 2) must not
             // corrupt currentElevation — keep the pre-load value instead.
             const newElev = overridenStartPos.elevation
             if (this.mapObj.levels[newElev]) {
-                this.currentElevation = globalState.currentElevation = newElev
+                this.currentElevation = world.currentElevation = newElev
             } else {
                 dbgWarn(
                     'map',
@@ -525,12 +527,12 @@ export class GameMap {
         const curMapInfo = getCurrentMapInfo()
         dbg('audio', '[Music] curMapInfo:', curMapInfo)
         dbg('audio', '[Music] music field:', curMapInfo?.music)
-        globalState.audioEngine.stopAll()
+        services.audioEngine.stopAll()
         // CE map.cc mapLoad starts the looping wind2; wmMapMusicStart replaces it only when
         // maps.txt gives the map music, so a map without a music= entry keeps the wind.
         const music = curMapInfo?.music || 'wind2'
         dbg('audio', '[Music] calling playMusic with:', music)
-        globalState.audioEngine.playMusic(music)
+        services.audioEngine.playMusic(music)
     }
 
     objectsAtPosition(position: Point): Obj[] {
@@ -747,7 +749,7 @@ export class GameMap {
         ) {
             return []
         }
-        return pathfinderFindPathPoints(mover ?? globalState.player ?? null, start, goal, isGoalBlocking !== false)
+        return pathfinderFindPathPoints(mover ?? world.player ?? null, start, goal, isGoalBlocking !== false)
     }
 
     serialize(): SerializedMap {
@@ -770,7 +772,7 @@ export class GameMap {
             // it isn't part of the map snapshot — otherwise a revisit restores a second
             // copy next to the one that walked in (CE removes the party before mapSave).
             objects: this.objects!.map((level: Obj[]) => {
-                const party = new Set<Obj>(globalState.gParty.getPartyMembersAndPlayer())
+                const party = new Set<Obj>(world.gParty.getPartyMembersAndPlayer())
                 return level
                     .filter((obj): obj is Obj => obj !== null && !party.has(obj) && !(obj as any)._transient)
                     .map((obj) => obj.serialize())
@@ -787,7 +789,7 @@ export class GameMap {
                   )
                 : [[], [], []],
             // CE ref: map.cc gMapHeader.lastVisitTime — record exit tick so days_since_visited works
-            lastVisitTime: globalState.gameTickTime,
+            lastVisitTime: world.gameTickTime,
         }
     }
 

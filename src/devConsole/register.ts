@@ -7,6 +7,7 @@
 // (exportEventLog(), __eventLog) are documented for everyone and always registered.
 
 import globalState from '../globalState.js'
+import { services } from '../state/services.js'
 import * as Lightmap from '../lightmap.js'
 import { blackBar, borderSave, clearBorder, scrollDebug } from '../render/camera.js'
 import * as Worldmap from '../worldmap.js'
@@ -40,6 +41,6 @@ export function registerDevConsole(): void {
 
     // debug exposure for console inspection
     devWindow.debugLightmap = Lightmap
-    devWindow.debugRenderer = globalState.renderer
+    devWindow.debugRenderer = services.renderer
     devWindow.debugGlobalState = globalState
 }

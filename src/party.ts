@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import { addFloatMessage } from './floatText.js'
-import globalState from './globalState.js'
+import { world } from './state/world.js'
 import { dbg } from './logger.js'
 import { Critter, deserializeObj, SerializedObj } from './object.js'
 import { arrayIncludes, arrayRemove, getFileText, getMessage, getRandomInt, parseIni } from './util.js'
@@ -132,7 +132,7 @@ export class Party {
         dbg('party', `party member ${obj.name ?? obj.pid} added`)
         this.party.push(obj)
         // CE: critterSetTeam(object, 0) — party members join the player's team.
-        const player = globalState.player as Critter | null
+        const player = world.player as Critter | null
         if (player) obj.teamNum = player.teamNum
         // CE partyMemberAdd: queueRemoveEventsByType(object, EVENT_TYPE_SCRIPT) — the recruit's
         // pending script timers are dropped
@@ -146,7 +146,7 @@ export class Party {
     // PC level, or earlier with probability 100*levelMod/level_up_every (then skips
     // until the cycle completes).
     incLevels(): void {
-        const player = globalState.player as Critter | null
+        const player = world.player as Critter | null
         if (!player) return
         const pcLevel = player.getStat('Level')
         for (const obj of this.party) {
@@ -206,7 +206,7 @@ export class Party {
     }
 
     getPartyMembersAndPlayer(): Critter[] {
-        return [<Critter>globalState.player].concat(this.party)
+        return [<Critter>world.player].concat(this.party)
     }
 
     isPartyMember(obj: Critter) {
@@ -341,4 +341,4 @@ function customOverridesFor(critter: Critter, packet: AiPacket): Partial<AiPacke
 }
 
 // the one party (CE gPartyMembers); set here, not in globalState.ts, so that module stays a leaf
-globalState.gParty = new Party()
+world.gParty = new Party()

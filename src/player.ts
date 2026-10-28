@@ -20,7 +20,8 @@ import { dbg } from './logger.js'
 import { getMessage } from './util.js'
 import * as Events from './events.js'
 import { Point } from './geometry.js'
-import globalState from './globalState.js'
+import { world } from './state/world.js'
+import { services } from './state/services.js'
 import { Critter, createObjectWithPID, Obj, WeaponObj } from './object.js'
 import { centerCamera } from './renderer.js'
 import { fromTileNum } from './tile.js'
@@ -103,13 +104,7 @@ export class Player extends Critter {
     updateNativeLook(): void {
         const MOVIE_VSUIT = 3 // gameMovie.ts
         const female = this.gender === 'female'
-        const look = globalState.seenMovies?.has(MOVIE_VSUIT)
-            ? female
-                ? 'hfjmps'
-                : 'hmjmps'
-            : female
-              ? 'hfprim'
-              : 'hmwarr'
+        const look = world.seenMovies?.has(MOVIE_VSUIT) ? (female ? 'hfjmps' : 'hmjmps') : female ? 'hfprim' : 'hmwarr'
         const art = 'art/critters/' + look + 'aa'
         const self = this as any
         if (this.armor) {
@@ -324,7 +319,7 @@ export class Player extends Critter {
             currentLevel++
             this.levelUpAvailable = true // CE stat.cc:764 DUDE_STATE_LEVEL_UP_AVAILABLE
 
-            globalState.audioEngine.playSfxByName('levelup')
+            services.audioEngine.playSfxByName('levelup')
             // CE stat.cc:757 — stat.msg 600 "You have gone up a level."
             const lvlMsg = getMessage('stat', 600)
             if (lvlMsg) uiLog(lvlMsg)
@@ -342,7 +337,7 @@ export class Player extends Critter {
             dbg('object', `Level up! Now level ${currentLevel}. Gained ${hpGain} HP.`)
 
             // CE ref: stat.cc:789 — party members may level with the player.
-            globalState.gParty?.incLevels()
+            world.gParty?.incLevels()
         }
     }
 
@@ -444,7 +439,7 @@ export class Player extends Critter {
         if (signalEvents) Events.emit('playerMoved', position)
 
         // check if the player has entered an exit grid
-        const objs = globalState.gMap!.objectsAtPosition(this.position)
+        const objs = world.gMap!.objectsAtPosition(this.position)
         for (let i = 0; i < objs.length; i++) {
             if (objs[i].type === 'misc' && objs[i].extra && objs[i].extra.exitMapID !== undefined) {
                 // walking on an exit grid
@@ -462,9 +457,9 @@ export class Player extends Critter {
                 const rotation = Number(ex.startingOrientation) || 0
                 this.clearAnim()
                 // CE mapSetTransition in combat: _game_user_wants_to_quit ends the fight first
-                if (globalState.inCombat && exitMapID < 0) {
-                    globalState.combat?.forceEnd()
-                    globalState.inCombat = false
+                if (world.inCombat && exitMapID < 0) {
+                    world.combat?.forceEnd()
+                    world.inCombat = false
                 }
 
                 if (exitMapID === -1) {
@@ -474,7 +469,7 @@ export class Player extends Critter {
                     dbg('map', 'exit grid -> worldmap')
                     uiWorldMap()
                 } else {
-                    const gMap = globalState.gMap
+                    const gMap = world.gMap
                     const placeOnTile =
                         tile !== -1 &&
                         tile !== 0 &&
@@ -495,9 +490,9 @@ export class Player extends Critter {
                     } else if (position) {
                         // same map, another elevation: no reload
                         gMap!.changeElevation(startingElevation, true)
-                        globalState.player!.move(position)
-                        globalState.player!.orientation = rotation
-                        centerCamera(globalState.player!.position)
+                        world.player!.move(position)
+                        world.player!.orientation = rotation
+                        centerCamera(world.player!.position)
                     }
                 }
 

@@ -26,7 +26,9 @@ limitations under the License.
 // (keys w / a): _ai_search_inven_weap / _ai_search_inven_armor, then the
 // _gdPickAIUpdateMsg reply.
 
-import globalState from './globalState.js'
+import { world } from './state/world.js'
+import { uiState } from './state/uiState.js'
+import { assets } from './state/assets.js'
 import { dbg } from './logger.js'
 import { Combat } from './combat.js'
 import { armorPerkSwap } from './perks.js'
@@ -173,7 +175,7 @@ function setActiveEscapeClose(close: (() => void) | null): void {
             // the screen's own keys (CE partyMemberControlWindowHandleEvents: W best weapon,
             // A best armor, D trade; the customise screen: Return like Esc)
             const action = activeScreenKeys?.[e.key.length === 1 ? e.key.toLowerCase() : e.key]
-            if (action && globalState.uiMode === UIMode.companionControl) {
+            if (action && uiState.uiMode === UIMode.companionControl) {
                 e.preventDefault()
                 action()
                 return
@@ -359,7 +361,7 @@ function makeStandingPreview(critter: Critter): HTMLCanvasElement {
         pointerEvents: 'none',
     })
     const art = critter.getAnimation?.('idle') ?? critter.art
-    const info = art ? globalState.imageInfo?.[art] : undefined
+    const info = art ? assets.imageInfo?.[art] : undefined
     if (!info) return canvas
     const direction = Math.min(3, info.frameOffsets.length - 1) // ROTATION_SW
     const frame = info.frameOffsets[direction]?.[0]
@@ -380,7 +382,7 @@ function makeStandingPreview(critter: Critter): HTMLCanvasElement {
                 frame.h,
             )
     }
-    const cached = globalState.images?.[art] as HTMLImageElement | undefined
+    const cached = assets.images?.[art] as HTMLImageElement | undefined
     if (cached?.complete) draw(cached)
     else {
         const img = new Image()
@@ -400,12 +402,12 @@ function makeStandingPreview(critter: Critter): HTMLCanvasElement {
 // trade — proto.msg 913 "This critter can't carry anything." for a party member (903 otherwise)
 function canBarter(critter: Critter): boolean {
     if (((critter.pro?.extra?.flags ?? 0) & 0x02) !== 0) return true
-    uiSetDialogueReply(getProtoMsg(globalState.gParty?.isPartyMember(critter) ? 913 : 903) ?? '')
+    uiSetDialogueReply(getProtoMsg(world.gParty?.isPartyMember(critter) ? 913 : 903) ?? '')
     return false
 }
 
 export function uiCompanionControl(companion: Critter): void {
-    globalState.uiMode = UIMode.companionControl
+    uiState.uiMode = UIMode.companionControl
 
     const panel = $id('companionControlBox')
 
@@ -415,7 +417,7 @@ export function uiCompanionControl(companion: Critter): void {
     function close(): void {
         activeEscapeClose = null
         activeScreenKeys = null
-        globalState.uiMode = UIMode.dialogue
+        uiState.uiMode = UIMode.dialogue
         uiSwapDialoguePanel(panel, $id('dialogueBox'), () => Scripting.reenterDialogue())
     }
 
@@ -457,7 +459,7 @@ export function uiCompanionControl(companion: Critter): void {
         panel.appendChild(makeLabel(240, 131, `${weight}/${carry}`, weight > carry ? '#f80000' : GREEN))
         panel.appendChild(makeLabel(240, 148, String(companion.getStat('Melee')), GREEN))
         const maxAP = companion.getStat('AP')
-        const ap = globalState.inCombat ? (companion.AP?.getAvailableCombatAP?.() ?? maxAP) : maxAP
+        const ap = world.inCombat ? (companion.AP?.getAvailableCombatAP?.() ?? maxAP) : maxAP
         panel.appendChild(makeLabel(240, 167, `${ap}/${maxAP}`, GREEN))
 
         const packet = getCompanionEffectivePacket(companion)
@@ -558,7 +560,7 @@ function findSiblingPreview(companion: Critter, disposition: Disposition): boole
  * CE ref: game_dialog.cc:~3780 partyMemberCustomizationWindowInit.
  */
 export function uiCompanionCustomize(companion: Critter): void {
-    globalState.uiMode = UIMode.companionControl
+    uiState.uiMode = UIMode.companionControl
 
     const panel = $id('companionCustomizeBox')
 

@@ -19,7 +19,7 @@ limitations under the License.
 // a script that calls script_overrides suppresses the engine text. Lines are
 // returned for the caller to print (CE passes the display-monitor callback).
 
-import globalState from './globalState.js'
+import { world } from './state/world.js'
 import type { Critter, Obj } from './object.js'
 import { randomBetween } from './random.js'
 import * as Scripting from './scripting.js'
@@ -80,7 +80,7 @@ export function objExamine(viewer: Critter, target: Obj): string[] {
         else if (!isDead(target)) out.push(description)
     }
 
-    const player = globalState.player
+    const player = world.player
     if (!player || viewer !== player) return out
 
     if (isCritter(target)) {

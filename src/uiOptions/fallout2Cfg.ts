@@ -22,7 +22,7 @@ limitations under the License.
 // this and so takes precedence.
 
 import { Config, DRAG_WINDOWS } from '../config.js'
-import globalState from '../globalState.js'
+import { services } from '../state/services.js'
 import { dbg } from '../logger.js'
 import { getFileText } from '../util.js'
 
@@ -249,7 +249,7 @@ export function applyCfg(cfg: CfgSections): void {
         Config.engine.speechEnabled = on
     })
 
-    const eng = globalState.audioEngine
+    const eng = services.audioEngine
     if (eng) {
         const vol = (key: string, channel: 'master' | 'music' | 'sfx' | 'speech') => {
             const v = int(sound[key])

@@ -8,6 +8,7 @@
 
 import { Config } from './config.js'
 import globalState from './globalState.js'
+import { world } from './state/world.js'
 import { createObjectWithPID } from './object.js'
 import { heart } from './heart.js'
 import { fromTileNum } from './tile.js'
@@ -24,7 +25,7 @@ let _crawlerModeSnapshot: {
 
 function guardPlayer(method: string): import('./player.js').Player | null {
     if (!Config.engine.debug) return null
-    const p = globalState.player
+    const p = world.player
     if (!p) {
         console.warn(`[debug.${method}] No active player — start a game first.`)
         return null
@@ -99,7 +100,7 @@ export const debug = {
     /** Load a map by name (e.g. 'artemple', 'modmeeting'). */
     teleport(map: string): void {
         if (!Config.engine.debug) return
-        const gMap = globalState.gMap
+        const gMap = world.gMap
         if (!gMap) {
             console.warn('[debug.teleport] No active map — start a game first.')
             return
@@ -113,7 +114,7 @@ export const debug = {
      *  else is changed; the village scripts take it from there as after the real exit. */
     skipTemple(): void {
         if (!guardPlayer('skipTemple')) return
-        const gMap = globalState.gMap
+        const gMap = world.gMap
         if (!gMap) return
         console.log('[debug] Skipping the Temple of Trials → arvillag')
         gMap.loadMapByID(4, fromTileNum(11683), 0)

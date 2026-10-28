@@ -52,7 +52,8 @@ existing maintainers stay oriented; each section builds on the previous.
 | `src/` | TypeScript engine (renderer, object, critter, vm, scripting, combat, party, …) |
 | `src/main.ts` | Boot: renderer, audio, fallout2.cfg, asset caches, `initGame` (game loop: `gameTick.ts`; input: `input.ts`) |
 | `src/heart.ts` | 60 Hz heartbeat loop |
-| `src/globalState.ts` | Central game-state singleton (`gMap`, `player`, `combatActive`, …) |
+| `src/state/` | Owned game state: `world` (`gMap`, `player`, `combat`, …), `uiState`, `view`, `services`, `assets` |
+| `src/globalState.ts` | Engine runtime fields plus one-object access to all of `src/state/` (also `window.globalState`) |
 | `src/config.ts` | Engine / UI / scripting / combat flags |
 | `shaders/` | GLSL shaders (vertex, fragment, lighting, font) |
 | `lut/` | Pre-baked JSON lookup tables (LST indexes, crit tables, palette data) |

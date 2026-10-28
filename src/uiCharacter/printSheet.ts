@@ -17,7 +17,7 @@ limitations under the License.
 // CE character_editor.cc characterPrintToFile: the PRINT button's character sheet, the same
 // text CE writes (editor.msg 620-657), handed to the browser as a .TXT download.
 
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
 import * as GameTime from '../gametime.js'
 import { getMessage } from '../util.js'
 import { SKILL_NAMES } from '../skills.js'
@@ -38,7 +38,7 @@ function thousands(value: number): string {
 
 const centered = (text: string) => spaces(Math.trunc((80 - text.length) / 2) - 2) + text
 
-export function characterSheetText(dude: any = globalState.player): string {
+export function characterSheetText(dude: any = world.player): string {
     const p = dude
     const stat = (s: string) => p.getStat(s)
     // CE critterGetStat: AC and the resistances include the worn armor
@@ -159,7 +159,7 @@ export function characterSheetText(dude: any = globalState.player): string {
 }
 
 /** PRINT: the sheet as "<name>.TXT" (CE asks for the file name; the browser saves it) */
-export function printCharacterSheet(dude: any = globalState.player): void {
+export function printCharacterSheet(dude: any = world.player): void {
     const text = characterSheetText(dude)
     const name = String(dude?.name ?? 'CHARACTER').replace(/[^A-Za-z0-9_-]/g, '') || 'CHARACTER'
     const url = URL.createObjectURL(new Blob([text.replace(/\n/g, '\r\n')], { type: 'text/plain' }))

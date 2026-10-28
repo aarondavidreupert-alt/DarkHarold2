@@ -29,7 +29,8 @@ import { CE_COLOR, font1, font3, font4, FontRenderer, FoText } from './uiFont.js
 import { WindowFrame } from './uiComponents.js'
 import { makePanelDraggable } from './uiDrag.js'
 import { uiSaveLoad } from './uiSaveLoad.js'
-import globalState from './globalState.js'
+import { uiState } from './state/uiState.js'
+import { services } from './state/services.js'
 import { UIMode } from './uiMode.js'
 import { applyBrightness, getVolumeValue, savePreferences } from './uiOptions/preferences.js'
 import { showConfirm } from './uiDialog.js'
@@ -463,7 +464,7 @@ function buildPrefsPanel(): HTMLElement {
         100,
         () => getVolumeValue('master'),
         (v) => {
-            globalState.audioEngine.setVolume('master', v)
+            services.audioEngine.setVolume('master', v)
         },
     )
     stdSlider(
@@ -472,7 +473,7 @@ function buildPrefsPanel(): HTMLElement {
         100,
         () => getVolumeValue('music'),
         (v) => {
-            globalState.audioEngine.setVolume('music', v)
+            services.audioEngine.setVolume('music', v)
         },
     )
     stdSlider(
@@ -481,7 +482,7 @@ function buildPrefsPanel(): HTMLElement {
         100,
         () => getVolumeValue('sfx'),
         (v) => {
-            globalState.audioEngine.setVolume('sfx', v)
+            services.audioEngine.setVolume('sfx', v)
         },
     )
     stdSlider(
@@ -490,7 +491,7 @@ function buildPrefsPanel(): HTMLElement {
         100,
         () => getVolumeValue('speech'),
         (v) => {
-            globalState.audioEngine.setVolume('speech', v)
+            services.audioEngine.setVolume('speech', v)
         },
     )
 
@@ -558,7 +559,7 @@ function buildPrefsPanel(): HTMLElement {
         Config.ui.mouseSensitivity = 1.0
         // CE: the four volumes back to 22281 of 32767
         for (const v of ['master', 'music', 'sfx', 'speech'] as const)
-            globalState.audioEngine.setVolume(v, Math.round((22281 * 100) / 32767))
+            services.audioEngine.setVolume(v, Math.round((22281 * 100) / 32767))
         applyBrightness()
         refreshFns.forEach((f) => f())
     })
@@ -770,7 +771,7 @@ function snapshotPrefs(): () => void {
         Object.assign(Config.combat, combat)
         Object.assign(Config.ui, ui)
         Object.assign(Config.engine, engine)
-        for (const [v, value] of volumes) globalState.audioEngine.setVolume(v, value)
+        for (const [v, value] of volumes) services.audioEngine.setVolume(v, value)
         applyBrightness()
     }
 }
@@ -908,24 +909,24 @@ export function initOptionsMenu(): void {
     // CE showOptions runs its own input loop: the map is frozen and no game key reaches
     // gameHandleKey while the window is open
     optionsWindow.onShow = () => {
-        globalState.uiMode = UIMode.options
+        uiState.uiMode = UIMode.options
     }
     optionsWindow.onClose = () => {
-        if (globalState.uiMode === UIMode.options) globalState.uiMode = UIMode.none
+        if (uiState.uiMode === UIMode.options) uiState.uiMode = UIMode.none
     }
 
     const optionsKeyHandler = (e: KeyboardEvent) => {
         if (!optionsWindow.showing) return
         const k = e.key
         if (k === 'Escape' || k === 'Enter' || /^[oOdD]$/.test(k)) {
-            globalState.audioEngine?.playSfxByName?.('ib1p1xx1')
+            services.audioEngine?.playSfxByName?.('ib1p1xx1')
             optionsWindow.close()
         } else if (/^[sS]$/.test(k)) {
             handlers[0]()
         } else if (/^[lL]$/.test(k)) {
             handlers[1]()
         } else if (/^[pP]$/.test(k)) {
-            globalState.audioEngine?.playSfxByName?.('ib1p1xx1')
+            services.audioEngine?.playSfxByName?.('ib1p1xx1')
             openPrefsPanel()
         } else if (k === '+' || k === '=') {
             changeBrightness(1)

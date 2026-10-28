@@ -33,7 +33,8 @@ limitations under the License.
 // barter screen (uiBarter/screen.ts) since the only thing that differs is
 // the accept-check and the amount readout (weight instead of $).
 
-import globalState from './globalState.js'
+import { world } from './state/world.js'
+import { uiState } from './state/uiState.js'
 import { relinkTradedHands, tradeHeldAside } from './inventoryWield.js'
 import { Critter, cloneItem, Obj } from './object.js'
 import { UIMode } from './uiMode.js'
@@ -65,12 +66,12 @@ function uiEndCompanionTrade(): void {
     stopBarterPortraitAnimation()
     const $barterBox = $id('barterBox')
     $barterBox.style.pointerEvents = 'none'
-    globalState.uiMode = UIMode.dialogue
+    uiState.uiMode = UIMode.dialogue
     uiSwapDialoguePanel($barterBox, $id('dialogueBox'), () => Scripting.reenterDialogue())
 }
 
 export function uiCompanionTrade(companion: Critter): void {
-    globalState.uiMode = UIMode.barter
+    uiState.uiMode = UIMode.barter
 
     const $barterBox = $id('barterBox')
     $barterBox.style.pointerEvents = 'auto'
@@ -82,13 +83,13 @@ export function uiCompanionTrade(companion: Critter): void {
     // CE ref: inventory.cc:2039-2052 _display_body — player at (15,25),
     // barterer at (560,25), both 60x100. Player: ROTATION_SW, frame 0,
     // then spin via 167ms timer. Companion: stored orientation, last frame.
-    if (globalState.player) {
-        renderBarterPortrait($id('barterBoxPlayerPortrait'), globalState.player, false)
-        startBarterPortraitAnimation(globalState.player)
+    if (world.player) {
+        renderBarterPortrait($id('barterBoxPlayerPortrait'), world.player, false)
+        startBarterPortraitAnimation(world.player)
     }
     renderBarterPortrait($id('barterBoxMerchantPortrait'), companion, true)
 
-    let workingPlayerInventory = globalState.player!.inventory.map(cloneItem)
+    let workingPlayerInventory = world.player!.inventory.map(cloneItem)
     const heldAside = tradeHeldAside(companion, true) // CE: worn armor / right-hand item not for trade
     let workingCompanionInventory = companion.inventory.filter((it) => !heldAside.includes(it)).map(cloneItem)
 
@@ -119,7 +120,7 @@ export function uiCompanionTrade(companion: Critter): void {
 
     // CE ref: inventory.cc:4710-4722 — weight-only accept check, no money.
     function offer(): void {
-        const player = globalState.player
+        const player = world.player
 
         const playerCarry = player!.getStat('Carry')
         const playerCurrentWeight = totalWeight(workingPlayerInventory)
@@ -145,13 +146,13 @@ export function uiCompanionTrade(companion: Critter): void {
 
         // Accepted — finalize.
         companion.inventory = [...heldAside, ...workingCompanionInventory]
-        globalState.player!.inventory = workingPlayerInventory
+        world.player!.inventory = workingPlayerInventory
 
-        for (const item of companionBarterTable) globalState.player!.addInventoryItem(item, item.amount)
+        for (const item of companionBarterTable) world.player!.addInventoryItem(item, item.amount)
         for (const item of playerBarterTable) companion.addInventoryItem(item, item.amount)
 
-        workingPlayerInventory = globalState.player!.inventory.map(cloneItem)
-        relinkTradedHands(companion, globalState.player!)
+        workingPlayerInventory = world.player!.inventory.map(cloneItem)
+        relinkTradedHands(companion, world.player!)
         workingCompanionInventory = companion.inventory.filter((it) => !heldAside.includes(it)).map(cloneItem)
         playerBarterTable = []
         companionBarterTable = []

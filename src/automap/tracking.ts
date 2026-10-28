@@ -21,7 +21,7 @@ limitations under the License.
 import { dbgWarn } from '../logger.js'
 import * as Events from '../events.js'
 import { Point } from '../geometry.js'
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
 import { initStorage, scheduleSave, flushAutomapSave } from './storage.js'
 
 // "mapName:elevation" → Set of "x,y"
@@ -50,7 +50,7 @@ export function mapKey(mapName: string, elevation: number): string {
 // loaded map and store it as a snapshot, so the AUTOMAPS tab can render the
 // same overlay for an archived map. Critters are intentionally skipped.
 export function snapshotCurrentMapObjects(): void {
-    const map = globalState.gMap
+    const map = world.gMap
     if (!map || !map.name) return
     const numLevels: number = map.numLevels ?? 1
     for (let level = 0; level < numLevels; level++) {
@@ -136,20 +136,20 @@ export function initAutomapTracking(): void {
     initStorage().catch((e) => dbgWarn('automap', '[automapData] initStorage failed:', e))
 
     Events.on('playerMoved', (pos: Point) => {
-        const map = globalState.gMap
+        const map = world.gMap
         if (!map || !map.name) return
         markSeenAt(map.name, map.currentElevation, pos)
     })
     Events.on('loadMapPost', () => {
-        const map = globalState.gMap
-        const player = globalState.player
+        const map = world.gMap
+        const player = world.player
         if (!map || !map.name) return
         if (player) markSeenAt(map.name, map.currentElevation, player.position)
         snapshotCurrentMapObjects()
         flushAutomapSave()
     })
     Events.on('loadMapPre', () => {
-        const map = globalState.gMap
+        const map = world.gMap
         if (!map || !map.name) return
         snapshotCurrentMapObjects()
         flushAutomapSave()

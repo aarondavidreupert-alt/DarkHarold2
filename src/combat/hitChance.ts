@@ -19,7 +19,7 @@ import { weaponGetAmmoTypePid } from '../weaponAmmo.js'
 import { Config } from '../config.js'
 import * as CriticalEffects from '../criticalEffects.js'
 import { hexDistance, Point } from '../geometry.js'
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
 import * as Lightmap from '../lightmap.js'
 import { dbg } from '../logger.js'
 import { Critter, Obj } from '../object.js'
@@ -55,7 +55,7 @@ export function getAmmoStats(weaponObj: Obj): { X: number; Y: number; RM: number
 // CE ref: combat.cc:4398 — attackDetermineToHit's line-of-fire penalty, -10 per live,
 // standing critter that _combat_is_shot_blocked counts between attacker and target.
 export function accountForPartialCover(obj: Critter, target: Critter, from: Point = obj.position): number {
-    if (!globalState.gMap) return 0
+    if (!world.gMap) return 0
     return combatIsShotBlocked(obj, from, target.position, target).critters * 10
 }
 
@@ -195,7 +195,7 @@ export function getHitChance(
     // Defender AC (+ ammo AC modifier), floored at 0.
     const AC = Math.max(
         0,
-        target.getStat('AC') + target.getArmorAC() + (globalState.combat?.unusedApAC(target) ?? 0) + ammoACmod,
+        target.getStat('AC') + target.getArmorAC() + (world.combat?.unusedApAC(target) ?? 0) + ammoACmod,
     )
     toHit -= AC
 
@@ -212,13 +212,13 @@ export function getHitChance(
 
     // CE attackDetermineToHit: attack_complex's accuracy bonus (_gcsd) for every to-hit during
     // the first combatant's turn, before the 95 cap (spray lines and AI decisions included)
-    toHit += globalState.combat?.gcsd?.accuracyBonus ?? 0
+    toHit += world.combat?.gcsd?.accuracyBonus ?? 0
 
     if (obj.isBlinded) toHit -= 25
     if (((target.injuryFlags ?? 0) & 0x03) !== 0) toHit += 40 // DAM_KNOCKED_OUT | DAM_KNOCKED_DOWN
 
     // Combat difficulty applies to everyone not on the player's team.
-    const player = globalState.player
+    const player = world.player
     if (player && obj.teamNum !== player.teamNum) {
         const d = Config.combat.difficultyModifier
         if (d === 75) toHit -= 20

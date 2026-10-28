@@ -17,7 +17,7 @@ limitations under the License.
 // PipBoy AUTOMAPS tab — split out of uiPipBoy.ts. See
 // wiki/ts-split-refactor.md → "Per-file split proposals" §12.
 
-import globalState from '../../globalState.js'
+import { world } from '../../state/world.js'
 import { dbg } from '../../logger.js'
 import { getMessage } from '../../util.js'
 import { mapIndexOf } from '../../data.js'
@@ -71,7 +71,7 @@ const AUTOMAP_HIDDEN_MAPS: ReadonlySet<number> = new Set([
 
 // CE worldmap.cc wmMatchAreaContainingMapIdx: the first area with an entrance to the map, or -1
 function areaOfMap(mapName: string): number {
-    const areas = globalState.mapAreas
+    const areas = world.mapAreas
     if (!areas) return -1
     const name = mapName.toLowerCase()
     for (const id of Object.keys(areas)
@@ -101,7 +101,7 @@ function collectAutomapEntries(): AutomapMapEntry[] {
     const out: AutomapMapEntry[] = []
     const seen = new Set<string>()
 
-    const current = globalState.gMap
+    const current = world.gMap
     if (current && current.name) {
         const k = `${current.name}:${current.currentElevation}`
         seen.add(k)
@@ -247,7 +247,7 @@ export function renderAutomapsTab(screen: HTMLDivElement): void {
     if (automapSelectedLocation) {
         const sel = automapSelectedLocation
         content.appendChild(makeHeader(header))
-        const areaName = globalState.mapAreas?.[sel.area]?.name ?? cityName(sel.area)
+        const areaName = world.mapAreas?.[sel.area]?.name ?? cityName(sel.area)
         const sub = document.createElement('div')
         sub.style.cssText = TEXT_STYLE + 'font-size: 12px; padding: 2px 6px; text-align: center;'
         sub.textContent = areaName

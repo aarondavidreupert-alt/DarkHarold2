@@ -21,7 +21,7 @@ limitations under the License.
 // that uiComponents.ts and the individual panel modules can read it without
 // importing back from ui.ts (which would re-form the old import cycle).
 
-import globalState from './globalState.js'
+import { uiState } from './state/uiState.js'
 import { closeAutomap, isAutomapOpen } from './uiAutomap.js'
 import { closePipBoy, isPipBoyOpen } from './uiPipBoy.js'
 
@@ -39,7 +39,7 @@ export { initUiContainer, getUiContainer } from './uiContainer.js'
 // used by the button handlers to implement toggle-to-close.
 
 export function isInventoryOpen(): boolean {
-    return globalState.uiMode === UIMode.inventory
+    return uiState.uiMode === UIMode.inventory
 }
 
 // Getters for per-panel WindowFrames are installed by the owning module

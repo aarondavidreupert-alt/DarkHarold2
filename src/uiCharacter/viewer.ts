@@ -21,7 +21,9 @@ limitations under the License.
 
 import { Config } from '../config.js'
 import * as Events from '../events.js'
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
+import { uiState } from '../state/uiState.js'
+import { services } from '../state/services.js'
 import { UIMode } from '../uiMode.js'
 import { dbg } from '../logger.js'
 import { Widget } from '../uiWidget.js'
@@ -82,7 +84,7 @@ let _statsChangedHandler: (() => void) | null = null
 /** CE character_editor.cc: a refused change — the error sound and editor.msg `a` / `b` in a
  *  dialog box (characterEditorHandleAdjustSkillButton, ToggleTaggedSkill, ToggleOptionalTrait). */
 export function editorRefuse(a: number, b?: number): Promise<void> {
-    globalState.audioEngine?.playSfxByName?.('iisxxxx1')
+    services.audioEngine?.playSfxByName?.('iisxxxx1')
     const line = (id: number) => getMessage('editor', id) ?? ''
     return showAlert(
         b === undefined
@@ -115,7 +117,7 @@ export function closeCharacterScreen(): void {
 // In-game read-only view — behavior identical to original.
 
 export function showCharacterScreen() {
-    const player = globalState.player!
+    const player = world.player!
     // CE character_editor.cc characterEditorShow: DUDE_STATE_LEVEL_UP_AVAILABLE goes out
     player.levelUpAvailable = false
     updateIndicatorBar()
@@ -418,7 +420,7 @@ export function showCharacterScreen() {
 
     const activateFolder = (idx: number) => {
         tabImg.src = assetUrl(FOLDER_TABS[idx].sprite)
-        globalState.audioEngine?.playSfxByName?.('ib3p1xx1')
+        services.audioEngine?.playSfxByName?.('ib3p1xx1')
         folderView?.setFolder(idx)
     }
 
@@ -565,12 +567,12 @@ export function showCharacterScreen() {
         n += 33
     }
 
-    const newStatSet = globalState.player!.stats.clone()
-    const newSkillSet = globalState.player!.skills.clone()
+    const newStatSet = world.player!.stats.clone()
+    const newSkillSet = world.player!.skills.clone()
     const playerSkillOpts = {
         isPlayer: true,
-        perks: globalState.player!.perks,
-        traits: (globalState.player as any).traits,
+        perks: world.player!.perks,
+        traits: (world.player as any).traits,
     }
 
     const openingBaseSkills: { [name: string]: number } = {}
@@ -799,9 +801,9 @@ export function showCharacterScreen() {
     // CE characterEditorShow runs its own input loop (the map is paused): Return / D = done,
     // ESC / C = cancel, P = print
     characterWindow.onShow = null
-    globalState.uiMode = UIMode.char
+    uiState.uiMode = UIMode.char
     const onKey = (e: KeyboardEvent) => {
-        if (!characterWindow.showing || globalState.uiMode !== UIMode.char) return
+        if (!characterWindow.showing || uiState.uiMode !== UIMode.char) return
         if (document.getElementById('perk-modal-overlay')) return // the perk dialog has its own keys
         const k = e.key.length === 1 ? e.key.toLowerCase() : e.key
         if (k === 'Enter' || k === 'd') doneButton.elem.click()
@@ -814,6 +816,6 @@ export function showCharacterScreen() {
     document.addEventListener('keydown', onKey, true)
     characterWindow.onClose = () => {
         document.removeEventListener('keydown', onKey, true)
-        if (globalState.uiMode === UIMode.char) globalState.uiMode = UIMode.none
+        if (uiState.uiMode === UIMode.char) uiState.uiMode = UIMode.none
     }
 }

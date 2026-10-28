@@ -18,7 +18,9 @@ limitations under the License.
 // ends the turn, Return tries to end combat). Runs on the map only (no window open),
 // as CE's windows run their own input loops.
 
-import globalState from './globalState.js'
+import { world } from './state/world.js'
+import { uiState } from './state/uiState.js'
+import { services } from './state/services.js'
 import { Combat } from './combat.js'
 import { Config } from './config.js'
 import * as GameTime from './gametime.js'
@@ -40,16 +42,16 @@ import { getVolumeValue, savePreferences } from './uiOptions/preferences.js'
 import { swapHands, cycleActiveItemAction } from './ui.js'
 import { assetUrl } from './modAssets.js'
 
-const click = () => globalState.audioEngine?.playSfxByName?.('ib1p1xx1')
+const click = () => services.audioEngine?.playSfxByName?.('ib1p1xx1')
 
 // CE interfaceBarEnabled: the bar is off while it isn't the player's combat turn.
 function barEnabled(): boolean {
-    return !globalState.inCombat || !!globalState.combat?.inPlayerTurn
+    return !world.inCombat || !!world.combat?.inPlayerTurn
 }
 
 // "Pipboy not available in combat!" (misc.msg 7)
 function noPipboyInCombat(): void {
-    globalState.audioEngine?.playSfxByName?.('iisxxxx1')
+    services.audioEngine?.playSfxByName?.('iisxxxx1')
     void showAlert(getMessage('misc', 7) ?? 'Pipboy not available in combat!')
 }
 
@@ -62,13 +64,13 @@ function showHelp(): void {
     img.src = assetUrl('art/intrface/helpscrn.png')
     img.style.cssText = 'width:640px;height:480px;image-rendering:pixelated;'
     overlay.appendChild(img)
-    const prev = globalState.uiMode
-    globalState.uiMode = UIMode.dialog
+    const prev = uiState.uiMode
+    uiState.uiMode = UIMode.dialog
     const close = (e: Event) => {
         e.preventDefault()
         e.stopPropagation()
         overlay.remove()
-        globalState.uiMode = prev
+        uiState.uiMode = prev
         window.removeEventListener('keydown', close, true)
         overlay.removeEventListener('mousedown', close)
     }
@@ -108,8 +110,8 @@ function showPause(): void {
     done.append(btn, label)
     win.append(title, done)
     overlay.appendChild(win)
-    const prev = globalState.uiMode
-    globalState.uiMode = UIMode.dialog
+    const prev = uiState.uiMode
+    uiState.uiMode = UIMode.dialog
     // CE options.cc _ShadeScreen(false) (game.cc showPause(false)): the map in grey
     // (grayscalePaletteApply) while paused
     const cnv = document.getElementById('cnv')
@@ -118,7 +120,7 @@ function showPause(): void {
     const close = () => {
         overlay.remove()
         if (cnv) cnv.style.filter = oldFilter
-        globalState.uiMode = prev
+        uiState.uiMode = prev
         window.removeEventListener('keydown', onKey, true)
     }
     const onKey = (e: KeyboardEvent) => {
@@ -145,14 +147,14 @@ function showDate(): void {
 
 // CE KEY_COMMA / KEY_DOT: animationRegisterRotate(Counter)Clockwise(gDude)
 function rotateDude(dir: 1 | -1): void {
-    const p = globalState.player
+    const p = world.player
     if (!p || (p.anim && p.anim !== 'idle')) return
     p.orientation = (p.orientation + (dir === 1 ? 1 : 5)) % 6
 }
 
 // CE KEY_F2 / KEY_F3: master volume ∓ 2047 of 32767
 function changeMasterVolume(dir: 1 | -1): void {
-    const eng = globalState.audioEngine
+    const eng = services.audioEngine
     if (!eng) return
     const v = Math.max(0, Math.min(100, getVolumeValue('master') + dir * (2047 / 32767) * 100))
     eng.setVolume('master', Math.round(v))
@@ -161,8 +163,8 @@ function changeMasterVolume(dir: 1 | -1): void {
 
 // CE KEY_HOME: back to the dude's elevation and scroll to him
 function centerOnDude(): void {
-    const p = globalState.player
-    const map = globalState.gMap
+    const p = world.player
+    const map = world.gMap
     if (!p || !map) return
     if ((p.elevation ?? map.currentElevation) !== map.currentElevation) map.changeElevation(p.elevation ?? 0, true)
     centerCamera(p.position)
@@ -197,21 +199,21 @@ export function gameHandleKey(e: KeyboardEvent, cycleMouseMode: MouseModeCycler)
     const key = e.key
     const lower = key.length === 1 ? key.toLowerCase() : key
     const ctrl = e.ctrlKey || e.metaKey
-    const inCombat = globalState.inCombat
+    const inCombat = world.inCombat
     const bar = barEnabled()
 
     // combat.cc _combat_input (the player's turn)
-    if (inCombat && globalState.combat?.inPlayerTurn) {
+    if (inCombat && world.combat?.inPlayerTurn) {
         if (key === ' ') {
-            globalState.combat.nextTurn()
+            world.combat.nextTurn()
             return true
         }
         if (key === 'Enter') {
-            globalState.combat.attemptEnd()
+            world.combat.attemptEnd()
             return true
         }
     }
-    if (inCombat && !globalState.combat?.inPlayerTurn) return false // no input during AI turns
+    if (inCombat && !world.combat?.inPlayerTurn) return false // no input during AI turns
 
     if (ctrl) {
         switch (lower) {

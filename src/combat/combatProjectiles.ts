@@ -26,7 +26,8 @@ import {
     hexLineBeyond,
     hexToScreen,
 } from '../geometry.js'
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
+import { assets } from '../state/assets.js'
 import { lazyLoadImage } from '../images.js'
 import { loadPRO } from '../pro.js'
 import { nextShootObstacle } from './lineOfFire.js'
@@ -127,7 +128,7 @@ export const combatProjectileMethods = {
         weaponObj: Obj,
         dmgType: string,
     ): RangedMiss | null {
-        const gMap = globalState.gMap
+        const gMap = world.gMap
         const weapon = (weaponObj as any).weapon
         if (!gMap || !weapon) return null
         const range = weapon.getMaximumRange()
@@ -237,7 +238,7 @@ export const combatProjectileMethods = {
         pid: number,
         onArrive: () => void,
     ): void {
-        const gMap = globalState.gMap
+        const gMap = world.gMap
         if (!gMap || window.__test?.fastMode) return onArrive()
         const rotation = hexDirectionTo(attacker.position, target.position)
         const start = hexInDirection(attacker.position, rotation)
@@ -249,11 +250,11 @@ export const combatProjectileMethods = {
         proj.orientation = rotation
         proj.frame = 0
         lazyLoadImage(proj.art, () => {
-            if (globalState.gMap !== gMap) return onArrive()
+            if (world.gMap !== gMap) return onArrive()
             gMap.addObject(proj)
             proj.shift = { x: 0, y: 0 }
-            const info = globalState.imageInfo![proj.art]
-            const fps = (info?.fps || 10) + (globalState.inCombat ? Config.combat.combatSpeed : 0)
+            const info = assets.imageInfo![proj.art]
+            const fps = (info?.fps || 10) + (world.inCombat ? Config.combat.combatSpeed : 0)
             // Shown on the start hex for one frame, then one node per frame; the last node
             // stays visible for a frame before the projectile is removed (CE hides it in
             // the next animation step).
@@ -305,7 +306,7 @@ export const combatProjectileMethods = {
         return item
     },
     placeThrownItem(this: Combat, item: Obj, landing: Point, weaponObj: Obj, dmgType: string): void {
-        const gMap = globalState.gMap
+        const gMap = world.gMap
         if (!gMap || this.isExplosiveAttack(weaponObj, dmgType)) return
         gMap.addObject(item)
         item.move({ x: landing.x, y: landing.y }, gMap.getObjects().length - 1, false)

@@ -18,7 +18,7 @@ limitations under the License.
 // carrier's, if carried) plays at full volume while the source is on screen; off screen,
 // full up to the dude's PE in hexes, falling linearly to 1/3 at 2 x PE, 1/3 beyond.
 
-import globalState from './globalState.js'
+import { world } from './state/world.js'
 import { hexDistance, hexToScreen } from './geometry.js'
 import type { Obj } from './object.js'
 import { objectBoundingBox, SCREEN_HEIGHT, SCREEN_WIDTH, worldToScreen } from './renderer.js'
@@ -43,18 +43,18 @@ function carrier(obj: Obj): Obj {
     if (obj.type !== 'item') {
         return obj
     }
-    const player = globalState.player
+    const player = world.player
     if (holds(player, obj)) {
         return player!
     }
-    return globalState.gMap?.getObjects().find((o) => o !== obj && holds(o, obj)) ?? obj
+    return world.gMap?.getObjects().find((o) => o !== obj && holds(o, obj)) ?? obj
 }
 
 // Volume factor 0..1 (CE 0x7FFF = 1)
 export function soundSourceVolume(obj: Obj | null | undefined): number {
     if (!obj || (obj.type !== 'item' && obj.type !== 'critter' && obj.type !== 'scenery')) return 1
     const source = carrier(obj)
-    const player = globalState.player
+    const player = world.player
     if (!player || !source.position) return 1
     let bbox = null
     try {

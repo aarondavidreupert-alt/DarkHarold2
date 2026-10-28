@@ -22,6 +22,7 @@
 
 import { Config } from './config.js'
 import globalState from './globalState.js'
+import { world } from './state/world.js'
 import { runCombatCrawler } from './autocrawler/combat.js'
 import { runDialogueCrawler } from './autocrawler/dialogue.js'
 import { runMapCrawler } from './autocrawler/maps.js'
@@ -73,24 +74,22 @@ if (typeof window !== 'undefined' && Config.engine.debug) {
     // default map (artemple) loads normally. We wait for it to finish then run.
     const _crawlParam = new URLSearchParams(location.search).get('crawl')
     if (_crawlParam === 'maps' || _crawlParam === 'dialogue' || _crawlParam === 'combat' || _crawlParam === 'story') {
-        waitFor(() => globalState.gMap !== null && globalState.player !== null && !globalState.isLoading, 30000).then(
-            (ready) => {
-                if (!ready) {
-                    console.error('[AutoCrawler] Timed out waiting for game to initialise')
-                    return
-                }
-                if (_crawlParam === 'maps') runMapCrawler()
-                else if (_crawlParam === 'dialogue') runDialogueCrawler()
-                else if (_crawlParam === 'combat') runCombatCrawler()
-                else if (_crawlParam === 'story') {
-                    const q = new URLSearchParams(location.search)
-                    const maps = q.get('maps')
-                    runStoryCrawler({
-                        ...(maps ? { maps: maps.split(',') } : {}),
-                        traceDrawsFor: q.get('draws') ?? undefined,
-                    })
-                }
-            },
-        )
+        waitFor(() => world.gMap !== null && world.player !== null && !globalState.isLoading, 30000).then((ready) => {
+            if (!ready) {
+                console.error('[AutoCrawler] Timed out waiting for game to initialise')
+                return
+            }
+            if (_crawlParam === 'maps') runMapCrawler()
+            else if (_crawlParam === 'dialogue') runDialogueCrawler()
+            else if (_crawlParam === 'combat') runCombatCrawler()
+            else if (_crawlParam === 'story') {
+                const q = new URLSearchParams(location.search)
+                const maps = q.get('maps')
+                runStoryCrawler({
+                    ...(maps ? { maps: maps.split(',') } : {}),
+                    traceDrawsFor: q.get('draws') ?? undefined,
+                })
+            }
+        })
     }
 }

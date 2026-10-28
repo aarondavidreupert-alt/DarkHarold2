@@ -20,7 +20,8 @@ limitations under the License.
 // setCharacterWindow() so ui.ts's mutual-exclusion lookup works for both.
 
 import { Config } from '../config.js'
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
+import { services } from '../state/services.js'
 import { Widget } from '../uiWidget.js'
 import { renderStatPanels } from './statPanels.js'
 import { font3, makeFontLabel, setBignum } from '../uiFont.js'
@@ -77,7 +78,7 @@ export interface CreatorInitialState {
 }
 
 export function showCharacterCreator(onDone: () => void, onCancel: () => void, initial?: CreatorInitialState): void {
-    const player = globalState.player!
+    const player = world.player!
 
     // Fresh stat/skill sets — all SPECIAL at default (5); no invested points
     const newStatSet = new StatSet()
@@ -903,7 +904,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
         const special = newStatSet.clone()
         for (const st of STATS)
             special.setBase(st, Math.max(1, Math.min(10, special.getBase(st) + traitSpecialMod(st))))
-        const dude: any = Object.create(Object.getPrototypeOf(globalState.player))
+        const dude: any = Object.create(Object.getPrototypeOf(world.player))
         Object.assign(dude, { stats: special, traits: selectedTraits, perks: [], inventory: [], injuryFlags: 0 })
         const view = special.clone()
         view.get = (stat: string) => dude.getStat(stat)
@@ -1061,7 +1062,7 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
     doneBtn.onClick(async () => {
         const msg = (id: number) => getMessage('editor', id) ?? ''
         const refuse = (a: number, b: number) => {
-            globalState.audioEngine?.playSfxByName?.('iisxxxx1')
+            services.audioEngine?.playSfxByName?.('iisxxxx1')
             return showAlert(`${msg(a)}
 ${msg(b)}`)
         }
@@ -1076,7 +1077,7 @@ ${msg(b)}`)
             return refuse(157, 158)
         const name = playerName.trim() || 'None'
         if (name.toLowerCase() === 'none') {
-            globalState.audioEngine?.playSfxByName?.('iisxxxx1')
+            services.audioEngine?.playSfxByName?.('iisxxxx1')
             if (
                 !(await showConfirm(`${msg(160)}
 ${msg(161)}`))
@@ -1111,7 +1112,7 @@ ${msg(161)}`))
                 for (const st of STATS)
                     special.setBase(st, Math.max(1, Math.min(10, special.getBase(st) + traitSpecialMod(st))))
                 special.setBase('Age', playerAge)
-                const dude: any = Object.create(Object.getPrototypeOf(globalState.player))
+                const dude: any = Object.create(Object.getPrototypeOf(world.player))
                 Object.assign(dude, {
                     stats: special,
                     skills: newSkillSet,

@@ -15,7 +15,7 @@
 //
 // Copyright 2014-2022 darkf (Apache 2.0)
 
-import globalState from './globalState.js'
+import { world } from './state/world.js'
 import { dbg } from './logger.js'
 import { Critter, Obj } from './object.js'
 import * as Scripting from './scripting.js'
@@ -70,7 +70,7 @@ function itemMsg(id: number): string | null {
 }
 
 function isDude(c: Critter): boolean {
-    return c === globalState.player
+    return c === world.player
 }
 
 function hasTrait(c: Critter, name: string): boolean {
@@ -92,7 +92,7 @@ function dudeIsAddicted(pid: number): boolean {
 }
 
 function setAddictedState(on: boolean): void {
-    const p = globalState.player as Critter | null
+    const p = world.player as Critter | null
     if (!p) return
     p.addictedState = on
     updateIndicatorBar()
@@ -273,7 +273,7 @@ function applyWithdrawalPerk(critter: Critter, perk: number, sign: 1 | -1): void
 
 // CE party_member.cc objectIsPartyMember (the dude included)
 function isPartyMember(critter: Critter): boolean {
-    return critter === globalState.player || (globalState.gParty?.getPartyMembersAndPlayer() ?? []).includes(critter)
+    return critter === world.player || (world.gParty?.getPartyMembersAndPlayer() ?? []).includes(critter)
 }
 
 // CE item.cc:3039 performWithdrawalStart

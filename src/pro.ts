@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import { getLstJson } from './data.js'
-import globalState from './globalState.js'
+import { assets } from './state/assets.js'
 import { dbg } from './logger.js'
 
 // Functions handling FO2 prototypes and lookups performed on them
@@ -33,7 +33,7 @@ function getPROType(pid: number) {
 }
 
 export function loadPRO(pid: number, pidID: number) {
-    if (!globalState.proMap) return null
+    if (!assets.proMap) return null
 
     // use the proto/ .lst files to look up type/pid
     const type = getPROType(pid)
@@ -46,7 +46,7 @@ export function loadPRO(pid: number, pidID: number) {
     }
     const id = lsts[type] ? parseInt(getLstJson(lsts[type], pidID - 1)!.split('.')[0], 10) : pidID
 
-    return globalState.proMap[type][id]
+    return assets.proMap[type][id]
 }
 
 export function getPROTypeName(type: number): 'item' | 'critter' | 'scenery' | 'wall' | 'tile' | 'misc' {

@@ -20,7 +20,7 @@ limitations under the License.
 // a holodisk opens its text (pipboyRenderHolodiskText, 35 lines a page).
 
 import { Config } from '../../config.js'
-import globalState from '../../globalState.js'
+import { services } from '../../state/services.js'
 import * as Scripting from '../../scripting.js'
 import { getMessage } from '../../util.js'
 import { getActiveQuests, getUnknownActiveGvars } from '../../questLog.js'
@@ -34,7 +34,7 @@ const LINE_H = 12
 const PIPBOY_HOLODISK_LINES_MAX = 35
 
 const msg = (id: number, fallback: string) => getMessage('pipboy', id) ?? fallback
-const click = () => globalState.audioEngine?.playSfxByName?.('ib1p1xx1')
+const click = () => services.audioEngine?.playSfxByName?.('ib1p1xx1')
 
 // Page Up / Page Down in the holodisk reader (CE 1026 / 1027)
 let pageKeys: ((e: KeyboardEvent) => void) | null = null

@@ -18,7 +18,9 @@ limitations under the License.
 // view), plus the area label list down the right side.
 
 import { getMessage } from './util.js'
-import globalState from './globalState.js'
+import { world } from './state/world.js'
+import { uiState } from './state/uiState.js'
+import { services } from './state/services.js'
 import { Area, loadAreas, lookupMapNameFromLookup } from './data.js'
 import * as Worldmap from './worldmap.js'
 import { UIMode } from './uiMode.js'
@@ -50,7 +52,7 @@ function setLabelScroll(y: number): void {
 // --- World map -------------------------------------------------------------
 
 export function uiCloseWorldMap() {
-    globalState.uiMode = UIMode.none
+    uiState.uiMode = UIMode.none
 
     hide($id('worldMapContainer'))
     hidev($id('areamap'))
@@ -60,13 +62,13 @@ export function uiCloseWorldMap() {
 }
 
 export function uiWorldMap(onAreaMap = false) {
-    globalState.uiMode = UIMode.worldMap
+    uiState.uiMode = UIMode.worldMap
     show($id('worldMapContainer'))
     // CE worldmap.cc wmInterfaceInit: _gsound_background_play_level_music(isInCar ? "20car" : "23world")
-    globalState.audioEngine.playMusic(Worldmap.getIsInCar() ? '20car' : '23world')
+    services.audioEngine.playMusic(Worldmap.getIsInCar() ? '20car' : '23world')
 
-    if (!globalState.mapAreas) {
-        globalState.mapAreas = loadAreas()
+    if (!world.mapAreas) {
+        world.mapAreas = loadAreas()
     }
 
     if (onAreaMap) {
@@ -158,12 +160,12 @@ export function uiWorldMapShowArea(area: Area) {
             // CE worldmap.cc wmTownMapFunc → map.cc mapSetEnteringLocation(entrance elevation,
             // tile, rotation); -1 (most city.txt entrances) is the map header's start (mapLoad)
             const own = entrance.elevation >= 0 && entrance.tileNum >= 0
-            globalState.gMap!.loadMap(
+            world.gMap!.loadMap(
                 mapName!,
                 own ? fromTileNum(entrance.tileNum) : undefined,
                 own ? entrance.elevation : undefined,
             )
-            if (own && Number.isFinite(entrance.orientation)) globalState.player!.orientation = entrance.orientation
+            if (own && Number.isFinite(entrance.orientation)) world.player!.orientation = entrance.orientation
             uiCloseWorldMap()
         }
 
@@ -196,7 +198,7 @@ function uiWorldMapLabels() {
 
     // CE ref: worldmap.cc wmMakeTabsLabelList — the known areas (wmAreaIsKnown: known
     // and visited) with a label, sorted by name.
-    const areas = Object.values(globalState.mapAreas!)
+    const areas = Object.values(world.mapAreas!)
         .filter((a) => !!a.labelArt && Worldmap.areaIsKnown(a.id))
         .sort((a, b) => a.name.localeCompare(b.name))
 

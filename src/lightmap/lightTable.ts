@@ -18,7 +18,7 @@ limitations under the License.
 // See wiki/ts-split-refactor.md → "Per-file split proposals" §15.
 
 import { hexInDirectionDistance } from '../geometry.js'
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
 import { setCenterTile } from '../render/camera.js'
 import { fromTileNum, toTileNum } from '../tile.js'
 import { dbg } from '../logger.js'
@@ -59,7 +59,7 @@ export function obj_light_table_init(): void {
     //var centerTile_: Point = getCenterTile()
 
     // should we use the center tile at all?
-    let edi = toTileNum(globalState.centerTile)
+    let edi = toTileNum(world.centerTile)
     let edx = edi & 1
     let eax = edx * 4
     eax -= edx

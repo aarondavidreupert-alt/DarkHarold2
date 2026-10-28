@@ -17,7 +17,7 @@ import {
     unequipForRemoval,
 } from '../../inventoryWield.js'
 import { dbg, dbgWarn } from '../../logger.js'
-import globalState from '../../globalState.js'
+import { world } from '../../state/world.js'
 import { uiDrawWeapon } from '../../hudRefresh.js'
 import { allCarriers, info, isGameObject, itemCapsAdjust, itemGetTotalCaps, log, warn } from '../../scripting.js'
 
@@ -108,7 +108,7 @@ export const inventoryOpcodes = {
             item.amount = stack.amount + quantity
             obj.inventory[i] = item
         }
-        if (globalState.gMap?.objects?.some((level: Obj[]) => level.includes(item))) globalState.gMap.removeObject(item)
+        if (world.gMap?.objects?.some((level: Obj[]) => level.includes(item))) world.gMap.removeObject(item)
     },
     // CE opRemoveMultipleObjectsFromInventory: itemRemove(owner, item, min(quantity
     // held, count)) — that object, equipped or not — and returns the quantity removed.
@@ -266,10 +266,10 @@ export const inventoryOpcodes = {
                 obj.amount = have - n
                 ammoSplitOff(obj, obj.clone())
             } // the boxes left are full
-            if (owner === globalState.player) uiDrawWeapon()
+            if (owner === world.player) uiDrawWeapon()
             return n
         }
-        globalState.gMap!.destroyObject(obj)
+        world.gMap!.destroyObject(obj)
         return 0
     },
 }

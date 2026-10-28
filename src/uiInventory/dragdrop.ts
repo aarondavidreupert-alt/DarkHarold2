@@ -20,7 +20,8 @@ limitations under the License.
 
 import { updateHandFlareLight } from '../object.js'
 import { ammoSplitOff, ammoUseTopBox, weaponCanBeReloadedWith, weaponReload } from '../weaponAmmo.js'
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
+import { services } from '../state/services.js'
 import { dbg, dbgWarn } from '../logger.js'
 import { refreshStealthState } from '../miscItem.js'
 import { Obj, cloneItem } from '../object.js'
@@ -70,9 +71,7 @@ export function makeDraggable($el: HTMLElement, data: string, endCallback?: () =
 // (up to 9 levels deep); the dude's own inventory when none is open
 const openContainers: Obj[] = []
 export function inventoryList(): Obj[] {
-    return openContainers.length > 0
-        ? openContainers[openContainers.length - 1].inventory
-        : globalState.player!.inventory
+    return openContainers.length > 0 ? openContainers[openContainers.length - 1].inventory : world.player!.inventory
 }
 export function currentContainer(): Obj | null {
     return openContainers[openContainers.length - 1] ?? null
@@ -112,7 +111,7 @@ export async function tryLoadAmmoIntoWeapon(ammoObj: Obj, weaponObj: Obj): Promi
     }
     if (!reloaded) return false
     const soundId = (weaponObj as any).pro?.extra?.soundID
-    if (typeof soundId === 'number') globalState.audioEngine.playWeaponSfx(String.fromCharCode(soundId), 'reload')
+    if (typeof soundId === 'number') services.audioEngine.playWeaponSfx(String.fromCharCode(soundId), 'reload')
     return true
 }
 
@@ -129,7 +128,7 @@ function inventoryMoveHookCancels(target: string, item: Obj | null, replaced: Ob
 
 // TODO: Rewrite this sanely (and not directly modify the player object's properties...)
 export async function uiMoveSlot(data: string, target: string) {
-    const playerUnsafe = globalState.player as any
+    const playerUnsafe = world.player as any
     const oldArmor = playerUnsafe.armor ?? null
     let obj = null
 
@@ -206,7 +205,7 @@ export async function uiMoveSlot(data: string, target: string) {
     if (target === 'inventory') {
         const bag = currentContainer()
         if (bag) bag.addInventoryItem(obj, obj.amount ?? 1)
-        else globalState.player!.inventory.push(obj)
+        else world.player!.inventory.push(obj)
     } else {
         if (playerUnsafe[target] !== undefined && playerUnsafe[target] !== null) {
             // perform a swap
@@ -224,10 +223,10 @@ export async function uiMoveSlot(data: string, target: string) {
 
     // Update armor appearance if armor slot changed
     if (target === 'armor' || data === 'armor') {
-        armorPerkSwap(globalState.player!, oldArmor, playerUnsafe.armor ?? null)
+        armorPerkSwap(world.player!, oldArmor, playerUnsafe.armor ?? null)
         if (target === 'armor' && obj) {
             const fid: number =
-                globalState.player!.gender === 'female'
+                world.player!.gender === 'female'
                     ? (obj as any).pro?.extra?.femaleFID
                     : (obj as any).pro?.extra?.maleFID
             let armorSound = 'ltharmor'
@@ -239,18 +238,18 @@ export async function uiMoveSlot(data: string, target: string) {
                     else if (armorArt.includes('robe')) armorSound = 'robe'
                 } catch {}
             }
-            globalState.audioEngine.playSfxByName(armorSound)
+            services.audioEngine.playSfxByName(armorSound)
         }
         applyArmorArt(target === 'armor' ? obj : null)
-        const armorAC = (globalState.player as any).armor?.pro?.extra?.AC ?? 0
-        drawAC(globalState.player!.getStat('AC') + armorAC)
+        const armorAC = (world.player as any).armor?.pro?.extra?.AC ?? 0
+        drawAC(world.player!.getStat('AC') + armorAC)
     }
 
     // CE ref: item.cc:353 itemAdd() stealthBoyTurnOn / item.cc:449 stealthBoyTurnOff —
     // recompute stealthActive whenever a hand slot changes (equip, unequip, or swap).
     if (target === 'leftHand' || target === 'rightHand' || data === 'leftHand' || data === 'rightHand') {
-        refreshStealthState(globalState.player as unknown as Critter)
-        updateHandFlareLight(globalState.player as unknown as Critter) // inventory.cc _invenWieldFunc: a lit flare in hand
+        refreshStealthState(world.player as unknown as Critter)
+        updateHandFlareLight(world.player as unknown as Critter) // inventory.cc _invenWieldFunc: a lit flare in hand
     }
 
     uiDrawWeapon()
@@ -259,18 +258,17 @@ export async function uiMoveSlot(data: string, target: string) {
 
 // Apply or remove armor appearance — updates player.art to the armor's critter base art
 export function applyArmorArt(armor: Obj | null) {
-    const playerAny = globalState.player as any
+    const playerAny = world.player as any
     if (armor?.pro?.extra) {
-        const fid: number =
-            globalState.player!.gender === 'female' ? armor.pro.extra.femaleFID : armor.pro.extra.maleFID
+        const fid: number = world.player!.gender === 'female' ? armor.pro.extra.femaleFID : armor.pro.extra.maleFID
         if (fid && fid !== 0) {
             try {
                 const armorArt = lookupArt(fid)
                 if (armorArt) {
                     if (!playerAny._baseArt) {
-                        playerAny._baseArt = globalState.player!.art
+                        playerAny._baseArt = world.player!.art
                     }
-                    globalState.player!.art = armorArt
+                    world.player!.art = armorArt
                     return
                 }
             } catch (e) {
@@ -280,7 +278,7 @@ export function applyArmorArt(armor: Obj | null) {
     }
     // No armor or no valid FID — restore original art
     if (playerAny._baseArt) {
-        globalState.player!.art = playerAny._baseArt
+        world.player!.art = playerAny._baseArt
         playerAny._baseArt = null
     }
 }

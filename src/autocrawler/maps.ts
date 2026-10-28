@@ -3,6 +3,8 @@
 import { isCombatActive } from '../combat.js'
 import { Config } from '../config.js'
 import globalState from '../globalState.js'
+import { world } from '../state/world.js'
+import { uiState } from '../state/uiState.js'
 import { eventLogClear } from '../logger.js'
 import * as Scripting from '../scripting.js'
 import { UIMode } from '../uiMode.js'
@@ -36,11 +38,11 @@ async function crawlOneMap(mapName: string): Promise<MapResult> {
     const result: MapResult = { map: mapName, status: 'ok', durationMs: 0 }
 
     // Reset leftover state from the previous map before loading the next one.
-    if (globalState.inCombat) {
-        globalState.combat?.forceEnd()
+    if (world.inCombat) {
+        world.combat?.forceEnd()
         await waitFor(() => !isCombatActive(), COMBAT_ACTIVE_TIMEOUT_MS)
     }
-    if (globalState.uiMode !== UIMode.none) {
+    if (uiState.uiMode !== UIMode.none) {
         try {
             Scripting.dialogueEnd()
         } catch {
@@ -55,7 +57,7 @@ async function crawlOneMap(mapName: string): Promise<MapResult> {
     eventLogClear()
 
     try {
-        globalState.gMap!.loadMap(mapName)
+        world.gMap!.loadMap(mapName)
     } catch (e) {
         result.status = 'exception'
         result.error = String(e)
@@ -83,7 +85,7 @@ async function crawlOneMap(mapName: string): Promise<MapResult> {
         return result
     }
 
-    const pos = globalState.player?.position
+    const pos = world.player?.position
     if (!pos || typeof pos.x !== 'number' || typeof pos.y !== 'number') {
         result.status = 'player-missing'
         result.eventLog = [...globalState.eventLog]
@@ -98,7 +100,7 @@ export async function runMapCrawler(): Promise<CrawlerReport | null> {
         console.error('[AutoCrawler] Config.engine.debug must be true')
         return null
     }
-    if (!globalState.gMap || !globalState.player) {
+    if (!world.gMap || !world.player) {
         console.error('[AutoCrawler] No active map/player — start a game first')
         return null
     }

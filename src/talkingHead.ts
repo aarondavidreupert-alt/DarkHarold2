@@ -25,7 +25,8 @@ limitations under the License.
 // data/sound/speech/<head>/.
 
 import { AUDIO_ASSET_QUERY } from './audio.js'
-import globalState from './globalState.js'
+import { services } from './state/services.js'
+import { assets } from './state/assets.js'
 import { getCurrentMapInfo, getLstJson } from './data.js'
 import { lazyLoadImage } from './images.js'
 import { dbg } from './logger.js'
@@ -116,7 +117,7 @@ function headArtKey(anim: number, fidget = 0): string {
 }
 
 function loadHeadArt(key: string): HeadArt | null {
-    const info = globalState.imageInfo![key]
+    const info = assets.imageInfo![key]
     if (!info) return null
     lazyLoadImage(key)
     const dir = info.directionOffsets?.[0] ?? { x: 0, y: 0 }
@@ -151,7 +152,7 @@ function render(art: HeadArt | null, frame: number): void {
     const bgName = getLstJson('art/backgrnd/backgrnd', backgroundIndex)
     if (bgName) {
         const bgKey = 'art/backgrnd/' + String(bgName).split('.')[0].toLowerCase()
-        const bg = globalState.images[bgKey]
+        const bg = assets.images[bgKey]
         if (bg) ctx.drawImage(bg, 0, 0)
         else lazyLoadImage(bgKey, () => render(art, frame))
     }
@@ -165,7 +166,7 @@ function render(art: HeadArt | null, frame: number): void {
     if (offset + f.w * art.dirY > 0) offset += f.w * art.dirY
     const y = Math.floor(offset / 640)
     const x = offset - y * 640
-    const img = globalState.images[art.key]
+    const img = assets.images[art.key]
     if (img) ctx.drawImage(img, f.sx, f.sy, f.w, f.h, x, y, f.w, f.h)
     else lazyLoadImage(art.key, () => render(art, frame))
 }
@@ -305,7 +306,7 @@ function loadLips(audioName: string): Lips | null {
 export function startLips(audioName: string | null): void {
     if (!isTalkingHeadActive()) return
     if (audioName === null) {
-        globalState.audioEngine?.playSfxByName?.('censor')
+        services.audioEngine?.playSfxByName?.('censor')
         return
     }
     endLips()
@@ -314,7 +315,7 @@ export function startLips(audioName: string | null): void {
     if (!l) return
     lips = l
     lastPhoneme = -1
-    const ae = globalState.audioEngine as any
+    const ae = services.audioEngine as any
     // CE lipsStart: soundSetVolume(sound, speechVolume * 0.69)
     l.audio.volume = Math.max(0, Math.min(1, (ae?.speechVolume ?? 1) * (ae?.masterVolume ?? 1) * 0.69))
     l.audio.play().catch(() => {
@@ -420,7 +421,7 @@ function ensureCanvas(): HTMLCanvasElement | null {
 export function startTalkingHead(headId: number, reaction: number, background: number): void {
     if (background !== -1) backgroundIndex = background // CE gameDialogSetBackground
     if (isTalkingHeadActive() || musicState) return // CE: _gdialog_state == 1 → already set up
-    const ae = globalState.audioEngine as any
+    const ae = services.audioEngine as any
     const music: HTMLAudioElement | undefined = ae?.musicAudio
     if (headId === -1) {
         musicState = { stopped: false, oldVolume: music ? music.volume : null }
@@ -453,7 +454,7 @@ export function stopTalkingHead(): void {
     lipsArt = null
     if (canvas) canvas.style.display = 'none'
     canvas = null
-    const ae = globalState.audioEngine as any
+    const ae = services.audioEngine as any
     if (musicState?.stopped) {
         // CE backgroundSoundRestart(11): resume the map's music.
         const mus = getCurrentMapInfo()?.music

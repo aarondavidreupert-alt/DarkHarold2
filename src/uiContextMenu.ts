@@ -20,7 +20,8 @@ limitations under the License.
 // inventory and skill (skilldex) buttons.
 
 import { objExamine } from './examine.js'
-import globalState from './globalState.js'
+import { world } from './state/world.js'
+import { uiState } from './state/uiState.js'
 import { dbg, dbgWarn } from './logger.js'
 import { Critter, Obj } from './object.js'
 import * as Scripting from './scripting.js'
@@ -41,15 +42,15 @@ import { approachToTalk } from './talkApproach.js'
 import { pathfinderFindPath } from './map/pathfinder.js'
 
 export function uiHideContextMenu() {
-    globalState.uiMode = UIMode.none
+    uiState.uiMode = UIMode.none
     // CE: the mode stays ARROW after an action menu ([dh2] mouse_mode=ce); DH2 goes back to move
-    globalState.cursorMode = Config.ui.mouseMode === 'ce' ? 'command' : 'move'
+    uiState.cursorMode = Config.ui.mouseMode === 'ce' ? 'command' : 'move'
     $id('itemContextMenu').style.visibility = 'hidden'
 }
 
 // The actions behind the menu's icons (and CE's click actions, uiPrimaryAction).
 function objectActions(obj: Obj) {
-    const player = globalState.player as Critter
+    const player = world.player as Critter
     return {
         // CE: LOOK → _obj_examine (proto_instance.cc _obj_examine_func)
         look: () => {
@@ -65,8 +66,8 @@ function objectActions(obj: Obj) {
             }
             closeAllPanels()
             showSkilldex((sk: Skills) => {
-                globalState.uiMode = UIMode.useSkill
-                globalState.skillMode = sk
+                uiState.uiMode = UIMode.useSkill
+                uiState.skillMode = sk
                 playerUse(obj)
             })
         },
@@ -111,10 +112,10 @@ export function uiPrimaryAction(obj: Obj): void {
     if (obj.type === 'item') a.pickUp()
     else if (obj.type === 'critter') {
         const c = obj as Critter
-        if (c === globalState.player) {
+        if (c === world.player) {
             if (!c.anim || c.anim === 'idle') a.rotate()
         } else if (objActionCanTalkTo(c)) {
-            if (globalState.inCombat) a.look()
+            if (world.inCombat) a.look()
             else a.talk()
         } else uiLootWalk(c)
     } else if (obj.type === 'scenery') {
@@ -124,7 +125,7 @@ export function uiPrimaryAction(obj: Obj): void {
 }
 
 export function uiContextMenu(obj: Obj, evt: any) {
-    globalState.uiMode = UIMode.contextMenu
+    uiState.uiMode = UIMode.contextMenu
 
     function button(obj: Obj, action: string, onclick: (() => void) | undefined = undefined) {
         return makeEl('div', {
@@ -155,7 +156,7 @@ export function uiContextMenu(obj: Obj, evt: any) {
         left: `${lx}px`,
         top: `${ly}px`,
     })
-    const player = globalState.player as Critter
+    const player = world.player as Critter
     const add = (action: string, fn?: () => void) => $menu.appendChild(button(obj, action, fn))
     const { look, inventory, skill, talk, use, pickUp, rotate } = objectActions(obj)
 
@@ -175,7 +176,7 @@ export function uiContextMenu(obj: Obj, evt: any) {
             add('rotate', rotate)
         } else {
             if (objActionCanTalkTo(critter)) {
-                if (!globalState.inCombat) add('talk', talk)
+                if (!world.inCombat) add('talk', talk)
             } else if ((critterProtoFlags(critter) & CRITTER_NO_STEAL) === 0) {
                 add('use', () => uiLootWalk(critter)) // _action_loot_container
             }
@@ -218,8 +219,8 @@ export function primaryActionIcon(obj: Obj): string {
     if (obj.type === 'item') return icon('usegetn')
     if (obj.type === 'critter') {
         const c = obj as Critter
-        if (c === globalState.player) return icon('rotaten')
-        if (objActionCanTalkTo(c)) return icon(globalState.inCombat ? 'lookn' : 'talkn')
+        if (c === world.player) return icon('rotaten')
+        if (objActionCanTalkTo(c)) return icon(world.inCombat ? 'lookn' : 'talkn')
         return icon((critterProtoFlags(c) & CRITTER_NO_STEAL) !== 0 ? 'lookn' : 'usegetn')
     }
     if (obj.type === 'scenery') return icon(obj.canUse ? 'usegetn' : 'lookn')
@@ -237,7 +238,7 @@ function objActionCanTalkTo(c: Critter): boolean {
 
 // CE actions.cc _action_loot_container: walk (run from 5 hexes) to it, then loot.
 function uiLootWalk(target: Obj): void {
-    const player = globalState.player as Critter
+    const player = world.player as Critter
     player.walkInFrontOfToAct(target.position, () => {
         player.clearAnim()
         uiLoot(target)
@@ -253,7 +254,7 @@ function actionCheckPush(pusher: Critter, target: Critter): boolean {
     if (pathfinderFindPath(pusher, pusher.position, target.position, false, 'sight').length === 0) return false
     if (hexDistance(pusher.position, target.position) > 12) return false
     if (!target._script || target._script.push_p_proc === undefined) return false
-    if (globalState.inCombat) {
+    if (world.inCombat) {
         const whoHitPusher = pusher.whoHitMe
         if (target.teamNum === pusher.teamNum && target === whoHitPusher) return false
         const whoHitTarget = target.whoHitMe as Critter | null
@@ -267,7 +268,7 @@ function actionCheckPush(pusher: Critter, target: Critter): boolean {
 function actionPush(pusher: Critter, target: Critter): void {
     if (!actionCheckPush(pusher, target)) return
     if (Scripting.push(target, pusher)) return
-    const map = globalState.gMap
+    const map = world.gMap
     if (!map) return
     const rotation = hexDirectionTo(pusher.position, target.position)
     for (const turn of [0, 1, 5, 2, 4, 3]) {
@@ -276,7 +277,7 @@ function actionPush(pusher: Critter, target: Critter): void {
             continue
         target.orientation = hexDirectionTo(target.position, dest)
         // CE: in combat the pushed critter moves on its own AP (none left: it stays)
-        if (globalState.inCombat && target.AP) {
+        if (world.inCombat && target.AP) {
             if (target.AP.getAvailableMoveAP() <= 0) return
             if (target.walkTo(dest, false, undefined, 1)) target.AP.subtractMoveAP(1)
             return

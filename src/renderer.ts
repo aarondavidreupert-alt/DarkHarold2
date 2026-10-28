@@ -29,6 +29,11 @@ import {
     pointInBoundingBox,
 } from './geometry.js'
 import globalState from './globalState.js'
+import { world } from './state/world.js'
+import { uiState } from './state/uiState.js'
+import { view } from './state/view.js'
+import { services } from './state/services.js'
+import { assets } from './state/assets.js'
 import { lazyLoadImage } from './images.js'
 import { dbg } from './logger.js'
 import { Obj } from './object.js'
@@ -197,7 +202,7 @@ export class Renderer {
             this.color(0, 0, 0)
             const w = 256,
                 h = 40
-            const w2 = (globalState.loadingAssetsLoaded / globalState.loadingAssetsTotal) * w
+            const w2 = (assets.loadingAssetsLoaded / assets.loadingAssetsTotal) * w
             // draw a loading progress bar
             this.rectangle(SCREEN_WIDTH / 2 - w / 2, SCREEN_HEIGHT / 2, w, h, false)
             this.rectangle(SCREEN_WIDTH / 2 - w / 2 + 2, SCREEN_HEIGHT / 2 + 2, w2 - 4, h - 4)
@@ -221,14 +226,14 @@ export class Renderer {
         // the game field without any wall transparency. Drawn on textCtx (the same
         // 2D canvas used for floating damage text) immediately after the floor so
         // objects render on top of it. No shader changes needed.
-        if (Config.ui.eggMode === 'beta' && globalState.player) {
+        if (Config.ui.eggMode === 'beta' && world.player) {
             const z = getZoom()
             const radius = Config.ui.eggRadius ?? 8
             const ctx = (this as any).textCtx as CanvasRenderingContext2D | undefined
             if (ctx) {
                 ctx.save()
                 ctx.fillStyle = 'rgba(0,255,0,0.3)'
-                for (const pos of hexesInRadius(globalState.player.position, radius)) {
+                for (const pos of hexesInRadius(world.player.position, radius)) {
                     const scr = hexCellTopLeft(pos.x, pos.y)
                     const s = worldToScreen(scr.x, scr.y)
                     // Flat-topped hex tile in isometric view: draw a simple filled rhombus
@@ -253,9 +258,9 @@ export class Renderer {
             // CE ref: object.cc:1462 tile_fill_roof(roofX, roofY, elev, false) —
             // hide only the connected roof section the player is standing under.
             let hideSet: Set<string> | null = null
-            if (globalState.player) {
-                const scr = hexToScreen(globalState.player.position.x, globalState.player.position.y)
-                const own = hexToTile(globalState.player.position) // CE objectSetLocation roofX / roofY
+            if (world.player) {
+                const scr = hexToScreen(world.player.position.x, world.player.position.y)
+                const own = hexToTile(world.player.position) // CE objectSetLocation roofX / roofY
                 hideSet = roofFloodFill(this.roofTiles, own.x, own.y, this.roofFlags)
                 // Roofs draw 96px up, so the roof sprite that visually COVERS the
                 // player when they stand behind (north of) a building belongs to a
@@ -293,11 +298,11 @@ export class Renderer {
         // combat-outline fills (post-roof) never visually cover the player
         // character. CE never drew player outlines so this case didn't arise
         // there; refreshHighlights() already excludes isPlayer from outlines.
-        if (Config.ui.showObjects && globalState.inCombat && globalState.player) {
-            this.renderObject(globalState.player)
+        if (Config.ui.showObjects && world.inCombat && world.player) {
+            this.renderObject(world.player)
         }
 
-        if (Config.ui.showCursor && globalState.cursorMode === 'move') {
+        if (Config.ui.showCursor && uiState.cursorMode === 'move') {
             // CE ref: object.cc:862 _obj_render_post_roof — the hex cursor is a flat object
             // whose paletted outline (game_mouse.cc:1973) is drawn in the post-roof
             // outline pass, i.e. above objects and roofs. (Was drawn before objects.)
@@ -305,7 +310,7 @@ export class Renderer {
             // position through the zoom and scale the image dimensions too
             // so it lines up with the (zoomed) hex grid underneath.
             const z = getZoom()
-            const hexImg = globalState.images['img/hex_outline']
+            const hexImg = assets.images['img/hex_outline']
             const hexW = hexImg?.naturalWidth ?? 32
             const hexH = hexImg?.naturalHeight ?? 16
             // CE draws the hex cursor at tileToScreenXY (cell top-left).
@@ -313,7 +318,7 @@ export class Renderer {
             const screen = worldToScreen(scr.x, scr.y)
             this.renderImage('img/hex_outline', screen.x, screen.y, hexW * z, hexH * z)
             // CE gameMouseRenderActionPoints: the AP / X centred in the hex cursor (font 101)
-            const apText = globalState.hexCursorText
+            const apText = uiState.hexCursorText
             if (apText)
                 this.renderText(
                     apText.text,
@@ -336,22 +341,20 @@ export class Renderer {
             }
         }
 
-        if (Config.ui.showDebugOverlay && globalState.inCombat) {
-            const whose = globalState.combat!.inPlayerTurn
-                ? 'player'
-                : globalState.combat!.combatants[globalState.combat!.whoseTurn].name
-            const AP = globalState.combat!.inPlayerTurn
-                ? globalState.player!.AP
-                : globalState.combat!.combatants[globalState.combat!.whoseTurn].AP
+        if (Config.ui.showDebugOverlay && world.inCombat) {
+            const whose = world.combat!.inPlayerTurn ? 'player' : world.combat!.combatants[world.combat!.whoseTurn].name
+            const AP = world.combat!.inPlayerTurn
+                ? world.player!.AP
+                : world.combat!.combatants[world.combat!.whoseTurn].AP
             this.renderText(
-                '[turn ' + globalState.combat!.turnNum + ' of ' + whose + ' AP: ' + AP!.getAvailableMoveAP() + ']',
+                '[turn ' + world.combat!.turnNum + ' of ' + whose + ' AP: ' + AP!.getAvailableMoveAP() + ']',
                 SCREEN_WIDTH - 200,
                 15,
             )
         }
 
         if (Config.ui.showSpatials && Config.engine.doSpatials) {
-            globalState.gMap!.getSpatials().forEach((spatial) => {
+            world.gMap!.getSpatials().forEach((spatial) => {
                 const scr = hexToScreen(spatial.position.x, spatial.position.y)
                 //heart.graphics.draw(hexOverlay, scr.x - 16 - cameraX, scr.y - 12 - cameraY)
                 const s = worldToScreen(scr.x - 10, scr.y - 3)
@@ -368,13 +371,13 @@ export class Renderer {
             this.renderText('mt: ' + mouseSquare.x + ',' + mouseSquare.y, 225, 15)
             this.renderText('m: ' + mousePos[0] + ', ' + mousePos[1], 325, 15)
             this.renderText('lit: ' + _hudLit, 5, 30)
-            const _ctrX = Math.round(globalState.cameraPosition.x + getWorldViewWidth() / 2)
-            const _ctrY = Math.round(globalState.cameraPosition.y + getWorldViewHeight() / 2)
-            this.renderText('ctr: ' + _ctrX + ',' + _ctrY + '  zoom:' + (globalState.cameraZoom || 1).toFixed(2), 5, 45)
+            const _ctrX = Math.round(view.cameraPosition.x + getWorldViewWidth() / 2)
+            const _ctrY = Math.round(view.cameraPosition.y + getWorldViewHeight() / 2)
+            this.renderText('ctr: ' + _ctrX + ',' + _ctrY + '  zoom:' + (view.cameraZoom || 1).toFixed(2), 5, 45)
             const _b = window.mapContentBounds
             if (_b) {
                 const _z = getZoom()
-                const _cam = globalState.cameraPosition
+                const _cam = view.cameraPosition
                 const _l = Math.round((_b.minX - _cam.x) * _z)
                 const _r = Math.round((_b.maxX - _cam.x) * _z)
                 const _t = Math.round((_b.minY - _cam.y) * _z)
@@ -419,7 +422,7 @@ export class Renderer {
             SCREEN_HEIGHT,
         )
 
-        if (globalState.player!.dead) {
+        if (world.player!.dead) {
             this.color(255, 0, 0, 50)
             this.rectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
         }
@@ -432,8 +435,8 @@ export class Renderer {
             const W = SCREEN_WIDTH
             const H = SCREEN_HEIGHT
 
-            if (globalState.cursorMode === 'command') {
-                const actarrowImg = globalState.images['art/intrface/actarrow']
+            if (uiState.cursorMode === 'command') {
+                const actarrowImg = assets.images['art/intrface/actarrow']
                 this.renderImage(
                     'art/intrface/actarrow',
                     rawX,
@@ -441,19 +444,19 @@ export class Renderer {
                     actarrowImg?.naturalWidth ?? 28,
                     actarrowImg?.naturalHeight ?? 13,
                 )
-                if (globalState.showLookCursor) {
-                    const icon = globalState.hoverActionIcon ?? 'art/intrface/lookn'
-                    const iconImg = globalState.images[icon]
+                if (uiState.showLookCursor) {
+                    const icon = uiState.hoverActionIcon ?? 'art/intrface/lookn'
+                    const iconImg = assets.images[icon]
                     this.renderImage(icon, rawX + 40, rawY, iconImg?.naturalWidth ?? 32, iconImg?.naturalHeight ?? 32)
                 }
-            } else if (globalState.cursorMode === 'attack') {
+            } else if (uiState.cursorMode === 'attack') {
                 // Fallout 2 attack crosshair cursor (acrshair); centered on the mouse hotspot
-                const attackImg = globalState.images['art/intrface/acrshair']
+                const attackImg = assets.images['art/intrface/acrshair']
                 const w = attackImg?.naturalWidth ?? 32
                 const h = attackImg?.naturalHeight ?? 32
                 this.renderImage('art/intrface/acrshair', rawX - Math.floor(w / 2), rawY - Math.floor(h / 2), w, h)
-            } else if (globalState.cursorMode === 'interface') {
-                const stdarrowImg = globalState.images['art/intrface/stdarrow']
+            } else if (uiState.cursorMode === 'interface') {
+                const stdarrowImg = assets.images['art/intrface/stdarrow']
                 this.renderImage(
                     'art/intrface/stdarrow',
                     rawX,
@@ -461,9 +464,9 @@ export class Renderer {
                     stdarrowImg?.naturalWidth ?? 14,
                     stdarrowImg?.naturalHeight ?? 17,
                 )
-            } else if (globalState.cursorMode === 'useSkill' || globalState.cursorMode === 'useItem') {
+            } else if (uiState.cursorMode === 'useSkill' || uiState.cursorMode === 'useItem') {
                 // FO2-CE ref: crossuse.frm — yellow crosshair for skill targeting
-                const crossuseImg = globalState.images['art/intrface/crossuse']
+                const crossuseImg = assets.images['art/intrface/crossuse']
                 if (crossuseImg) {
                     const w = crossuseImg.naturalWidth
                     const h = crossuseImg.naturalHeight
@@ -471,7 +474,7 @@ export class Renderer {
                     this.renderImage('art/intrface/crossuse', rawX - Math.floor(w / 2), rawY - Math.floor(h / 2), w, h)
                 } else {
                     // Fallback to actarrow if crossuse not available
-                    const fallbackImg = globalState.images['art/intrface/actarrow']
+                    const fallbackImg = assets.images['art/intrface/actarrow']
                     this.renderImage(
                         'art/intrface/actarrow',
                         rawX,
@@ -480,7 +483,7 @@ export class Renderer {
                         fallbackImg?.naturalHeight ?? 13,
                     )
                 }
-            } else if (globalState.cursorMode === 'scroll') {
+            } else if (uiState.cursorMode === 'scroll') {
                 const goN = rawY <= PAD
                 const goS = rawY >= H - PAD
                 const goE = rawX >= W - PAD
@@ -496,7 +499,7 @@ export class Renderer {
                 else if (goE) scrollCursor = 'art/intrface/screast'
                 else if (goW) scrollCursor = 'art/intrface/scrwest'
 
-                const scrollImg = globalState.images[scrollCursor]
+                const scrollImg = assets.images[scrollCursor]
                 this.renderImage(
                     scrollCursor,
                     rawX,
@@ -521,12 +524,12 @@ export class Renderer {
         const scr = slidScreenPos(obj)
         let visible = obj.visible
 
-        if (globalState.images[obj.art] === undefined) {
+        if (assets.images[obj.art] === undefined) {
             lazyLoadImage(obj.art) // try to load it in
             return null
         }
 
-        const info = globalState.imageInfo![obj.art]
+        const info = assets.imageInfo![obj.art]
         if (info === undefined) {
             throw new Error('No image map info for: ' + obj.art)
         }
@@ -566,7 +569,7 @@ export class Renderer {
             offsetY += frameInfo.oy + obj.artOffset.y
         }
 
-        if (obj === globalState.player && (obj.art !== _animLogLast.art || obj.frame !== _animLogLast.frame)) {
+        if (obj === world.player && (obj.art !== _animLogLast.art || obj.frame !== _animLogLast.frame)) {
             _animLogLast.art = obj.art
             _animLogLast.frame = obj.frame
             dbg(
@@ -588,10 +591,10 @@ export class Renderer {
         const viewW = getWorldViewWidth()
         const viewH = getWorldViewHeight()
         if (
-            scrX + frameInfo.w < globalState.cameraPosition.x ||
-            scrY + frameInfo.h < globalState.cameraPosition.y ||
-            scrX >= globalState.cameraPosition.x + viewW ||
-            scrY >= globalState.cameraPosition.y + viewH
+            scrX + frameInfo.w < view.cameraPosition.x ||
+            scrY + frameInfo.h < view.cameraPosition.y ||
+            scrX >= view.cameraPosition.x + viewW ||
+            scrY >= view.cameraPosition.y + viewH
         ) {
             visible = false
         } // out of screen bounds, no need to draw
@@ -618,7 +621,7 @@ export class Renderer {
         // items get a temporary outline so players can see what's pickable.
         // Distinct from Config.ui.itemHighlight (the real CE preference for
         // single-item mouse-hover highlighting — see input.ts mousemoved).
-        const highlightItems = globalState.highlightItemsKeyHeld === true
+        const highlightItems = uiState.highlightItemsKeyHeld === true
 
         const renderOne = (obj: Obj): void => {
             if (!Config.ui.showWalls && obj.type === 'wall') return
@@ -687,10 +690,10 @@ export function objectOnScreen(obj: Obj): boolean {
     const viewW = getWorldViewWidth()
     const viewH = getWorldViewHeight()
     if (
-        bbox.x + bbox.w < globalState.cameraPosition.x ||
-        bbox.y + bbox.h < globalState.cameraPosition.y ||
-        bbox.x >= globalState.cameraPosition.x + viewW ||
-        bbox.y >= globalState.cameraPosition.y + viewH
+        bbox.x + bbox.w < view.cameraPosition.x ||
+        bbox.y + bbox.h < view.cameraPosition.y ||
+        bbox.x >= view.cameraPosition.x + viewW ||
+        bbox.y >= view.cameraPosition.y + viewH
     ) {
         return false
     }
@@ -699,17 +702,17 @@ export function objectOnScreen(obj: Obj): boolean {
 
 export function objectTransparentAt(obj: Obj, position: Point) {
     const frame = obj.frame !== undefined ? obj.frame : 0
-    const f = globalState.imageInfo![obj.art].frameOffsets[obj.orientation!][frame]
+    const f = assets.imageInfo![obj.art].frameOffsets[obj.orientation!][frame]
     const sx = f.sx
     const sy = f.sy ?? 0
 
-    if (!globalState.tempCanvasCtx) {
+    if (!assets.tempCanvasCtx) {
         throw Error()
     }
 
-    globalState.tempCanvasCtx.clearRect(0, 0, 1, 1) // clear previous color
-    globalState.tempCanvasCtx.drawImage(globalState.images[obj.art], sx + position.x, sy + position.y, 1, 1, 0, 0, 1, 1)
-    const pixelAlpha = globalState.tempCanvasCtx.getImageData(0, 0, 1, 1).data[3]
+    assets.tempCanvasCtx.clearRect(0, 0, 1, 1) // clear previous color
+    assets.tempCanvasCtx.drawImage(assets.images[obj.art], sx + position.x, sy + position.y, 1, 1, 0, 0, 1, 1)
+    const pixelAlpha = assets.tempCanvasCtx.getImageData(0, 0, 1, 1).data[3]
 
     return pixelAlpha === 0
 }
@@ -726,12 +729,12 @@ function slidScreenPos(obj: Obj): Point {
 export function objectBoundingBox(obj: Obj): BoundingBox | null {
     const scr = slidScreenPos(obj)
 
-    if (globalState.images[obj.art] === undefined) {
+    if (assets.images[obj.art] === undefined) {
         // no art
         return null
     }
 
-    const info = globalState.imageInfo![obj.art]
+    const info = assets.imageInfo![obj.art]
     if (info === undefined) {
         throw new Error('No image map info for: ' + obj.art)
     }
@@ -768,15 +771,15 @@ export function getObjectUnderCursor(p: (obj: Obj) => boolean) {
     // every hit is a candidate, and the first opaque one outside the egg that is not a
     // dead or knocked-out critter wins — else the lowest candidate. Hidden objects never
     // intersect (object.cc _obj_intersects_with).
-    const objects = globalState.gMap!.getObjects()
-    const player = globalState.player
+    const objects = world.gMap!.getObjects()
+    const player = world.player
     const mouseHex = hexFromScreen(mousePosition.x, mousePosition.y)
     const eggRadius = Config.ui.eggRadius ?? 8
     // CE: with objectType -1 (not the crosshair's critter pick) nothing is picked over a visible
     // roof outside the egg (_square_roof_intersect / _obj_intersects_with(gEgg))
-    const renderer = globalState.renderer
+    const renderer = services.renderer
     if (
-        globalState.cursorMode !== 'attack' &&
+        uiState.cursorMode !== 'attack' &&
         Config.ui.showRoof &&
         renderer?.roofTiles &&
         player &&
@@ -800,7 +803,7 @@ export function getObjectUnderCursor(p: (obj: Obj) => boolean) {
             Config.ui.showEgg !== false &&
             player &&
             hexDistance(player.position, mouseHex) <= eggRadius &&
-            globalState.renderer?.isEggTransparent(obj)
+            services.renderer?.isEggTransparent(obj)
         if (inEgg) continue
         const c = obj as any
         if (obj.type === 'critter' && (c.dead || ((c.injuryFlags ?? 0) & 0x01) !== 0)) continue // DAM_KNOCKED_OUT | DAM_DEAD

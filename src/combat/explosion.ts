@@ -17,7 +17,7 @@ limitations under the License.
 // Explosion helpers shared by combat (grenades, rockets, critical failures) and
 // scripted explosions (actionExplode: dynamite, plastic explosives).
 
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
 import { hexDistance, hexInDirection, Point } from '../geometry.js'
 import { toTileNum } from '../tile.js'
 import type { Critter } from '../object/Critter.js'
@@ -39,7 +39,7 @@ export function explosionRingCritters(
     isGrenade: boolean,
     maxTargets = 6,
 ): Critter[] {
-    const gMap = globalState.gMap
+    const gMap = world.gMap
     if (!gMap) return []
     const same = (p: Point, q: Point) => p.x === q.x && p.y === q.y
     const victims: Critter[] = []
@@ -103,7 +103,7 @@ export function scriptsExplodeScenery(
     elevation: number,
     run: (obj: Obj, target: Obj) => void,
 ): void {
-    const gMap = globalState.gMap
+    const gMap = world.gMap
     if (!gMap) return
     const objs: Obj[] = [...gMap.getObjects(elevation), ...(gMap.getSpatials(elevation) ?? [])]
     const hits = objs.filter(

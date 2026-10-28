@@ -16,7 +16,8 @@ limitations under the License.
 */
 
 import { loadMessage } from './data.js'
-import globalState from './globalState.js'
+import { world } from './state/world.js'
+import { assets } from './state/assets.js'
 import { dbgWarn } from './logger.js'
 import { randomBetween } from './random.js'
 import { assetUrl } from './modAssets.js'
@@ -158,7 +159,7 @@ export function randomRoll(difficulty: number, criticalSuccessModifier: number):
     const delta = difficulty - getRandomInt(1, 100)
     // CE random.cc:58 randomTranslateRoll — criticals are only possible once the game
     // clock has passed its first full day (gameTimeGetTime() / TICKS_PER_DAY >= 1).
-    const criticalsAllowed = Math.floor((globalState.gameTickTime ?? 0) / 864000) >= 1
+    const criticalsAllowed = Math.floor((world.gameTickTime ?? 0) / 864000) >= 1
 
     let roll: RollResult
     if (delta < 0) {
@@ -208,12 +209,12 @@ export function clamp(min: number, max: number, value: number) {
 }
 
 export function getMessage(name: string, id: number): string | null {
-    if (globalState.messageFiles[name] !== undefined && globalState.messageFiles[name][id] !== undefined)
-        return globalState.messageFiles[name][id]
+    if (assets.messageFiles[name] !== undefined && assets.messageFiles[name][id] !== undefined)
+        return assets.messageFiles[name][id]
     else {
         loadMessage(name)
-        if (globalState.messageFiles[name] !== undefined && globalState.messageFiles[name][id] !== undefined)
-            return globalState.messageFiles[name][id]
+        if (assets.messageFiles[name] !== undefined && assets.messageFiles[name][id] !== undefined)
+            return assets.messageFiles[name][id]
         else return null
     }
 }

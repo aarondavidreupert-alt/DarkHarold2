@@ -11,7 +11,7 @@ import { arrayRemove, getMessage } from '../../util.js'
 import { dbgWarn } from '../../logger.js'
 import { findItemHolder, unequipForRemoval } from '../../inventoryWield.js'
 import { fromTileNum } from '../../tile.js'
-import globalState from '../../globalState.js'
+import { world } from '../../state/world.js'
 import { loadPRO } from '../../pro.js'
 import { objUseItemOn } from '../../useItemOn.js'
 import { objectOnScreen } from '../../renderer.js'
@@ -248,9 +248,9 @@ export const objectsOpcodes = {
         // re-splices the *current* elevation's array) can't be used
         // directly here — a full zsort() of the target elevation's array is
         // safe and correct regardless of which elevation that is.
-        globalState.gMap!.addObject(obj, elev)
+        world.gMap!.addObject(obj, elev)
         obj.position = fromTileNum(tile)
-        zsort(globalState.gMap!.objects![elev])
+        zsort(world.gMap!.objects![elev])
         // CE objectCreateWithFidPid → objectSetLight: a lit proto lights its tile
         if (obj.lightRadius > 0 && obj.lightIntensity > 0 && Config.engine.doFloorLighting) Lightmap.rebuildLight()
 
@@ -370,16 +370,16 @@ export const objectsOpcodes = {
         if (holder) {
             if (holder.type === 'critter') unequipForRemoval(holder as Critter, obj)
             arrayRemove(holder.inventory, obj)
-            if (holder === globalState.player) uiDrawWeapon()
+            if (holder === world.player) uiDrawWeapon()
             destroy(obj)
             return
         }
-        globalState.gMap!.destroyObject(obj)
+        world.gMap!.destroyObject(obj)
     },
     set_exit_grids(this: Script, onElev: number, mapID: number, elevation: number, tileNum: number, rotation: number) {
         // CE ref: interpreter_extra.cc:2180 opSetExitGrids — iterates objectFindFirstAtElevation(onElev)
         // and updates all exit-grid objects (PIDs 0x5000010-0x5000017) on that elevation.
-        for (const obj of globalState.gMap?.objects?.[onElev] ?? []) {
+        for (const obj of world.gMap?.objects?.[onElev] ?? []) {
             const pid = obj.pid >>> 0
             if (pid >= 0x5000010 && pid <= 0x5000017 && obj.extra) {
                 // FIRST/LAST_EXIT_GRID_PID

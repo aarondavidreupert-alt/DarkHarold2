@@ -18,7 +18,9 @@ import { makePanelDraggable } from './uiDrag.js'
 import { beginUseItemOn, cancelUseItemOn, itemCanUseOn } from './useItemOn.js'
 import { ammoGetCapacity, ammoGetQuantity, weaponAttemptReload } from './weaponAmmo.js'
 import { Combat } from './combat.js'
-import globalState from './globalState.js'
+import { world } from './state/world.js'
+import { uiState } from './state/uiState.js'
+import { services } from './state/services.js'
 import { dbg } from './logger.js'
 import { Obj, objectIsWeapon } from './object.js'
 import { Config } from './config.js'
@@ -133,10 +135,10 @@ function uiInit() {
         const el = document.getElementById(id)
         if (!el) return
         el.addEventListener('mousedown', (e) => {
-            if (e.button === 0) globalState.audioEngine?.playSfxByName?.(press)
+            if (e.button === 0) services.audioEngine?.playSfxByName?.(press)
         })
         el.addEventListener('mouseup', (e) => {
-            if (e.button === 0) globalState.audioEngine?.playSfxByName?.(release)
+            if (e.button === 0) services.audioEngine?.playSfxByName?.(release)
         })
     }
     for (const id of ['optionsButton', 'skilldexButton', 'mapButton', 'pipBoyButton', 'chrButton', 'handSwapButton']) {
@@ -179,24 +181,24 @@ export { showv, hidev, makeEl } from './uiDom.js'
 
 // CE interface.cc interfaceBarSwapHands — the B key and the change-hand button.
 export function swapHands(): void {
-    const p = globalState.player as any
-    const player = globalState.player
+    const p = world.player as any
+    const player = world.player
     const nextHand: 'leftHand' | 'rightHand' = p.activeHand === 'leftHand' ? 'rightHand' : 'leftHand'
     player!.playWeaponSwapAnim(() => {
         p.activeHand = nextHand
         uiDrawWeapon()
     })
     // CE: the crosshair and the use-item crosshair go back to the move cursor
-    if (globalState.cursorMode === 'useItem') cancelUseItemOn()
-    if (globalState.cursorMode === 'attack' || globalState.cursorMode === 'useItem') globalState.cursorMode = 'move'
+    if (uiState.cursorMode === 'useItem') cancelUseItemOn()
+    if (uiState.cursorMode === 'attack' || uiState.cursorMode === 'useItem') uiState.cursorMode = 'move'
 }
 
 // CE interface.cc interfaceCycleItemAction — the N key and a right-click on the item
 // button: a weapon's modes, or the unarmed hand's punch / kick moves.
 export function cycleActiveItemAction(): void {
-    const wep = globalState.player!.equippedWeapon
+    const wep = world.player!.equippedWeapon
     if (!wep || !wep.weapon) {
-        const player = globalState.player!
+        const player = world.player!
         const activeHand: 'leftHand' | 'rightHand' = player.activeHand ?? 'leftHand'
         const activeItem = player[activeHand] as Obj | undefined
         if (activeItem && !objectIsWeapon(activeItem)) return // non-weapon: one action
@@ -231,7 +233,7 @@ export function initUI() {
     function reloadWeapon(weaponObj: Obj): boolean {
         const maxAmmo = ammoGetCapacity(weaponObj)
         if (maxAmmo <= 0 || ammoGetQuantity(weaponObj) >= maxAmmo) return false
-        const inv = globalState.player!.inventory
+        const inv = world.player!.inventory
         let loaded = false
         while (weaponAttemptReload(weaponObj, inv) !== -1) loaded = true
         return loaded
@@ -240,18 +242,18 @@ export function initUI() {
     $id('attackButtonContainer').onclick = () => {
         if (attackButtonDisabled()) return // CE buttonDisable(gSingleAttackButton)
         // Reload mode: immediately reload from inventory (AP cost in combat)
-        const wep = globalState.player!.equippedWeapon
+        const wep = world.player!.equippedWeapon
         if (wep?.weapon?.mode === 'reload') {
             // CE interface.cc _intface_use_item (RELOAD): in combat nothing happens without the
             // AP; the AP go only when something loaded. _intface_item_reload plays the weapon's
             // ready sound.
-            const ap = globalState.inCombat ? globalState.player!.AP : null
+            const ap = world.inCombat ? world.player!.AP : null
             const reloadAP = wep.weapon.getReloadAPCost() // CE ref: item.cc:1640
             if (ap && ap.getAvailableCombatAP() < reloadAP) return
             if (reloadWeapon(wep)) {
                 const soundID = wep.pro?.extra?.soundID
                 if (typeof soundID === 'number')
-                    globalState.audioEngine?.playWeaponSfx(String.fromCharCode(soundID), 'reload')
+                    services.audioEngine?.playWeaponSfx(String.fromCharCode(soundID), 'reload')
                 if (ap) {
                     ap.subtractCombatAP(reloadAP)
                     drawAP(ap.getAvailableCombatAP(), ap.getTotalMaxAP(), ap.move)
@@ -263,7 +265,7 @@ export function initUI() {
         }
 
         if (!wep || !wep.weapon) {
-            const player = globalState.player!
+            const player = world.player!
             const activeHand: 'leftHand' | 'rightHand' = player.activeHand ?? 'leftHand'
             const activeItem = player[activeHand] as Obj | undefined
 
@@ -292,9 +294,9 @@ export function initUI() {
         if (!Config.engine.doCombat) {
             return
         }
-        if (!globalState.inCombat) Combat.start()
-        globalState.cursorMode = 'attack'
-        globalState.combat?.refreshHighlights()
+        if (!world.inCombat) Combat.start()
+        uiState.cursorMode = 'attack'
+        world.combat?.refreshHighlights()
     }
 
     $id('attackButtonContainer').oncontextmenu = () => {
@@ -303,20 +305,20 @@ export function initUI() {
     }
 
     $id('endTurnButton').onclick = () => {
-        if (globalState.inCombat && globalState.combat!.inPlayerTurn) {
-            if (globalState.player!.anim !== null && globalState.player!.anim !== 'idle') {
+        if (world.inCombat && world.combat!.inPlayerTurn) {
+            if (world.player!.anim !== null && world.player!.anim !== 'idle') {
                 dbg('combat', "[Combat] can't end turn while player is in an animation")
                 return
             }
             dbg('combat', '[Combat] player turn ended')
-            globalState.combat!.nextTurn()
+            world.combat!.nextTurn()
         }
     }
 
     $id('endCombatButton').onclick = () => {
         // CE combat.cc combatAttemptEnd
-        if (globalState.inCombat) {
-            globalState.combat!.attemptEnd()
+        if (world.inCombat) {
+            world.combat!.attemptEnd()
         }
     }
 
@@ -354,8 +356,8 @@ export function initUI() {
     makeScrollable($id('displayLog'))
     makeScrollable($id('dialogueBoxReply'), 30)
 
-    drawHP(globalState.player!.getStat('HP'))
-    drawAC(globalState.player!.getStat('AC'))
+    drawHP(world.player!.getStat('HP'))
+    drawAC(world.player!.getStat('AC'))
     uiDrawWeapon()
 }
 

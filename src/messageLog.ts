@@ -2,7 +2,8 @@
 // only the DOM helpers and globalState, so the game logic that reports to the player does not
 // import the HUD (wiki/code_quality.md Q14); uiHud.ts re-exports it.
 
-import globalState from './globalState.js'
+import { world } from './state/world.js'
+import { services } from './state/services.js'
 import { $id } from './uiDom.js'
 
 const LOG_LINE_HEIGHT = 13 // approx px per line for 8pt font
@@ -18,11 +19,11 @@ let logSeq = 0
 let lastMonitorBeep = -Infinity
 export function uiLog(msg: string): void {
     const $log = $id('displayLog')
-    if (!globalState.inCombat) {
+    if (!world.inCombat) {
         const now = performance.now()
         if (now - lastMonitorBeep >= 500) {
             lastMonitorBeep = now
-            globalState.audioEngine?.playSfxByName?.('monitor')
+            services.audioEngine?.playSfxByName?.('monitor')
         }
     }
     const li = document.createElement('li')

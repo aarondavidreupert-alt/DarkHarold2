@@ -21,7 +21,8 @@ limitations under the License.
 
 import { useDrug } from './drugs.js'
 import { hexDistance, hexNeighbors } from './geometry.js'
-import globalState from './globalState.js'
+import { world } from './state/world.js'
+import { uiState } from './state/uiState.js'
 import { dbg } from './logger.js'
 import { Critter, Obj, refillHand } from './object.js'
 import * as Scripting from './scripting.js'
@@ -56,12 +57,12 @@ export function itemCanUseOn(item: Obj): boolean {
 // interface.cc _intface_use_item — USE_CROSSHAIR cursor for `item`.
 export function beginUseItemOn(item: Obj): void {
     pendingItem = item
-    globalState.cursorMode = 'useItem'
+    uiState.cursorMode = 'useItem'
 }
 
 export function cancelUseItemOn(): void {
     pendingItem = null
-    if (globalState.cursorMode === 'useItem') globalState.cursorMode = 'move'
+    if (uiState.cursorMode === 'useItem') uiState.cursorMode = 'move'
 }
 
 // game_mouse.cc:1019 — a click in use-crosshair mode: use the item on the object
@@ -69,11 +70,11 @@ export function cancelUseItemOn(): void {
 export function usePendingItemOn(target: Obj | null): void {
     const item = pendingItem
     pendingItem = null
-    globalState.cursorMode = 'move'
-    const player = globalState.player as unknown as Critter
+    uiState.cursorMode = 'move'
+    const player = world.player as unknown as Critter
     if (!item || !target || !player) return
 
-    if (globalState.inCombat) {
+    if (world.inCombat) {
         const ap = player.AP
         if (!ap || ap.getAvailableCombatAP() < USE_ITEM_AP) {
             uiLog(getProtoMsg(700) ?? "You don't have enough action points.")
@@ -82,7 +83,7 @@ export function usePendingItemOn(target: Obj | null): void {
     }
 
     const act = () => {
-        if (globalState.inCombat) {
+        if (world.inCombat) {
             player.AP?.subtractCombatAP(USE_ITEM_AP)
             if (player.AP) drawAP(player.AP.getAvailableCombatAP(), player.AP.getTotalMaxAP(), player.AP.move)
         }
@@ -98,7 +99,7 @@ export function usePendingItemOn(target: Obj | null): void {
         act()
         return
     }
-    const map = globalState.gMap!
+    const map = world.gMap!
     let dest: { x: number; y: number } | null = null
     let best = Infinity
     for (const n of hexNeighbors(target.position)) {
@@ -114,7 +115,7 @@ export function usePendingItemOn(target: Obj | null): void {
         uiLog(getMessage('misc', 2000) ?? 'You cannot get there.') // CE actions.cc _is_next_to
         return
     }
-    if (globalState.inCombat) {
+    if (world.inCombat) {
         const moveAP = player.AP?.getAvailableMoveAP() ?? 0
         if (
             !player.walkTo(
@@ -164,7 +165,7 @@ export function objUseItemOn(user: Critter, target: Obj, item: Obj): number {
         if (user.isPlayer) uiDrawWeapon()
         rc = 0
     }
-    globalState.gMap?.updateMap() // scriptsExecMapUpdateProc
+    world.gMap?.updateMap() // scriptsExecMapUpdateProc
     return rc
 }
 
@@ -213,7 +214,7 @@ function protinstUseItemOn(user: Critter, target: Obj, item: Obj): number {
         return defaultUseItem(user, target, item)
     }
 
-    if (globalState.inCombat) {
+    if (world.inCombat) {
         if (user.isPlayer) uiLog(getProtoMsg(902) ?? 'You cannot do that in combat.')
         return -1
     }

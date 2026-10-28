@@ -18,7 +18,7 @@ limitations under the License.
 // Split out of encounters.ts. See wiki/ts-split-refactor.md →
 // "Per-file split proposals" §20.
 
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
 import * as Scripting from '../scripting.js'
 import { getRandomInt } from '../util.js'
 import { dbg } from '../logger.js'
@@ -204,7 +204,7 @@ function evalCond(node: Node, critterCount?: number): number | boolean {
                 case 'player':
                     if (node.arg.type !== 'var') throw new Error('evalCond: player arg not a var')
                     if (node.arg.name !== 'level') throw new Error('player( ' + node.arg.name + ')')
-                    return globalState.player?.getStat('Level') ?? 1
+                    return world.player?.getStat('Level') ?? 1
                 case 'rand': // random percentage
                     if (node.arg.type !== 'int') throw new Error('evalCond: rand arg not a number')
                     return getRandomInt(0, 100) <= node.arg.value

@@ -14,7 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import globalState from './globalState.js'
+import { world } from './state/world.js'
+import { uiState } from './state/uiState.js'
+import { services } from './state/services.js'
 import { closeAllPanels } from './uiPanels.js'
 import { UIMode } from './uiMode.js'
 import { miscItemConsumeCharge, miscItemGetCharges, PROTO_ID_MOTION_SENSOR } from './miscItem.js'
@@ -168,7 +170,7 @@ export function openAutomap(useScanner = false): void {
     const existing = document.getElementById('automapContainer')
     if (existing) existing.remove()
 
-    globalState.uiMode = UIMode.automap
+    uiState.uiMode = UIMode.automap
 
     automapContainer = document.createElement('div')
     automapContainer.id = 'automapContainer'
@@ -199,7 +201,7 @@ export function openAutomap(useScanner = false): void {
         image-rendering: pixelated;
     `
     const renderOpts = () => {
-        const map = globalState.gMap
+        const map = world.gMap
         const pan = map ? getAutomapPan(map.name!, map.currentElevation) : { x: 0, y: 0 }
         return { zoom: zoomLevel, panX: pan.x, panY: pan.y, scanner: scannerOn, highDetail }
     }
@@ -215,7 +217,7 @@ export function openAutomap(useScanner = false): void {
     attachAutomapDragPan(
         canvas,
         () => {
-            const map = globalState.gMap
+            const map = world.gMap
             if (!map || !map.name) return null
             return { mapName: map.name, elevation: map.currentElevation }
         },
@@ -236,13 +238,13 @@ export function openAutomap(useScanner = false): void {
     // (one charge), else misc.msg 17 / 18
     scannerDot.onclick = () => {
         if (!scannerOn) {
-            const p = globalState.player
+            const p = world.player
             const scanner = [p?.leftHand, p?.rightHand].find((it) => it?.pid === PROTO_ID_MOTION_SENSOR) ?? null
             if (scanner && miscItemGetCharges(scanner) > 0) {
                 miscItemConsumeCharge(scanner)
                 scannerOn = true
             } else {
-                globalState.audioEngine?.playSfxByName('iisxxxx1')
+                services.audioEngine?.playSfxByName('iisxxxx1')
                 const msg = getMessage('misc', scanner ? 18 : 17)
                 if (msg) uiLog(msg)
             }
@@ -263,7 +265,7 @@ export function openAutomap(useScanner = false): void {
     const setDetail = (high: boolean) => {
         if (high === highDetail) return
         highDetail = high
-        globalState.audioEngine?.playSfxByName?.('toggle')
+        services.audioEngine?.playSfxByName?.('toggle')
         drawToggle()
         refresh()
     }
@@ -334,7 +336,7 @@ export function closeAutomap(): void {
 
     automapContainer.remove()
     automapContainer = null
-    globalState.uiMode = UIMode.none
+    uiState.uiMode = UIMode.none
 }
 
 export function toggleAutomap(): void {

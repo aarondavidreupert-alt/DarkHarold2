@@ -19,7 +19,9 @@ limitations under the License.
 // generic CSS-transition helper used by the barter pop-up.
 
 import { stopTalkingHead } from './talkingHead.js'
-import globalState from './globalState.js'
+import { world } from './state/world.js'
+import { uiState } from './state/uiState.js'
+import { view } from './state/view.js'
 import * as Events from './events.js'
 import { Critter } from './object.js'
 import { objectBoundingBox } from './renderer.js'
@@ -98,7 +100,7 @@ function setupDialogueActionButtons(target: Critter | undefined): void {
         return
     }
 
-    const isPartyMember = globalState.gParty.isPartyMember(target)
+    const isPartyMember = world.gParty.isPartyMember(target)
     const proFlags = target.pro?.extra?.flags ?? 0
     // CE ref: game_dialog.cc:3662 _gdCanBarter — CRITTER_BARTER flag (0x02).
     const canBarter = (proFlags & 0x02) !== 0
@@ -141,16 +143,16 @@ function setupDialogueActionButtons(target: Critter | undefined): void {
  */
 // CE game_dialog.cc gameDialogRenderCaps: itemGetTotalCaps — carried bags count too
 function updateDialogueCaps(): void {
-    $id('dialogueCapsDisplay').textContent = '$' + Scripting.itemGetTotalCaps(globalState.player!)
+    $id('dialogueCapsDisplay').textContent = '$' + Scripting.itemGetTotalCaps(world.player!)
 }
 
 export function uiStartDialogue(force: boolean, target?: Critter) {
-    if (globalState.uiMode === UIMode.barter && force !== true) {
+    if (uiState.uiMode === UIMode.barter && force !== true) {
         return
     }
     setIndicatorBarHidden(true) // CE _gdialogInitFromScript
 
-    globalState.uiMode = UIMode.dialogue
+    uiState.uiMode = UIMode.dialogue
     $id('dialogueContainer').style.visibility = 'visible'
     const $dialogueBox = $id('dialogueBox')
     // start_gdialog() (scripting.ts) calls this unconditionally every time
@@ -182,7 +184,7 @@ export function uiStartDialogue(force: boolean, target?: Critter) {
         return
     }
     // CE gameDialogEnter: the centre tile and the dude's tile, for the exit
-    const p = globalState.player
+    const p = world.player
     dialogueReturn = { center: getCenterTile(), dudeTile: p ? { ...p.position } : null }
     const bbox = objectBoundingBox(target)
     if (bbox !== null) {
@@ -193,9 +195,9 @@ export function uiStartDialogue(force: boolean, target?: Critter) {
         // dx/dy are HTML-layout (screen) pixels; divide by zoom so the
         // resulting camera offset is in world units (which is what
         // cameraPosition is stored in).
-        const z = globalState.cameraZoom || 1.0
-        globalState.cameraPosition.x = bbox.x - dx / z
-        globalState.cameraPosition.y = bbox.y - dy / z
+        const z = view.cameraZoom || 1.0
+        view.cameraPosition.x = bbox.x - dx / z
+        view.cameraPosition.y = bbox.y - dy / z
         // CE _gdialogInitFromScript → _tile_scroll_to(speaker, 2): the scroll limits hold
         clampCameraPosition()
     }
@@ -206,12 +208,12 @@ let dialogueReturn: { center: Point; dudeTile: Point | null } | null = null
 
 export function uiEndDialogue() {
     // TODO: Transition the dialogue box down?
-    globalState.uiMode = UIMode.none
+    uiState.uiMode = UIMode.none
     setIndicatorBarHidden(false) // CE _gdialogExitFromScript
     // CE _gdialogExitFromScript: back to the centre tile the dialogue started from — the
     // dude's if he moved meanwhile
     if (dialogueReturn) {
-        const p = globalState.player
+        const p = world.player
         const moved =
             p &&
             dialogueReturn.dudeTile &&
@@ -240,7 +242,7 @@ export function uiSetDialogueReply(reply: string) {
     replyPageTimer = window.setInterval(() => {
         const $r = $id('dialogueBoxReply')
         const atEnd = $r.scrollTop + $r.clientHeight >= $r.scrollHeight - 1
-        if (atEnd || globalState.uiMode !== UIMode.dialogue) {
+        if (atEnd || uiState.uiMode !== UIMode.dialogue) {
             if (replyPageTimer !== null) clearInterval(replyPageTimer)
             replyPageTimer = null
             return
@@ -312,7 +314,7 @@ function installDialogueKeys(): void {
     if (dialogueKeysInstalled) return
     dialogueKeysInstalled = true
     window.addEventListener('keydown', (e: KeyboardEvent) => {
-        if (globalState.uiMode !== UIMode.dialogue || e.ctrlKey || e.altKey || e.metaKey) return
+        if (uiState.uiMode !== UIMode.dialogue || e.ctrlKey || e.altKey || e.metaKey) return
         if ($id('dialogueBox').style.visibility === 'hidden') return
         const k = e.key.toLowerCase()
         if (k >= '1' && k <= '9') {
@@ -337,7 +339,7 @@ export function uiAddDialogueOption(msg: string, optionID: number, reaction = 50
     const item = document.createElement('div')
     item.textContent = `\u2022 ${msg}` // CE "%c %s" with '\x95' (cp1252 bullet)
     item.style.cursor = 'pointer'
-    const empathy = !!globalState.player?.hasPerk?.('Empathy')
+    const empathy = !!world.player?.hasPerk?.('Empathy')
     const normal =
         empathy && reaction === 49
             ? OPTION_COLOR.good

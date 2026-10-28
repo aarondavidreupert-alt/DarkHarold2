@@ -8,7 +8,7 @@ import { Critter } from '../object.js'
 import { DAM_CRITICAL, DAM_DEAD, DAM_HIT } from './results.js'
 import { getLstJson } from '../data.js'
 import { getMessage } from '../util.js'
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
 import { uiLog } from '../messageLog.js'
 import { Attack, HIT_LOCATIONS } from './Combat.js'
 
@@ -23,7 +23,7 @@ export const combatDisplayMethods = {
             let i = 0
             return s.replace(/%[sd]/g, () => String(args[i++] ?? ''))
         }
-        const player = globalState.player
+        const player = world.player
         const male = (c: Critter) => (c.isPlayer ? c.gender !== 'female' : (c.getStat('Gender') ?? 0) === 0)
         const attacker = a.attacker
 

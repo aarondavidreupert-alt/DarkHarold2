@@ -14,7 +14,8 @@
 
 import { Config } from '../config.js'
 import { hexDistance, hexInDirection, hexInDirectionDistance } from '../geometry.js'
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
+import { services } from '../state/services.js'
 import * as Lightmap from '../lightmap.js'
 import { dbg } from '../logger.js'
 import {
@@ -34,7 +35,7 @@ const devWindow = window as unknown as Record<string, unknown>
 export function registerLightingCommands(): void {
     devWindow.setLightingMode = (mode: 'gpu' | 'cpu') => {
         Config.engine.floorLightingMode = mode
-        ;(globalState.renderer as WebGLRenderer).setLightingMode(mode)
+        ;(services.renderer as WebGLRenderer).setLightingMode(mode)
         dbg('map', '[Lighting] switched to:', mode)
     }
 
@@ -217,7 +218,7 @@ export function registerLightingCommands(): void {
     //   setPlayerLight(8, 100)  — bigger torch
     //   setPlayerLight(0, 0)    — no personal light
     devWindow.setPlayerLight = (radius: number, intensity: number) => {
-        const player = globalState.player
+        const player = world.player
         if (!player) {
             console.log('[setPlayerLight] no player')
             return
@@ -244,7 +245,7 @@ export function registerLightingCommands(): void {
     //
     // Back-compat: setLightingBilinear(true)/'on' → 'linear', false/'off' → 'off'.
     devWindow.setLightingBilinear = (mode: boolean | string) => {
-        const r = globalState.renderer as WebGLRenderer
+        const r = services.renderer as WebGLRenderer
         if (!r || typeof r.setLightInterpMode !== 'function') {
             console.log('[setLightingBilinear] renderer not ready')
             return
@@ -269,7 +270,7 @@ export function registerLightingCommands(): void {
     // comparison pattern.
     // Example: tile pos=21718 (18,108) dh2=43210 derived=39850 naive=51200 (DIFF)
     devWindow.lightingDebug = (radius: number = 10) => {
-        const player = globalState.player
+        const player = world.player
         if (!player) {
             console.log('[LightingDebug] no player')
             return
@@ -311,7 +312,7 @@ export function registerLightingCommands(): void {
     // Grid layout: col = screenX/16 + 4, row = screenY/12 + 2  → 9 cols × 5 rows.
     // Natural indentation from leading null columns: rows 0,4 → 12-char, rows 1,3 → 6-char.
     devWindow.lightingPlayerDebug = (rings: number = 2, output: string = 'full') => {
-        const player = globalState.player
+        const player = world.player
         if (!player) {
             console.log('[LightingPlayerDebug] no player')
             return

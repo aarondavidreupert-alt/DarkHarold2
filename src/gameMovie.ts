@@ -24,7 +24,9 @@ limitations under the License.
 
 import { UIMode } from './uiMode.js'
 import { Config } from './config.js'
-import globalState from './globalState.js'
+import { world } from './state/world.js'
+import { uiState } from './state/uiState.js'
+import { services } from './state/services.js'
 import { dbg, dbgWarn } from './logger.js'
 import { getFileText, parseIni } from './util.js'
 import { assetUrl } from './modAssets.js'
@@ -138,7 +140,7 @@ export function gameMovieIsPlaying(): boolean {
 
 // CE game_movie.cc:325 gameMovieIsSeen
 export function gameMovieIsSeen(movie: number): boolean {
-    return globalState.seenMovies.has(movie)
+    return world.seenMovies.has(movie)
 }
 
 interface Subtitle {
@@ -252,17 +254,17 @@ export function gameMoviePlay(movie: number, flags: number): Promise<void> {
     if (name === undefined) return Promise.resolve()
     if (skipAll) {
         // what finish() does once the movie ends
-        globalState.seenMovies.add(movie)
-        if (movie === MOVIE_VSUIT) globalState.player?.updateNativeLook()
+        world.seenMovies.add(movie)
+        if (movie === MOVIE_VSUIT) world.player?.updateNativeLook()
         return Promise.resolve()
     }
     dbg('script', `[Movie] playing ${name}.mve (flags 0x${flags.toString(16)})`)
 
     playing = new Promise<void>((resolve) => {
-        const audio = globalState.audioEngine as any
+        const audio = services.audioEngine as any
         const musicEl: HTMLAudioElement | undefined = audio?.musicAudio
         const musicWasPlaying = !!musicEl && !musicEl.paused
-        const prevUiMode = globalState.uiMode
+        const prevUiMode = uiState.uiMode
         const fadeLayer = makeFadeLayer()
 
         const screen = document.createElement('div')
@@ -342,12 +344,12 @@ export function gameMoviePlay(movie: number, flags: number): Promise<void> {
                 document.removeEventListener('keydown', resumeListener, true)
                 screen.removeEventListener('mousedown', resumeListener)
             }
-            globalState.seenMovies.add(movie) // CE gGameMoviesSeen[movie] = 1
+            world.seenMovies.add(movie) // CE gGameMoviesSeen[movie] = 1
             // CE interpreter_extra.cc:4625 — the vault-suit movie changes the dude's look.
-            if (movie === MOVIE_VSUIT) globalState.player?.updateNativeLook()
+            if (movie === MOVIE_VSUIT) world.player?.updateNativeLook()
             if (flags & GAME_MOVIE_FADE_OUT) fadeLayer.style.opacity = '1'
             screen.remove()
-            globalState.uiMode = prevUiMode
+            uiState.uiMode = prevUiMode
             if (flags & GAME_MOVIE_PAUSE_MUSIC && musicWasPlaying) musicEl!.play().catch(() => {})
             if (flags & GAME_MOVIE_FADE_OUT) await fadeTo(fadeLayer, 0)
             if (flags & GAME_MOVIE_FADE_IN && !(flags & GAME_MOVIE_FADE_OUT)) {
@@ -418,7 +420,7 @@ export function gameMoviePlay(movie: number, flags: number): Promise<void> {
             }
             document.body.appendChild(screen)
             fadeLayer.style.opacity = '0'
-            globalState.uiMode = UIMode.movie // modal: pauses tickGame (CE isoDisable)
+            uiState.uiMode = UIMode.movie // modal: pauses tickGame (CE isoDisable)
             document.addEventListener('keydown', onInput, true)
             screen.addEventListener('mouseup', onInput, true)
             // CE gameMoviesInit / backgroundSoundSetVolume → movieSetVolume: the music volume

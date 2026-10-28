@@ -18,7 +18,8 @@ limitations under the License.
 // See wiki/ts-split-refactor.md → "Per-file split proposals" §16.
 
 import { hexFromScreen, hexNeighbors, hexToScreen, Point } from '../geometry.js'
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
+import { view } from '../state/view.js'
 import { Obj } from '../object.js'
 import { Config } from '../config.js'
 import { tileToScreen, TILE_WIDTH, TILE_HEIGHT } from '../tile.js'
@@ -65,7 +66,7 @@ export const ORIGINAL_ISO_WINDOW_HEIGHT = 380
 // whatever wheel handler / debug toggle last touched it. Defaults to 1.0 if
 // somehow unset so the codebase doesn't explode on older saves/loads.
 export function getZoom(): number {
-    return globalState.cameraZoom || 1.0
+    return view.cameraZoom || 1.0
 }
 
 // Convert a point in screen-pixel space (0..SCREEN_WIDTH, 0..SCREEN_HEIGHT)
@@ -74,8 +75,8 @@ export function getZoom(): number {
 export function screenToWorld(sx: number, sy: number): Point {
     const z = getZoom()
     return {
-        x: sx / z + globalState.cameraPosition.x,
-        y: sy / z + globalState.cameraPosition.y,
+        x: sx / z + view.cameraPosition.x,
+        y: sy / z + view.cameraPosition.y,
     }
 }
 
@@ -84,8 +85,8 @@ export function screenToWorld(sx: number, sy: number): Point {
 export function worldToScreen(wx: number, wy: number): Point {
     const z = getZoom()
     return {
-        x: (wx - globalState.cameraPosition.x) * z,
-        y: (wy - globalState.cameraPosition.y) * z,
+        x: (wx - view.cameraPosition.x) * z,
+        y: (wy - view.cameraPosition.y) * z,
     }
 }
 
@@ -430,7 +431,7 @@ let _ringBounds: typeof CE_CENTER_BOUNDS | null | undefined = undefined
 let _ringArea: (typeof _areas)[number] | null = null
 
 export function scrollRingBounds(): typeof CE_CENTER_BOUNDS | null {
-    const pl = globalState.player
+    const pl = world.player
     if (_ringBounds !== undefined && pl && pl.position && _hexArea.length === 40000) {
         const id = _hexArea[pl.position.x + pl.position.y * 200]
         if (id >= 0 && !_areas[id].open && _areas[id] !== _ringArea) _ringBounds = undefined
@@ -468,7 +469,7 @@ function closedAreaNear(pos: Point): (typeof _areas)[number] | null {
 function chooseRingBounds(): typeof CE_CENTER_BOUNDS | null {
     _ringArea = null
     if (_blockerGroups.length === 0) return null
-    const pl = globalState.player
+    const pl = world.player
     if (pl && pl.position && _hexArea.length === 40000) {
         const a = closedAreaNear(pl.position)
         if (a) {
@@ -476,7 +477,7 @@ function chooseRingBounds(): typeof CE_CENTER_BOUNDS | null {
             return { minX: a.minX, maxX: a.maxX, minY: a.minY, maxY: a.maxY }
         }
     }
-    const p = globalState.player
+    const p = world.player
     let groups = _blockerGroups
     if (p && p.position) {
         const s = hexToScreen(p.position.x, p.position.y)
@@ -531,7 +532,7 @@ export function computeMapContentBounds(floorMap: string[][] | null): void {
             maxY: maxY - INTERIOR_INSET_Y,
         }
     }
-    const mapName = globalState.gMap?.name?.toLowerCase() ?? '?'
+    const mapName = world.gMap?.name?.toLowerCase() ?? '?'
     window.mapContentBounds = mapContentBounds ? { map: mapName, ...mapContentBounds } : null
     dbg('map', '[scroll] interiorFloorBounds =', JSON.stringify(mapContentBounds))
 }
@@ -541,7 +542,7 @@ export function computeMapContentBounds(floorMap: string[][] | null): void {
 // overlay would draw this frame. Returns the same object so it copies cleanly.
 export function scrollDebug() {
     const ob = objectContentBounds
-    const cam = globalState.cameraPosition
+    const cam = view.cameraPosition
     const z = getZoom()
     const lim = getActiveScrollLimits()
     const out: any = {
@@ -599,7 +600,7 @@ export function blackBar(side?: 'W' | 'E' | 'N' | 'S') {
             document.removeEventListener('keydown', _bbKeyListener)
             _bbKeyListener = null
         }
-        const mapName = globalState.gMap?.name ?? '?'
+        const mapName = world.gMap?.name ?? '?'
         const lim = window.scrollLimits
         if (lim) console.log('[blackBar] SAVE → ' + mapName + ': ' + JSON.stringify(lim))
         console.log('[blackBar] OFF — bars solid black, clamp active')
@@ -634,7 +635,7 @@ export function blackBar(side?: 'W' | 'E' | 'N' | 'S') {
         if (s === 'N') lim.minY += out ? -step : +step
         if (s === 'S') lim.maxY += out ? +step : -step
         // Keep overlay source in sync (objectContentBounds is immutable; scroll limits override it)
-        const mapName = globalState.gMap?.name ?? '?'
+        const mapName = world.gMap?.name ?? '?'
         console.log('[blackBar] ' + mapName + ' ' + s + ' → ' + JSON.stringify(lim))
     }
     document.addEventListener('keydown', _bbKeyListener)
@@ -644,7 +645,7 @@ export function blackBar(side?: 'W' | 'E' | 'N' | 'S') {
 }
 
 export function borderSave() {
-    const mapName = globalState.gMap?.name ?? '?'
+    const mapName = world.gMap?.name ?? '?'
     const lim = window.scrollLimits ?? objectContentBounds
     console.log(mapName + ': ' + JSON.stringify(lim))
     return lim
@@ -692,7 +693,7 @@ let _ceCentre: Point | null = null
 function playerLimitRefuses(fromX: number, fromY: number, toX: number, toY: number): boolean {
     // [dh2] scroll_player_limit=0 / console setScrollPlayerLimit(false): off
     if (!Config.ui.scrollPlayerLimit) return false
-    const p = globalState.player
+    const p = world.player
     if (!p || !p.position) return false
     // CE compares the two tiles' tileToScreenXY points; hexToScreen is the hex's
     // centre, as the view centre is
@@ -726,8 +727,8 @@ function blockerAtCentre(cx: number, cy: number): boolean {
 function clampCameraCE(ignoreRestrictions: boolean): void {
     const halfW = getWorldViewWidth() / 2
     const halfH = getWorldViewHeight() / 2
-    let cx = globalState.cameraPosition.x + halfW
-    let cy = globalState.cameraPosition.y + halfH
+    let cx = view.cameraPosition.x + halfW
+    let cy = view.cameraPosition.y + halfH
 
     if (!ignoreRestrictions && _ceCentre) {
         const tx = cx,
@@ -762,8 +763,8 @@ function clampCameraCE(ignoreRestrictions: boolean): void {
         }
     }
     _ceCentre = { x: cx, y: cy }
-    globalState.cameraPosition.x = cx - halfW
-    globalState.cameraPosition.y = cy - halfH
+    view.cameraPosition.x = cx - halfW
+    view.cameraPosition.y = cy - halfH
 }
 
 // [dh2] scroll_bounds=dh2: the older clamp to a rectangle (getActiveScrollLimits).
@@ -773,8 +774,8 @@ function clampCameraDH2(): void {
     const halfW = viewW / 2
     const halfH = viewH / 2
 
-    const prevX = globalState.cameraPosition.x
-    const prevY = globalState.cameraPosition.y
+    const prevX = view.cameraPosition.x
+    const prevY = view.cameraPosition.y
     // The viewport centre we want to constrain (camera top-left + half view).
     const prevCX = prevX + halfW
     const prevCY = prevY + halfH
@@ -789,7 +790,7 @@ function clampCameraDH2(): void {
     // CE ref: object.cc:2559 _obj_scroll_blocking_at — misc PID 0x500000C
     // (type=5, pidID=12) flags a tile as a scroll blocker. Reject the move
     // when the proposed viewport centre sits on such a tile.
-    const gMap = globalState.gMap
+    const gMap = world.gMap
     if (gMap) {
         const centerHex = hexFromScreen(nextCX, nextCY)
         const blocked = gMap.objectsAtPosition(centerHex).some((o: Obj) => o.type === 'misc' && o.pidID === 12)
@@ -808,21 +809,21 @@ function clampCameraDH2(): void {
         nextCX = Math.max(bar.minX, Math.min(bar.maxX, nextCX))
         nextCY = Math.max(bar.minY, Math.min(bar.maxY, nextCY))
     }
-    globalState.cameraPosition.x = nextCX - halfW
-    globalState.cameraPosition.y = nextCY - halfH
+    view.cameraPosition.x = nextCX - halfW
+    view.cameraPosition.y = nextCY - halfH
 }
 
 // CE gCenterTile: the hex at the centre of the view, kept in globalState.centerTile. (tile.ts used
 // to keep a copy of this that subtracted (32, 16) px and so always named a neighbouring hex,
 // cleanup_audit CA42; setCenterTile lives here so tile.ts does not import the camera.)
 export function setCenterTile() {
-    globalState.centerTile = getCenterTile()
+    world.centerTile = getCenterTile()
 }
 
 export function getCenterTile(): Point {
     return hexFromScreen(
-        globalState.cameraPosition.x + getWorldViewWidth() / 2,
-        globalState.cameraPosition.y + getWorldViewHeight() / 2,
+        view.cameraPosition.x + getWorldViewWidth() / 2,
+        view.cameraPosition.y + getWorldViewHeight() / 2,
     )
 }
 
@@ -832,8 +833,8 @@ export function centerCamera(around: Point) {
     // when offsetting from the target to the top-left camera anchor.
     const viewW = getWorldViewWidth()
     const viewH = getWorldViewHeight()
-    globalState.cameraPosition.x = (scr.x - viewW / 2) | 0
-    globalState.cameraPosition.y = (scr.y - viewH / 2) | 0
+    view.cameraPosition.x = (scr.x - viewW / 2) | 0
+    view.cameraPosition.y = (scr.y - viewH / 2) | 0
     if (Config.ui.scrollBounds === 'ce' && !window.borderDebug) clampCameraCE(true)
     else clampCameraPosition()
 }
@@ -843,8 +844,8 @@ export function centerCamera(around: Point) {
 // on, unlike centerCamera (CE turns them off only for move_to and a map load)
 export function tileScrollTo(around: Point): void {
     const scr = hexToScreen(around.x, around.y)
-    globalState.cameraPosition.x = (scr.x - getWorldViewWidth() / 2) | 0
-    globalState.cameraPosition.y = (scr.y - getWorldViewHeight() / 2) | 0
+    view.cameraPosition.x = (scr.x - getWorldViewWidth() / 2) | 0
+    view.cameraPosition.y = (scr.y - getWorldViewHeight() / 2) | 0
     clampCameraPosition()
 }
 
@@ -856,8 +857,8 @@ export function ceMapScroll(dx: number, dy: number): boolean {
     const now = performance.now()
     if (now - lastMapScroll < 33) return false
     lastMapScroll = now
-    globalState.cameraPosition.x += dx * 32
-    globalState.cameraPosition.y += dy * 24
+    view.cameraPosition.x += dx * 32
+    view.cameraPosition.y += dy * 24
     clampCameraPosition()
     return true
 }

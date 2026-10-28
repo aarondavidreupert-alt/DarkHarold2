@@ -22,7 +22,7 @@ limitations under the License.
 // Only the player (gDude) accumulates radiation in CE.
 
 import * as Events from './events.js'
-import globalState from './globalState.js'
+import { world } from './state/world.js'
 import { dbg } from './logger.js'
 import type { Critter } from './object.js'
 import * as Scripting from './scripting.js'
@@ -62,7 +62,7 @@ function miscMsg(id: number): string | null {
 }
 
 function isPlayer(obj: Critter): boolean {
-    return obj === globalState.player
+    return obj === world.player
 }
 
 // CE critter.cc:412 critterAdjustRadiation

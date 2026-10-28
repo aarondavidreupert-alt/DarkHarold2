@@ -19,7 +19,9 @@ limitations under the License.
 // label strip, and wires per-floor buttons that load the corresponding
 // map / change elevation.
 
-import globalState from './globalState.js'
+import { world } from './state/world.js'
+import { uiState } from './state/uiState.js'
+import { services } from './state/services.js'
 import { Elevator } from './data.js'
 import { hexesInRadius } from './geometry.js'
 import { lookupInterfaceArt } from './pro.js'
@@ -86,7 +88,7 @@ export function elevatorKey(e: KeyboardEvent): boolean {
 
 export function uiElevatorDone() {
     activeElevator = null
-    globalState.uiMode = UIMode.none
+    uiState.uiMode = UIMode.none
     hidev($id('elevatorBox'))
 
     // flip all buttons to hidden
@@ -105,7 +107,7 @@ const ELEVATOR_SOUNDS: (string | null)[][] = [
 ]
 
 export function uiElevator(elevator: Elevator) {
-    globalState.uiMode = UIMode.elevator
+    uiState.uiMode = UIMode.elevator
     activeElevator = elevator
     const art = lookupInterfaceArt(elevator.type)
     dbg('map', `[Elevator] art: ${art}`)
@@ -128,7 +130,7 @@ export function uiElevator(elevator: Elevator) {
     let currentFloorIdx = 0
     for (let i = 0; i < elevator.buttonCount; i++) {
         const b = elevator.buttons[i]
-        if (b.mapID === globalState.gMap!.mapID && (Number(b.level) || 0) === globalState.currentElevation) {
+        if (b.mapID === world.gMap!.mapID && (Number(b.level) || 0) === world.currentElevation) {
             currentFloorIdx = i
             break
         }
@@ -146,15 +148,15 @@ export function uiElevator(elevator: Elevator) {
             const position = fromTileNum(elevator.buttons[targetFloorIdx].tileNum)
 
             const proceed = (): void => {
-                if (mapID !== globalState.gMap!.mapID) {
+                if (mapID !== world.gMap!.mapID) {
                     // different map
                     dbg('map', `[Elevator] → map ${mapID}, level ${level} @ (${position.x}, ${position.y})`)
-                    globalState.gMap!.loadMapByID(mapID, position, level)
-                } else if (level !== globalState.currentElevation) {
+                    world.gMap!.loadMapByID(mapID, position, level)
+                } else if (level !== world.currentElevation) {
                     // same map, different elevation
                     dbg('map', `[Elevator] → level ${level} @ (${position.x}, ${position.y})`)
-                    globalState.player!.move(position)
-                    globalState.gMap!.changeElevationFaded(level, true)
+                    world.player!.move(position)
+                    world.gMap!.changeElevationFaded(level, true)
                 }
 
                 // CE ref: scripts.cc:926 scriptsHandleRequests SCRIPT_REQUEST_ELEVATOR
@@ -163,7 +165,7 @@ export function uiElevator(elevator: Elevator) {
                 const DOOR_PIDS = new Set([153, 421, 470])
                 const arrivalHexes = hexesInRadius(position, 5)
                 for (const h of arrivalHexes) {
-                    for (const obj of globalState.gMap!.objectsAtPosition(h)) {
+                    for (const obj of world.gMap!.objectsAtPosition(h)) {
                         if (obj.type === 'scenery' && DOOR_PIDS.has(obj.pidID as number)) {
                             obj.frame = 0
                             obj.open = false
@@ -178,7 +180,7 @@ export function uiElevator(elevator: Elevator) {
                 // CE elevator.cc elevatorSelectLevel: the travel sound by the car's floor count
                 // and the floors travelled (gElevatorSoundEffects), before the gauge moves
                 const sfx = ELEVATOR_SOUNDS[elevator.buttonCount - 2]?.[Math.abs(targetFloorIdx - currentFloorIdx)]
-                if (sfx) globalState.audioEngine.playSfxByName(sfx)
+                if (sfx) services.audioEngine.playSfxByName(sfx)
                 // CE ref: elevator.cc — animate gauge needle before map load
                 animateGauge(currentFloorIdx, targetFloorIdx, elevator.buttonCount, proceed)
             } else {

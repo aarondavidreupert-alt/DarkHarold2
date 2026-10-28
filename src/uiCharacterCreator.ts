@@ -15,7 +15,7 @@
 // Character creator entry point — delegates to showCharacterCreator() in uiCharacter.ts.
 // This module owns the UIMode transitions and the callbacks registered by init.ts.
 
-import globalState from './globalState.js'
+import { uiState } from './state/uiState.js'
 import { UIMode } from './uiMode.js'
 import { showCharacterCreator as openCreatorWindow } from './uiCharacter.js'
 
@@ -28,19 +28,19 @@ export function initCharacterCreator(doneCb: () => void, backCb: () => void): vo
 }
 
 export function showCharacterCreator(): void {
-    globalState.uiMode = UIMode.characterCreator
+    uiState.uiMode = UIMode.characterCreator
     openCreatorWindow(
         () => {
-            globalState.uiMode = UIMode.none
+            uiState.uiMode = UIMode.none
             onDone?.()
         },
         () => {
-            globalState.uiMode = UIMode.none
+            uiState.uiMode = UIMode.none
             onBack?.()
         },
     )
 }
 
 export function hideCharacterCreator(): void {
-    globalState.uiMode = UIMode.none
+    uiState.uiMode = UIMode.none
 }

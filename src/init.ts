@@ -29,6 +29,9 @@ import { Config } from './config.js'
 import * as CriticalEffects from './criticalEffects.js'
 import * as GameTime from './gametime.js'
 import globalState from './globalState.js'
+import { world } from './state/world.js'
+import { uiState } from './state/uiState.js'
+import { assets } from './state/assets.js'
 import { GameMap } from './map.js'
 import { Player } from './player.js'
 import { SCREEN_HEIGHT, SCREEN_WIDTH } from './renderer.js'
@@ -60,10 +63,10 @@ export function initialMapName(): string {
 
 export function initGame() {
     // initialize player
-    globalState.player = new Player()
+    world.player = new Player()
 
     // initialize map
-    globalState.gMap = new GameMap()
+    world.gMap = new GameMap()
 
     // Seed game time to Fallout 2's 8:24 AM start (matches fallout2-ce).
     GameTime.initGameTime()
@@ -89,17 +92,17 @@ export function initGame() {
     for (const el of [$cnv, $bar]) {
         if (!el) continue
         el.addEventListener('mouseenter', () => {
-            globalState.gameHasFocus = true
+            uiState.gameHasFocus = true
         })
         el.addEventListener('mouseleave', (e) => {
-            if (!inGameArea((e as MouseEvent).relatedTarget)) globalState.gameHasFocus = false
+            if (!inGameArea((e as MouseEvent).relatedTarget)) uiState.gameHasFocus = false
         })
     }
 
-    globalState.tempCanvas = document.createElement('canvas') as HTMLCanvasElement
-    globalState.tempCanvas.width = SCREEN_WIDTH
-    globalState.tempCanvas.height = SCREEN_HEIGHT
-    globalState.tempCanvasCtx = globalState.tempCanvas.getContext('2d', { willReadFrequently: true })
+    assets.tempCanvas = document.createElement('canvas') as HTMLCanvasElement
+    assets.tempCanvas.width = SCREEN_WIDTH
+    assets.tempCanvas.height = SCREEN_HEIGHT
+    assets.tempCanvasCtx = assets.tempCanvas.getContext('2d', { willReadFrequently: true })
 
     saveLoadInit()
 
@@ -115,7 +118,7 @@ export function initGame() {
     const startNewGame = () => {
         // The HUD still shows the placeholder player from the background map load;
         // redraw it for the created/premade character (CE intface init on game start).
-        const player = globalState.player!
+        const player = world.player!
         player.resetInventoryForNewGame()
         uiDrawWeapon()
         drawHP(player.getStat('HP'))
@@ -124,7 +127,7 @@ export function initGame() {
         void gameMoviePlay(MOVIE_ELDER, GAME_MOVIE_STOP_MUSIC).then(() => {
             randomSeedPrerandom(-1)
             requestGlobalScriptsStart() // sfall: after the new game's map has loaded
-            globalState.gMap!.loadMap('artemple')
+            world.gMap!.loadMap('artemple')
         })
     }
     // CE main.cc:113 — NEW GAME opens the premade character selector first.
@@ -139,13 +142,13 @@ export function initGame() {
     if (mapFromQuery !== null) {
         // Debug: map specified in URL query → skip main menu and load directly.
         hideSplash()
-        globalState.gMap.loadMap(mapFromQuery)
+        world.gMap.loadMap(mapFromQuery)
     } else {
         // Default startup: load the starting map in the background (the main menu
         // overlay covers the canvas so the player never sees it during menu).
         // This avoids potential game-loop crashes from a completely unloaded map.
         globalState.backgroundMapLoad = true // silent: no map music under the intro / menu
-        globalState.gMap.loadMap('artemple')
+        world.gMap.loadMap('artemple')
         // CE main.cc:86-91 — IPLOGO (fade in), INTRO, CREDITS before the main menu,
         // unless sfall's SkipOpeningMovies is set (Config.ui.skipOpeningMovies).
         // AutoCrawler (?crawl=): neither — the crawl plays on the background map, and the

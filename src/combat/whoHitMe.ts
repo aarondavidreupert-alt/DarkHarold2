@@ -19,11 +19,11 @@ limitations under the License.
 // reaction change in CE: being hit by the player sets the victim's reaction
 // (LVAR 0, reaction.cc reactionSetValue) to -3.
 
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
 import type { Critter } from '../object.js'
 import { randomBetween } from '../random.js'
 
-const isPartyMember = (c: Critter): boolean => !!globalState.gParty?.isPartyMember(c) || c.isPlayer
+const isPartyMember = (c: Critter): boolean => !!world.gParty?.isPartyMember(c) || c.isPlayer
 
 // CE stat.cc statRoll(critter, STAT_INTELLIGENCE, -1) < ROLL_SUCCESS(2)
 function intRollFails(c: Critter): boolean {
@@ -58,7 +58,7 @@ export function combatAiRating(obj: Critter | null): number {
         if (typeof max === 'number' && damage < max) damage = max
     }
     // STAT_ARMOR_CLASS: with the unused-AP bonus while it isn't the critter's turn
-    return damage + obj.getStat('AC') + obj.getArmorAC() + (globalState.combat?.unusedApAC?.(obj) ?? 0)
+    return damage + obj.getStat('AC') + obj.getArmorAC() + (world.combat?.unusedApAC?.(obj) ?? 0)
 }
 
 // CE combat_ai.cc _combatai_check_retaliation — switch to the new attacker if it

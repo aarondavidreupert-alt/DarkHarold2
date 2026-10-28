@@ -19,7 +19,8 @@ limitations under the License.
 // killCounts. Split out of critter.ts. See wiki/ts-split-refactor.md → §13.
 
 import { Config } from '../config.js'
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
+import { assets } from '../state/assets.js'
 import { dbg } from '../logger.js'
 import { giveNewUid, itemIsHidden, Obj, zsort } from '../object/Obj.js'
 import type { Critter } from '../object/Critter.js'
@@ -106,7 +107,7 @@ export function critterKill(
     obj.dead = true
     // CE critter.cc critterKill (and combat.cc's kill path): partyMemberRemove first —
     // a dead companion leaves the party.
-    globalState.gParty?.dismissPartyMember(obj)
+    world.gParty?.dismissPartyMember(obj)
     // CE critter.cc critterKill: itemDestroyAllHidden — natural weapons go with the critter
     const hidden = obj.inventory.filter((it) => itemIsHidden(it))
     if (hidden.length) {
@@ -121,7 +122,7 @@ export function critterKill(
     // (OBJECT_NO_BLOCK) and _obj_toggle_flat makes it OBJECT_FLAT — drawn first on its tile
     if (((obj.pro?.extra?.flags ?? 0) & 0x800) === 0) {
         obj.flags = ((obj.flags ?? 0) | 0x10 | 0x08) >>> 0
-        const gm = globalState.gMap
+        const gm = world.gMap
         const level = gm?.objects?.[obj.elevation ?? gm.currentElevation]
         if (level && Config.engine.objectSort !== 'dh2') zsort(level)
     }
@@ -132,7 +133,7 @@ export function critterKill(
 
     // CE combat.cc _damage_object — killsIncByType only for kills by the player or the
     // player's team. (Karma for kills is handled by the critters' scripts, as in CE.)
-    const player = globalState.player
+    const player = world.player
     if (!obj.isPlayer && source && player && (source.isPlayer || source.teamNum === player.teamNum)) {
         const kt = obj.killType ?? 0
         killCounts.set(kt, (killCounts.get(kt) ?? 0) + 1)
@@ -166,11 +167,11 @@ export function critterKill(
         // Corpse auto-cleanup: remove empty corpses after a configurable timeout.
         // Corpses with loot are left on the map so the player can still loot them.
         const timeout = Config.engine.corpseTimeout as number | undefined
-        if (timeout && timeout > 0 && globalState.gMap) {
-            const map = globalState.gMap
+        if (timeout && timeout > 0 && world.gMap) {
+            const map = world.gMap
             setTimeout(() => {
-                if (obj.inventory.length === 0 && globalState.gMap === map) {
-                    globalState.gMap.destroyObject(obj)
+                if (obj.inventory.length === 0 && world.gMap === map) {
+                    world.gMap.destroyObject(obj)
                 }
             }, timeout * 1000)
         }
@@ -186,7 +187,7 @@ export function critterKill(
     // Let a running knockdown finish first. (Its callback stays set after the last
     // frame, so inAnim() can't tell; compare against the frame count.)
     const whenReady = (fn: () => void) => {
-        const frames = globalState.imageInfo![obj.art]?.numFrames ?? 0
+        const frames = assets.imageInfo![obj.art]?.numFrames ?? 0
         if (fallAnim !== null && obj.frame < frames - 1) obj.animCallback = fn
         else fn()
     }
@@ -297,12 +298,12 @@ function straightHexes(from: Point, dir: number, distance: number): Point[] {
 }
 
 function blockedTile(obj: Critter, t: Point): boolean {
-    return !!globalState.gMap?.blockingObjectAt(toTileNum(t), obj.elevation, 0, obj)
+    return !!world.gMap?.blockingObjectAt(toTileNum(t), obj.elevation, 0, obj)
 }
 
 // CE object.cc isExitGridAt: an exit grid pid (0x5000010-0x5000017) that isn't hidden
 function isExitGridAt(t: Point): boolean {
-    const objs = globalState.gMap?.objectsAtPosition(t) ?? []
+    const objs = world.gMap?.objectsAtPosition(t) ?? []
     return objs.some((o: Obj) => {
         const pid = (o.pid ?? 0) >>> 0
         return pid >= 0x5000010 && pid <= 0x5000017 && ((o.flags ?? 0) & 0x01) === 0 && o.visible !== false
@@ -332,12 +333,12 @@ function moveStraight(obj: Critter, anim: string, path: Point[], then: () => voi
         true,
     )
     if (slideDone) return
-    const fps = globalState.imageInfo![obj.art]?.fps || 10
+    const fps = assets.imageInfo![obj.art]?.fps || 10
     let from = { ...obj.position }
     let frame = 0
     let moved = false
     const step = () => {
-        if (obj.dead && index === 0 && !globalState.gMap) return
+        if (obj.dead && index === 0 && !world.gMap) return
         const to = path[index]
         const a = hexToScreen(from.x, from.y),
             b = hexToScreen(to.x, to.y)
@@ -406,7 +407,7 @@ function actionKnockdown(obj: Critter, anim: number, maxDistance: number, rotati
 // are full); worn armour off puts the critter back on its proto art (_adjust_ac), and with
 // the hands empty the art is the unarmed one.
 export function itemDropAll(obj: Critter): void {
-    const gMap = globalState.gMap
+    const gMap = world.gMap
     if (!gMap) return
     const self = obj as any
     const items: Obj[] = [...obj.inventory]
@@ -492,7 +493,7 @@ export function critterDamage(
         obj.damageLastTurn = (obj.damageLastTurn ?? 0) + damage
         // CE _damage_object: damage_p_proc only for damage that landed, not with a4 set, and
         // not when the victim and the attacker are both in the party (the dude included)
-        const inParty = (c: Critter | undefined) => !!c && (c.isPlayer || !!globalState.gParty?.isPartyMember(c))
+        const inParty = (c: Critter | undefined) => !!c && (c.isPlayer || !!world.gParty?.isPartyMember(c))
         if (useScript && obj._script && !killOptions.noDamageProc && !(inParty(obj) && inParty(source)))
             Scripting.damage(obj, obj, source, damage)
     }

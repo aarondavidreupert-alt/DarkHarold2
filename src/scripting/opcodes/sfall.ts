@@ -19,7 +19,9 @@ import { combatGetData } from '../../combat.js'
 import { critterAdjustRadiation } from '../../radiation.js'
 import { currentUnarmed } from '../../unarmed.js'
 import { getMessage } from '../../util.js'
-import globalState from '../../globalState.js'
+import { world } from '../../state/world.js'
+import { uiState } from '../../state/uiState.js'
+import { assets } from '../../state/assets.js'
 import { heart } from '../../heart.js'
 import { hexFromScreen } from '../../geometry.js'
 import { loadPRO, lookupArt } from '../../pro.js'
@@ -97,7 +99,7 @@ export const sfallOpcodes = {
     // a type (0 critters, 1 items, 2 scenery, 3 walls, 5 misc, 6 spatial, 9 all; 4 tiles:
     // nothing, as in sfall), every elevation, as a temporary list
     list_as_array(this: Script, type: number) {
-        const map = globalState.gMap
+        const map = world.gMap
         const out: object[] = []
         if (map && type === 6) {
             for (const level of (map.spatials ?? []) as any[][]) for (const s of level ?? []) out.push(s)
@@ -164,16 +166,16 @@ export const sfallOpcodes = {
     // CE op_set_pc_base_stat / op_get_pc_base_stat / opSetPcBonusStat / opGetPcBonusStat
     // (0x815A-0x815D) and sfall's critter forms (0x815F-0x8161; not in CE, same work)
     set_pc_base_stat(this: Script, stat: number, value: number) {
-        this.setCritterStatPart(globalState.player as Critter, stat, value, false)
+        this.setCritterStatPart(world.player as Critter, stat, value, false)
     },
     set_pc_extra_stat(this: Script, stat: number, value: number) {
-        this.setCritterStatPart(globalState.player as Critter, stat, value, true)
+        this.setCritterStatPart(world.player as Critter, stat, value, true)
     },
     get_pc_base_stat(this: Script, stat: number) {
-        return this.getCritterStatPart(globalState.player as Critter, stat, false)
+        return this.getCritterStatPart(world.player as Critter, stat, false)
     },
     get_pc_extra_stat(this: Script, stat: number) {
-        return this.getCritterStatPart(globalState.player as Critter, stat, true)
+        return this.getCritterStatPart(world.player as Critter, stat, true)
     },
     set_critter_extra_stat(this: Script, obj: Critter, stat: number, value: number) {
         this.setCritterStatPart(obj, stat, value, true)
@@ -325,12 +327,12 @@ export const sfallOpcodes = {
     },
     // CE op_key_pressed (0x816C)
     in_world_map(this: Script) {
-        return globalState.uiMode === UIMode.worldMap ? 1 : 0
+        return uiState.uiMode === UIMode.worldMap ? 1 : 0
     },
     // CE op_in_world_map (0x8170)
     // CE opGetCurrentHand (0x8193): interfaceGetCurrentHand, HAND_LEFT 0 / HAND_RIGHT 1
     active_hand(this: Script) {
-        return globalState.player?.activeHand === 'rightHand' ? 1 : 0
+        return world.player?.activeHand === 'rightHand' ? 1 : 0
     },
     get_uptime(this: Script) {
         return Math.trunc(window.performance.now())
@@ -353,7 +355,7 @@ export const sfallOpcodes = {
     // of the map's objects of a list type (0 critters, 1 items, 2 scenery, 3 walls, 5 misc,
     // 6 spatial scripts, 9 all; 4 tiles is not implemented by sfall)
     list_begin(this: Script, type: number) {
-        const gMap = globalState.gMap
+        const gMap = world.gMap
         let objects: any[] = []
         if (gMap && type !== 4) {
             if (type === 6) objects = gMap.getSpatials ? gMap.getSpatials() : []
@@ -416,7 +418,7 @@ export const sfallOpcodes = {
     // CE op_get_attack_type (0x8228): the hit mode of the active hand's action — 0 / 1
     // left primary / secondary, 2 / 3 right, the unarmed modes for an empty hand
     get_attack_type(this: Script) {
-        const player = globalState.player
+        const player = world.player
         if (!player) return -1
         const hand: 'leftHand' | 'rightHand' = player.activeHand ?? 'leftHand'
         const item = player[hand]
@@ -439,8 +441,8 @@ export const sfallOpcodes = {
     // CE op_tile_under_cursor (0x824B)
     tile_under_cursor(this: Script) {
         const mouse = heart.mouse.getPosition()
-        const world = screenToWorld(mouse[0], mouse[1])
-        const hex = hexFromScreen(world.x, world.y)
+        const worldPos = screenToWorld(mouse[0], mouse[1])
+        const hex = hexFromScreen(worldPos.x, worldPos.y)
         return toTileNum(hex)
     },
     // CE opSubstr (0x824E)
@@ -477,7 +479,7 @@ export const sfallOpcodes = {
     art_exists(this: Script, fid: number) {
         try {
             const art = lookupArt(fid)
-            return art && globalState.imageInfo?.[art] !== undefined ? 1 : 0
+            return art && assets.imageInfo?.[art] !== undefined ? 1 : 0
         } catch {
             return 0
         }

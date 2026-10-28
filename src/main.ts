@@ -16,6 +16,10 @@ import { HTMLAudioEngine, NullAudioEngine } from './audio.js'
 import { useDrug } from './drugs.js'
 import { heart } from './heart.js'
 import globalState from './globalState.js'
+import { uiState } from './state/uiState.js'
+import { view } from './state/view.js'
+import { services } from './state/services.js'
+import { assets } from './state/assets.js'
 import * as IDBCache from './idbcache.js'
 import { initGame, initialMapName } from './init.js'
 import { prefetchMap } from './map/prefetch.js'
@@ -102,7 +106,7 @@ function bootFiles(backend: string): string[] {
 window.onload = async function () {
     globalState.isInitializing = true
 
-    globalState.$fpsOverlay = document.getElementById('fpsOverlay')
+    services.$fpsOverlay = document.getElementById('fpsOverlay')
     initLogScrollZones()
 
     // no-cache: the browser revalidates its copy (a 304 when unchanged) instead of a
@@ -114,7 +118,7 @@ window.onload = async function () {
     const fragmentFont = await fetchShader('fragmentFont')
 
     // initialize renderer
-    globalState.renderer = new WebGLRenderer(
+    services.renderer = new WebGLRenderer(
         {
             fragment: await fragment.text(),
             fragmentLighting: await fragmentLighting.text(),
@@ -124,10 +128,10 @@ window.onload = async function () {
         await Promise.all([0, 1, 2, 3, 5].map((i) => fonUnpack(`data/font${i}.fon`))),
     )
 
-    globalState.renderer.init()
+    services.renderer.init()
     // Apply the configured tile-intensity interpolation mode (default 'hex-lerp')
     // so the texture filter + shader branch match Config from the first frame.
-    ;(globalState.renderer as WebGLRenderer).setLightInterpMode(Config.engine.lightingInterpolation)
+    ;(services.renderer as WebGLRenderer).setLightInterpMode(Config.engine.lightingInterpolation)
 
     // --- Dynamic resolution ---
     //
@@ -151,15 +155,15 @@ window.onload = async function () {
         setScreenSize(w, h)
 
         // 2. Tell the WebGL renderer to resize its canvas + FBOs + uniforms.
-        const r = globalState.renderer as WebGLRenderer
+        const r = services.renderer as WebGLRenderer
         if (r && typeof r.resize === 'function') {
             r.resize(w, h)
         }
 
         // 3. Keep the temp canvas (used for single-pixel picking) in sync.
-        if (globalState.tempCanvas) {
-            globalState.tempCanvas.width = w
-            globalState.tempCanvas.height = h
+        if (assets.tempCanvas) {
+            assets.tempCanvas.width = w
+            assets.tempCanvas.height = h
         }
 
         // 4. Refresh heart.js's cached size + canvas-offset so mouse
@@ -227,7 +231,7 @@ window.onload = async function () {
                 }
                 // Ignore zoom while a modal UI (dialog, inventory, pipboy)
                 // is up — it'd desync the underlying paused map.
-                if (globalState.uiMode !== UIMode.none && globalState.uiMode !== UIMode.useSkill) {
+                if (uiState.uiMode !== UIMode.none && uiState.uiMode !== UIMode.useSkill) {
                     return
                 }
                 // [dh2] mouse_wheel=ce: CE game.cc gameHandleKey — the wheel scrolls the map a
@@ -237,7 +241,7 @@ window.onload = async function () {
                     return
                 }
 
-                const oldZoom = globalState.cameraZoom || 1.0
+                const oldZoom = view.cameraZoom || 1.0
                 // deltaY > 0 = scroll down = zoom out; < 0 = zoom in.
                 // Use the sign only so high-resolution touchpads don't
                 // make zoom jittery or too sensitive.
@@ -258,16 +262,16 @@ window.onload = async function () {
                 const rect = zoomCanvas.getBoundingClientRect()
                 const mouseX = e.clientX - rect.left
                 const mouseY = e.clientY - rect.top
-                globalState.cameraPosition.x += mouseX * (1 / oldZoom - 1 / newZoom)
-                globalState.cameraPosition.y += mouseY * (1 / oldZoom - 1 / newZoom)
-                globalState.cameraZoom = newZoom
+                view.cameraPosition.x += mouseX * (1 / oldZoom - 1 / newZoom)
+                view.cameraPosition.y += mouseY * (1 / oldZoom - 1 / newZoom)
+                view.cameraZoom = newZoom
                 // CE ref: tile.cc:537 tileSetCenter — borders re-evaluated after any
                 // zoom change because getWorldViewWidth/Height depend on zoom.
                 clampCameraPosition()
 
                 // The floor FBO caches a pre-zoomed snapshot of the floor;
                 // invalidate it so the next frame re-bakes at the new zoom.
-                const r = globalState.renderer as WebGLRenderer
+                const r = services.renderer as WebGLRenderer
                 if (r && typeof r.invalidateFloorFBO === 'function') {
                     r.invalidateFloorFBO()
                 }
@@ -278,9 +282,9 @@ window.onload = async function () {
 
     // initialize audio engine
     if (Config.engine.doAudio) {
-        globalState.audioEngine = new HTMLAudioEngine()
+        services.audioEngine = new HTMLAudioEngine()
     } else {
-        globalState.audioEngine = new NullAudioEngine()
+        services.audioEngine = new NullAudioEngine()
     }
 
     // Apply persisted user preferences (volume, difficulty, etc.) after audioEngine is ready:
@@ -388,8 +392,8 @@ window.onload = async function () {
     // not awaited: the frame loop starts below meanwhile, as before (it waits on isInitializing)
     void (async () => {
         await IDBCache.initAsync()
-        globalState.imageInfo = (await cachedJSON('imageMap', 'art/imageMap.json')) as typeof globalState.imageInfo
-        globalState.proMap = (await cachedJSON('proMap', 'proto/pro.json')) as typeof globalState.proMap
+        assets.imageInfo = (await cachedJSON('imageMap', 'art/imageMap.json')) as typeof globalState.imageInfo
+        assets.proMap = (await cachedJSON('proMap', 'proto/pro.json')) as typeof globalState.proMap
         await prefetch
         // the first map's JSON and scripts (map/prefetch.ts), read synchronously by loadMap
         await prefetchMap(initialMapName())
@@ -413,7 +417,7 @@ heart.update = tickGame
 heart.draw = () => {
     const time = window.performance.now()
 
-    globalState.renderer.render()
+    services.renderer.render()
 
     globalState.lastDrawTime = Math.floor(window.performance.now() - time)
 }

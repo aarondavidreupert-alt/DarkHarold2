@@ -26,7 +26,7 @@ limitations under the License.
 // Critters other than the player always use the plain punch (CE _ai_pick_hit_mode
 // returns HIT_MODE_PUNCH without a weapon; the move tables read gDude's stats only).
 
-import globalState from './globalState.js'
+import { uiState } from './state/uiState.js'
 import type { Critter } from './object.js'
 
 export interface UnarmedMode {
@@ -135,7 +135,7 @@ function playerHand(critter: Critter): 'leftHand' | 'rightHand' {
 }
 
 function getAction(hand: 'leftHand' | 'rightHand'): UnarmedAction {
-    const idx = hand === 'rightHand' ? globalState.kickModeIdx : globalState.punchModeIdx
+    const idx = hand === 'rightHand' ? uiState.kickModeIdx : uiState.punchModeIdx
     return ACTIONS[idx] ?? 'primary'
 }
 
@@ -187,8 +187,8 @@ export function cycleUnarmedAction(critter: Critter): { mode: UnarmedMode; aimin
         idx = (idx + 1) % ACTIONS.length
         if (actionValid(critter, hand, ACTIONS[idx])) break
     }
-    if (hand === 'rightHand') globalState.kickModeIdx = idx
-    else globalState.punchModeIdx = idx
+    if (hand === 'rightHand') uiState.kickModeIdx = idx
+    else uiState.punchModeIdx = idx
     return currentUnarmed(critter)
 }
 

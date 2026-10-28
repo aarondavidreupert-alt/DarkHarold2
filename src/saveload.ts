@@ -22,6 +22,10 @@ import { restoreRadiationEvent } from './radiation.js'
 import { StatSet, SkillSet } from './char.js'
 import { Point } from './geometry.js'
 import globalState from './globalState.js'
+import { world } from './state/world.js'
+import { uiState } from './state/uiState.js'
+import { services } from './state/services.js'
+import { assets } from './state/assets.js'
 import { heart } from './heart.js'
 import { dbg, dbgWarn } from './logger.js'
 import type { EventLogEntry } from './eventlog.types.js'
@@ -177,8 +181,8 @@ export function takeSaveSnapshot(): void {
     pendingSnapshot = undefined
     try {
         const cnv = document.getElementById('cnv') as HTMLCanvasElement | null
-        if (!cnv || !globalState.renderer) return
-        globalState.renderer.render()
+        if (!cnv || !services.renderer) return
+        services.renderer.render()
         const scale = cnv.width / SCREEN_WIDTH
         const isoH = SCREEN_HEIGHT - INTERFACE_BAR_HEIGHT
         const sx = ((SCREEN_WIDTH - ISO_W) / 2) * scale
@@ -210,25 +214,25 @@ function captureScreenshot(): string | undefined {
 function gatherSaveData(name: string): SaveGame {
     // Saves the game and returns the savegame
 
-    const curMap = globalState.gMap!.serialize()
+    const curMap = world.gMap!.serialize()
 
-    const p = globalState.player
+    const p = world.player
     return {
         version: 1,
         name,
         timestamp: Date.now(),
-        currentElevation: globalState.currentElevation,
+        currentElevation: world.currentElevation,
         currentMap: curMap.name,
         screenshot: captureScreenshot(),
-        gameTickTime: globalState.gameTickTime,
+        gameTickTime: world.gameTickTime,
         player: {
             position: p!.position,
             orientation: p!.orientation,
             inventory: p!.inventory.map((obj) => obj.serialize()),
         },
-        party: globalState.gParty.serialize(),
-        partyLevels: globalState.gParty.serializeLevels(),
-        savedMaps: { [curMap.name]: curMap, ...globalState.dirtyMapCache },
+        party: world.gParty.serialize(),
+        partyLevels: world.gParty.serializeLevels(),
+        savedMaps: { [curMap.name]: curMap, ...world.dirtyMapCache },
         playerState: {
             stats: p!.stats.serialize(),
             skills: p!.skills.serialize(),
@@ -241,7 +245,7 @@ function gatherSaveData(name: string): SaveGame {
             name: p!.name,
             gender: p!.gender,
             activeHand: p!.activeHand,
-            gameUIDisabled: globalState.gameUIDisabled,
+            gameUIDisabled: uiState.gameUIDisabled,
             isSneaking: p!.isSneaking,
             sneakWorking: (p as any).sneakWorking ?? false,
             leftHand: p!.leftHand ? p!.leftHand.serialize() : null,
@@ -252,9 +256,9 @@ function gatherSaveData(name: string): SaveGame {
         },
         mvars: Scripting.getMapVars(),
         sfallGlobals: serializeSfallGlobals(), // CE loadsave.cc sfall_gl_vars_save
-        knownAreas: [...globalState.knownAreas],
+        knownAreas: [...world.knownAreas],
         areaStates: Worldmap.serializeAreaStates(),
-        seenMovies: [...globalState.seenMovies],
+        seenMovies: [...world.seenMovies],
         automap: serializeAutomap(),
         kills: [...killCounts.entries()],
         skillUsage: serializeSkillUsage(),
@@ -269,7 +273,7 @@ function gatherSaveData(name: string): SaveGame {
         currentAreaId: Worldmap.getCurrentAreaId(),
         encounters: Worldmap.serializeEncounters(),
         preferences: currentPreferences(),
-        combat: globalState.inCombat && globalState.combat ? globalState.combat.serializeState() : undefined,
+        combat: world.inCombat && world.combat ? world.combat.serializeState() : undefined,
     }
 }
 
@@ -329,11 +333,11 @@ export function debugSave(): void {
 export function save(name: string, slot = -1, callback?: (id: number) => void): void {
     const save = gatherSaveData(name)
 
-    const dirtyMapNames = Object.keys(globalState.dirtyMapCache)
+    const dirtyMapNames = Object.keys(world.dirtyMapCache)
     dbg(
         'saveload',
         `[SaveLoad] Saving ${1 + dirtyMapNames.length} maps (current: ${
-            globalState.gMap!.name
+            world.gMap!.name
         } plus dirty maps: ${dirtyMapNames.join(', ')})`,
     )
 
@@ -380,30 +384,30 @@ export function load(id: number): void {
                 // Loading a save never resumes a live combat from the current session
                 // (CE loadsave.cc tears combat down via gameReset before reading).
                 // (Restored 2026-10-06; lost in b282cca.)
-                if (globalState.inCombat) {
-                    globalState.combat?.forceEnd()
+                if (world.inCombat) {
+                    world.combat?.forceEnd()
                 }
-                globalState.inCombat = false
-                globalState.combat = null
+                world.inCombat = false
+                world.combat = null
                 // CE ref: loadsave.cc _PrepLoad — gameReset() before the save is read, so
                 // nothing the save doesn't carry survives from the current session.
                 gameReset()
 
-                globalState.gMap!.deserialize(savedMap)
+                world.gMap!.deserialize(savedMap)
                 dbg('saveload', '[SaveLoad] Finished map deserialization')
 
                 // Restore game clock (older saves omit this field).
                 if (typeof save.gameTickTime === 'number') {
-                    globalState.gameTickTime = save.gameTickTime
+                    world.gameTickTime = save.gameTickTime
                 }
 
-                globalState.player!.position = save.player.position
-                globalState.player!.orientation = save.player.orientation
-                globalState.player!.inventory = save.player.inventory.map((obj) => deserializeObj(obj))
+                world.player!.position = save.player.position
+                world.player!.orientation = save.player.orientation
+                world.player!.inventory = save.player.inventory.map((obj) => deserializeObj(obj))
 
                 if (save.playerState) {
                     const ps = save.playerState
-                    const p = globalState.player
+                    const p = world.player
                     p!.stats = StatSet.deserialize(ps.stats)
                     p!.skills = SkillSet.deserialize(ps.skills)
                     p!.traits = ps.traits.slice()
@@ -431,8 +435,8 @@ export function load(id: number): void {
                     refreshStealthState(p as unknown as Critter)
                 }
 
-                globalState.gParty.deserialize(save.party)
-                globalState.gParty.deserializeLevels(save.partyLevels)
+                world.gParty.deserialize(save.party)
+                world.gParty.deserializeLevels(save.partyLevels)
 
                 // Restore MVARs (map variables). Older saves lack this field; those
                 // will reset to the default .mvars.json values on first script run.
@@ -440,7 +444,7 @@ export function load(id: number): void {
                 deserializeSfallGlobals(save.sfallGlobals) // CE sfall_gl_vars_load
 
                 // Restore discovered worldmap areas.
-                if (Array.isArray(save.knownAreas)) globalState.knownAreas = new Set(save.knownAreas)
+                if (Array.isArray(save.knownAreas)) world.knownAreas = new Set(save.knownAreas)
                 Worldmap.deserializeAreaStates(save.areaStates)
 
                 // Restore car state. CE ref: worldmap.h wmGenData.isInCar / wmGenData.carFuel /
@@ -460,12 +464,12 @@ export function load(id: number): void {
                 }
 
                 // Restore seen-movie set (CE ref: game_movie.cc gameMoviesLoad).
-                if (Array.isArray(save.seenMovies)) globalState.seenMovies = new Set(save.seenMovies)
+                if (Array.isArray(save.seenMovies)) world.seenMovies = new Set(save.seenMovies)
                 restoreAutomap(save.automap) // the save's automap (none in older saves)
                 killCounts.clear()
                 for (const [type, n] of save.kills ?? []) killCounts.set(type, n)
                 deserializeSkillUsage(save.skillUsage)
-                globalState.player?.updateNativeLook() // CE loadsave.cc:1772
+                world.player?.updateNativeLook() // CE loadsave.cc:1772
 
                 // Restore the structured event log. Older saves may have the field
                 // under the old name (combatLog) — accept either; fall back to empty.
@@ -478,7 +482,7 @@ export function load(id: number): void {
                 // Older saves without this field are silently skipped.
                 if (Array.isArray(save.timedEvents)) {
                     // CE queueLoad: the owner by object id (objectFindById); old saves by PID
-                    const mapObjects = [...globalState.gMap!.getObjects(), ...(globalState.gMap!.getSpatials() ?? [])]
+                    const mapObjects = [...world.gMap!.getObjects(), ...(world.gMap!.getSpatials() ?? [])]
                     const byUid = new Map<number, any>()
                     // (items too, in inventories and bags: a lit flare in a hand; uid -1 is only the dude's)
                     const visited = new Set<any>()
@@ -494,8 +498,8 @@ export function load(id: number): void {
                         addByUid(o.rightHand, own)
                     }
                     for (const o of mapObjects) addByUid(o)
-                    addByUid(globalState.player)
-                    if (globalState.player) byUid.set(globalState.player.uid, globalState.player)
+                    addByUid(world.player)
+                    if (world.player) byUid.set(world.player.uid, world.player)
                     for (const ev of save.timedEvents) {
                         const obj =
                             ev.objUid != null
@@ -510,11 +514,11 @@ export function load(id: number): void {
                         ) {
                             // CE ref: item.cc drugEffectEventRead / withdrawalEventRead. Old-format
                             // drug events (pre-2026-10-06 'drug:<name>') don't parse and are dropped.
-                            const user = (obj ?? globalState.player) as Critter | null
+                            const user = (obj ?? world.player) as Critter | null
                             if (user && user.type === 'critter') restoreDrugEvent(user, ticks, userdata)
                         } else if (userdata === 'sneak') {
                             // CE ref: critter.cc:1194 sneakEventProcess — restore periodic sneak roll timer.
-                            const playerForSneak = globalState.player
+                            const playerForSneak = world.player
                             if (playerForSneak && playerForSneak.isSneaking) {
                                 Scripting.timeEventList.push({
                                     obj: playerForSneak,
@@ -528,11 +532,11 @@ export function load(id: number): void {
                             }
                         } else if (typeof userdata === 'string' && userdata.startsWith('radiation:')) {
                             // CE ref: critter.cc radiationEventRead — restore sickness / recovery event.
-                            const player = globalState.player as Critter | null
+                            const player = world.player as Critter | null
                             if (player && !player.dead) restoreRadiationEvent(player, ticks, userdata)
                         } else if (userdata === 'poison') {
                             // CE ref: critter.cc poisonEventProcess — restore poison decay timer.
-                            const player = globalState.player as Critter | null
+                            const player = world.player as Critter | null
                             if (player && !player.dead) {
                                 Scripting.timeEventList.push({
                                     obj: player,
@@ -568,7 +572,7 @@ export function load(id: number): void {
 
                     // CE ref: critter.cc critterAdjustPoison — if player loaded with poisonLevel>0
                     // but no timed poison event (old save format), re-arm the decay event now.
-                    const playerForPoison = globalState.player as Critter | null
+                    const playerForPoison = world.player as Critter | null
                     if (playerForPoison && !playerForPoison.dead && (playerForPoison.poisonLevel ?? 0) > 0) {
                         const hasEvent = Scripting.timeEventList.some(
                             (e) => e.obj === playerForPoison && e.userdata === 'poison',
@@ -587,7 +591,7 @@ export function load(id: number): void {
 
                     // CE ref: critter.cc sneakEventProcess — if player loaded with isSneaking=true
                     // but no sneak timer (old save format), re-arm the sneak event now.
-                    const playerForSneak2 = globalState.player
+                    const playerForSneak2 = world.player
                     if (playerForSneak2 && playerForSneak2.isSneaking) {
                         const hasSneakEvent = Scripting.timeEventList.some(
                             (e) => e.obj === playerForSneak2 && e.userdata === 'sneak',
@@ -598,18 +602,18 @@ export function load(id: number): void {
                     dbg('saveload', '[SaveLoad] Restored %d timed events', save.timedEvents.length)
                 }
 
-                globalState.gMap!.changeElevation(save.currentElevation, false)
+                world.gMap!.changeElevation(save.currentElevation, false)
 
                 // populate dirty map cache out of non-current saved maps
-                globalState.dirtyMapCache = { ...save.savedMaps }
-                delete globalState.dirtyMapCache[savedMap.name]
+                world.dirtyMapCache = { ...save.savedMaps }
+                delete world.dirtyMapCache[savedMap.name]
 
                 // CE mapLoad during a game load: start / map_enter / map_update with
                 // _loadingGame set (metarule 22), then the map music.
                 Scripting.ensureDudeScript() // obj_dude with its saved LVARs (setPendingDudeLvars)
-                globalState.gMap!.runLoadGameProcs()
+                world.gMap!.runLoadGameProcs()
 
-                const p = globalState.player!
+                const p = world.player!
                 drawHP(p.getStat('HP'))
                 drawAC(p.getStat('AC'))
                 uiDrawWeapon()
@@ -622,7 +626,7 @@ export function load(id: number): void {
                 endMapFade()
             }
 
-            const changingMap = globalState.gMap?.name !== save.currentMap
+            const changingMap = world.gMap?.name !== save.currentMap
             if (!changingMap) {
                 applyState()
                 return
@@ -630,7 +634,7 @@ export function load(id: number): void {
 
             // Cross-location load: clear stale WebGL textures so getTextureFromHack
             // re-uploads from globalState.images instead of serving old map's textures.
-            globalState.renderer.clearTileCache()
+            services.renderer.clearTileCache()
 
             // Load the new map's images into globalState.images before the first
             // render frame, using the same isLoading gate as loadNewMap. This
@@ -642,7 +646,7 @@ export function load(id: number): void {
             } catch {
                 mapImages = []
             }
-            const toLoad = mapImages.filter((img) => globalState.images[img] === undefined)
+            const toLoad = mapImages.filter((img) => assets.images[img] === undefined)
 
             if (toLoad.length === 0) {
                 applyState()
@@ -650,15 +654,15 @@ export function load(id: number): void {
             }
 
             globalState.isLoading = true
-            globalState.loadingAssetsTotal = toLoad.length
-            globalState.loadingAssetsLoaded = 0
-            globalState.loadingLoadedCallback = applyState
+            assets.loadingAssetsTotal = toLoad.length
+            assets.loadingAssetsLoaded = 0
+            assets.loadingLoadedCallback = applyState
 
             for (const img of toLoad) {
                 ensureCycleMask(img)
                 heart.graphics.newImage(img + '.png', (r: HTMLImageElement) => {
-                    globalState.images[img] = r
-                    globalState.loadingAssetsLoaded++
+                    assets.images[img] = r
+                    assets.loadingAssetsLoaded++
                 })
             }
         }

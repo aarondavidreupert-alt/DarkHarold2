@@ -14,7 +14,8 @@
 
 import { Config } from '../config.js'
 import { debug } from '../debug.js'
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
+import { services } from '../state/services.js'
 import * as IDBCache from '../idbcache.js'
 import { dbg } from '../logger.js'
 import { uiWorldMap } from '../ui.js'
@@ -70,7 +71,7 @@ export function registerToggleCommands(): void {
     }
     devWindow.setFpsOverlay = (on: boolean) => {
         Config.ui.showFPS = !!on
-        if (globalState.$fpsOverlay) globalState.$fpsOverlay.style.display = on ? '' : 'none'
+        if (services.$fpsOverlay) services.$fpsOverlay.style.display = on ? '' : 'none'
         console.log(`[DH2] fps overlay ${on ? 'on' : 'off'}`)
     }
     // Console: CE's 480×400 px scroll limit around the player (fallout2.cfg [dh2] scroll_player_limit)
@@ -85,7 +86,7 @@ export function registerToggleCommands(): void {
     // encounters). revealWorldmap(false) reveals without instant travel;
     // setInstantTravel(false) switches it off again.
     devWindow.revealWorldmap = (instant: boolean = true) => {
-        if (globalState.inCombat) {
+        if (world.inCombat) {
             console.warn('[DH2] revealWorldmap: not in combat')
             return
         }

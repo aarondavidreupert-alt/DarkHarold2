@@ -9,7 +9,7 @@ import * as GameTime from '../../gametime.js'
 import { Obj } from '../../object.js'
 import { dbg } from '../../logger.js'
 import { getRandomInt } from '../../util.js'
-import globalState from '../../globalState.js'
+import { world } from '../../state/world.js'
 import { uiLog } from '../../messageLog.js'
 import {
     TOWN_REP_GVARS,
@@ -35,20 +35,20 @@ export const coreOpcodes = {
         log('set_global_var', [gvar, value], 'gvars')
         // CE ref: game.cc:995 gameSetGlobalVar — GVAR 0 is the main karma score
         // Sync to player stat so the character-sheet title display stays current.
-        if (gvar === 0 && globalState.player) {
-            globalState.player.stats.setBase('Karma', typeof value === 'number' ? value : parseInt(value))
+        if (gvar === 0 && world.player) {
+            world.player.stats.setBase('Karma', typeof value === 'number' ? value : parseInt(value))
         }
         // CE ref: scripts.cc:487 gameSetGlobalVar(GVAR_TOWN_REP_ARROYO, ...) —
         // town reps are plain GVARs; sync to player stat so viewer.ts reputation
         // panel reflects script writes instead of only ever reading an unset default.
         const townRepName = TOWN_REP_GVARS[gvar]
-        if (townRepName !== undefined && globalState.player) {
-            globalState.player.stats.setBase('Rep_' + townRepName, typeof value === 'number' ? value : parseInt(value))
+        if (townRepName !== undefined && world.player) {
+            world.player.stats.setBase('Rep_' + townRepName, typeof value === 'number' ? value : parseInt(value))
         }
     },
     set_local_var(this: Script, lvar: number, value: any) {
         // CE scriptSetLocalVar: a map script has no LVARs in scripts.lst — nothing is stored
-        if (globalState.gMap?.mapScript === this) {
+        if (world.gMap?.mapScript === this) {
             warn('set_local_var: map scripts have no local vars')
             return
         }
@@ -60,7 +60,7 @@ export const coreOpcodes = {
         log('local_var', [lvar], 'lvars')
         // CE scriptGetLocalVar: every LVAR exists from the start as 0 and a read
         // never writes (an unset one is 0 here, not stored); a map script's read is −1
-        if (globalState.gMap?.mapScript === this) {
+        if (world.gMap?.mapScript === this) {
             warn('local_var: map scripts have no local vars')
             return -1
         }
@@ -122,8 +122,8 @@ export const coreOpcodes = {
     give_exp_points(this: Script, xp: number) {
         // CE opGiveExpPoints → pcAddExperience: no message — the scripts display their
         // own "You gain %d experience points." (the extra uiLog doubled it)
-        if (!globalState.player) return
-        globalState.player.addExperience(xp)
+        if (!world.player) return
+        world.player.addExperience(xp)
     },
     // combat
     node998(this: Script) {
@@ -172,7 +172,7 @@ export const coreOpcodes = {
     days_since_visited(this: Script) {
         // CE ref: interpreter_extra.cc:3734 opGetDaysSinceLastVisit
         // Returns floor((currentTick - lastVisitTime) / TICKS_PER_DAY), or -1 if never visited.
-        const lastVisit = globalState.gMap?.lastVisitTime ?? 0
+        const lastVisit = world.gMap?.lastVisitTime ?? 0
         if (lastVisit === 0) return -1
         return Math.floor((GameTime.getTime() - lastVisit) / GameTime.TICKS_PER_DAY)
     },

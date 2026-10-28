@@ -17,7 +17,7 @@ limitations under the License.
 // PipBoy ARCHIVES tab — split out of uiPipBoy.ts. See
 // wiki/ts-split-refactor.md → "Per-file split proposals" §12.
 
-import globalState from '../../globalState.js'
+import { services } from '../../state/services.js'
 import {
     gameMovieIsSeen,
     gameMoviePlay,
@@ -54,7 +54,7 @@ export function renderArchivesTab(screen: HTMLDivElement): void {
             row.style.color = ''
         }
         row.onclick = () => {
-            globalState.audioEngine?.playSfxByName?.('ib1p1xx1')
+            services.audioEngine?.playSfxByName?.('ib1p1xx1')
             void gameMoviePlay(movie, GAME_MOVIE_FADE_IN | GAME_MOVIE_FADE_OUT | GAME_MOVIE_PAUSE_MUSIC)
         }
         list.appendChild(row)

@@ -17,7 +17,9 @@ limitations under the License.
 // Barter screen — split out of uiBarter.ts. See wiki/ts-split-refactor.md
 // → "Per-file split proposals" §21.
 
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
+import { uiState } from '../state/uiState.js'
+import { assets } from '../state/assets.js'
 import { relinkTradedHands, tradeHeldAside } from '../inventoryWield.js'
 import { dbg, dbgWarn } from '../logger.js'
 import { Critter, cloneItem, Obj } from '../object.js'
@@ -59,7 +61,7 @@ export function renderBarterPortrait(
 ): void {
     const art = critter.art
     if (!art) return
-    const info = globalState.imageInfo?.[art]
+    const info = assets.imageInfo?.[art]
     if (!info) return
 
     // Clamp direction to the number of directions actually in this FRM (some
@@ -106,7 +108,7 @@ export function renderBarterPortrait(
         ctx.drawImage(img, sx, sy, fw, fh, dx, dy, dw, dh)
     }
 
-    const img = globalState.images?.[art] as HTMLImageElement | undefined
+    const img = assets.images?.[art] as HTMLImageElement | undefined
     if (img?.complete) {
         draw(img)
     } else {
@@ -177,13 +179,13 @@ function uiEndBarterMode() {
         Scripting.reenterDialogue()
     })
 
-    globalState.uiMode = UIMode.dialogue
+    uiState.uiMode = UIMode.dialogue
 }
 
 let barterMerchant: Critter | null = null
 
 export function uiBarterMode(merchant: Critter) {
-    globalState.uiMode = UIMode.barter
+    uiState.uiMode = UIMode.barter
     barterMerchant = merchant
     endLips() // CE gameDialogBarterButtonUpMouseUp: the speech stops
 
@@ -210,9 +212,9 @@ export function uiBarterMode(merchant: Critter) {
         // CE ref: inventory.cc:2039-2052 _display_body — player at (15,25),
         // barterer at (560,25), both 60x100. Player: ROTATION_SW, frame 0,
         // then spin via 167ms timer. NPC: stored orientation, last frame.
-        if (globalState.player) {
+        if (world.player) {
             // CE _display_body(fid, TRADE): the dude stands facing south-west (no turning)
-            renderBarterPortrait($id('barterBoxPlayerPortrait'), globalState.player, false)
+            renderBarterPortrait($id('barterBoxPlayerPortrait'), world.player, false)
         }
         renderBarterPortrait($id('barterBoxMerchantPortrait'), merchant, true)
     })
@@ -221,7 +223,7 @@ export function uiBarterMode(merchant: Critter) {
     // TODO: would it be better if we dropped the "working" copies?
 
     // a copy of inventories for both parties
-    let workingPlayerInventory = globalState.player!.inventory.map(cloneItem)
+    let workingPlayerInventory = world.player!.inventory.map(cloneItem)
     const heldAside = tradeHeldAside(merchant, false) // CE: worn armor / right-hand item not for trade
     let workingMerchantInventory = merchant.inventory.filter((it) => !heldAside.includes(it)).map(cloneItem)
 
@@ -258,7 +260,7 @@ export function uiBarterMode(merchant: Critter) {
     // balancedCost = (160 + npcBarter) / (160 + playerBarter) * costWithoutCaps * 2
     // result = trunc(barterModMult * balancedCost) + caps
     function barterMinPlayerOffer(merchantTable: Obj[]): number {
-        const player = globalState.player
+        const player = world.player
 
         const totalCost = totalAmount(merchantTable)
         const capsInTable = Scripting.itemGetTotalCaps({ inventory: merchantTable } as unknown as Obj) // itemGetTotalCaps(_btable)
@@ -267,7 +269,7 @@ export function uiBarterMode(merchant: Critter) {
         // CE partyGetBestSkillValue(SKILL_BARTER): the best Barter in the party (the dude
         // included, hidden members not); skillGetValue already holds the difficulty bonus.
         let playerBarter = 0
-        for (const c of globalState.gParty?.getPartyMembersAndPlayer() ?? [player]) {
+        for (const c of world.gParty?.getPartyMembersAndPlayer() ?? [player]) {
             if (!c || c.visible === false) continue
             playerBarter = Math.max(playerBarter, c.getSkill?.('Barter') ?? 0)
         }
@@ -310,7 +312,7 @@ export function uiBarterMode(merchant: Critter) {
 
         // CE inventory.cc _barter_attempt_transaction: first the weight — "Sorry, you cannot
         // carry that much." (31) — then an empty offer or one worth less is "not good enough".
-        const player = globalState.player
+        const player = world.player
         const tableWeight = merchantBarterTable.reduce((w, o) => w + o.stackWeight(o.amount ?? 1), 0)
         const carried =
             workingPlayerInventory.reduce((w, o) => w + o.stackWeight(o.amount ?? 1), 0) +
@@ -352,19 +354,19 @@ export function uiBarterMode(merchant: Critter) {
 
             // swap to working inventories
             merchant.inventory = [...heldAside, ...workingMerchantInventory]
-            globalState.player!.inventory = workingPlayerInventory
+            world.player!.inventory = workingPlayerInventory
 
             // add in the table items
             for (let i = 0; i < merchantBarterTable.length; i++) {
-                globalState.player!.addInventoryItem(merchantBarterTable[i], merchantBarterTable[i].amount)
+                world.player!.addInventoryItem(merchantBarterTable[i], merchantBarterTable[i].amount)
             }
             for (let i = 0; i < playerBarterTable.length; i++) {
                 merchant.addInventoryItem(playerBarterTable[i], playerBarterTable[i].amount)
             }
 
             // re-clone so we can continue bartering if necessary
-            workingPlayerInventory = globalState.player!.inventory.map(cloneItem)
-            relinkTradedHands(merchant, globalState.player!)
+            workingPlayerInventory = world.player!.inventory.map(cloneItem)
+            relinkTradedHands(merchant, world.player!)
             workingMerchantInventory = merchant.inventory.filter((it) => !heldAside.includes(it)).map(cloneItem)
 
             playerBarterTable = []
@@ -527,7 +529,7 @@ export function uiBarterMode(merchant: Critter) {
     // CE inventoryOpenTrade keys: T talk (back to the dialogue), M make the offer
     if (barterKeyHandler) window.removeEventListener('keydown', barterKeyHandler)
     barterKeyHandler = (e: KeyboardEvent) => {
-        if (globalState.uiMode !== UIMode.barter) return
+        if (uiState.uiMode !== UIMode.barter) return
         const k = e.key.toLowerCase()
         if (k === 't') uiEndBarterMode()
         else if (k === 'm') offer()

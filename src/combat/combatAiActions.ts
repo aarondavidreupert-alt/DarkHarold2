@@ -14,7 +14,9 @@ import { critterArtShouldRun } from '../pro.js'
 import { critterSetWhoHitMe } from './whoHitMe.js'
 import { dbg, eventLogPush } from '../logger.js'
 import { getMessage } from '../util.js'
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
+import { services } from '../state/services.js'
+import { assets } from '../state/assets.js'
 import { invenWield, invenWieldAnimated } from '../inventoryWield.js'
 import { nextShootObstacle } from './lineOfFire.js'
 import { pathfinderFindPathPoints } from '../map/pathfinder.js'
@@ -140,7 +142,7 @@ export const combatAiActionMethods = {
                         return 'acting'
                     }
                     // Step along the path until the chance from a tile reaches min_to_hit.
-                    const path = globalState.gMap!.recalcPath(obj.position, target.position, false, obj)
+                    const path = world.gMap!.recalcPath(obj.position, target.position, false, obj)
                     let steps = AP.getAvailableMoveAP()
                     if (path.length > 1) {
                         steps = 0
@@ -243,7 +245,7 @@ export const combatAiActionMethods = {
         if (inHand && inHand.pid !== undefined) return 'retry'
         const defenderBiped = (target.pro?.extra?.bodyType ?? 0) === 0
         const defenderUnarmed = defenderUnarmedNow(target) // CE: the fid's weapon code is 0
-        if (defenderBiped && defenderUnarmed && globalState.imageInfo![obj.getBase() + 'ap']) return 'retry'
+        if (defenderBiped && defenderUnarmed && assets.imageInfo![obj.getBase() + 'ap']) return 'retry'
         const r = this.aiSwitchWeapons(obj, target, again)
         return r === 'fail' ? 'retry' : r
     },
@@ -303,7 +305,7 @@ export const combatAiActionMethods = {
         if (floorAmmo && this.aiRetrieveObject(obj, floorAmmo, again)) return 'acting'
         const soundId = (wObj as any).pro?.extra?.soundID
         if (typeof soundId === 'number' && !window.__test?.fastMode) {
-            globalState.audioEngine.playWeaponSfx(String.fromCharCode(soundId), 'empty', undefined, obj)
+            services.audioEngine.playWeaponSfx(String.fromCharCode(soundId), 'empty', undefined, obj)
         }
         uiLog(`${obj.name} ${getMessage('misc', 5001) ?? 'is out of ammo for the'} ${wObj.name}.`)
         const a = obj as any
@@ -326,7 +328,7 @@ export const combatAiActionMethods = {
         else AP.subtractCombatAP(cost)
         const soundId = wObj.pro?.extra?.soundID
         if (typeof soundId === 'number' && !window.__test?.fastMode) {
-            globalState.audioEngine.playWeaponSfx(String.fromCharCode(soundId), 'reload', undefined, obj)
+            services.audioEngine.playWeaponSfx(String.fromCharCode(soundId), 'reload', undefined, obj)
         }
         combatDebug(`AI ${obj.name}: reloaded ${loaded} rounds`)
         this.aiMagicHands(obj, wObj, 5002, then)
@@ -405,7 +407,7 @@ export const combatAiActionMethods = {
         // An item fetched last turn (aiInfoGetLastItem), or nothing usable carried: look
         // for a usable item on the floor.
         const last: Obj | null = obj.aiLastItem ?? null
-        if (last && !globalState.gMap!.getObjects().includes(last)) obj.aiLastItem = null
+        if (last && !world.gMap!.getObjects().includes(last)) obj.aiLastItem = null
         if ((obj.aiLastItem || (!st.drugUsed && st.healSearchDone)) && !st.envSearched) {
             st.envSearched = true
             const item =
@@ -456,7 +458,7 @@ export const combatAiActionMethods = {
         target: Critter | null,
     ): Obj | null {
         if ((obj.pro?.extra?.bodyType ?? 0) !== 0) return null
-        const gMap = globalState.gMap
+        const gMap = world.gMap
         if (!gMap) return null
         const reach = obj.getStat('PER') + 5
         const items = gMap
@@ -485,7 +487,7 @@ export const combatAiActionMethods = {
         if (obj.crippledLeftArm && obj.crippledRightArm) return false
         const twoHanded = ((item.pro?.extra?.weaponFlags ?? 0) & 0x02) !== 0
         if ((obj.crippledLeftArm || obj.crippledRightArm) && twoHanded) return false
-        if (!globalState.imageInfo![obj.getBase() + weapon.getAnim('attack')]) return false
+        if (!assets.imageInfo![obj.getBase() + weapon.getAnim('attack')]) return false
         const packet = obj.ai!.packet
         if (obj.getSkill(weapon.weaponSkillType) < packet.minToHit) return false
         return (Combat.WEAP_PREF_ORDERINGS[packet.bestWeapon] ?? []).includes(weaponAttackType(item))
@@ -493,14 +495,14 @@ export const combatAiActionMethods = {
     // CE combat_ai.cc _ai_retrieve_object (actionPickUp): walk to the item with this
     // turn's AP and pick it up; if it is out of reach this turn the walk still happens.
     aiRetrieveObject(this: Combat, obj: Critter, item: Obj, then: () => void): boolean {
-        const gMap = globalState.gMap
+        const gMap = world.gMap
         if (!gMap) return false
         const pick = (): void => {
             if (!gMap.getObjects().includes(item)) return then()
             const take = (): void => {
                 obj.addInventoryItem(item, item.amount)
                 gMap.destroyObject(item)
-                if (!window.__test?.fastMode) globalState.audioEngine.playSfxByName('ipickup1')
+                if (!window.__test?.fastMode) services.audioEngine.playSfxByName('ipickup1')
                 obj.clearAnim()
                 then()
             }
@@ -549,7 +551,7 @@ export const combatAiActionMethods = {
         if (steps <= 0) return false
         const packet = obj.ai!.packet
         if (packet.distance === 'stay') return false
-        const player = globalState.player
+        const player = world.player
         if (packet.distance === 'stay_close' && player && target !== player) {
             const d = hexDistance(obj.position, player.position)
             if (d > 5 && hexDistance(target.position, player.position) > 5 && d + steps > 5) return false
@@ -560,7 +562,7 @@ export const combatAiActionMethods = {
         const run = steps >= Math.trunc(obj.AP!.getMaxAP() / 2) && obj.canRun() && critterArtShouldRun(obj.art)
         // CE _ai_move_steps_closer: the "move" taunt comes first
         if (taunt) this.maybeTaunt(obj, 'move')
-        const gMap = globalState.gMap!
+        const gMap = world.gMap!
         const elevation = obj.elevation ?? gMap.currentElevation
         // No path to the target's tile: the first critter in the way (_obj_ai_blocking_at's
         // _moveBlockObj) becomes the one to move to
@@ -614,7 +616,7 @@ export const combatAiActionMethods = {
         const AP = obj.AP!
         let steps = Math.min(maxSteps, AP.getAvailableMoveAP())
         const rotation = hexDirectionTo(from.position, obj.position)
-        const gMap = globalState.gMap!
+        const gMap = world.gMap!
         for (; steps > 0; steps--) {
             for (const rot of [rotation, (rotation + 1) % 6, (rotation + 5) % 6]) {
                 const dest = hexInDirectionDistance(obj.position, rot, steps)
@@ -632,7 +634,7 @@ export const combatAiActionMethods = {
     // CE combat_ai.cc _ai_run_away: within max_dist of the threat the critter is
     // FLEEING and runs away with all its AP (taunt "run"); beyond it, it disengages.
     aiRunAway(this: Combat, obj: Critter, from: Critter | null, then: () => void): boolean {
-        const threat = from ?? (globalState.player as Critter)
+        const threat = from ?? (world.player as Critter)
         if (!threat) return false
         const packet = obj.ai!.packet
         if (hexDistance(obj.position, threat.position) < packet.maxDist) {
@@ -671,7 +673,7 @@ export const combatAiActionMethods = {
                 break
             }
         }
-        const gMap = globalState.gMap!
+        const gMap = world.gMap!
         let best: Point | null = null
         for (const c of candidates) {
             if (gMap.blockingObjectAt(toTileNum(c), source.elevation, 0, null)) continue

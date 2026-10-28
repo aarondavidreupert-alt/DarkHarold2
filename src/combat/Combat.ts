@@ -3,7 +3,10 @@ import { Config } from '../config.js'
 import { critterKill } from '../critter.js'
 import * as GameTime from '../gametime.js'
 import { hexDistance, hexLine, Point } from '../geometry.js'
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
+import { uiState } from '../state/uiState.js'
+import { services } from '../state/services.js'
+import { assets } from '../state/assets.js'
 import { eventLogPush, dbg, dbgWarn } from '../logger.js'
 import { Critter, itemIsHidden, Obj } from '../object.js'
 import { invenUnwield } from '../inventoryWield.js'
@@ -291,7 +294,7 @@ export interface CombatStartData {
 // CE combat.cc attackComputeDamage — the combat-difficulty damage modifier applies
 // only to attackers outside the player's team.
 export function combatDifficultyDamageModifier(attacker: Critter): number {
-    const player = globalState.player
+    const player = world.player
     if (player && attacker.teamNum === player.teamNum) return 100
     return Config.combat.difficultyModifier
 }
@@ -453,8 +456,8 @@ export function aiAttemptWeaponReload(c: Critter): void {
     if (!ammo) return
     const rc = weaponReload(w, ammo)
     if (rc === 0) ammoUseTopBox(ammo, c.inventory)
-    if (rc !== -1 && globalState.gParty?.isPartyMember(c) && !window.__test?.fastMode) {
-        globalState.audioEngine?.playSfxByName?.(sfxBuildWeaponName(0, w, false, null).toLowerCase(), c)
+    if (rc !== -1 && world.gParty?.isPartyMember(c) && !window.__test?.fastMode) {
+        services.audioEngine?.playSfxByName?.(sfxBuildWeaponName(0, w, false, null).toLowerCase(), c)
     }
 }
 
@@ -463,8 +466,8 @@ export function aiAttemptWeaponReload(c: Critter): void {
 // critters are never part of `this.combatants` — the normal per-combatant
 // outline-clearing loops never reach them.
 function clearNeutralOutlines(): void {
-    if (!globalState.gMap) return
-    for (const obj of globalState.gMap.getObjects()) {
+    if (!world.gMap) return
+    for (const obj of world.gMap.getObjects()) {
         if (obj instanceof Critter && obj.outline === 'blue') {
             obj.outline = null
         }
@@ -537,7 +540,7 @@ export class Combat {
         // Stop the player from walking combat is initiating
         this.player.clearAnim()
 
-        if (!window.__test?.fastMode) globalState.audioEngine.playSfxByName('icombat1')
+        if (!window.__test?.fastMode) services.audioEngine.playSfxByName('icombat1')
         uiStartCombat()
     }
 
@@ -584,7 +587,7 @@ export class Combat {
             if (attacker.crippledLeftArm && attacker.crippledRightArm) continue
             if ((attacker.crippledLeftArm || attacker.crippledRightArm) && twoHanded) continue
             const attackArt = attacker.getBase() + weapon.getAnim('attack')
-            if (!globalState.imageInfo![attackArt]) continue
+            if (!assets.imageInfo![attackArt]) continue
             if (attacker.getSkill(weapon.weaponSkillType) < packet.minToHit) continue
             const attackType = weaponAttackType(item)
             if (!prefs.includes(attackType)) continue
@@ -598,7 +601,7 @@ export class Combat {
     // CE combat_ai.cc _ai_search_inven_armor: party members only — the inventory armor
     // with the highest AC + Σ(DR + DT) over all damage types, if it beats the worn one.
     static aiSearchInvenArmor(critter: Critter): Obj | null {
-        if (!globalState.gParty?.isPartyMember(critter)) return null
+        if (!world.gParty?.isPartyMember(critter)) return null
         const DAMAGE_TYPES = ['Normal', 'Laser', 'Fire', 'Plasma', 'Electrical', 'EMP', 'Explosive']
         const score = (a: Obj): number => {
             const ex = a.pro?.extra ?? {}
@@ -635,7 +638,7 @@ export class Combat {
         const best = packet.bestWeapon
         if (best === 'random') return randomBetween(1, 100) <= 50 ? w1 : w2
         const prefs = Combat.WEAP_PREF_ORDERINGS[best] ?? []
-        const combat = globalState.combat
+        const combat = world.combat
         const PROTO_ID_FLARE = 79
         const score = (w: Obj | null): { avg: number; order: number; cost: number; hidden: boolean } => {
             if (!w) {
@@ -716,7 +719,7 @@ export class Combat {
         // CE combat.cc _damage_object: a kill by the player or the player's team adds
         // the victim's proto experience to _combat_exps unless its destroy_p_proc
         // overrode it; _combat_over hands it out.
-        const player = globalState.player
+        const player = world.player
         if (
             attacker &&
             player &&
@@ -738,7 +741,7 @@ export class Combat {
 
     // CE combat.cc _combat_give_exps — the XP and proto.msg 621 with a random prefix
     static giveExps(xp: number): void {
-        const player = globalState.player as Player | null
+        const player = world.player as Player | null
         if (xp <= 0 || !player || player.dead) return
         const before = player.stats.get('Experience')
         player.addExperience(xp)
@@ -898,8 +901,8 @@ export class Combat {
         }
         combatState.combatActive = true
         // begin combat
-        globalState.inCombat = true
-        const player = globalState.player!
+        world.inCombat = true
+        const player = world.player!
         const triggerTeams = new Set([player.teamNum])
         if (forceTurn && forceTurn.teamNum >= 0) {
             // NPC-initiated: enroll only the player's team and the attacker's team.
@@ -908,7 +911,7 @@ export class Combat {
             // Player-initiated (attack button / encounter): collect all NPC teams on
             // the map so enemy critters can participate. nextTurn() gates actual
             // activity via the hostile flag, so neutral critters still do nothing.
-            for (const obj of globalState.gMap!.getObjects()) {
+            for (const obj of world.gMap!.getObjects()) {
                 if (obj instanceof Critter && !obj.dead && !obj.isPlayer && obj.teamNum >= 0)
                     triggerTeams.add(obj.teamNum)
             }
@@ -919,16 +922,16 @@ export class Combat {
             triggerTeams.add(-1)
         }
         combatDebug(`start: triggerTeams=[${[...triggerTeams].join(',')}]`)
-        globalState.combat = new Combat(globalState.gMap!.getObjects(), triggerTeams)
-        globalState.combat.gcsd = gcsd ?? null
+        world.combat = new Combat(world.gMap!.getObjects(), triggerTeams)
+        world.combat.gcsd = gcsd ?? null
         // CE combat.cc _combat_begin: damageLastTurn starts at 0 for every combatant
-        for (const c of globalState.combat.combatants) c.damageLastTurn = 0
+        for (const c of world.combat.combatants) c.damageLastTurn = 0
 
         if (teamCombat) {
             // CE combat_ai.cc _caiSetupTeamCombat (worldmap encounters only): every
             // critter is ENGAGING, and _caiTeamCombatInit gives each member of the two
             // teams the nearest member of the other as whoever hit it.
-            const c = globalState.combat
+            const c = world.combat
             const [attackerTeamObj, targetTeamObj] = teamCombat
             for (const critter of c.combatants) {
                 if (critter.dead || critter.isPlayer) continue
@@ -940,18 +943,18 @@ export class Combat {
                 }
             }
         }
-        globalState.combat.sequenceInit(forceTurn ?? gcsd?.attacker ?? null, gcsd?.defender ?? null)
+        world.combat.sequenceInit(forceTurn ?? gcsd?.attacker ?? null, gcsd?.defender ?? null)
 
         eventLogPush({
             actor: null,
             action: 'combat-start',
             triggerTeams: [...triggerTeams],
-            combatants: globalState.combat.combatants.map((c) => actorName(c)),
+            combatants: world.combat.combatants.map((c) => actorName(c)),
             message: 'Combat started',
         })
 
-        globalState.combat.nextTurn()
-        globalState.gMap!.updateMap()
+        world.combat.nextTurn()
+        world.gMap!.updateMap()
     }
 
     // CE combat.cc _combat_delete_critter: out of the turn order (the current turn stays
@@ -984,9 +987,9 @@ export class Combat {
     static restore(data: SavedCombat): void {
         if (combatState.combatActive) return
         combatState.combatActive = true
-        globalState.inCombat = true
-        const c = new Combat(globalState.gMap!.getObjects())
-        globalState.combat = c
+        world.inCombat = true
+        const c = new Combat(world.gMap!.getObjects())
+        world.combat = c
         const byUid = new Map(c.combatants.map((x) => [x.uid, x] as [number, Critter]))
         // exactly the saved list (CE reads the cids back); the player is always in it
         const ordered = data.order.map((u) => byUid.get(u)).filter((x): x is Critter => !!x)
@@ -1028,16 +1031,16 @@ export class Combat {
 
         combatDebug('end combat')
         eventLogPush({ actor: null, action: 'combat-end', result, message: 'Combat ended' })
-        globalState.combat = null // todo: invert control
-        globalState.inCombat = false
+        world.combat = null // todo: invert control
+        world.inCombat = false
         combatState.combatActive = false
         this.dudeWakeUp()
 
         // CE ref: interface.cc:1455 interfaceBarEndButtonsHide — plays icibcxx1 when buttons close
-        if (!window.__test?.fastMode) globalState.audioEngine.playSfxByName('icibcxx1')
+        if (!window.__test?.fastMode) services.audioEngine.playSfxByName('icibcxx1')
         this.player.AP?.resetAP() // CE ref: combat.cc:2811
         this.giveExps() // CE ref: combat.cc:2816
-        globalState.gMap!.updateMap()
+        world.gMap!.updateMap()
         uiEndCombat()
     }
 
@@ -1046,7 +1049,7 @@ export class Combat {
     // damage-last-turn are cleared.
     private combatOver(): void {
         // CE combat.cc _combat_over: who hit whom is forgotten for every critter on the elevation
-        for (const o of globalState.gMap?.getObjects() ?? []) if (o.type === 'critter') (o as any).whoHitMe = null
+        for (const o of world.gMap?.getObjects() ?? []) if (o.type === 'critter') (o as any).whoHitMe = null
         for (const c of this.combatants) {
             c.fleeing = false
             c.disengaging = false
@@ -1078,13 +1081,13 @@ export class Combat {
         this.combatOver()
         combatDebug('end combat (forced by script)')
         eventLogPush({ actor: null, action: 'combat-end', result: 'forced', message: 'Combat ended (forced)' })
-        globalState.combat = null
-        globalState.inCombat = false
+        world.combat = null
+        world.inCombat = false
         this.dudeWakeUp()
-        if (!window.__test?.fastMode) globalState.audioEngine.playSfxByName('icibcxx1')
+        if (!window.__test?.fastMode) services.audioEngine.playSfxByName('icibcxx1')
         this.player.AP?.resetAP() // CE ref: combat.cc:2811
         this.giveExps() // CE ref: combat.cc:2816
-        globalState.gMap?.updateMap()
+        world.gMap?.updateMap()
         uiEndCombat()
         // Defer flag reset so the current script execution frame finishes
         // before a new combat can be started (prevents the map_update_p_proc
@@ -1100,11 +1103,11 @@ export class Combat {
      * (0x20000000) along the interior hex-line. Hidden objects are ignored.
      */
     hasLineOfSight(from: Point, to: Point): boolean {
-        if (!globalState.gMap) return true
+        if (!world.gMap) return true
         const line = hexLine(from, to) ?? []
         if (line.length <= 2) return true // adjacent — always visible
         const interior = line.slice(1, -1)
-        const mapObjects = globalState.gMap.getObjects()
+        const mapObjects = world.gMap.getObjects()
         const LIGHT_THRU = 0x20000000
         for (const pos of interior) {
             for (const o of mapObjects) {
@@ -1194,7 +1197,7 @@ export class Combat {
             drawAC(this.player.getStat('AC'))
             // CE ref: combat.cc:3276 / interface.cc interfaceBarEndButtonsRenderGreenLights —
             // green lights + icombat2 when player's turn begins (buttons enabled)
-            if (!window.__test?.fastMode) globalState.audioEngine.playSfxByName('icombat2')
+            if (!window.__test?.fastMode) services.audioEngine.playSfxByName('icombat2')
             uiEndButtonsGreenLights()
             eventLogPush({
                 actor: actorName(this.player),
@@ -1208,7 +1211,7 @@ export class Combat {
             drawAP(0, this.player.AP!.getTotalMaxAP(), 0, false)
             // CE ref: interface.cc interfaceBarEndButtonsRenderRedLights —
             // red lights + icombat1 during AI turns (buttons disabled)
-            if (!window.__test?.fastMode) globalState.audioEngine.playSfxByName('icombat1')
+            if (!window.__test?.fastMode) services.audioEngine.playSfxByName('icombat1')
             uiEndButtonsRedLights()
             const critter = this.combatants[this.whoseTurn]
             // CE: only combatants act — party members too join first (_combat_add_noncoms,
@@ -1253,7 +1256,7 @@ export class Combat {
     // after (non-combatants have 0, CE _combat_begin). The player's HtH Evade with no
     // weapon in either hand doubles it and adds Unarmed / 12.
     unusedApAC(c: Critter): number {
-        if (!globalState.inCombat || !c.AP || !this.isActiveCombatant(c)) return 0
+        if (!world.inCombat || !c.AP || !this.isActiveCombatant(c)) return 0
         if (this.combatants[this.whoseTurn] === c) return 0
         let apMult = 1,
             evade = 0
@@ -1301,24 +1304,23 @@ export class Combat {
      *  combat started via the attack button before anyone had actually
      *  been shot. */
     refreshHighlights(): void {
-        if (!globalState.player || !globalState.gMap) return
+        if (!world.player || !world.gMap) return
         const th = Config.ui.targetHighlight as string | boolean
-        const wantHighlight =
-            th === 'on' || th === true || (th === 'targeting-only' && globalState.cursorMode === 'attack')
+        const wantHighlight = th === 'on' || th === true || (th === 'targeting-only' && uiState.cursorMode === 'attack')
 
-        for (const obj of globalState.gMap.getObjects()) {
+        for (const obj of world.gMap.getObjects()) {
             if (!(obj instanceof Critter)) continue
             if (obj.dead || obj.isPlayer || !obj.visible) continue
             if (!wantHighlight) {
                 obj.outline = null
                 continue
             }
-            const sameTeam = obj.teamNum === globalState.player.teamNum
+            const sameTeam = obj.teamNum === world.player.teamNum
             if (Config.ui.combatOutline === 'ce') {
                 // CE combat.cc _combat_update_critter_outline_for_los: in the dude's line of
                 // fire green / red by team; out of it, within PER × 5 hexes (half through
                 // glass, OBJECT_TRANS_GLASS) OUTLINE_TYPE_32; farther, none
-                const player = globalState.player
+                const player = world.player
                 if (!combatIsShotBlocked(player, player.position, obj.position, obj).blocked) {
                     obj.outline = sameTeam ? 'green' : 'red'
                 } else {

@@ -7,7 +7,7 @@
 //  - 2000 open / 2000 closed nodes at most (else no path), 800 steps returned at most,
 //  - a closed door only lets through a critter that canUseDoor.
 
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
 import { hexInDirection, hexToScreen, HEX_GRID_SIZE, Point } from '../geometry.js'
 import type { Obj } from '../object.js'
 import { Config } from '../config.js'
@@ -25,7 +25,7 @@ const BODY_TYPE_ROBOTIC = 2
 // scenery data & 0x04 — no F2 door has it, the player opens doors himself); other
 // critters through any unlocked door if biped or robotic and not a gecko.
 export function canUseDoor(critter: Obj, door: Obj): boolean {
-    if (critter === globalState.player) {
+    if (critter === world.player) {
         if (((door.pro?.extra?.walkthroughFlag ?? 0) & 0x04) === 0) return false
     }
     if (critter.type !== 'critter') return false
@@ -69,7 +69,7 @@ function blockingMap(
     const block = new Map<number, Obj>()
     const goo = new Set<number>()
     const W = HEX_GRID_SIZE
-    for (const o of globalState.gMap?.getObjects(elevation) ?? []) {
+    for (const o of world.gMap?.getObjects(elevation) ?? []) {
         if (!o.position || o === mover) continue
         const { x, y } = o.position
         if (x < 0 || x >= W || y < 0 || y >= W) continue
@@ -129,7 +129,7 @@ export function pathfinderFindPath(
     const W = HEX_GRID_SIZE
     const fromTile = from.y * W + from.x
     const toTile = to.y * W + to.x
-    const elevation = mover?.elevation ?? globalState.gMap?.currentElevation ?? 0
+    const elevation = mover?.elevation ?? world.gMap?.currentElevation ?? 0
     const { block, goo } = blockingMap(mover, elevation, shoot)
 
     if (goalMustBeFree && block.has(toTile)) return []
@@ -139,7 +139,7 @@ export function pathfinderFindPath(
     // neither the player nor an NPC walks into the black. A mover already outside can
     // still walk; scripts' move_to doesn't path.
     const border =
-        (!shoot || shoot === 'ai') && Config.ui.walkLimitToBorder && elevation === globalState.gMap?.currentElevation
+        (!shoot || shoot === 'ai') && Config.ui.walkLimitToBorder && elevation === world.gMap?.currentElevation
             ? walkBorderBounds()
             : null
     const inside = (x: number, y: number): boolean => {
@@ -151,7 +151,7 @@ export function pathfinderFindPath(
 
     const isCritter = mover?.type === 'critter'
     const isGecko = isCritter && ((mover as any).killType ?? 0) === KILL_TYPE_GECKO
-    const notInCombat = !globalState.inCombat
+    const notInCombat = !world.inCombat
 
     const processed = new Uint8Array(W * W)
     processed[fromTile] = 1

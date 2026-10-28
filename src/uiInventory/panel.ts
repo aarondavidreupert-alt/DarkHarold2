@@ -22,7 +22,10 @@ import { ammoGetCapacity, ammoGetQuantity, ammoSplitOff, weaponGetAmmoTypePid } 
 import { weaponAttackType } from '../combat/hitChance.js'
 import { Combat } from '../combat.js'
 import { loadPRO } from '../pro.js'
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
+import { uiState } from '../state/uiState.js'
+import { services } from '../state/services.js'
+import { assets } from '../state/assets.js'
 import { dbg } from '../logger.js'
 import { lazyLoadImage } from '../images.js'
 import { Obj, cloneItem, testDroppedExplosive } from '../object.js'
@@ -81,11 +84,11 @@ export function closeInventory(): void {
     exitAllContainers()
     if (!isInventoryOpen()) return
     // CE _exit_inventory: the dropped explosive's would-be victims may notice
-    if (droppedExplosive && globalState.player) testDroppedExplosive(globalState.player)
+    if (droppedExplosive && world.player) testDroppedExplosive(world.player)
     droppedExplosive = false
-    globalState.uiMode = UIMode.none
+    uiState.uiMode = UIMode.none
     $id('inventoryBox').style.visibility = 'hidden'
-    if (globalState.player) globalState.player.clearAnim?.()
+    if (world.player) world.player.clearAnim?.()
     uiDrawWeapon()
     Events.off('statsChanged', onStatsChangedRefresh)
 }
@@ -93,10 +96,10 @@ export function closeInventory(): void {
 // a button's press / release sounds (CE button.cc buttonSetCallbacks)
 function buttonSounds($el: HTMLElement, press: string, release: string): void {
     $el.addEventListener('mousedown', (e) => {
-        if (e.button === 0) globalState.audioEngine?.playSfxByName?.(press)
+        if (e.button === 0) services.audioEngine?.playSfxByName?.(press)
     })
     $el.addEventListener('mouseup', (e) => {
-        if (e.button === 0) globalState.audioEngine?.playSfxByName?.(release)
+        if (e.button === 0) services.audioEngine?.playSfxByName?.(release)
     })
 }
 
@@ -123,9 +126,9 @@ export function initInventory(): void {
     // Inventory panel is a static DOM element — wire drag once at init.
     makePanelDraggable($id('inventoryBox'), 'inventory')
     $id('inventoryDoneButton').onclick = () => {
-        globalState.uiMode = UIMode.none
+        uiState.uiMode = UIMode.none
         $id('inventoryBox').style.visibility = 'hidden'
-        globalState.player!.clearAnim()
+        world.player!.clearAnim()
         uiDrawWeapon()
     }
     // CE inventory.cc _setup_inventory: the Done button is a red button
@@ -156,15 +159,15 @@ export function showInventory(useOn = false) {
     if (!useOn && !isInventoryOpen()) useOnTarget = null
     const wasOpen = isInventoryOpen()
     // CE inventory.cc inventoryOpen: in combat, too few AP → inventry.msg 19 and no window
-    if (!wasOpen && !useOn && !useOnTarget && globalState.inCombat && globalState.player?.AP) {
-        const player = globalState.player
+    if (!wasOpen && !useOn && !useOnTarget && world.inCombat && world.player?.AP) {
+        const player = world.player
         const apCost = Math.max(0, 4 - 2 * (player.hasPerk('Quick Pockets') ? 1 : 0))
         if (apCost > 0 && apCost > player.AP!.getAvailableCombatAP()) {
             uiLog(getMessage('inventry', 19) ?? "You don't have enough action points to use inventory")
             return
         }
     }
-    globalState.uiMode = UIMode.inventory
+    uiState.uiMode = UIMode.inventory
     if (!wasOpen) exitAllContainers()
     if (!wasOpen) {
         Events.off('statsChanged', onStatsChangedRefresh)
@@ -173,8 +176,8 @@ export function showInventory(useOn = false) {
 
     // CE ref: inventory.cc inventoryOpen() — deduct AP on first open during combat
     // Base cost: 4; Quick Pockets perk reduces by 2 per rank (CE: PERK_QUICK_POCKETS id=35)
-    if (!wasOpen && !useOnTarget && globalState.inCombat && globalState.player?.AP) {
-        const player = globalState.player
+    if (!wasOpen && !useOnTarget && world.inCombat && world.player?.AP) {
+        const player = world.player
         const qpRank = player.hasPerk('Quick Pockets') ? 1 : 0
         const apCost = Math.max(0, 4 - 2 * qpRank)
         if (apCost > 0) {
@@ -198,7 +201,7 @@ export function showInventory(useOn = false) {
         // CE inventory.cc inventoryExamineItem: _obj_examine_func (description_p_proc, the
         // proto description, the weapon / ammo lines), then "It weighs %d pound(s)."
         // (proto.msg 540 / 541 for one pound) unless the item weighs nothing
-        const lines = globalState.player ? objExamine(globalState.player, obj) : []
+        const lines = world.player ? objExamine(world.player, obj) : []
         const weight = obj.getWeight() // CE itemGetWeight
         if (weight !== 0) {
             const fmt = getProtoMsg(weight === 1 ? 541 : 540) ?? 'It weighs %d pounds.'
@@ -215,7 +218,7 @@ export function showInventory(useOn = false) {
     function showStats() {
         const $info = $id('inventoryBoxInfo')
         clearEl($info)
-        const p = globalState.player
+        const p = world.player
         const playerAny = p as any
 
         const addHR = () => {
@@ -402,14 +405,14 @@ export function showInventory(useOn = false) {
             return
         }
 
-        const art = globalState.player!.getAnimation('idle')
+        const art = world.player!.getAnimation('idle')
         let currentOrientation = 0
 
         const canvas = document.createElement('canvas')
         $char.appendChild(canvas)
 
         const renderOrientation = (img: HTMLImageElement, orientation: number) => {
-            const info = globalState.imageInfo?.[art]
+            const info = assets.imageInfo?.[art]
             if (!info) return
             const numOrientations = Object.keys(info.frameOffsets).length
             if (numOrientations === 0) return
@@ -455,8 +458,8 @@ export function showInventory(useOn = false) {
         const $weight = document.getElementById('inventoryBoxWeight')
         if (!$weight) return
         // CE item.cc objectGetInventoryWeight / STAT_CARRY_WEIGHT
-        const current = globalState.player!.getInventoryWeight()
-        const max = globalState.player!.getStat('Carry')
+        const current = world.player!.getInventoryWeight()
+        const max = world.player!.getStat('Carry')
         $weight.textContent = `Wt: ${current}/${max}`
     }
 
@@ -523,7 +526,7 @@ export function showInventory(useOn = false) {
             if (invObj.subtype === 'container') {
                 const bag = invObj
                 makeDropTarget(img, (data: string) => {
-                    const playerAny = globalState.player as any
+                    const playerAny = world.player as any
                     const list = inventoryList()
                     const src: Obj | undefined = data[0] === 'i' ? list[parseInt(data.slice(1))] : playerAny[data]
                     if (!src || src === bag || src.pid === undefined) return
@@ -532,9 +535,9 @@ export function showInventory(useOn = false) {
                     else {
                         playerAny[data] = null
                         if (data === 'armor') {
-                            armorPerkSwap(globalState.player!, src, null)
+                            armorPerkSwap(world.player!, src, null)
                             applyArmorArt(null)
-                        } else refreshStealthState(globalState.player!)
+                        } else refreshStealthState(world.player!)
                         uiDrawWeapon()
                     }
                     src.flags = (src.flags ?? 0) & ~0x7000000
@@ -549,7 +552,7 @@ export function showInventory(useOn = false) {
         'cancel' | 'look' | 'use' | 'drop' | 'equip_left' | 'equip_right' | 'equip_armor' | 'unequip' | 'unload'
 
     function itemAction(obj: Obj, slot: string, action: ItemAction) {
-        const playerAny = globalState.player as any
+        const playerAny = world.player as any
         switch (action) {
             case 'look':
                 showItemInfo(obj)
@@ -564,27 +567,27 @@ export function showInventory(useOn = false) {
                     break
                 }
                 dbg('inventory', '[UI] using object: ' + obj.art)
-                obj.use(globalState.player!)
+                obj.use(world.player!)
                 showInventory() // refresh so consumed items disappear
                 break
             case 'drop':
                 dbg('inventory', '[UI] dropping: ' + obj.art + ' with pid ' + obj.pid)
                 if (slot !== 'inventory') {
                     dbg('inventory', '[UI] moving into inventory first')
-                    globalState.player!.inventory.push(obj)
+                    world.player!.inventory.push(obj)
                     playerAny[slot] = null
-                    if (slot === 'leftHand' || slot === 'rightHand') refreshStealthState(globalState.player!)
+                    if (slot === 'leftHand' || slot === 'rightHand') refreshStealthState(world.player!)
                 }
                 if (slot === 'inventory' && currentContainer()) {
                     // CE _obj_drop(owner, item): out of the open bag, onto the dude's tile
                     const list = inventoryList()
                     const i = list.indexOf(obj)
                     if (i !== -1) list.splice(i, 1)
-                    globalState.player!.inventory.push(obj)
+                    world.player!.inventory.push(obj)
                 }
                 if (obj.pid === 206 || obj.pid === 209) droppedExplosive = true // explosiveIsActiveExplosive
-                obj.drop(globalState.player!)
-                globalState.player!.clearAnim()
+                obj.drop(world.player!)
+                world.player!.clearAnim()
                 uiDrawWeapon()
                 showInventory()
                 break
@@ -599,9 +602,9 @@ export function showInventory(useOn = false) {
                         list.push(playerAny[targetSlot])
                     }
                     playerAny[targetSlot] = obj
-                    refreshStealthState(globalState.player!)
+                    refreshStealthState(world.player!)
                 }
-                globalState.player!.clearAnim()
+                world.player!.clearAnim()
                 uiDrawWeapon()
                 showInventory()
                 break
@@ -614,33 +617,33 @@ export function showInventory(useOn = false) {
                     if (playerAny.armor) {
                         list.push(playerAny.armor)
                     }
-                    armorPerkSwap(globalState.player!, playerAny.armor ?? null, obj)
+                    armorPerkSwap(world.player!, playerAny.armor ?? null, obj)
                     playerAny.armor = obj
                 }
                 applyArmorArt(obj)
                 const armorAC = obj?.pro?.extra?.AC ?? 0
-                drawAC(globalState.player!.getStat('AC') + armorAC)
+                drawAC(world.player!.getStat('AC') + armorAC)
                 showInventory()
                 break
             }
             case 'unequip':
-                globalState.player!.inventory.push(obj)
+                world.player!.inventory.push(obj)
                 playerAny[slot] = null
                 if (slot === 'armor') {
-                    armorPerkSwap(globalState.player!, obj, null)
+                    armorPerkSwap(world.player!, obj, null)
                     applyArmorArt(null)
-                    drawAC(globalState.player!.getStat('AC'))
+                    drawAC(world.player!.getStat('AC'))
                 } else if (slot === 'leftHand' || slot === 'rightHand') {
-                    refreshStealthState(globalState.player!)
+                    refreshStealthState(world.player!)
                 }
-                globalState.player!.clearAnim()
+                world.player!.clearAnim()
                 uiDrawWeapon()
                 showInventory()
                 break
             case 'unload': {
                 dbg('inventory', `[UI] unload: ammoPID=${weaponGetAmmoTypePid(obj)} rounds=${ammoGetQuantity(obj)}`)
                 const bagNow = slot === 'inventory' ? currentContainer() : null
-                unloadWeapon(obj, (ammo) => (bagNow ?? globalState.player)!.addInventoryItem(ammo, 1))
+                unloadWeapon(obj, (ammo) => (bagNow ?? world.player)!.addInventoryItem(ammo, 1))
                 uiDrawWeapon()
                 showInventory()
                 break
@@ -668,22 +671,22 @@ export function showInventory(useOn = false) {
             if (action === 'drop' && obj.amount > 1) {
                 const wanted = await uiGetAmount(obj)
                 if (wanted <= 0) return
-                const playerAny = globalState.player as any
+                const playerAny = world.player as any
                 if (wanted < obj.amount) {
                     const split = cloneItem(obj)
                     split.amount = wanted
                     obj.amount -= wanted
                     ammoSplitOff(obj, split) // CE itemRemove: the top ammo box goes along
                     // a script that refuses the drop keeps the items with the dude
-                    if (!split.drop(globalState.player!)) globalState.player!.addInventoryItem(split, split.amount)
+                    if (!split.drop(world.player!)) world.player!.addInventoryItem(split, split.amount)
                 } else {
                     if (slot !== 'inventory') {
-                        globalState.player!.inventory.push(obj)
+                        world.player!.inventory.push(obj)
                         playerAny[slot] = null
                     }
-                    obj.drop(globalState.player!)
+                    obj.drop(world.player!)
                 }
-                globalState.player!.clearAnim()
+                world.player!.clearAnim()
                 uiDrawWeapon()
                 showInventory()
             } else {
@@ -740,7 +743,7 @@ export function showInventory(useOn = false) {
     }
 
     function drawSlot(slot: string, slotID: string) {
-        const item = (globalState.player as any)[slot] as Obj | null
+        const item = (world.player as any)[slot] as Obj | null
         if (!item || !item.invArt) return
         const img = makeEl('img', {
             src: item.invArt + '.png',
@@ -766,13 +769,13 @@ export function showInventory(useOn = false) {
     drawCharacterPortrait()
     updateWeightDisplay()
 
-    if (globalState.player!.leftHand) {
+    if (world.player!.leftHand) {
         drawSlot('leftHand', 'inventoryBoxItem1')
     }
-    if (globalState.player!.rightHand) {
+    if (world.player!.rightHand) {
         drawSlot('rightHand', 'inventoryBoxItem2')
     }
-    const playerAny = globalState.player as any
+    const playerAny = world.player as any
     if (playerAny.armor) {
         drawSlot('armor', 'inventoryBoxArmor')
     }

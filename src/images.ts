@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import globalState from './globalState.js'
+import { assets } from './state/assets.js'
 import { Config } from './config.js'
 import { dbg } from './logger.js'
 import { parsePNGCycleMask } from './colorCycle.js'
@@ -29,16 +29,16 @@ const failedArt = new Set<string>()
 
 export function lazyLoadImage(art: string, callback?: (x: HTMLImageElement) => void) {
     if (failedArt.has(art)) return
-    if (globalState.images[art] !== undefined) {
+    if (assets.images[art] !== undefined) {
         if (callback) {
-            callback(globalState.images[art])
+            callback(assets.images[art])
         }
         return
     }
 
-    if (globalState.lazyAssetLoadingQueue[art] !== undefined) {
+    if (assets.lazyAssetLoadingQueue[art] !== undefined) {
         if (callback) {
-            globalState.lazyAssetLoadingQueue[art].push(callback)
+            assets.lazyAssetLoadingQueue[art].push(callback)
         }
         return
     }
@@ -47,23 +47,23 @@ export function lazyLoadImage(art: string, callback?: (x: HTMLImageElement) => v
         dbg('renderer', `lazy loading ${art}...`)
     }
 
-    globalState.lazyAssetLoadingQueue[art] = callback ? [callback] : []
+    assets.lazyAssetLoadingQueue[art] = callback ? [callback] : []
 
     const img = new Image()
     img.onload = function () {
-        globalState.images[art] = img
-        const callbacks = globalState.lazyAssetLoadingQueue[art]
+        assets.images[art] = img
+        const callbacks = assets.lazyAssetLoadingQueue[art]
         if (callbacks !== undefined) {
             for (let i = 0; i < callbacks.length; i++) {
-                callbacks[i](globalState.images[art])
+                callbacks[i](assets.images[art])
             }
         }
-        delete globalState.lazyAssetLoadingQueue[art]
+        delete assets.lazyAssetLoadingQueue[art]
     }
     // A missing file must not stay "loading" forever (mapFade waits on this queue).
     img.onerror = function () {
         failedArt.add(art)
-        delete globalState.lazyAssetLoadingQueue[art]
+        delete assets.lazyAssetLoadingQueue[art]
     }
     img.src = assetUrl(art + '.png')
 
@@ -77,11 +77,11 @@ export function lazyLoadImage(art: string, callback?: (x: HTMLImageElement) => v
 const cycleMaskInFlight = new Set<string>()
 
 export function ensureCycleMask(art: string): void {
-    if (!mightHaveCyclingPixels(art) || globalState.cycleMasks[art] !== undefined || cycleMaskInFlight.has(art)) return
+    if (!mightHaveCyclingPixels(art) || assets.cycleMasks[art] !== undefined || cycleMaskInFlight.has(art)) return
     cycleMaskInFlight.add(art)
     parsePNGCycleMask(art + '.png').then((mask) => {
         cycleMaskInFlight.delete(art)
-        globalState.cycleMasks[art] = mask // null = no cycling pixels
+        assets.cycleMasks[art] = mask // null = no cycling pixels
     })
 }
 
@@ -92,7 +92,7 @@ export function ensureCycleMask(art: string): void {
 export function artExists(art: string): Promise<boolean> {
     return new Promise((resolve) => {
         lazyLoadImage(art, (img) => {
-            resolve(img !== null && globalState.imageInfo![art] !== undefined)
+            resolve(img !== null && assets.imageInfo![art] !== undefined)
         })
     })
 }

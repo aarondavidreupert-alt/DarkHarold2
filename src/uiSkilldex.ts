@@ -18,7 +18,8 @@ limitations under the License.
 // shortcuts (1–8), skill-value readouts, and targeting cursor handoff.
 
 import { Config } from './config.js'
-import globalState from './globalState.js'
+import { world } from './state/world.js'
+import { uiState } from './state/uiState.js'
 import { dbg } from './logger.js'
 import { Skills, SKILL_NAMES } from './skills.js'
 import { skillUse } from './skillUse.js'
@@ -65,7 +66,7 @@ export function initSkilldex(): void {
             if (isPassiveSkill(skill)) {
                 // Passive/self skills: execute immediately, no target selection needed
                 const skillName = SKILL_NAMES[skill - 1]
-                const player = globalState.player
+                const player = world.player
                 if (!player) return
                 skillUse(player, player, skillName)
                 dbg('skills', `[UI] Passive skill executed: ${skillName}`)
@@ -173,7 +174,7 @@ export function initSkilldex(): void {
     skilldexWindow.show = function () {
         const result = origShow()
         // Update displayed skill values from current player stats
-        const player = globalState.player
+        const player = world.player
         if (player) {
             for (let i = 0; i < skilldexSkills.length; i++) {
                 const skillName = skilldexSkills[i][0]
@@ -207,10 +208,10 @@ export function initSkilldex(): void {
     // CE skilldexOpen runs its own input loop: the map is frozen and no game key reaches
     // gameHandleKey while the window is open
     skilldexWindow.onShow = () => {
-        globalState.uiMode = UIMode.skilldex
+        uiState.uiMode = UIMode.skilldex
     }
     skilldexWindow.onClose = () => {
-        if (globalState.uiMode === UIMode.skilldex) globalState.uiMode = UIMode.none
+        if (uiState.uiMode === UIMode.skilldex) uiState.uiMode = UIMode.none
     }
 }
 
@@ -219,14 +220,14 @@ export function initSkilldex(): void {
 // (Sneak toggles at once: _action_skill_use(SKILL_SNEAK).)
 export function beginSkillTargeting(skill: Skills): void {
     if (skill === Skills.Sneak) {
-        const player = globalState.player
+        const player = world.player
         if (!player) return
         skillUse(player, player, SKILL_NAMES[skill - 1])
         return
     }
-    globalState.uiMode = UIMode.useSkill
-    globalState.skillMode = skill
-    globalState.cursorMode = 'useSkill'
+    uiState.uiMode = UIMode.useSkill
+    uiState.skillMode = skill
+    uiState.cursorMode = 'useSkill'
     // CSS cursor fallback — crosshair visible even if WebGL crossuse asset is missing
     const cnv = document.getElementById('cnv')
     if (cnv) cnv.style.cursor = "url('" + assetUrl('art/intrface/crossuse.png') + "') 11 11, crosshair"

@@ -31,7 +31,9 @@ import { uiLog } from './messageLog.js'
 import { areaContainingMap, loadAreas, mapIndexOf } from './data.js'
 import * as GameTime from './gametime.js'
 import { Config } from './config.js'
-import globalState from './globalState.js'
+import { world } from './state/world.js'
+import { uiState } from './state/uiState.js'
+import { services } from './state/services.js'
 import { dbg } from './logger.js'
 import { deleteSave, getSaveSnapshot, load, save, SaveGame, saveList, takeSaveSnapshot } from './saveload.js'
 import { Widget } from './uiWidget.js'
@@ -71,16 +73,16 @@ function addText(
 // City + map line of the info box: "%s %s" of CE mapGetCityName (map.msg 1500 + area)
 // and mapGetName (map.msg 200 + 3 * map + elevation), e.g. "Arroyo Village".
 function mapLine(s: SaveGame): string {
-    if (!globalState.mapAreas) {
+    if (!world.mapAreas) {
         try {
-            globalState.mapAreas = loadAreas()
+            world.mapAreas = loadAreas()
         } catch (_) {
             /* no areas */
         }
     }
     let areaId = -1
     try {
-        areaId = (globalState.mapAreas ? areaContainingMap(s.currentMap)?.id : undefined) ?? -1
+        areaId = (world.mapAreas ? areaContainingMap(s.currentMap)?.id : undefined) ?? -1
     } catch (_) {
         /* unknown */
     }
@@ -133,8 +135,8 @@ export function uiSaveLoad(isSave: boolean, quick = false, onCancel: (() => void
     quickDone = false
     // CE loadsave.cc lsgSaveGame: _QuickSnapShot before the save window opens.
     if (isSave) takeSaveSnapshot()
-    globalState.uiMode = UIMode.saveLoad
-    globalState.audioEngine?.pauseMusic?.() // CE loadsave.cc backgroundSoundPause
+    uiState.uiMode = UIMode.saveLoad
+    services.audioEngine?.pauseMusic?.() // CE loadsave.cc backgroundSoundPause
 
     // lscover (the "13" plate) at (340, 39) hides the photo frame only in the LOAD window
     // while an empty slot is selected (loadsave.cc:983); otherwise lsgame's photo frame
@@ -347,9 +349,9 @@ export function uiSaveLoad(isSave: boolean, quick = false, onCancel: (() => void
 
     function close(): void {
         document.removeEventListener('keydown', onKey, true)
-        globalState.uiMode = UIMode.none
+        uiState.uiMode = UIMode.none
         win.close()
-        globalState.audioEngine?.resumeMusic?.()
+        services.audioEngine?.resumeMusic?.()
     }
 
     function cancel(): void {
@@ -411,7 +413,7 @@ export function uiSaveLoad(isSave: boolean, quick = false, onCancel: (() => void
     // CE keys: Up/Down (and the arrow buttons) move the cursor, Return confirms,
     // Esc cancels; DH2: Page Up/Down, Home/End, Del deletes.
     function onKey(e: KeyboardEvent): void {
-        if (!win.showing || busy || globalState.uiMode !== UIMode.saveLoad) return
+        if (!win.showing || busy || uiState.uiMode !== UIMode.saveLoad) return
         const handled = (() => {
             switch (e.key) {
                 case 'ArrowUp':

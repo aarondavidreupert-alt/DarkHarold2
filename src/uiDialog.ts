@@ -19,7 +19,7 @@
 // UIMode.dialog is set while any dialog is open, blocking game key handlers.
 
 import { makePanelDraggable } from './uiDrag.js'
-import globalState from './globalState.js'
+import { uiState } from './state/uiState.js'
 import { font1, font3, FoText } from './uiFont.js'
 import { getUiContainer } from './uiContainer.js'
 import { UIMode } from './uiMode.js'
@@ -162,8 +162,8 @@ function makeDonebox(label: string, x: number): HTMLDivElement {
  */
 export function showDialog(message: string, buttons: string[], dim = true): Promise<string> {
     return new Promise((resolve) => {
-        const prevMode = globalState.uiMode
-        globalState.uiMode = UIMode.dialog
+        const prevMode = uiState.uiMode
+        uiState.uiMode = UIMode.dialog
 
         const overlay = makeOverlay(dim)
         const box = makeDialogBox()
@@ -174,7 +174,7 @@ export function showDialog(message: string, buttons: string[], dim = true): Prom
         const close = (label: string): void => {
             document.removeEventListener('keydown', keyHandler, true)
             overlay.remove()
-            globalState.uiMode = prevMode
+            uiState.uiMode = prevMode
             resolve(label)
         }
 
@@ -241,8 +241,8 @@ export async function showAlert(message: string): Promise<void> {
  */
 export function showInput(message: string, defaultValue = '', maxLength?: number): Promise<string | null> {
     return new Promise((resolve) => {
-        const prevMode = globalState.uiMode
-        globalState.uiMode = UIMode.dialog
+        const prevMode = uiState.uiMode
+        uiState.uiMode = UIMode.dialog
 
         // No background dimming — save-slot naming shouldn't visually block the game.
         const overlay = makeOverlay(/*dim*/ false)
@@ -287,7 +287,7 @@ export function showInput(message: string, defaultValue = '', maxLength?: number
         const close = (value: string | null): void => {
             document.removeEventListener('keydown', keyHandler, true)
             overlay.remove()
-            globalState.uiMode = prevMode
+            uiState.uiMode = prevMode
             resolve(value)
         }
 

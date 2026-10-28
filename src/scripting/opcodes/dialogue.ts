@@ -8,7 +8,8 @@ import { FIDGET_BAD, FIDGET_GOOD, FIDGET_NEUTRAL, startTalkingHead, talkToCritte
 import { UIMode } from '../../uiMode.js'
 import { dbg, dbgWarn } from '../../logger.js'
 import { getProtoMsg } from '../../util.js'
-import globalState from '../../globalState.js'
+import { world } from '../../state/world.js'
+import { uiState } from '../../state/uiState.js'
 import { resetFloatMessages } from '../../floatText.js'
 import { uiAddDialogueOption, uiBarterMode, uiSetDialogueReply, uiStartDialogue } from '../../ui.js'
 import {
@@ -44,14 +45,14 @@ export const dialogueOpcodes = {
         info('DIALOGUE START', 'dialogue')
         if (!this.self_obj) throw new Error('no self_obj for start_gdialog')
         // CE opStartGameDialog: nothing in combat
-        if (globalState.inCombat) return
+        if (world.inCombat) return
         // CE ref: game_dialog.cc:1070-1075 _gdialogStart resets the review
         // log once per conversation. start_gdialog() fires on every
         // talk_p_proc run, including Scripting.reenterDialogue()'s
         // re-entry after Barter/Trade/Combat-Control — only reset on a
         // genuinely fresh Talk (uiMode isn't already dialogue yet; on a
         // reenter, reenterDialogue() already set it before calling talk()).
-        if (globalState.uiMode !== UIMode.dialogue) {
+        if (uiState.uiMode !== UIMode.dialogue) {
             scriptingState.dialogueReviewLog = []
             scriptingState.dialogueReplyPending = false
             resetFloatMessages() // CE _gdialogInitFromScript → textObjectsReset
@@ -61,7 +62,7 @@ export const dialogueOpcodes = {
         // CE ref: interpreter_extra.cc:1892 opStartGameDialog — with a head, the
         // starting fidget comes from the speaker's reaction (LVAR 0 →
         // reactionTranslateValue: > 10 good, > -10 neutral, else bad); otherwise mood.
-        if (!globalState.inCombat) {
+        if (!world.inCombat) {
             let fidget = mood
             if (headNum !== -1) {
                 const lv0 = this.self_obj._script?.lvars?.[0]
@@ -96,7 +97,7 @@ export const dialogueOpcodes = {
         scriptingState.dialogueOptionTexts = []
         scriptingState.dialogueOptionReactions = []
         // ensure dialogue UI is open (may already be open from start_gdialog)
-        if (globalState.uiMode !== UIMode.dialogue && this.self_obj) {
+        if (uiState.uiMode !== UIMode.dialogue && this.self_obj) {
             uiStartDialogue(false, this.self_obj as Critter)
         }
     },
@@ -173,7 +174,7 @@ export const dialogueOpcodes = {
             return 0
         }
         if (scriptingState.dialogueOptionProcs.length === 0) {
-            const text = globalState.player!.getStat('INT') < 4 ? (getProtoMsg(655) ?? '') : ''
+            const text = world.player!.getStat('INT') < 4 ? (getProtoMsg(655) ?? '') : ''
             scriptingState.dialogueOptionProcs.push(() => {})
             scriptingState.dialogueOptionTexts.push(text)
             scriptingState.dialogueOptionReactions.push(50)
@@ -197,8 +198,7 @@ export const dialogueOpcodes = {
 
         // CE _op_giq_option: INT + Smooth Talker rank.
         const INT =
-            globalState.player!.getStat('INT') +
-            globalState.player!.perks.filter((p: string) => p === 'Smooth Talker').length
+            world.player!.getStat('INT') + world.player!.perks.filter((p: string) => p === 'Smooth Talker').length
         if ((iqTest > 0 && INT < iqTest) || (iqTest < 0 && INT > -iqTest)) return // not enough intelligence for this option
         if (scriptingState.dialogueOptionProcs.length >= DIALOG_OPTION_ENTRIES_CAPACITY) return // CE: 30 at most
 
@@ -219,7 +219,7 @@ export const dialogueOpcodes = {
         // not a dialogue nested in the running one (processDialogueRequest)
         const self = this.self_obj as any
         if (self.type === 'critter' && (self.dead || ((self.injuryFlags ?? 0) & 0x01) !== 0)) return
-        if (globalState.inCombat) return
+        if (world.inCombat) return
         scriptingState.requestedDialogue = this.self_obj as Obj
     },
     // CE opGetScriptAction (0x80C7) — script->action

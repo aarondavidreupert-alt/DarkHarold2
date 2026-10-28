@@ -29,7 +29,8 @@ import * as Events from '../events.js'
 import { hexDistance, hexIsInFrontOf, Point } from '../geometry.js'
 import { explosionRingCritters } from '../combat/explosion.js'
 import { Combat } from '../combat/Combat.js'
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
+import { assets } from '../state/assets.js'
 import * as Lightmap from '../lightmap.js'
 import { dbg, dbgWarn } from '../logger.js'
 import { getPROSubTypeName, getPROTypeName, loadPRO, lookupArt, makePID } from '../pro.js'
@@ -183,7 +184,7 @@ export async function useExplosive(obj: Obj, source: Critter): Promise<void> {
     }
     dbg('object', `[Object] explosive armed: ${seconds}s, Traps ${RollResult[roll]}, fires in ${delay} ticks`)
     // … and is placed at the owner's feet (_obj_connect), then _protinstTestDroppedExplosive
-    const gMap = globalState.gMap
+    const gMap = world.gMap
     if (gMap) {
         gMap.addObject(obj)
         obj.position = { x: source.position.x, y: source.position.y }
@@ -260,7 +261,7 @@ export function refillHand(owner: Critter, hand: 'leftHand' | 'rightHand', used:
 // starts a fight out of combat.
 export function testDroppedExplosive(dude: Critter): void {
     if (!dude.isPlayer) return
-    const elevation = globalState.gMap?.currentElevation ?? 0
+    const elevation = world.gMap?.currentElevation ?? 0
     let watcher: Critter | null = null
     for (const c of explosionRingCritters(dude.position, elevation, dude, false)) {
         if (c === dude || c.dead || c.teamNum === dude.teamNum) continue
@@ -268,10 +269,10 @@ export function testDroppedExplosive(dude: Critter): void {
         c.whoHitMe = dude
         watcher ??= c
     }
-    if (watcher && !globalState.inCombat) {
+    if (watcher && !world.inCombat) {
         const attacker = watcher
         setTimeout(() => {
-            if (globalState.inCombat || attacker.dead) return
+            if (world.inCombat || attacker.dead) return
             Combat.start(undefined, {
                 attacker,
                 defender: dude,
@@ -316,11 +317,11 @@ export const BOOKS: { [pid: number]: [number, string] } = {
 // (800) and the book's line. The book is used up (return 1).
 export function useBook(book: Obj): void {
     const [messageId0, skill] = BOOKS[book.pid]
-    if (globalState.inCombat) {
+    if (world.inCombat) {
         uiLog(getMessage('proto', 902) ?? 'You cannot do that in combat.')
         return
     }
-    const dude = globalState.player as Critter
+    const dude = world.player as Critter
     let messageId = messageId0
     let increase = Math.trunc((100 - dude.getSkill(skill)) / 10)
     if (increase <= 0) {
@@ -333,7 +334,7 @@ export function useBook(book: Obj): void {
         }
     }
     GameTime.advanceSeconds(3600 * (11 - dude.getStat('INT')))
-    globalState.gMap?.updateMap() // scriptsExecMapUpdateProc
+    world.gMap?.updateMap() // scriptsExecMapUpdateProc
     uiLog(getMessage('proto', 800) ?? 'You read the book.')
     const line = getMessage('proto', messageId)
     if (line) uiLog(line)
@@ -352,8 +353,8 @@ export const MISC_USE_CONSUMED: ReadonlySet<number> = new Set([431, 444, 331, 49
 
 // The critter carrying `item` (in a hand or the inventory), if any.
 export function itemOwner(item: Obj): Critter | null {
-    const gMap = globalState.gMap
-    const player = globalState.player as Critter | null
+    const gMap = world.gMap
+    const player = world.player as Critter | null
     const has = (c: any) => c && (c.inventory?.includes(item) || c.leftHand === item || c.rightHand === item)
     if (has(player)) return player
     return (gMap?.getObjects().find((o) => o.type === 'critter' && has(o)) as Critter | undefined) ?? null
@@ -413,7 +414,7 @@ export function scheduleFlareBurnOut(obj: Obj, ticks: number): void {
             updateHandFlareLight(owner)
             if (owner.isPlayer) uiDrawWeapon()
         } else {
-            globalState.gMap?.destroyObject(obj)
+            world.gMap?.destroyObject(obj)
             if (Config.engine.doFloorLighting) Lightmap.rebuildLight()
         }
     }
@@ -436,10 +437,10 @@ export function explosionRunning(): boolean {
 // CE queue.cc explosionEventProcess / explosionFailureEventProcess → _queue_do_explosion_:
 // at the owner's tile when carried.
 function explosiveDetonate(obj: Obj, min: number, max: number, failure: boolean, animate = true): void {
-    const gMap = globalState.gMap
+    const gMap = world.gMap
     if (!gMap) return
     if (failure) uiLog(getMessage('misc', 4000) ?? 'Due to your inept handling, the explosive detonates prematurely.')
-    const player = globalState.player
+    const player = world.player
     if (player?.hasPerk('Demolition Expert')) {
         min += 10
         max += 10
@@ -523,14 +524,14 @@ export function toggleObjectOpen(obj: Obj, loot = true, signalEvent = true): boo
 }
 
 function objectFindIndex(obj: Obj): number {
-    return globalState.gMap!.getObjects().findIndex((object) => object === obj)
+    return world.gMap!.getObjects().findIndex((object) => object === obj)
 }
 
 // CE ref: proto_instance.cc:2171 objectUnjamAll — clears jammed flag on all map objects.
 // Called by the midnight queue event (GTC5).
 export function objectUnjamAll(): void {
-    if (!globalState.gMap) return
-    for (const obj of globalState.gMap.getObjects()) {
+    if (!world.gMap) return
+    for (const obj of world.gMap.getObjects()) {
         if (obj.jammed) obj.jammed = false
     }
 }
@@ -591,7 +592,7 @@ function objectZOrder(obj: Obj, index: number): void {
     }
 
     // TOOD: mutable/potentially unsafe usage of getObjects
-    const objects = globalState.gMap!.getObjects()
+    const objects = world.gMap!.getObjects()
 
     objects.splice(oldIdx, 1) // remove the object...
 
@@ -631,7 +632,7 @@ export function zsortMap(levels: Obj[][] | null): void {
 // CE scripts.cc scriptsExecSpatialProc(object, tile, elevation): the spatials of the moving
 // object's elevation (a critter on another floor than the dude's triggers its own floor's)
 export function hitSpatialTrigger(position: Point, elevation?: number): any {
-    return (globalState.gMap!.getSpatials(elevation) ?? []).filter((spatial: any) => {
+    return (world.gMap!.getSpatials(elevation) ?? []).filter((spatial: any) => {
         const distance = hexDistance(position, spatial.position)
         if (distance === 0) return true
         const radius = spatial.range ?? 0
@@ -1021,7 +1022,7 @@ export class Obj {
         // are added in. @important
 
         if (this._script) {
-            Scripting.objectEnterMap(this, globalState.currentElevation, globalState.gMap!.mapID)
+            Scripting.objectEnterMap(this, world.currentElevation, world.gMap!.mapID)
         }
     }
 
@@ -1056,7 +1057,7 @@ export class Obj {
         if (!this.anim) return
         if (this.anim === 'dead') return // corpse is frozen, never step frames
 
-        const imageInfo = globalState.imageInfo![this.art]
+        const imageInfo = assets.imageInfo![this.art]
         if (!imageInfo) return // image metadata not yet loaded, skip this tick
 
         const time = window.performance.now()
@@ -1136,7 +1137,7 @@ export class Obj {
 
     singleAnimation(reversed?: boolean, callback?: () => void): void {
         if (reversed) {
-            this.frame = globalState.imageInfo![this.art].numFrames - 1
+            this.frame = assets.imageInfo![this.art].numFrames - 1
         } else {
             this.frame = 0
         }

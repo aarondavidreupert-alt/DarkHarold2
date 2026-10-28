@@ -5,7 +5,8 @@
 // set_sfall_return. Only the hook points the Unofficial Patch uses fire (see HOOK_*); the
 // others can be registered and never run. wiki/upu_support.md → "Hooks and global scripts".
 
-import globalState from './globalState.js'
+import { world } from './state/world.js'
+import { uiState } from './state/uiState.js'
 import { UIMode } from './uiMode.js'
 import { dbg, dbgWarn } from './logger.js'
 
@@ -148,7 +149,7 @@ let special = 0 // the SPECIAL flag while it is set (dialogue panel animations)
 export function gameMode(): number {
     const M = GAME_MODE
     let mode = 0
-    switch (globalState.uiMode) {
+    switch (uiState.uiMode) {
         case UIMode.dialogue:
             mode = M.DIALOG
             break
@@ -194,9 +195,9 @@ export function gameMode(): number {
         default:
             mode = 0
     }
-    if (globalState.inCombat) {
+    if (world.inCombat) {
         mode |= M.COMBAT
-        if (globalState.combat?.inPlayerTurn) mode |= M.PCOMBAT
+        if (world.combat?.inPlayerTurn) mode |= M.PCOMBAT
     }
     return (mode | special) >>> 0
 }

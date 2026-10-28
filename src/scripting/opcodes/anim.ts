@@ -9,7 +9,9 @@ import { correctDeath } from '../../critter.js'
 import { dbgWarn } from '../../logger.js'
 import { fromTileNum, toTileNum } from '../../tile.js'
 import { getLstJson } from '../../data.js'
-import globalState from '../../globalState.js'
+import { world } from '../../state/world.js'
+import { services } from '../../state/services.js'
+import { assets } from '../../state/assets.js'
 import { lookupArt, makePID } from '../../pro.js'
 import { sfxBuildOpenName, sfxBuildWeaponName } from '../../sfxNames.js'
 import {
@@ -82,7 +84,7 @@ export const animOpcodes = {
     // combat; outside reg_anim_begin … reg_anim_end the animation calls do nothing
     // (animation.cc _check_registry).
     reg_anim_func(this: Script, cmd: number, param: any) {
-        if (globalState.inCombat) return
+        if (world.inCombat) return
         if (cmd === 1)
             this.reg_anim_begin(param) // OP_REG_ANIM_FUNC_BEGIN
         else if (cmd === 2)
@@ -104,7 +106,7 @@ export const animOpcodes = {
         }
     },
     regAnimPush(this: Script, name: string, obj: Obj, step: AnimStep | AnimMove | AnimForever): void {
-        if (globalState.inCombat) return
+        if (world.inCombat) return
         if (!isGameObject(obj)) {
             warn(name + ': object is null', 'animation')
             return
@@ -193,7 +195,7 @@ export const animOpcodes = {
                 // occupied) less the last step — two for a multihex object.
                 // animationRegisterMoveToTile (_anim_move, a5 = 0): onto the tile; an
                 // occupied one stops a step short.
-                const gMap = globalState.gMap
+                const gMap = world.gMap
                 const path = gMap!.recalcPath(c.position, dest, false, c)
                 if (path.length === 0) return arrived()
                 const toObj = (entry.to as any).position !== undefined
@@ -261,7 +263,7 @@ export const animOpcodes = {
     // CE opRegAnimAnimateForever: outside combat, animationRegisterAnimateForever —
     // a step of the current batch that loops `anim` for good.
     reg_anim_animate_forever(this: Script, obj: Obj, anim: number) {
-        if (globalState.inCombat) return
+        if (world.inCombat) return
         this.regAnimPush('reg_anim_animate_forever', obj, { kind: 'forever', obj, anim })
     },
     animate_move_obj_to_tile(this: Script, obj: Critter, tileNum: any, isRun: number) {
@@ -292,7 +294,7 @@ export const animOpcodes = {
         // 0x10 (ANIMATE_INTERRUPT) clears the current animation and is dropped; then a
         // walk for 0, a run for anything else
         if (obj.type === 'critter' && (obj.dead || ((obj.injuryFlags ?? 0) & 0x01) !== 0)) return // DAM_KNOCKED_OUT
-        if (globalState.inCombat) return
+        if (world.inCombat) return
         let flags = Number(isRun) | 0
         if ((flags & 0x10) !== 0) {
             obj.clearAnim()
@@ -331,7 +333,7 @@ export const animOpcodes = {
     // CE opAnimateStandReverse (0x80CD) — ANIM_STAND reversed, outside combat only.
     animate_stand_reverse_obj(this: Script, obj: Obj) {
         const target = isGameObject(obj) ? obj : (this.self_obj as Obj)
-        if (!target || globalState.inCombat || target.type !== 'critter') return
+        if (!target || world.inCombat || target.type !== 'critter') return
         ;(target as Critter).staticAnimation('idle', () => (target as Critter).clearAnim(), true, true)
     },
     // CE _op_anim_action_frame (0x813A) — artGetActionFrame of obj's FRM for `anim`.
@@ -339,7 +341,7 @@ export const animOpcodes = {
         if (!isGameObject(obj) || !obj.pro) return 0
         try {
             const fid = ((obj.pro.frmType ?? 1) << 24) | ((anim & 0xff) << 16) | (obj.pro.frmPID & 0xfff)
-            const info = globalState.imageInfo![lookupArt(fid)]
+            const info = assets.imageInfo![lookupArt(fid)]
             const af = info?.actionFrame
             return Array.isArray(af) ? (af[obj.orientation ?? 0] ?? af[0] ?? 0) : (af ?? 0)
         } catch {
@@ -351,7 +353,7 @@ export const animOpcodes = {
         if (!isGameObject(obj) || typeof sfx !== 'string') return
         // CE animationRegisterPlaySoundEffect: a step of the current reg_anim batch;
         // outside one (_check_registry) nothing plays.
-        const play = () => globalState.audioEngine?.playSfxByName?.(sfx.toLowerCase(), obj)
+        const play = () => services.audioEngine?.playSfxByName?.(sfx.toLowerCase(), obj)
         if (scriptingState.animBatch !== null) scriptingState.animBatch.push({ kind: 'func', fn: () => play(), delay })
     },
     explosion(this: Script, tile: number, elevation: number, damage: number) {
@@ -362,9 +364,9 @@ export const animOpcodes = {
         requestScript('explosion', () => {
             const explosives = createObjectWithPID(makePID(0 /* items */, 85 /* Plastic Explosives */), -1)
             explosives.position = fromTileNum(tile)
-            globalState.gMap!.addObject(explosives)
+            world.gMap!.addObject(explosives)
             withSpatialsOff(() => explosives.explode(null, damage === 0 ? 0 : 1, damage))
-            globalState.gMap!.removeObject(explosives)
+            world.gMap!.removeObject(explosives)
         })
     },
     gfade_out(this: Script, time: number) {
@@ -407,8 +409,8 @@ export const animOpcodes = {
     },
     // sound
     play_sfx(this: Script, sfx: string) {
-        if (!globalState.audioEngine) return
-        globalState.audioEngine.playSfx(sfx.toLowerCase())
+        if (!services.audioEngine) return
+        services.audioEngine.playSfx(sfx.toLowerCase())
     },
     // CE opSfxBuildOpenName (0x80A5) — game_sound.cc sfxBuildOpenName
     sfx_build_open_name(this: Script, obj: Obj, action: number): string | null {

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import globalState from './globalState.js'
+import { world } from './state/world.js'
 import { IntFile } from './intfile.js'
 import * as Scripting from './scripting.js'
 import { BinaryReader } from './util.js'
@@ -55,12 +55,12 @@ function varName(this: ScriptVM, value: any): string {
 // Shared with the Lua backend (src/lua/luaRuntime.ts), which reads them
 // whenever a script names one.
 const builtinVars: { [name: string]: (script: Scripting.Script) => any } = {
-    dude_obj: () => globalState.player,
+    dude_obj: () => world.player,
     self_obj: (s) => s.self_obj,
-    combat_is_initialized: () => (globalState.inCombat ? 1 : 0), // CE: interpreter_extra.cc opCombatIsInitialized → isInCombat()
+    combat_is_initialized: () => (world.inCombat ? 1 : 0), // CE: interpreter_extra.cc opCombatIsInitialized → isInCombat()
     get_month: () => GameTime.getDate().month + 1, // 1-indexed
     game_time_hour: () => GameTime.getHourMilitary(), // CE: 100*hour+min (scripts.cc:332 gameTimeGetHour)
-    game_time: () => Math.max(1, globalState.gameTickTime), // CE: interpreter_extra.cc opGetGameTime → gameTimeGetTime() (live)
+    game_time: () => Math.max(1, world.gameTickTime), // CE: interpreter_extra.cc opGetGameTime → gameTimeGetTime() (live)
     game_time_in_seconds: () => GameTime.getTotalSeconds(), // CE: interpreter_extra.cc:2277 opGetGameTimeInSeconds → ticks/10
     get_day: () => GameTime.getDate().day, // day of month
     cur_map_index: (s) => s.cur_map_index,

@@ -1,5 +1,6 @@
 import { hexFromScreen } from '../geometry.js'
-import globalState from '../globalState.js'
+import { view } from '../state/view.js'
+import { assets } from '../state/assets.js'
 import * as GameTime from '../gametime.js'
 import * as Lighting from '../lighting.js'
 import * as Lightmap from '../lightmap.js'
@@ -97,10 +98,10 @@ WebGLRenderer.prototype.renderLitFloorCPU = function (tileMap: TileMap, useColor
 
             const scr = tileToScreen(i, j)
             if (
-                scr.x + TILE_WIDTH < globalState.cameraPosition.x ||
-                scr.y + TILE_HEIGHT < globalState.cameraPosition.y ||
-                scr.x >= globalState.cameraPosition.x + viewWCPU ||
-                scr.y >= globalState.cameraPosition.y + viewHCPU
+                scr.x + TILE_WIDTH < view.cameraPosition.x ||
+                scr.y + TILE_HEIGHT < view.cameraPosition.y ||
+                scr.x >= view.cameraPosition.x + viewWCPU ||
+                scr.y >= view.cameraPosition.y + viewHCPU
             ) {
                 continue
             }
@@ -159,8 +160,8 @@ WebGLRenderer.prototype.renderLitFloorCPU = function (tileMap: TileMap, useColor
             // draw
             gl.uniform2f(
                 this.litOffsetLocation,
-                (scr.x - globalState.cameraPosition.x) * zCPU,
-                (scr.y - globalState.cameraPosition.y) * zCPU,
+                (scr.x - view.cameraPosition.x) * zCPU,
+                (scr.y - view.cameraPosition.y) * zCPU,
             )
             gl.drawArrays(gl.TRIANGLES, 0, 6)
         }
@@ -198,8 +199,8 @@ WebGLRenderer.prototype.renderLitFloorGPU = function (tileMap: TileMap) {
 
 WebGLRenderer.prototype.renderFloorToFBO = function (tileMap: TileMap): void {
     const gl = this.gl
-    const cameraX = globalState.cameraPosition.x
-    const cameraY = globalState.cameraPosition.y
+    const cameraX = view.cameraPosition.x
+    const cameraY = view.cameraPosition.y
     const z = getZoom()
 
     // Skip re-rendering if FBO is still valid (camera hasn't moved, same tilemap, zoom unchanged)
@@ -274,7 +275,7 @@ WebGLRenderer.prototype.renderFloorToFBO = function (tileMap: TileMap): void {
                 gl.activeTexture(gl.TEXTURE7)
                 gl.bindTexture(gl.TEXTURE_2D, this.getCycleMaskTex(img))
                 gl.activeTexture(gl.TEXTURE0)
-                const cm = globalState.cycleMasks[img]
+                const cm = assets.cycleMasks[img]
                 if (cm === undefined || cm !== null) hasCycling = true // pending or cycling
                 lastTexture = img
             }
@@ -326,7 +327,7 @@ WebGLRenderer.prototype.compositeFloorWithLighting = function (): void {
         this.lastLoggedAmbient = ambientGPU
     }
     gl.uniform2f(this.litScaleLocation, SCREEN_WIDTH, SCREEN_HEIGHT)
-    gl.uniform2f(this.uCamera, globalState.cameraPosition.x, globalState.cameraPosition.y)
+    gl.uniform2f(this.uCamera, view.cameraPosition.x, view.cameraPosition.y)
     // Zoom tells the lighting shader how to recover world coords from
     // gl_FragCoord — `world = camera + gl_FragCoord / (dpr * zoom)`.
     if (this.uFloorLightZoom) gl.uniform1f(this.uFloorLightZoom, getZoom())

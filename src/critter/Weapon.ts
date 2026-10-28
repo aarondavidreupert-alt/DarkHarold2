@@ -19,7 +19,7 @@ limitations under the License.
 // Split out of critter.ts. See wiki/ts-split-refactor.md → §13.
 
 import { ammoGetCapacity, ammoGetQuantity } from '../weaponAmmo.js'
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
 import { dbgWarn } from '../logger.js'
 import type { Critter } from '../object/Critter.js'
 import type { WeaponObj } from '../object/items.js'
@@ -245,7 +245,7 @@ export class Weapon {
         const maxAmmo = ammoGetCapacity(item)
         const canReload = maxAmmo > 0 && ammoGetQuantity(item) < maxAmmo
         // CE item.cc critterCanAim: the player's Fast Shot trait forbids aimed attacks.
-        const player = globalState.player
+        const player = world.player
         const fastShot =
             !!player &&
             (player.traits ?? []).includes('Fast Shot') &&

@@ -27,6 +27,9 @@ import { START_TICKS } from '../gametime.js'
 import { finishLoadingIfReady, setLastMidnightDay } from '../gameTick.js'
 import { setGameMovieSkipAll } from '../gameMovie.js'
 import globalState from '../globalState.js'
+import { world } from '../state/world.js'
+import { uiState } from '../state/uiState.js'
+import { assets } from '../state/assets.js'
 import { heart } from '../heart.js'
 import { cloneItem, Critter } from '../object.js'
 import { setLuaErrorHook } from '../lua/luaRuntime.js'
@@ -148,7 +151,7 @@ let taken = new Set<string>()
 function resetLabels(): void {
     labels = new Map()
     taken = new Set()
-    for (const o of globalState.gMap ? globalState.gMap.getObjects() : []) label(o)
+    for (const o of world.gMap ? world.gMap.getObjects() : []) label(o)
 }
 
 function label(o: any): string {
@@ -183,8 +186,8 @@ interface Snapshot {
 const PLAYER_STATS = ['STR', 'PER', 'END', 'CHA', 'INT', 'AGI', 'LUK', 'HP', 'Max HP', 'Level']
 
 function capture(): Snapshot {
-    const map = globalState.gMap
-    const player = globalState.player
+    const map = world.gMap
+    const player = world.player
     const lvars: Snapshot['lvars'] = {}
     const tiles: Snapshot['tiles'] = {}
     const goals: Snapshot['goals'] = {}
@@ -210,7 +213,7 @@ function capture(): Snapshot {
         caps: player ? Scripting.itemGetTotalCaps(player) : 0,
         inv,
         stats: Object.fromEntries(PLAYER_STATS.map((n) => [n, player?.getStat?.(n) ?? 0])),
-        ui: globalState.uiMode,
+        ui: uiState.uiMode,
     }
 }
 
@@ -258,14 +261,14 @@ let pinnedClock = PINNED_TIME
 
 /** Before every step: fixed clock, RNG seeded from where in the run we are. */
 function pin(key: string): void {
-    globalState.gameTickTime = pinnedClock
+    world.gameTickTime = pinnedClock
     randomSeedExact(hashOf(key))
 }
 
 // ─── One step ─────────────────────────────────────────────────────────────────
 
 function dialogueView(): string {
-    if (globalState.uiMode !== UIMode.dialogue) return `ui=${globalState.uiMode}`
+    if (uiState.uiMode !== UIMode.dialogue) return `ui=${uiState.uiMode}`
     const opts = getOptionElements().map((el) => (el.textContent ?? '').trim())
     return `reply="${getReplyText().slice(0, 60)}" opts=${opts.length}[${opts.map((o) => o.slice(0, 24)).join('|')}]`
 }
@@ -330,16 +333,16 @@ function barterTrade(): string {
 /** A screen a script opened that the crawl does not drive: note it and close it. */
 function closeScreens(subject: any): string {
     let note = ''
-    if (globalState.uiMode === UIMode.barter) {
+    if (uiState.uiMode === UIMode.barter) {
         // the barter the script set up: its price modifier and what the merchant offers
         note += ` BARTER mod=${Scripting.getDialogueBarterMod()} inv=[${inventoryOf(subject)}]` + barterTrade()
         uiEndDialogue()
     }
-    if (globalState.uiMode === UIMode.worldMap) {
+    if (uiState.uiMode === UIMode.worldMap) {
         uiCloseWorldMap()
         note += ' WORLDMAP'
     }
-    if (globalState.uiMode === UIMode.elevator) {
+    if (uiState.uiMode === UIMode.elevator) {
         uiElevatorDone()
         note += ' ELEVATOR'
     }
@@ -391,15 +394,15 @@ async function step(key: string, label: string, action: () => void, subject?: an
     } catch (e) {
         error += ` THROW ${String(e).slice(0, 80)}`
     }
-    if (globalState.inCombat) {
-        globalState.combat?.forceEnd()
+    if (world.inCombat) {
+        world.combat?.forceEnd()
         await new Promise<void>((r) => setTimeout(r, 0))
         error += isCombatActive() ? ' COMBAT-STUCK' : ' COMBAT'
     }
     error += closeScreens(subject)
     // the end of the frame: objects a script destroyed leave the map (the paused
     // frame loop would never take them off, and later steps would run their scripts)
-    globalState.gMap?.drainRemovalQueue()
+    world.gMap?.drainRemovalQueue()
     setLuaErrorHook(null)
     setVMFatalHook(null)
     window.removeEventListener('error', onError)
@@ -420,7 +423,7 @@ async function crawlNpc(npc: Critter, mapName: string, trace: string[], opts: Re
     while (frontier.length > 0 && runs < opts.maxPathsPerNpc) {
         const path = frontier.shift()!
         if (npc.dead || !npc._script || typeof npc._script.talk_p_proc !== 'function') break
-        if (globalState.gMap?.name !== mapName) break
+        if (world.gMap?.name !== mapName) break
         runs++
         movePlayerAdjacent(npc)
         trace.push(
@@ -433,7 +436,7 @@ async function crawlNpc(npc: Critter, mapName: string, trace: string[], opts: Re
         )
         steps++
         let depth = 0
-        for (; depth < path.length && globalState.uiMode === UIMode.dialogue; depth++) {
+        for (; depth < path.length && uiState.uiMode === UIMode.dialogue; depth++) {
             const els = getOptionElements()
             const k = path[depth]
             if (k >= els.length) break
@@ -441,7 +444,7 @@ async function crawlNpc(npc: Critter, mapName: string, trace: string[], opts: Re
             trace.push(await step(`${id}:${sub}`, `${id} [${sub}] click ${k}`, () => els[k].click(), npc))
             steps++
         }
-        if (globalState.uiMode === UIMode.dialogue) {
+        if (uiState.uiMode === UIMode.dialogue) {
             if (depth === path.length && path.length < opts.maxDepth) {
                 const n = getOptionElements().length
                 for (let k = 0; k < n; k++) frontier.push([...path, k])
@@ -470,8 +473,8 @@ const OBJECT_SKILLS = [6, 7, 9, 11, 12, 13]
  *  (use_skill_on_p_proc). Each runs only the script, as CE does before its
  *  engine fallback; a dialogue a script starts is ended at once. */
 async function crawlObjects(mapName: string, trace: string[]): Promise<number> {
-    const map = globalState.gMap
-    const player = globalState.player
+    const map = world.gMap
+    const player = world.player
     if (!map || !player) return 0
     let steps = 0
     for (const obj of map.getObjects().slice()) {
@@ -491,13 +494,13 @@ async function crawlObjects(mapName: string, trace: string[]): Promise<number> {
                 actions.push([`skill${skill}`, () => Scripting.useSkillOn(player, skill, obj)])
         }
         for (const [what, action] of actions) {
-            if (globalState.gMap?.name !== mapName) return steps
+            if (world.gMap?.name !== mapName) return steps
             // an earlier step may have destroyed it, or killed the critter
             if (!map.getObjects().includes(obj) || (isCritter && (obj as Critter).dead)) break
             movePlayerAdjacent(obj as Critter)
             trace.push(await step(`${id}:${what}`, `${id} ${what}`, action, obj))
             steps++
-            if (globalState.uiMode === UIMode.dialogue) {
+            if (uiState.uiMode === UIMode.dialogue) {
                 trace.push(await step(`${id}:${what}:end`, `${id} ${what} end`, () => Scripting.dialogueEnd(), obj))
                 steps++
             }
@@ -523,35 +526,35 @@ async function crawlTime(mapName: string, trace: string[]): Promise<number> {
     setLastMidnightDay(Math.floor(clock / GameTime.TICKS_PER_DAY))
     try {
         for (let k = 0; k < TIME_STEPS.length; k++) {
-            if (globalState.gMap?.name !== mapName) break
+            if (world.gMap?.name !== mapName) break
             const dt = TIME_STEPS[k]
             pinnedClock = clock
             const id = `${mapName}/time${k}`
             trace.push(
                 await step(`${id}:advance`, `${id} +${dt} ticks`, () => {
                     GameTime.advanceTicks(dt) // fires the due timed events and midnight
-                    globalState.gMap?.updateMap()
+                    world.gMap?.updateMap()
                 }),
             )
             steps++
             clock += dt
             pinnedClock = clock
-            if (globalState.uiMode === UIMode.dialogue) {
+            if (uiState.uiMode === UIMode.dialogue) {
                 trace.push(await step(`${id}:advance:end`, `${id} end`, () => Scripting.dialogueEnd()))
                 steps++
             }
-            const critters = (globalState.gMap?.getObjects() ?? []).filter(
+            const critters = (world.gMap?.getObjects() ?? []).filter(
                 (o): o is Critter => o instanceof Critter && !!o._script && !o.dead && !o.isPlayer,
             )
             for (const c of critters) {
-                if (globalState.gMap?.name !== mapName) return steps
+                if (world.gMap?.name !== mapName) return steps
                 if (c.dead || !c._script || typeof c._script.critter_p_proc !== 'function') continue
                 const cid = `${id}/${c._script.scriptName ?? '?'}#${label(c)}`
                 trace.push(
                     await step(`${cid}:heartbeat`, `${cid} heartbeat`, () => Scripting.updateCritter(c._script!, c), c),
                 )
                 steps++
-                if (globalState.uiMode === UIMode.dialogue) {
+                if (uiState.uiMode === UIMode.dialogue) {
                     trace.push(await step(`${cid}:heartbeat:end`, `${cid} end`, () => Scripting.dialogueEnd(), c))
                     steps++
                 }
@@ -564,7 +567,7 @@ async function crawlTime(mapName: string, trace: string[]): Promise<number> {
 }
 
 async function loadMapQuietly(name: string): Promise<boolean> {
-    const map = globalState.gMap
+    const map = world.gMap
     if (!map) return false
     if (map.name === name) {
         resetLabels()
@@ -583,7 +586,7 @@ async function finishLoad(key: string): Promise<boolean> {
     while (globalState.isLoading) {
         if (performance.now() > deadline) return false
         await new Promise<void>((r) => setTimeout(r, 20))
-        if (globalState.loadingAssetsLoaded === globalState.loadingAssetsTotal) {
+        if (assets.loadingAssetsLoaded === assets.loadingAssetsTotal) {
             // name the objects where the map file puts them, before map_enter_p_proc
             // moves any (some scripts place critters at random on entry)
             resetLabels()
@@ -639,7 +642,7 @@ export async function runStoryCrawler(options: StoryOptions = {}): Promise<Story
         console.error('[AutoCrawler] Config.engine.debug must be true')
         return null
     }
-    if (!globalState.gMap || !globalState.player) {
+    if (!world.gMap || !world.player) {
         console.error('[AutoCrawler] No active map/player — start a game first')
         return null
     }
@@ -675,23 +678,23 @@ export async function runStoryCrawler(options: StoryOptions = {}): Promise<Story
     const baseline = {
         gvars: { ...Scripting.getGlobalVars() },
         mvars: JSON.parse(JSON.stringify(Scripting.getMapVars() ?? {})),
-        xp: globalState.player.stats.getBase('Experience') as number,
-        hp: globalState.player.stats.getBase('HP') as number,
-        caps: Scripting.itemGetTotalCaps(globalState.player),
-        inventory: globalState.player.inventory.map(cloneItem) as any[],
+        xp: world.player.stats.getBase('Experience') as number,
+        hp: world.player.stats.getBase('HP') as number,
+        caps: Scripting.itemGetTotalCaps(world.player),
+        inventory: world.player.inventory.map(cloneItem) as any[],
     }
     try {
         for (const mapName of opts.maps) {
             Scripting.setGlobalVars(baseline.gvars)
             Scripting.setMapVars(JSON.parse(JSON.stringify(baseline.mvars)))
-            globalState.player.stats.setBase('Experience', baseline.xp)
-            globalState.player.stats.setBase('HP', baseline.hp)
+            world.player.stats.setBase('Experience', baseline.xp)
+            world.player.stats.setBase('HP', baseline.hp)
             // what the last map's purchases and scripts added or took
-            globalState.player.inventory = baseline.inventory.map(cloneItem)
+            world.player.inventory = baseline.inventory.map(cloneItem)
             // timers the last map's scripts set would fire in this map's time pass
             Scripting.timeEventList.length = 0
-            const capsDelta = baseline.caps - Scripting.itemGetTotalCaps(globalState.player)
-            if (capsDelta !== 0) Scripting.itemCapsAdjust(globalState.player, capsDelta)
+            const capsDelta = baseline.caps - Scripting.itemGetTotalCaps(world.player)
+            if (capsDelta !== 0) Scripting.itemCapsAdjust(world.player, capsDelta)
             const loadDraws = randomDraws
             if (!(await loadMapQuietly(mapName))) {
                 console.warn(`[AutoCrawler] story: ${mapName} did not load`)
@@ -710,20 +713,20 @@ export async function runStoryCrawler(options: StoryOptions = {}): Promise<Story
             for (const npc of npcs) {
                 console.log(`[AutoCrawler] story ${mapName}: ${critterDisplayName(npc)} (${npc._script?.scriptName})`)
                 steps += await crawlNpc(npc, mapName, trace, opts)
-                if (globalState.gMap?.name !== mapName) {
-                    trace.push(`left the map for ${globalState.gMap?.name}`)
+                if (world.gMap?.name !== mapName) {
+                    trace.push(`left the map for ${world.gMap?.name}`)
                     break
                 }
             }
-            if (opts.objects && globalState.gMap?.name === mapName) {
+            if (opts.objects && world.gMap?.name === mapName) {
                 console.log(`[AutoCrawler] story ${mapName}: scripted objects`)
                 steps += await crawlObjects(mapName, trace)
-                if (globalState.gMap?.name !== mapName) trace.push(`left the map for ${globalState.gMap?.name}`)
+                if (world.gMap?.name !== mapName) trace.push(`left the map for ${world.gMap?.name}`)
             }
-            if (opts.time && globalState.gMap?.name === mapName) {
+            if (opts.time && world.gMap?.name === mapName) {
                 console.log(`[AutoCrawler] story ${mapName}: time passing`)
                 steps += await crawlTime(mapName, trace)
-                if (globalState.gMap?.name !== mapName) trace.push(`left the map for ${globalState.gMap?.name}`)
+                if (world.gMap?.name !== mapName) trace.push(`left the map for ${world.gMap?.name}`)
             }
             const result: StoryMapResult = { map: mapName, backend, npcs: npcs.length, steps, loadRng, trace }
             // v2: message log + barter in the lines; v3: a purchase in each barter; v4: removed

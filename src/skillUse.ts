@@ -10,7 +10,7 @@
  */
 
 import { Critter, Obj } from './object.js'
-import globalState from './globalState.js'
+import { world } from './state/world.js'
 import { dbg, eventLogPush } from './logger.js'
 import { RollResult, randomRoll, rollIsSuccess, getRandomInt, getMessage } from './util.js'
 import { updateIndicatorBar, drawHP } from './hudRefresh.js'
@@ -123,7 +123,7 @@ export function skillRoll(critter: Critter, skill: string, modifier: number, out
     if (critter.isPlayer && skill !== 'Steal') {
         let best: Critter | null = null
         let bestValue = 0
-        for (const c of globalState.gParty?.getPartyMembersAndPlayer() ?? []) {
+        for (const c of world.gParty?.getPartyMembersAndPlayer() ?? []) {
             if (!c || c.visible === false) continue
             const v = c.getSkill(skill)
             if (v > bestValue) {
@@ -284,7 +284,7 @@ export function skillUse(
         } else {
             uiLog(skillMsg(503)) // You fail to do any healing.
         }
-        globalState.gMap?.updateMap() // scriptsExecMapUpdateProc
+        world.gMap?.updateMap() // scriptsExecMapUpdateProc
     }
 
     switch (skill) {
@@ -306,7 +306,7 @@ export function skillUse(
                 } else {
                     uiLog(skillMsg(503))
                 }
-                globalState.gMap?.updateMap()
+                world.gMap?.updateMap()
             } else {
                 if (obj.isPlayer) {
                     showHealthy(obj, target)
@@ -388,7 +388,7 @@ export function skillUse(
     }
 
     if (giveExp) showSkillUseMessages(obj, skill, successCount, criticalChanceModifier)
-    if (skill === 'First Aid' || skill === 'Doctor') globalState.gMap?.updateMap()
+    if (skill === 'First Aid' || skill === 'Doctor') world.gMap?.updateMap()
     return result
 }
 
@@ -510,7 +510,7 @@ export function performSteal(
 
     // CE ref: skill.cc:1059 — stealing from a party member always critically succeeds
     let stealRoll: RollResult
-    if (thief.isPlayer && globalState.gParty.isPartyMember(target)) {
+    if (thief.isPlayer && world.gParty.isPartyMember(target)) {
         stealRoll = RollResult.CriticalSuccess
     } else {
         stealRoll = randomRoll(stealChance, thief.getStat('Critical Chance')).roll

@@ -11,7 +11,8 @@ import { arrayRemove } from '../../util.js'
 import { centerCamera } from '../../renderer.js'
 import { fromTileNum, toTileNum } from '../../tile.js'
 import { getCenterTile } from '../../render/camera.js'
-import globalState from '../../globalState.js'
+import { world } from '../../state/world.js'
+import { uiState } from '../../state/uiState.js'
 import { hexDistance, hexInDirection, hexNearestNeighbor } from '../../geometry.js'
 import { lookupMapName, setMapMusicOverride } from '../../data.js'
 import { uiWorldMap } from '../../ui.js'
@@ -54,7 +55,7 @@ export const mapOpcodes = {
     },
     tile_contains_pid_obj(this: Script, tile: number, elevation: number, pid: number): any {
         const pos = fromTileNum(tile)
-        const objects = globalState.gMap!.getObjects(elevation)
+        const objects = world.gMap!.getObjects(elevation)
         for (let i = 0; i < objects.length; i++) {
             if (objects[i].position.x === pos.x && objects[i].position.y === pos.y && objects[i].pid === pid) {
                 return objects[i]
@@ -73,8 +74,8 @@ export const mapOpcodes = {
     // (tile, elevation) for block type 0=BLOCK/1=SHOOT/2=AI/3=SIGHT/4=SCROLL
     // (see GameMap.blockingObjectAt); SHOOT drops OBJECT_SHOOT_THRU obstacles.
     obj_blocking_at(this: Script, tile: number, elevation: number, blockingType: number): Obj | null {
-        if (!globalState.gMap) return null
-        const o = globalState.gMap.blockingObjectAt(tile, elevation, blockingType, null)
+        if (!world.gMap) return null
+        const o = world.gMap.blockingObjectAt(tile, elevation, blockingType, null)
         if (o && blockingType === 1 && (((o.flags ?? 0) >>> 0) & 0x80000000) !== 0) return null
         return o
     },
@@ -82,8 +83,8 @@ export const mapOpcodes = {
     // from obj's tile to dest, returning the first obstacle (animation.cc
     // _make_straight_path_func; see GameMap.straightPathBlockingObject).
     make_straight_path(this: Script, obj: Obj, destTile: number, blockingType: number): Obj | null {
-        if (!isGameObject(obj) || !globalState.gMap) return null
-        return globalState.gMap.straightPathBlockingObject(obj, fromTileNum(destTile), blockingType)
+        if (!isGameObject(obj) || !world.gMap) return null
+        return world.gMap.straightPathBlockingObject(obj, fromTileNum(destTile), blockingType)
     },
     tile_num_in_direction(this: Script, tile: number, direction: number, distance: number) {
         if (distance === 0) {
@@ -110,7 +111,7 @@ export const mapOpcodes = {
     // CE opTileContainsObjectWithPid: the objects on that tile of the given elevation
     tile_contains_obj_pid(this: Script, tile: number, elevation: number, pid: number) {
         const p = fromTileNum(tile)
-        return globalState
+        return world
             .gMap!.getObjects(elevation)
             .some((o) => o.pid === pid && o.position?.x === p.x && o.position?.y === p.y)
             ? 1
@@ -132,16 +133,16 @@ export const mapOpcodes = {
         // CE opMoveTo → objectSetLocation(object, tile, elevation): the object's own
         // elevation decides; a critter leaving its elevation leaves combat; returns the tile
         const isPlayer = obj instanceof Critter && obj.isPlayer
-        const fromElevation = isPlayer ? globalState.currentElevation : (obj.elevation ?? globalState.currentElevation)
+        const fromElevation = isPlayer ? world.currentElevation : (obj.elevation ?? world.currentElevation)
         if (elevation !== fromElevation) {
             info('move_to: moving to elevation ' + elevation)
-            if (isPlayer) globalState.gMap!.changeElevationFaded(elevation, true)
+            if (isPlayer) world.gMap!.changeElevationFaded(elevation, true)
             else {
-                const levels: Obj[][] = globalState.gMap!.objects ?? []
+                const levels: Obj[][] = world.gMap!.objects ?? []
                 if (levels[fromElevation]) arrayRemove(levels[fromElevation], obj)
                 if (levels[elevation] && !levels[elevation].includes(obj)) levels[elevation].push(obj)
                 obj.elevation = elevation
-                if (obj.type === 'critter' && globalState.inCombat) globalState.combat?.removeCombatant(obj as Critter)
+                if (obj.type === 'critter' && world.inCombat) world.combat?.removeCombatant(obj as Critter)
             }
         }
         obj.position = fromTileNum(tileNum)
@@ -152,7 +153,7 @@ export const mapOpcodes = {
     // CE interpreter_extra.cc opSetMapStart — map_set_elevation, tile_set_center and
     // mapSetStart(tile, elevation, rotation).
     set_map_start(this: Script, x: number, y: number, elevation: number, rotation: number) {
-        const gMap = globalState.gMap
+        const gMap = world.gMap
         if (!gMap) return
         if (elevation !== gMap.currentElevation) gMap.changeElevation(elevation, true)
         centerCamera({ x, y })
@@ -170,7 +171,7 @@ export const mapOpcodes = {
             scriptingState.overrideStartPos = { position: { x, y }, orientation: rotation, elevation }
             return
         }
-        const player = globalState.player
+        const player = world.player
         if (!player) return
         player.orientation = rotation
         this.move_to(player, 200 * y + x, elevation)
@@ -218,12 +219,12 @@ export const mapOpcodes = {
     },
     wm_area_set_pos(this: Script, area: number, x: number, y: number) {
         // CE ref: worldmap.cc wmAreaSetPos() — updates world-map marker position
-        if (!globalState.mapAreas) {
+        if (!world.mapAreas) {
             warn('wm_area_set_pos: mapAreas not loaded')
             return
         }
         const areaKey = String(area)
-        if (!globalState.mapAreas[areaKey]) {
+        if (!world.mapAreas[areaKey]) {
             warn('wm_area_set_pos: unknown area ' + area)
             return
         }
@@ -232,20 +233,20 @@ export const mapOpcodes = {
             warn(`wm_area_set_pos: ${x}, ${y} is off the map`)
             return
         }
-        globalState.mapAreas[areaKey].worldPosition = { x, y }
+        world.mapAreas[areaKey].worldPosition = { x, y }
         Worldmap.updateAreaMarkerPos(areaKey, x, y)
     },
     // CE opWorldmap (0x8108) — scriptsRequestWorldMap
     world_map(this: Script) {
         // CE scriptsRequestWorldMap: in combat _game_user_wants_to_quit = 1 — the fight ends
-        if (globalState.inCombat) globalState.combat?.end()
+        if (world.inCombat) world.combat?.end()
         requestScript('worldMap', () => uiWorldMap()) // CE scriptsRequestWorldMap
     },
     // CE opSetMapMusic (0x80E2) — worldmap.cc wmSetMapMusic: override maps.txt music.
     set_map_music(this: Script, mapIndex: number, music: string) {
         setMapMusicOverride(mapIndex, String(music))
         // … and the current map's music changes at once (backgroundSoundDelete + wmMapMusicStart)
-        if (mapIndex === currentMapID) (globalState.gMap as any)?.playMapMusic?.()
+        if (mapIndex === currentMapID) (world.gMap as any)?.playMapMusic?.()
     },
     play_gmovie(this: Script, movieID: number) {
         // CE: interpreter_extra.cc:3581 opPlayGameMovie — per-movie flags table,
@@ -282,7 +283,7 @@ export const mapOpcodes = {
     },
     // CE opGameUiIsDisabled (0x8135)
     game_ui_is_disabled(this: Script) {
-        return globalState.gameUIDisabled ? 1 : 0
+        return uiState.gameUIDisabled ? 1 : 0
     },
     // CE opMakeDayTime (0x80D1) — an empty function in CE.
     make_daytime(this: Script) {},

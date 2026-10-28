@@ -46,7 +46,14 @@ and after), plus tests, parity, smoke and storycrawl. Module variables the moved
 (CE's critical-hit tables), kept whole. The import-cycle limit rose 73 → 90: the new files are parts of their class's
 module (each imports it and is imported by it), not new dependencies. The camelCase renames (CA40) followed the same day: 30 files and 5 folders (`ui_*` → `ui*`, `vm_bridge` → `vmBridge`, `proto_types` → `protoTypes`); the compiled output of all 230 modules is identical apart from the names.
 
-Open: **Q14** past 73 modules (scripting hooks for objects / combat / dialogue), **Q15** (globalState split),
+Q15 (2026-10-28): `globalState` split into five state modules under `src/state/` (`world` — map, player, party,
+combat, time, areas; `uiState` — UI mode, cursor, hover; `view` — camera; `services` — renderer, audio; `assets` —
+images, protos, messages, caches); `globalState` keeps the engine's own runtime fields (loading flags, frame
+times, `eventLog`, the use handlers) and a getter / setter for every moved field, so the dev console, the
+tools and the save code still see one object with the old names. A type-checked rewrite moved 1561 uses to
+their owner; importers of `globalState` 136 → 23. Tests, lint, parity, smoke and storycrawl unchanged.
+
+Open: **Q14** past 73 modules (scripting hooks for objects / combat / dialogue),
 the world-map map entries in Q13 (still loaded synchronously), and two Q13 leftovers by design (scripts
 a script spawns later, dialogue `.msg` on first talk).
 
@@ -136,12 +143,12 @@ What Phase 1 delivered (2026-10-27):
 |---|---|---|---|
 | Q13 | ✅ Async loading: `fetch` versions of `getFileText` / `getFileJSON` / `getFileBinarySync`; preload what the synchronous paths need (msg files, protos, scripts) at map load so engine code can stay synchronous where CE is. `main.ts` boot with `await` (CA21, CA22). | yes (startup order, script loading) | no `open(..., false)` left; crawler + luadiff unchanged; load time measured before / after |
 
-### Phase 5 — architecture (long term) — 🔶 Q14 partial, Q15 / Q16 open
+### Phase 5 — architecture (long term) — 🔶 Q14 partial, Q15 / Q16 done
 
 | # | Step | Approval | Done when |
 |---|---|---|---|
 | Q14 | 🔶 partial Break the 144-module import cycle: move shared types into type-only modules, pass services in (renderer, audio, UI callbacks) instead of importing them, keep the hook pattern already used (`globalState.drugHandler`, `setWorldmapGlobalVarHooks`). Measure the largest cycle in CI. | yes | largest cycle < 30 modules; `main.js` no longer has to be imported first |
-| Q15 | Split `globalState` into owned state (map, party, camera, UI mode, caches) with accessors; save format unchanged (`eventLog`, `seenMovies`, `knownAreas` ... keep their names). | yes (save format adjacent) | old saves load; ≤ 40 importers of `globalState` |
+| Q15 | ✅ Split `globalState` into owned state (map, party, camera, UI mode, caches) with accessors; save format unchanged (`eventLog`, `seenMovies`, `knownAreas` ... keep their names). | yes (save format adjacent) | old saves load; ≤ 40 importers of `globalState` |
 | Q16 | ✅ Split files > 800 lines per `ts-split-refactor.md` (CA41), file renames to camelCase (CA40). | yes | no file > 1500 lines |
 | Q17 | ✅ Toolchain upgrade: TypeScript 5.x, ESLint 9 flat config + `typescript-eslint` 8, Python ≥ 3.11 for the pipeline (CA24). After Phase 1 so CI catches the fallout. | yes | CI green on the new versions |
 

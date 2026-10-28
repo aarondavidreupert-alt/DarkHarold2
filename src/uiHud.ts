@@ -22,7 +22,10 @@ import { uiLog } from './messageLog.js'
 import { objExamine, objLookAt } from './examine.js'
 import { ammoGetQuantity } from './weaponAmmo.js'
 import { Config } from './config.js'
-import globalState from './globalState.js'
+import { world } from './state/world.js'
+import { uiState } from './state/uiState.js'
+import { services } from './state/services.js'
+import { assets } from './state/assets.js'
 import { Critter, Obj, WeaponObj, objectIsWeapon } from './object.js'
 import { getMessage } from './util.js'
 import { currentUnarmed, unarmedAPCost } from './unarmed.js'
@@ -90,7 +93,7 @@ let _acTimer: ReturnType<typeof setInterval> | null = null
 
 function _hpColorOffset(hp: number): number {
     // CE ref: interfaceRenderHitPoints — red = maxHp*0.25, yellow = maxHp*0.50
-    const maxHp = globalState.player?.getStat('Max HP') ?? 0
+    const maxHp = world.player?.getStat('Max HP') ?? 0
     if (maxHp <= 0) return NUM_COLOR_WHITE
     if (hp < Math.floor(maxHp * 0.25)) return NUM_COLOR_RED
     if (hp < Math.floor(maxHp * 0.5)) return NUM_COLOR_YELLOW
@@ -269,7 +272,7 @@ export function setIndicatorBarHidden(hidden: boolean): void {
 }
 
 export function updateIndicatorBar(): void {
-    const player = globalState.player
+    const player = world.player
     if (!player) return
 
     if (!indicatorBarEl) {
@@ -352,7 +355,7 @@ function renderIndicatorBadges(active: Set<string>): void {
 // two-handed one with either arm crippled.
 function dudeIsWeaponDisabled(item: Obj | undefined | null): boolean {
     if (!item || !objectIsWeapon(item) || (item as any).pid === undefined) return false
-    const p = globalState.player as any
+    const p = world.player as any
     if (p.crippledLeftArm && p.crippledRightArm) return true
     const twoHanded = (((item as any).pro?.extra?.weaponFlags ?? 0) & 0x02) !== 0 // WEAPON_TWO_HAND
     return twoHanded && (p.crippledLeftArm || p.crippledRightArm)
@@ -385,7 +388,7 @@ export { uiLog, uiLogReset, uiLogCount, initLogScrollZones } from './messageLog.
 // (a weapon put back in a hand isn't still in burst or reload mode).
 const lastHandItems: { leftHand: unknown; rightHand: unknown } = { leftHand: undefined, rightHand: undefined }
 function resetChangedHandActions(): void {
-    const p = globalState.player as any
+    const p = world.player as any
     if (!p) return
     for (const hand of ['leftHand', 'rightHand'] as const) {
         const item = p[hand]
@@ -400,16 +403,16 @@ function resetChangedHandActions(): void {
 export function uiDrawWeapon(): void {
     resetChangedHandActions()
     // draw the active weapon in the interface bar
-    const weapon = globalState.player!.equippedWeapon
+    const weapon = world.player!.equippedWeapon
     clearEl($id('attackButton'))
     {
-        const player = globalState.player as any
+        const player = world.player as any
         setAttackButtonDisabled(dudeIsWeaponDisabled(player[player.activeHand ?? 'leftHand']))
     }
     const $wepImg = $id('attackButtonWeapon') as HTMLImageElement
     const $typeImg = $img('attackButtonType')
     if (!weapon || !weapon.weapon) {
-        const player = globalState.player!
+        const player = world.player!
         const activeHand: 'leftHand' | 'rightHand' = player.activeHand ?? 'leftHand'
         const activeItem = player[activeHand] as Obj | undefined
 
@@ -471,7 +474,7 @@ export function uiDrawWeapon(): void {
     if (mode === 'reload') {
         digit = weapon.weapon.getReloadAPCost() // CE ref: item.cc:1640
     } else {
-        digit = weapon.weapon.getAttackAPCost(globalState.player!, undefined, weapon.weapon.isCalled()) // CE weaponGetActionPointCost
+        digit = weapon.weapon.getAttackAPCost(world.player!, undefined, weapon.weapon.isCalled()) // CE weaponGetActionPointCost
     }
     if (digit === undefined || digit > 9) {
         return
@@ -528,7 +531,7 @@ export function uiUpdateAmmoBar(weapon: WeaponObj | null): void {
 const END_ANIM_FRAMES = 5
 const END_ANIM_FRAME_W = 57
 // CE interfaceBarEndButtonsShow / Hide: a frame every 1000 / the FRM's fps
-const endAnimDelay = (): number => 1000 / (globalState.imageInfo!['art/intrface/endanim']?.fps || 15)
+const endAnimDelay = (): number => 1000 / (assets.imageInfo!['art/intrface/endanim']?.fps || 15)
 
 let _endAnimTimer: ReturnType<typeof setTimeout> | null = null
 let _endAnimFrame = 0
@@ -592,12 +595,12 @@ export function uiEndButtonsClearLights(): void {
 }
 
 export function uiStartCombat(): void {
-    globalState.cursorMode = 'attack'
+    uiState.cursorMode = 'attack'
     // CE ref: interface.cc interfaceBarEndButtonsShow / RenderRedLights:
     // animate end-turn panel open (frames 0→4), then show buttons with red lights.
     // The panel opening sounds iciboxx1.
     if (_endAnimFrame !== END_ANIM_FRAMES - 1 && !window.__test?.fastMode)
-        globalState.audioEngine?.playSfxByName?.('iciboxx1')
+        services.audioEngine?.playSfxByName?.('iciboxx1')
     stepEndAnim(1, () => {
         showv($id('endTurnButton'))
         showv($id('endCombatButton'))
@@ -605,14 +608,14 @@ export function uiStartCombat(): void {
         // already be the player's (Combat.start → nextTurn), so light the buttons for
         // whoever's turn it is now instead of always red (which left End Turn / End
         // Combat disabled for the player's whole first turn).
-        if (globalState.combat?.inPlayerTurn) uiEndButtonsGreenLights()
+        if (world.combat?.inPlayerTurn) uiEndButtonsGreenLights()
         else uiEndButtonsRedLights()
     })
-    const player = globalState.player!
+    const player = world.player!
     drawHP(player.getStat('HP'))
     drawAC(player.getStat('AC'))
     drawAP(player.AP!.getAvailableCombatAP(), player.AP!.getTotalMaxAP(), player.AP!.move)
-    globalState.combat?.refreshHighlights()
+    world.combat?.refreshHighlights()
 }
 
 export function uiEndCombat(): void {
@@ -624,7 +627,7 @@ export function uiEndCombat(): void {
         /* panel closed */
     })
 
-    globalState.cursorMode = 'move'
+    uiState.cursorMode = 'move'
 
     for (let i = 1; i <= 10; i++) {
         const el = document.getElementById('apLight' + i)
@@ -649,7 +652,7 @@ let _lastHoverObj: Obj | null = null
 export function uiShowCombatHover(target: Obj, screenX: number, screenY: number): void {
     const $hover = document.getElementById('combatHoverInfo')
     if (!$hover) return
-    const player = globalState.player
+    const player = world.player
     if (!player) return
 
     if (Config.ui.combatLooks && target !== _lastHoverObj) {
@@ -668,10 +671,9 @@ export function uiShowCombatHover(target: Obj, screenX: number, screenY: number)
     const weapon = player.equippedWeapon
     const real = !!weapon && weapon.pid !== undefined
     const aiming = real ? !!weapon.weapon?.isCalled?.() : !!currentUnarmed(player)?.aiming
-    const shotOk =
-        !!globalState.combat && isCritter && globalState.combat.checkBadShot(player, target as Critter, aiming) === 'ok'
-    if (isCritter && shotOk && globalState.combat) {
-        const hit = globalState.combat.getHitChance(player, target as Critter, 'torso').hit
+    const shotOk = !!world.combat && isCritter && world.combat.checkBadShot(player, target as Critter, aiming) === 'ok'
+    if (isCritter && shotOk && world.combat) {
+        const hit = world.combat.getHitChance(player, target as Critter, 'torso').hit
         text = `${hit}%`
         color = rgb555(notPlayerTeam ? 32767 : 32495)
     } else if (!isCritter) {

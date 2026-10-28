@@ -11,6 +11,8 @@ import { prefetchMap } from './map/prefetch.js'
 import * as GameTime from './gametime.js'
 import { Point } from './geometry.js'
 import globalState from './globalState.js'
+import { world } from './state/world.js'
+import { uiState } from './state/uiState.js'
 import { parseIntFile } from './intfile.js'
 import { dbg, dbgWarn } from './logger.js'
 import { uiElevator } from './uiElevator.js'
@@ -154,7 +156,7 @@ const PROTO_ID_MONEY = 41
 // party.txt member's own, else (CE's fallback for any other critter) the dude's.
 export function perkRankOwner(c: Critter): Critter {
     if (c.isPlayer || isPartyMemberPid(c.pid)) return c
-    return globalState.player as Critter
+    return world.player as Critter
 }
 
 // CE item.cc itemGetTotalCaps — money in the inventory and, recursively, in containers.
@@ -332,7 +334,7 @@ export function traitSpecialPart(c: Critter, stat: number): number {
 }
 
 export function setGameUiDisabled(disabled: boolean): void {
-    globalState.gameUIDisabled = disabled
+    uiState.gameUIDisabled = disabled
     const $bar = document.getElementById('bar')
     if ($bar) $bar.style.pointerEvents = disabled ? 'none' : ''
 }
@@ -392,7 +394,7 @@ export function info(msg: string, type?: DebugLogShowType, script?: Script) {
 // reduced by poison resistance; a positive result (re)schedules the decay event at
 // 10*(505-5*poison) ticks; messages misc.msg 3000/3002/3003.
 export function adjustPoison(critter: Critter, amount: number): void {
-    if (critter !== globalState.player) return
+    if (critter !== world.player) return
     if (amount > 0) {
         amount -= Math.trunc((amount * (critter.getStat('DR Poison') ?? 0)) / 100)
     } else if ((critter.poisonLevel ?? 0) <= 0) {
@@ -430,7 +432,7 @@ export function adjustPoison(critter: Critter, amount: number): void {
 
 // CE ref: critter.cc:378 poisonEventProcess — -2 poison (reschedules), -1 HP, msg 3001.
 export function poisonDecayEvent(critter: Critter): void {
-    if (!critter || critter.dead || critter !== globalState.player) return
+    if (!critter || critter.dead || critter !== world.player) return
     adjustPoison(critter, -2)
     const hp = critter.getStat('HP') - 1
     critter.stats.setBase('HP', Math.min(hp, critter.getStat('Max HP')))
@@ -566,8 +568,8 @@ export const DAMAGE_TYPE_NAMES = ['Normal', 'Laser', 'Fire', 'Plasma', 'Electric
 export function requestElevator(self: Obj | null, explicitType: number): void {
     if (!self?.position) return
     let type = explicitType
-    const elevation = (self as any).elevation ?? globalState.gMap!.currentElevation
-    const objects: Obj[] = globalState.gMap!.getObjects(elevation)
+    const elevation = (self as any).elevation ?? world.gMap!.currentElevation
+    const objects: Obj[] = world.gMap!.getObjects(elevation)
     search: for (let dy = -5; dy < 5; dy++) {
         for (let dx = -5; dx < 5; dx++) {
             const x = self.position.x + dx,
@@ -589,9 +591,9 @@ export function requestElevator(self: Obj | null, explicitType: number): void {
 
 // Every object that can carry items: the map's objects on all elevations and the dude.
 export function allCarriers(): Obj[] {
-    const levels: Obj[][] = globalState.gMap?.objects ?? []
+    const levels: Obj[][] = world.gMap?.objects ?? []
     const all = levels.flat()
-    const dude = globalState.player
+    const dude = world.player
     if (dude && !all.includes(dude)) all.push(dude)
     return all
 }
@@ -641,7 +643,7 @@ export function dialogueReply(id: number): void {
     // dialogueExit() to fire immediately after opening Combat Control —
     // hiding the dialogue UI instantly and nulling currentDialogueObject
     // out from under it.
-    if (globalState.uiMode !== UIMode.dialogue) {
+    if (uiState.uiMode !== UIMode.dialogue) {
         return
     }
     if (scriptingState.currentDialogueObject !== null && scriptingState.dialogueOptionProcs.length === 0) {
@@ -662,7 +664,7 @@ export function setSeed(n: number): void {
 export function objCanSeeObj(obj: Critter, target: Obj): boolean {
     if (obj.elevation !== target.elevation || !obj.position || !target.position) return false
     if (!isWithinPerception(obj, target as Critter)) return false
-    return globalState.gMap!.straightPathBlockingObject(obj, target.position, 0) === target
+    return world.gMap!.straightPathBlockingObject(obj, target.position, 0) === target
 }
 
 export interface SerializedScript {
@@ -981,10 +983,10 @@ export function startMapScripts(mapScript: Script | null, spatials: Obj[], objec
 let pendingDudeLvars: { [lvar: number]: any } | null = null
 export function setPendingDudeLvars(lvars: { [lvar: number]: any } | null): void {
     pendingDudeLvars = lvars
-    if (globalState.player) globalState.player._script = undefined
+    if (world.player) world.player._script = undefined
 }
 export function ensureDudeScript(): void {
-    const player = globalState.player
+    const player = world.player
     if (!player || player._script) return
     let script: Script | null = null
     try {
@@ -1130,7 +1132,7 @@ export function startTransitionPrefetch(mapName: string | null): void {
  *  `waitForPrefetch`: also wait until the new map's files are fetched (the game loop does;
  *  the story crawler does not, its traces must not depend on download timing). */
 export function processMapTransition(waitForPrefetch = false): boolean {
-    if (scriptingState.pendingMapTransition === null || globalState.uiMode !== UIMode.none || globalState.isLoading)
+    if (scriptingState.pendingMapTransition === null || uiState.uiMode !== UIMode.none || globalState.isLoading)
         return false
     if (waitForPrefetch && transitionPrefetchDone === false) {
         return false
@@ -1139,10 +1141,10 @@ export function processMapTransition(waitForPrefetch = false): boolean {
     const map = scriptingState.pendingMapTransition
     scriptingState.pendingMapTransition = null
     if (typeof map === 'string') {
-        globalState.gMap!.loadMap(map)
+        world.gMap!.loadMap(map)
         Events.emit('mapTransition', mapIndexOf(map))
     } else {
-        globalState.gMap!.loadMapByID(map)
+        world.gMap!.loadMapByID(map)
         Events.emit('mapTransition', map)
     }
     return true
@@ -1182,14 +1184,14 @@ setChildProgramLoader((name) => {
 })
 
 export function processScriptRequests(): void {
-    if (scriptRequests.size === 0 || globalState.uiMode !== UIMode.none) return
-    if (scriptRequests.has('combat') && !globalState.inCombat) runScriptRequest('combat')
+    if (scriptRequests.size === 0 || uiState.uiMode !== UIMode.none) return
+    if (scriptRequests.has('combat') && !world.inCombat) runScriptRequest('combat')
     else scriptRequests.delete('combat') // in combat attack_setup / attack_complex only engage
     runScriptRequest('worldMap')
     runScriptRequest('explosion')
 }
 export function processEndgameRequest(): void {
-    if (globalState.uiMode !== UIMode.none) return
+    if (uiState.uiMode !== UIMode.none) return
     runScriptRequest('endgame')
 }
 // gameReset / map change: pending requests go
@@ -1198,7 +1200,7 @@ export function clearScriptRequests(): void {
 }
 
 export function processDialogueRequest(): boolean {
-    if (!scriptingState.requestedDialogue || globalState.uiMode !== UIMode.none || globalState.inCombat) return false
+    if (!scriptingState.requestedDialogue || uiState.uiMode !== UIMode.none || world.inCombat) return false
     const obj = scriptingState.requestedDialogue
     scriptingState.requestedDialogue = null
     if (!obj._script || (obj as any).dead) return false
@@ -1312,7 +1314,7 @@ export function objectEnterMap(obj: Obj, elevation: number, mapID: number) {
 export function reset(mapName: string, mapID?: number) {
     // CE: the old map's programs are freed, and with them their exported procedures and
     // pending call_at / call_when; the dude's and the global scripts stay
-    const dudeScript = globalState.player?._script
+    const dudeScript = world.player?._script
     vmClearPrograms((vm: any) => vm.scriptObj === dudeScript || GlobalScripts.globalScriptIsLoaded(vm.scriptObj))
     // The event queue is not emptied here: leaving the old map already cleared what CE
     // clears (queueLeavingMap, _queue_leaving_map); poison, radiation and the party's
@@ -1338,8 +1340,8 @@ export function init(mapName: string, mapID?: number) {
 }
 
 export function give_exp_points(xp: number) {
-    if (!globalState.player) return
-    globalState.player.addExperience(xp)
+    if (!world.player) return
+    world.player.addExperience(xp)
 }
 
 // --- Built-in stubs for scripts whose .int files are not shipped ---
@@ -1355,7 +1357,7 @@ registerStubBySid(203, 'actemdor', {
         const self = this.self_obj as unknown as Obj
         if (!self) return
         dbg('script', `actemdor stub: destroying ${self.type} pid=${self.pid}`)
-        globalState.gMap?.destroyObject(self)
+        world.gMap?.destroyObject(self)
     },
 })
 
@@ -1370,18 +1372,18 @@ registerStub('aibkdor', {
         if (!self) return
         const pos = { ...self.position }
         dbg('script', `AIBkDor stub: removing acavedr2 pid=${self.pid} @ (${pos.x},${pos.y})`)
-        globalState.gMap?.destroyObject(self)
+        world.gMap?.destroyObject(self)
 
         // Spawn acavedr3 (destroyed rubble) at the same tile.
         // pid 33555365 = (2 << 24) | 933 = scenery, pidID 933.
         // flags 0xA0008010 = 2684387344, includes NoBlock (bit 4).
         const rubble = createObjectWithPID(33555365, -1)
-        if (rubble && globalState.gMap) {
+        if (rubble && world.gMap) {
             rubble.position = pos
             rubble.flags = 2684387344
             if (rubble.pro) rubble.pro.flags = 2684387344
-            globalState.gMap.addObject(rubble)
-            globalState.gMap.updateMap()
+            world.gMap.addObject(rubble)
+            world.gMap.updateMap()
         }
     },
 })

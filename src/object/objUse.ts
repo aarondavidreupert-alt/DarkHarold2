@@ -26,6 +26,8 @@ import { drawHP } from '../hudRefresh.js'
 import { fromTileNum, toTileNum } from '../tile.js'
 import { getProtoMsg, getRandomInt } from '../util.js'
 import globalState from '../globalState.js'
+import { world } from '../state/world.js'
+import { services } from '../state/services.js'
 import { isChargedMiscItem, useChargedMiscItem } from '../miscItem.js'
 import { lazyLoadImage } from '../images.js'
 import { makePID } from '../pro.js'
@@ -87,7 +89,7 @@ export const objUseMethods = {
 
         if (useScript !== false && this._script && this._script.use_p_proc !== undefined) {
             if (source === undefined) {
-                source = globalState.player!
+                source = world.player!
             }
             if (Scripting.use(this, source!) === true) {
                 dbg('object', '[Object] useObject: overridden by script')
@@ -98,12 +100,12 @@ export const objUseMethods = {
         }
 
         if (this.subtype === 'drug') {
-            if (source === undefined) source = globalState.player as Critter
+            if (source === undefined) source = world.player as Critter
             if (globalState.drugHandler) {
                 const handled = globalState.drugHandler(this, source)
                 if (handled) {
                     // CE ref: item.cc itemUse() — drug item is consumed on use.
-                    const owner = source ?? (globalState.player as Critter)
+                    const owner = source ?? (world.player as Critter)
                     if (owner) {
                         const idx = owner.inventory.indexOf(this)
                         if (idx !== -1) {
@@ -130,13 +132,13 @@ export const objUseMethods = {
 
         // CE ref: proto_instance.cc:1245 — First Aid Kit / Doctor's Bag trigger skills.
         if (this.subtype === 'misc' && globalState.miscItemUseHandler) {
-            if (source === undefined) source = globalState.player as Critter
+            if (source === undefined) source = world.player as Critter
             if (globalState.miscItemUseHandler(this, source)) return true
         }
 
         // CE ref: item.cc:2246-2280 _item_m_use_charged_item() — Stealth Boy / Geiger Counter toggle.
         if (isChargedMiscItem(this)) {
-            if (source === undefined) source = globalState.player as Critter
+            if (source === undefined) source = world.player as Critter
             useChargedMiscItem(this, source ?? null)
             return true
         }
@@ -154,7 +156,7 @@ export const objUseMethods = {
 
         // CE _obj_use_item → _obj_use_flare
         if (this.pid === PROTO_ID_FLARE) {
-            useFlare(this, source ?? (globalState.player as Critter))
+            useFlare(this, source ?? (world.player as Critter))
             return true
         }
 
@@ -168,7 +170,7 @@ export const objUseMethods = {
         if (this.isDoor) {
             // CE _obj_use_door: closing over something in the doorway — proto.msg 597
             if (this.open) {
-                const gMap = globalState.gMap
+                const gMap = world.gMap
                 const elevation = this.elevation ?? gMap!.currentElevation
                 if (gMap!.blockingObjectAt(toTileNum(this.position), elevation, 0, this) !== null) {
                     uiLog(getProtoMsg(597) ?? 'The doorway seems to be blocked.')
@@ -196,16 +198,16 @@ export const objUseMethods = {
                 // same map, new destination
                 dbg('object', `[Object] stairs: tile=(${destTile.x}, ${destTile.y}), elev=${destElev}`)
 
-                globalState.player!.position = destTile
-                globalState.gMap!.changeElevationFaded(destElev)
+                world.player!.position = destTile
+                world.gMap!.changeElevationFaded(destElev)
                 // CE ref: map.cc:386 mapSetElevation fires only map_update_p_proc, not map_enter_p_proc
-                globalState.gMap!.updateMap()
+                world.gMap!.updateMap()
             } else {
                 dbg(
                     'object',
                     `[Object] stairs → ${this.extra.destinationMap} @ (${destTile.x}, ${destTile.y}), elev=${destElev}`,
                 )
-                globalState.gMap!.loadMapByID(this.extra.destinationMap, destTile, destElev)
+                world.gMap!.loadMapByID(this.extra.destinationMap, destTile, destElev)
             }
         } else if (this.isLadder) {
             const isTop = this.pro!.extra.subType === 4
@@ -229,16 +231,16 @@ export const objUseMethods = {
             }
             const transition = () => {
                 if (destMap !== 0) {
-                    globalState.gMap!.loadMapByID(destMap, destTile, destElev)
+                    world.gMap!.loadMapByID(destMap, destTile, destElev)
                     return
                 }
-                globalState.player!.position = destTile
-                globalState.gMap!.changeElevationFaded(destElev)
+                world.player!.position = destTile
+                world.gMap!.changeElevationFaded(destElev)
                 // CE ref: map.cc:386 mapSetElevation fires only map_update_p_proc
-                globalState.gMap!.updateMap()
+                world.gMap!.updateMap()
             }
 
-            const actor = source ?? globalState.player
+            const actor = source ?? world.player
             if (!isTop) {
                 // CE actions.cc _action_climb_ladder (SCENERY_TYPE_LADDER_UP): facing the
                 // ladder, a drawn weapon put away (ANIM_PUT_AWAY), ANIM_CLIMB_LADDER with its
@@ -293,7 +295,7 @@ export const objUseMethods = {
                 uiLog((getProtoMsg(480) ?? 'You see: %s.').replace('%s', this.name ?? ''))
         }
 
-        globalState.gMap!.updateMap()
+        world.gMap!.updateMap()
         return true
     },
     // CE actions.cc actionExplode — the explosion sprite on the tile and the six around
@@ -314,7 +316,7 @@ export const objUseMethods = {
         if (animate && explosionRunning()) return false
         const killer = (source ?? this) as Critter // explosive itself as killer when source is null
         const center = { x: this.position.x, y: this.position.y }
-        const elevation = this.elevation ?? globalState.gMap?.currentElevation ?? 0
+        const elevation = this.elevation ?? world.gMap?.currentElevation ?? 0
         const blast = () => this.explosionBlast(killer, center, elevation, minDmg, maxDmg)
         if (!animate) {
             blast()
@@ -331,19 +333,19 @@ export const objUseMethods = {
         })
 
         lazyLoadImage(explosion.art, () => {
-            if (!globalState.gMap) {
+            if (!world.gMap) {
                 objState.explosionStarted = -1
                 return
             }
-            globalState.gMap.addObject(explosion)
+            world.gMap.addObject(explosion)
             for (const adj of adjExplosions) {
-                globalState.gMap!.addObject(adj)
+                world.gMap!.addObject(adj)
                 adj.singleAnimation(false, () => {
                     adj.anim = null
-                    globalState.gMap?.destroyObject(adj)
+                    world.gMap?.destroyObject(adj)
                 })
             }
-            globalState.audioEngine?.playSfxByName('whn1xxx1', this) // CE actionExplode
+            services.audioEngine?.playSfxByName('whn1xxx1', this) // CE actionExplode
 
             let fired = false
             explosion.singleAnimation(false, () => {
@@ -353,14 +355,14 @@ export const objUseMethods = {
                 if (fired) return
                 fired = true
                 objState.explosionStarted = -1
-                globalState.gMap?.destroyObject(explosion)
+                world.gMap?.destroyObject(explosion)
                 blast()
             })
         })
         return true
     },
     explosionBlast(this: Obj, killer: Critter, center: Point, elevation: number, minDmg: number, maxDmg: number): void {
-        const gMap = globalState.gMap
+        const gMap = world.gMap
         if (!gMap) return
 
         const atTile = gMap.blockingObjectAt(toTileNum(center), elevation, 0, null)
@@ -397,11 +399,11 @@ export const objUseMethods = {
             }
         }
         if (killer?.isPlayer) Combat.giveExps(xp)
-        if (anyDefender && killer && !globalState.inCombat) {
+        if (anyDefender && killer && !world.inCombat) {
             const attacker = anyDefender
             // CE: CombatStartData { attacker: the survivor, defender: the source, no bonuses }
             setTimeout(() => {
-                if (globalState.inCombat || attacker.dead) return
+                if (world.inCombat || attacker.dead) return
                 Combat.start(undefined, {
                     attacker,
                     defender: killer,
@@ -426,7 +428,7 @@ export const objUseMethods = {
             }
         })
 
-        globalState.gMap?.destroyObject(this)
+        world.gMap?.destroyObject(this)
     },
     // CE actions.cc actionPickUp: walk to the item (in combat: AP-limited walk + 3 AP,
     // _check_scenery_ap_cost), ANIM_MAGIC_HANDS_GROUND, and on its action frame the pickup
@@ -437,7 +439,7 @@ export const objUseMethods = {
         const objPickup = () => {
             if (done) return
             done = true
-            globalState.audioEngine.playSfxByName('ipickup1', source)
+            services.audioEngine.playSfxByName('ipickup1', source)
             if (this._script) {
                 dbg('object', '[Object] picking up %o', this)
                 if (Scripting.pickup(this, source)) return // script handled it
@@ -447,7 +449,7 @@ export const objUseMethods = {
                 return
             }
             source.addInventoryItem(this, this.amount)
-            globalState.gMap!.destroyObject(this)
+            world.gMap!.destroyObject(this)
         }
         const playPickup = () => {
             if (source.hasAnimation('pickUp')) {
@@ -482,10 +484,10 @@ export const objUseMethods = {
         else for (const slot of ['leftHand', 'rightHand', 'armor']) if (owner[slot] === this) owner[slot] = null
         this.flags = (this.flags ?? 0) & ~0x7000000 // no longer in a hand / worn
 
-        globalState.audioEngine.playSfxByName('iputdown')
-        globalState.gMap!.addObject(this) // add to objects
+        services.audioEngine.playSfxByName('iputdown')
+        world.gMap!.addObject(this) // add to objects
         if (this.pid === PROTO_ID_LIT_FLARE && Config.engine.doFloorLighting) Lightmap.rebuildLight() // its light now on the floor
-        const idx = globalState.gMap!.getObjects().length - 1 // our new index
+        const idx = world.gMap!.getObjects().length - 1 // our new index
         this.move({ x: source.position.x, y: source.position.y }, idx)
         return true
     },
