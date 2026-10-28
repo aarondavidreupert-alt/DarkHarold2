@@ -22,7 +22,7 @@ DarkHarold2 is a semi-faithful browser recreation of Fallout 2, forked from the 
   Needs the extracted game data: local only, not in CI
 - `npm run smoke` / `npm run storycrawl` — headless game boot (page errors, `SMOKE_SYNC_XHR=1` counts blocking
   requests) and the story crawler on both backends (VM = Lua, `--compare` a saved run). Local only, like parity
-- `npm run format` (Prettier, checked in CI), `npm run cycles` (import cycles; CI: largest ≤ 78 modules; a split class's files count one by one)
+- `npm run format` (Prettier, checked in CI), `npm run cycles` (import cycles; CI: largest ≤ 89 modules; a split class's files count one by one)
 - CI (`.github/workflows/ci.yml`): build (0 errors, `strict`), import-cycle ratchet, Prettier, lint ratchet, `npm test`.
   Everything else (play testing, story crawler) is manual in the browser
 
@@ -47,7 +47,7 @@ Meta/audit: `CE_PARITY_AUDIT.md` (+ `ce_audit/`, function-by-function CE parity 
 - Never fabricate reference files (pal.py, frmpixels.py, example_scripts/, etc.)
 
 ## Key Files
-- src/scripting.ts — Script class with all opcode intrinsic methods (~4500 lines)
+- src/scripting.ts — the Script class, script loading and state; its opcode methods live in src/scripting/opcodes/<category>.ts, the event entry points (talk, use, damage, …) in src/scripting/events.ts
 - src/vm.ts — bytecode VM (opMap of raw bytecode handlers)
 - src/vm_bridge.ts — wires bytecode opcodes to Script class methods (bridgeOpMap, ~270 `bridged()` entries)
 - src/lua/ — the Lua script backend (luaRuntime.ts, prelude.ts, luaDiff.ts)
@@ -74,9 +74,9 @@ files are derived from the user's install — never commit them. See `wiki/lua_s
 Three-file split — understand this before touching any opcode:
 1. `src/vm.ts` — low-level bytecode decoder (`opMap`, raw stack ops)
 2. `src/vm_bridge.ts` — maps bytecode op values to Script methods via `bridgeOpMap` and the `bridged(procName, argc)` factory
-3. `src/scripting.ts` — `Script` class, one method per FO2 script intrinsic
+3. `src/scripting.ts` — `Script` class, one method per FO2 script intrinsic; the methods are kept by category in `src/scripting/opcodes/*.ts` (core, critter, inventory, objects, map, anim, dialogue, combat, metarule, sfall) and installed on `Script.prototype` (`installMethods`)
 
-To add a new opcode: implement the method on `Script` in scripting.ts, then wire it in vm_bridge.ts with `bridged("methodName", argCount)`. Never add raw stack logic in vm_bridge.ts.
+To add a new opcode: add the method to the matching `src/scripting/opcodes/<category>.ts` object (it gets `this: Script` as its first parameter), then wire it in vm_bridge.ts with `bridged("methodName", argCount)`. Never add raw stack logic in vm_bridge.ts.
 
 Script variable scoping:
 - GVARs — engine-wide, persisted in save
@@ -106,10 +106,12 @@ Proto type encoding (pid high byte): 0=items, 1=critters, 2=scenery, 3=walls, 4=
 Tile coordinate convention: `tileNum = y * 200 + x` (200-wide grid, 40000 max tiles per elevation)
 
 ## Conventions
-- Scripting opcodes live on the `Script` class inside the `Scripting` module in
-  `src/scripting.ts` (the planned `src/scripting/` split has not happened). To
-  add an opcode: add the method to `Script` there, then wire it in
-  `src/vm_bridge.ts` with `bridged("name", argc[, returns])`.
+- Scripting opcodes are methods of the `Script` class (`src/scripting.ts`), kept by
+  category in `src/scripting/opcodes/<category>.ts` (object literals with a `this: Script`
+  parameter, installed on the prototype by `installMethods`; 2026-10-28, code_quality Q16).
+  To add an opcode: add it to the matching category file, then wire it in
+  `src/vm_bridge.ts` with `bridged("name", argc[, returns])`. The same pattern splits
+  `combat/Combat.ts` (`combat/combat*.ts`). Import those files only through their class's module.
 - Use the existing `stub()` helper for unimplemented opcodes — never silent no-ops
 - Use `dbg()` / `dbgWarn()` from src/logger.ts for logging — never raw console.log in new code
 - TimedEvent / `timeEventList` in scripting.ts is the hook for all tick-based callbacks
