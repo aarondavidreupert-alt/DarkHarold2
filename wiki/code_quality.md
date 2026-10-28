@@ -36,6 +36,16 @@ too). Type-only steps were also checked by comparing tsc's output before and aft
 | toolchain | TS 4.6, ESLint 7, Python lock for 3.9 | **TS 6.0, ESLint 10 + typescript-eslint 8, Python 3.11+** (Q17) |
 | unit tests | 0 | **45** (Q2, + the light table) |
 
+**Q16, 2026-10-28:** `scripting.ts` 5124 → 1421 lines (278 opcode methods in `scripting/opcodes/<category>.ts`, the
+event entry points in `scripting/events.ts`), `combat/Combat.ts` 4059 → 1353 (five `combat/combat*.ts` topic files),
+`object/Obj.ts` 1887 → 1453 (`object/objUse.ts`). The methods move verbatim into object literals with a `this` parameter
+and are installed on the class prototype by `src/installMethods.ts` with the class-method descriptor; an interface merge
+types them. Each move was checked method by method (the compiled parameters and body of every method identical before
+and after), plus tests, parity, smoke and storycrawl. Module variables the moved code assigns became state objects
+(`scriptingState`, `combatState`, `objState`). Left over 1500 lines: `criticalEffects/ceTables.ts` (1507), generated data
+(CE's critical-hit tables), kept whole. The import-cycle limit rose 73 → 90: the new files are parts of their class's
+module (each imports it and is imported by it), not new dependencies. The camelCase renames (CA40) are not done.
+
 Open: **Q14** past 73 modules (scripting hooks for objects / combat / dialogue), **Q15** (globalState split),
 **Q16** (files over 1500 lines: `scripting.ts`, `combat/Combat.ts`, `object/Obj.ts`; the `ui_*.ts` camelCase renames,
 CA40 / CA41), the world-map map entries in Q13 (still loaded synchronously), and two Q13 leftovers by design (scripts
@@ -133,7 +143,7 @@ What Phase 1 delivered (2026-10-27):
 |---|---|---|---|
 | Q14 | 🔶 partial Break the 144-module import cycle: move shared types into type-only modules, pass services in (renderer, audio, UI callbacks) instead of importing them, keep the hook pattern already used (`globalState.drugHandler`, `setWorldmapGlobalVarHooks`). Measure the largest cycle in CI. | yes | largest cycle < 30 modules; `main.js` no longer has to be imported first |
 | Q15 | Split `globalState` into owned state (map, party, camera, UI mode, caches) with accessors; save format unchanged (`eventLog`, `seenMovies`, `knownAreas` ... keep their names). | yes (save format adjacent) | old saves load; ≤ 40 importers of `globalState` |
-| Q16 | Split files > 800 lines per `ts-split-refactor.md` (CA41), file renames to camelCase (CA40). | yes | no file > 1500 lines |
+| Q16 | 🔶 splits done, renames open: Split files > 800 lines per `ts-split-refactor.md` (CA41), file renames to camelCase (CA40). | yes | no file > 1500 lines |
 | Q17 | ✅ Toolchain upgrade: TypeScript 5.x, ESLint 9 flat config + `typescript-eslint` 8, Python ≥ 3.11 for the pipeline (CA24). After Phase 1 so CI catches the fallout. | yes | CI green on the new versions |
 
 ## How to re-measure

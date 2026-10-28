@@ -109,7 +109,7 @@ the pipeline or the TS compiler.
 
 | File | Purpose | fallout2-ce counterpart |
 |------|---------|------------------------|
-| `src/object.ts` | Barrel — Obj/Critter/items; split into `object/Obj.ts` (base class + helpers + SerializedObj), `object/items.ts` (Item/WeaponObj/Scenery/Door), `object/factories.ts` (createObjectWithPID, objFromMapObject, deserializeObj), `object/Critter.ts` (Critter class + combat/skill/armor accessors + walkTo/move/serialize), `object/critterAnimation.ts` (FRM state machine + animInfo on Critter.prototype via declaration merging) | `object.cc`, `critter.cc` |
+| `src/object.ts` | Barrel — Obj/Critter/items; split into `object/Obj.ts` (base class + helpers + SerializedObj; `use` / `explode` / `pickup` / `drop` in `object/objUse.ts`, installed on the prototype — Q16), `object/items.ts` (Item/WeaponObj/Scenery/Door), `object/factories.ts` (createObjectWithPID, objFromMapObject, deserializeObj), `object/Critter.ts` (Critter class + combat/skill/armor accessors + walkTo/move/serialize), `object/critterAnimation.ts` (FRM state machine + animInfo on Critter.prototype via declaration merging) | `object.cc`, `critter.cc` |
 | `src/critter.ts` | Barrel — critter module; split into `critter/Weapon.ts` (Weapon class + attack-mode/skin/damage-type constants + UnarmedMove table) + `critter/lifecycle.ts` (critterKill, critterDamage, killCounts) + `critter/deathAnim.ts` (CE death-anim choice: `_pick_death`, `_check_death`, `_pick_fall`, `_action_blood`, single-frame corpses) | `critter.cc`, `actions.cc` |
 | `src/player.ts` | `Player extends Critter`: level-up, XP thresholds, HP-per-level formula, skill points | `player.cc` |
 | `src/char.ts` | `StatSet` / `SkillSet` value objects and calculation helpers | `stat.cc`, `skill.cc` |
@@ -127,7 +127,7 @@ the pipeline or the TS compiler.
 
 | File | Purpose | fallout2-ce counterpart |
 |------|---------|------------------------|
-| `src/combat.ts` | Barrel — combat system; split into `combat/actionPoints.ts` (ActionPoints class), `combat/damage.ts` (4 damage-formula variants + dispatcher), `combat/AI.ts` (AI class + helpers), `combat/hitChance.ts` (getHitChance + to-hit pipeline as free functions), `combat/results.ts` (DAM_* results, `_set_new_results`, knockout event, stand-up), `combat/explosion.ts` (blast rings, `actionExplode` damage, `_scr_explode_scenery`), `combat/Combat.ts` (Combat class — turn flow, the CE attack pipeline `attackCompute` / `_apply_damage` / `_combat_display`, AI dispatch, LoS). | `combat.cc`, `combat_ai.cc`, `actions.cc` |
+| `src/combat.ts` | Barrel — combat system; split into `combat/Combat.ts` (the Combat class: state, turn order, lifecycle; its methods by topic in `combat/combatAttack.ts`, `combatDisplay.ts`, `combatProjectiles.ts`, `combatAiTurn.ts`, `combatAiActions.ts`, installed on the prototype — 2026-10-28, Q16), `combat/actionPoints.ts` (ActionPoints class), `combat/damage.ts` (4 damage-formula variants + dispatcher), `combat/AI.ts` (AI class + helpers), `combat/hitChance.ts` (getHitChance + to-hit pipeline as free functions), `combat/results.ts` (DAM_* results, `_set_new_results`, knockout event, stand-up), `combat/explosion.ts` (blast rings, `actionExplode` damage, `_scr_explode_scenery`), `combat/Combat.ts` (Combat class — turn flow, the CE attack pipeline `attackCompute` / `_apply_damage` / `_combat_display`, AI dispatch, LoS). | `combat.cc`, `combat_ai.cc`, `actions.cc` |
 | `src/criticalEffects.ts` | Barrel — hit-location penalties (`criticalEffects/effects.ts`) and CE's critical hit tables (`criticalEffects/ceTables.ts`, generated from `combat.cc`; `criticalEffects/table.ts` applies the sfall fixes of `criticalEffects/sfallPatches.ts`, CE `criticalsInit` with `OverrideCriticalTable=2`). The effects are applied by the attack pipeline in `combat/Combat.ts`. | `combat.cc` |
 | `src/unarmed.ts` | Unarmed mode definitions (9 modes, threshold/AP/damage table) | `unarmed.cc` |
 | `src/skillUse.ts` | CE `skillUse` (First Aid / Doctor / Repair, use slots, skill XP), `skillRoll`, sneak toggle and sneak event, `performSteal` (462 lines) | `skill.cc skillUse, skillRoll, skillsPerformStealing` |
@@ -145,7 +145,7 @@ Three-file split — understand this before touching any opcode:
 | `src/vm.ts` | `ScriptVM` class + `opMap`: low-level bytecode decoder (stack ops, arithmetic, jumps, 319 lines) | `scripts.cc` (VM core) |
 | `src/vm_bridge.ts` | `bridgeOpMap`: maps ~118 bytecode opcode values to `Script` methods via `bridged(procName, argc)` factory (245 lines) | `scripts.cc` (opcode table) |
 | `src/scriptProcs.ts` | SCRIPT_PROC_* numbers (`script_action`) and the intrinsics that end a procedure on its own `self_obj`, shared by both script backends | `scripts.cc gScriptProcNames`, `interpreter_extra.cc` |
-| `src/scripting.ts` | `Script` class: one method per FO2 script intrinsic, TimedEvent system, GVAR/LVAR/MVAR access, all hook entry points (~2263 lines) | `scripts.cc`, `script_list.cc` |
+| `src/scripting.ts` | `Script` class (fields, `_serialize`), script loading, GVAR/LVAR/MVAR access, TimedEvent system, map entry; the opcode methods are in `scripting/opcodes/<category>.ts` (core, metarule, critter, inventory, objects, map, anim, dialogue, combat, sfall), installed on the prototype; the object-event entry points (talk, use, damage, …) and the dialogue runtime in `scripting/events.ts` (1421 lines; split 2026-10-28, code_quality Q16) | `scripts.cc`, `script_list.cc` |
 | `src/sfallArrays.ts` | sfall arrays (list / associative, temporary arrays freed per game tick) for the Unofficial Patch's scripts ([wiki/upu_support.md](wiki/upu_support.md)) | `sfall_arrays.cc`, `sfall_lists.cc` |
 | `src/sfallIni.ts` | `get_ini_setting` / `set_ini_setting`: reads `file\|section\|key` from the install's ini files the pipeline copied (`data/ddraw.ini`, a mod's `data/mods/<mod>.ini`) | `sfall_ini.cc` |
 | `src/sfallGlobalScripts.ts` | sfall global scripts (the active mods' `gl*.int`: start, repeat, type, map procedures, `game_loaded`) and sfall global variables (saved) | `sfall_global_scripts.cc`, `sfall_global_vars.cc` |
@@ -158,7 +158,7 @@ Three-file split — understand this before touching any opcode:
 | `src/lua/prelude.ts` | Lua side: SSL semantics (`div`, `mod`, string `+`, `AND`/`OR`), per-script sandbox, coroutines for `gsay_end`/`gsay_message` | `interpreter.cc opAdd/opDivide/opModulo`; `game_dialog.cc gameDialogEnter` |
 | `src/lua/luaDiff.ts` | VM-vs-Lua differential test behind `tools/luadiff.html` | — |
 
-To add an opcode: implement a method on `Script` in `scripting.ts`, then wire
+To add an opcode: add a method to the matching `scripting/opcodes/<category>.ts` object (first parameter `this: Script`), then wire
 it in `vm_bridge.ts` with `bridged("methodName", argCount)`; the Lua backend calls
 `Script` methods by name, and `tools/int2lua.py` needs the opcode in its
 `INTRINSICS` table (`--check-bridge src/vm_bridge.ts` compares the two).
