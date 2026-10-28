@@ -32,6 +32,12 @@ export class ActionPoints {
     }
 
     resetAP() {
+        // a walk paid from the old balance must not be refunded into the new one (refundWalk):
+        // ending the turn mid-walk and then stopping the walk would add the old turn's AP
+        const path = this.attachedCritter.path
+        if (path) {
+            path.paid = null
+        }
         this.combat = this.getMaxAP()
         this.move = this.attachedCritter.isPlayer
             ? 2 * this.attachedCritter.perks.filter((p) => p === 'Bonus Move').length

@@ -1051,7 +1051,11 @@ class Call(Expr):
     def lua(self):
         if self.is_builtin_var:
             return self.name
-        return "%s(%s)" % (lua_name(self.name), ", ".join(value(a).lua() for a in self.args))
+        # An intrinsic keeps its own name: the prelude defines sqrt, atof, typeof, power, round
+        # and udiv under exactly those names. lua_name's RUNTIME_NAMES suffix is for the script's
+        # own variables and procedures that would shadow them; only a Lua keyword is renamed.
+        name = self.name + "_" if self.name in LUA_KEYWORDS else self.name
+        return "%s(%s)" % (name, ", ".join(value(a).lua() for a in self.args))
 
 
 class Raw(Expr):
