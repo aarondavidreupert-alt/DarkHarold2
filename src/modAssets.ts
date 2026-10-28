@@ -96,11 +96,32 @@ export function assetLayer(path: string): number {
     return -1
 }
 
+// The version of the art/ files: the image map's Last-Modified + size (main.ts sets it at boot).
+// It goes on every art/ URL, so a pipeline re-export changes them all and the browser cannot
+// combine a cached old sprite sheet with the new image map: `python -m http.server` sends no
+// cache headers, and the browser reuses a cached file for a while without asking (known_bugs
+// CA50). Between re-exports the URLs stay the same, so the files are cached as before.
+let artVersion = ''
+
+export function setArtVersion(stamp: string): void {
+    artVersion = stamp ? encodeURIComponent(stamp) : ''
+}
+
 /** The URL to load for a project asset path: mods/<mod>/<path> when an active mod
  *  overrides it, else `path` unchanged (also for data:, blob: and empty URLs). A query
- *  string is kept. */
+ *  string is kept; an art/ file without one gets the art version (setArtVersion). */
 export function assetUrl(path: string): string {
-    if (layers.length === 0 || !path || /^[a-z]+:/i.test(path)) return path
+    if (!path || /^[a-z]+:/i.test(path)) {
+        return path
+    }
+    const url = modUrl(path)
+    return artVersion && /^art\//i.test(path) && !path.includes('?') ? `${url}?v=${artVersion}` : url
+}
+
+function modUrl(path: string): string {
+    if (layers.length === 0) {
+        return path
+    }
     const q = path.indexOf('?')
     const file = q < 0 ? path : path.slice(0, q)
     const i = assetLayer(file)
@@ -141,7 +162,9 @@ export function mergeModJSON(path: string, value: any, load: (url: string) => an
  *  overrides (ui.css's interface art), so CSS-drawn interface pieces use the mod's
  *  image too. Same-origin sheets only. */
 export function overrideStylesheets(): void {
-    if (layers.length === 0) return
+    if (layers.length === 0 && !artVersion) {
+        return // nothing to rewrite: no mod copies, no art version
+    }
     let changed = 0
     const fix = (rules: CSSRuleList) => {
         for (const rule of Array.from(rules)) {

@@ -14,7 +14,9 @@ import { existsSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright'
 
-const BASELINE = '36 scripts, 12800 runs (69 cut short), 0 differing procedures, 70 runs where the VM threw'
+// 12800 runs until the 2026-10-27 re-run of decompile_scripts gave the test set 40 more procedure runs
+// (same scripts, still 0 differing procedures)
+const BASELINE = '36 scripts, 12840 runs (69 cut short), 0 differing procedures, 70 runs where the VM threw'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 const port = Number(process.env.PARITY_PORT || 8124)
@@ -22,8 +24,10 @@ const timeout = Number(process.env.PARITY_TIMEOUT_MS || 15 * 60 * 1000)
 
 const scriptsDir = root + 'data/scripts'
 if (!existsSync(scriptsDir) || !readdirSync(scriptsDir).some((f) => f.endsWith('.lua'))) {
-    console.error(`parity: no decompiled scripts in ${scriptsDir}. Extract the game data first ` +
-        '(pipenv run python tools/setup.py /path/to/Fallout2/), see README.md.')
+    console.error(
+        `parity: no decompiled scripts in ${scriptsDir}. Extract the game data first ` +
+            '(pipenv run python tools/setup.py /path/to/Fallout2/), see README.md.',
+    )
     process.exit(2)
 }
 
@@ -32,7 +36,9 @@ function startServer() {
     return new Promise((resolve, reject) => {
         const tryNext = (i, lastError) => {
             if (i >= candidates.length) {
-                return reject(new Error(`parity: could not start ${candidates.join(' / ')} (${lastError}); set PARITY_PYTHON`))
+                return reject(
+                    new Error(`parity: could not start ${candidates.join(' / ')} (${lastError}); set PARITY_PYTHON`),
+                )
             }
             const proc = spawn(candidates[i], ['-m', 'http.server', String(port), '--bind', '127.0.0.1'], {
                 cwd: root,

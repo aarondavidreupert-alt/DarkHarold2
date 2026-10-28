@@ -25,7 +25,7 @@ import { clampCameraPosition, ceMapScroll, setScreenSize, ZOOM_MAX, ZOOM_MIN } f
 import { initLogScrollZones } from './messageLog.js'
 import { UIMode } from './uiMode.js'
 import { objUseItemOn } from './useItemOn.js'
-import { assetUrl, initModAssets, mergeModJSON, overrideStylesheets } from './modAssets.js'
+import { assetUrl, initModAssets, mergeModJSON, overrideStylesheets, setArtVersion } from './modAssets.js'
 import { loadFallout2Cfg, loadModsOrder, loadPreferences, parseModList } from './ui_options.js'
 import { showSplash } from './splash.js'
 import { isMainMenuReturn } from './mainMenuReturn.js'
@@ -303,7 +303,10 @@ window.onload = async function () {
     // the static tables the engine reads synchronously while it starts (now that the mods are
     // known, so each key is fetched as assetUrl resolves it): no blocking request for them
     const prefetch = prefetchAssets(bootFiles(Config.scripting.backend))
-    overrideStylesheets()
+    // the art/ files' version (modAssets.ts setArtVersion): every sprite URL changes when the
+    // pipeline re-exports the art, so no stale sheet comes from the browser cache
+    setArtVersion(await fileStamp('art/imageMap.json'))
+    overrideStylesheets() // ui.css url()s: mod copies and the art version
     // CE gameInitWithOptions → showSplash while the game loads — not for a ?map / ?crawl
     // start, a return to the main menu, or SkipOpeningMovies=2
     if (!location.search && !isMainMenuReturn() && skipOpeningMoviesLevel() < 2) showSplash()

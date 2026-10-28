@@ -13,6 +13,9 @@ two to four years old. None of this is a correctness emergency; it makes changes
 
 ## Status after the 2026-10-27 pass
 
+> Parity baseline since the 2026-10-27 re-run of `decompile_scripts`: **12840** runs (was 12800; 40 more
+> procedure runs from the new decompiler output, still 0 differing procedures). `tools/parity.mjs` checks 12840.
+
 Phases 1–4 and Q17 are done; Phase 5 is partly done. Every step kept the parity baseline (tsc 0 errors, luadiff
 "36 scripts, 12800 runs (69 cut short), 0 differing procedures, 70 runs where the VM threw"), `npm test`, `npm run
 smoke` (artemple, klamall, denbus1 load without errors) and `npm run storycrawl` (klamall / denbus1 VM = Lua and
