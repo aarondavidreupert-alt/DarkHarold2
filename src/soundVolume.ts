@@ -23,18 +23,31 @@ import { hexDistance, hexToScreen } from './geometry.js'
 import type { Obj } from './object.js'
 import { objectBoundingBox, SCREEN_HEIGHT, SCREEN_WIDTH, worldToScreen } from './renderer.js'
 
-// CE _gsound_compute_relative_volume measures from the owner of a carried item. An item's
-// position does not tell: every object starts at { x: -1, y: -1 } and a picked-up item keeps
-// its old map hex, so the ownership is checked first (only items can be carried).
+// CE _gsound_compute_relative_volume measures from objectGetOwner(obj): the top of the owner
+// chain, so an item in a bag the player carries sounds from the player, one in a chest on the
+// ground from the chest. DH2 objects have no owner link, so the holder is searched: the player,
+// then every map object that holds it, inventories nested to any depth. An item's position does
+// not tell: every object starts at { x: -1, y: -1 } and a picked-up item keeps its old map hex.
+// Only items can be held.
+function holds(holder: any, obj: Obj): boolean {
+    if (!holder) {
+        return false
+    }
+    if (holder.leftHand === obj || holder.rightHand === obj || holder.armor === obj) {
+        return true
+    }
+    return (holder.inventory ?? []).some((item: any) => item === obj || holds(item, obj))
+}
+
 function carrier(obj: Obj): Obj {
     if (obj.type !== 'item') {
         return obj
     }
-    const has = (c: any) =>
-        c && (c.inventory?.includes(obj) || c.leftHand === obj || c.rightHand === obj || c.armor === obj)
     const player = globalState.player
-    if (has(player)) return player!
-    return globalState.gMap?.getObjects().find((o) => o.type === 'critter' && has(o)) ?? obj
+    if (holds(player, obj)) {
+        return player!
+    }
+    return globalState.gMap?.getObjects().find((o) => o !== obj && holds(o, obj)) ?? obj
 }
 
 // Volume factor 0..1 (CE 0x7FFF = 1)
