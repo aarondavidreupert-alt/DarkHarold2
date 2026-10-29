@@ -34,10 +34,13 @@ function menuSound(name: string): void {
 }
 // _colorTable[21091] (palette 60), the menu's text colour
 const MENU_TEXT = '#b89c28'
+// shown in the main menu's bottom-left corner
+const DH2_VERSION = 'v1.00'
 import { uiSaveLoad } from './uiSaveLoad.js'
 import { uiState } from './state/uiState.js'
 import { services } from './state/services.js'
 import { UIMode } from './uiMode.js'
+import { Config } from './config.js'
 import { assetUrl } from './modAssets.js'
 
 // Enum mirrors fallout2-ce MainMenuButton order exactly.
@@ -149,26 +152,25 @@ export function initMainMenu(newGameCb: () => void): void {
             pointerEvents: 'none',
         })
         font4.onLoad(() => {
-            const textEl = font4.renderText(getMessage('misc', 9 + i) ?? label)
-            // font4 atlas is gold by default; no filter needed.
+            // DH2: the atlas's own white; [dh2] menu_text=ce gives CE's colour 21091
+            const textEl = font4.renderText(
+                getMessage('misc', 9 + i) ?? label,
+                Config.ui.menuText === 'ce' ? MENU_TEXT : undefined,
+            )
             labelDiv.appendChild(textEl)
         })
         frameElem.appendChild(labelDiv)
     }
 
     // CE mainmenu.cc: font 100, colour 21091 — the copyright (misc.msg 20) at (15, 460), the
-    // version ("FALLOUT II 1.02", versionGetVersion) ending at x 615
+    // version ("FALLOUT II 1.02", versionGetVersion) ending at x 615. DH2 names itself and its
+    // version where CE has the copyright.
     const footerLeft = document.createElement('div')
     Object.assign(footerLeft.style, { position: 'absolute', left: '15px', top: '460px', pointerEvents: 'none' })
     const footerRight = document.createElement('div')
     Object.assign(footerRight.style, { position: 'absolute', right: '25px', top: '460px', pointerEvents: 'none' })
     font0.onLoad(() => {
-        footerLeft.appendChild(
-            font0.renderText(
-                getMessage('misc', 20) ?? 'Copyright(c) 1998 Interplay Productions.  All rights reserved.',
-                MENU_TEXT,
-            ),
-        )
+        footerLeft.appendChild(font0.renderText(`DarkHarold2 - ${DH2_VERSION}`, MENU_TEXT))
         footerRight.appendChild(font0.renderText('FALLOUT II 1.02', MENU_TEXT))
     })
     frameElem.appendChild(footerLeft)

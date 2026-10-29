@@ -221,6 +221,11 @@ export function applyCfg(cfg: CfgSections): void {
     //   save_slots=dh2|ce             unlimited slots with DELETE (default) or CE's ten
     const ss = dh2['save_slots']?.trim().toLowerCase()
     if (ss === 'ce' || ss === 'dh2') Config.ui.saveSlots = ss
+    //   menu_text=white|ce            main menu button labels: white (DH2) or CE's yellow
+    const mt = dh2['menu_text']?.trim().toLowerCase()
+    if (mt === 'white' || mt === 'ce') {
+        Config.ui.menuText = mt
+    }
     //   dev_console=1|0               the developer console commands without play.html#dev
     const dc = int(dh2['dev_console'])
     if (dc !== null) {

@@ -16,7 +16,7 @@ limitations under the License.
 
 /* eslint-disable @typescript-eslint/no-empty-function */
 
-import { updateFloatText } from './floatText.js'
+import { outlinedCursorText, updateFloatText } from './floatText.js'
 import { heart } from './heart.js'
 import {
     BoundingBox,
@@ -90,8 +90,12 @@ function roofFloodFill(
     const hidden = new Set<string>()
     const H = roof.length
     const W = roof[0]?.length ?? 0
-    if (startX < 0 || startX >= W || startY < 0 || startY >= H) return hidden
-    if (roof[startY][startX] === 'grid000') return hidden
+    if (startX < 0 || startX >= W || startY < 0 || startY >= H) {
+        return hidden
+    }
+    if (roof[startY][startX] === 'grid000') {
+        return hidden
+    }
 
     const stack: [number, number][] = [[startX, startY]]
     const visited = new Set<string>()
@@ -317,16 +321,17 @@ export class Renderer {
             const scr = hexCellTopLeft(mouseHex.x, mouseHex.y)
             const screen = worldToScreen(scr.x, scr.y)
             this.renderImage('img/hex_outline', screen.x, screen.y, hexW * z, hexH * z)
-            // CE gameMouseRenderActionPoints: the AP / X centred in the hex cursor (font 101)
+            // CE gameMouseRenderActionPoints: the AP / X centred in the hex cursor, font 101
+            // with a black outline (bufferOutline)
             const apText = uiState.hexCursorText
-            if (apText)
-                this.renderText(
-                    apText.text,
-                    screen.x + (hexW * z) / 2,
-                    screen.y + (hexH * z) / 2 + 4,
-                    'center',
-                    apText.color,
+            const apCanvas = apText ? outlinedCursorText(apText.text, apText.color) : null
+            if (apCanvas) {
+                this.renderCanvas(
+                    apCanvas,
+                    Math.round(screen.x + (hexW * z - apCanvas.width) / 2),
+                    Math.round(screen.y + (hexH * z - apCanvas.height) / 2),
                 )
+            }
         }
 
         for (const window of this.windows.filter((w) => w.showing)) {
@@ -656,6 +661,8 @@ export class Renderer {
     color(r: number, g: number, b: number, a = 255): void {}
     rectangle(x: number, y: number, w: number, h: number, filled = true): void {}
     renderText(txt: string, x: number, y: number, align: CanvasTextAlign = 'left', color?: string): void {}
+    // a ready-made image (bitmap-font text) on the screen overlay, top-left at (x, y)
+    renderCanvas(canvas: HTMLCanvasElement, x: number, y: number): void {}
     renderImage(imgPath: string, x: number, y: number, width: number, height: number): void {}
 
     renderRoof(roof: TileMap, hideSet?: Set<string> | null): void {}

@@ -79,7 +79,15 @@ export function uiCalledShot(art: string, target: Critter, callback?: (regionHit
 
     // CE calledShotSelectHitLocation: every location can be picked (a crippled limb too), and
     // the pick plays icsxxxx1
+    // CE _draw_loc_ → hitLocationGetName: the target's own names (combat.msg 1000 + 10 × art
+    // alias + location: an ant's antennae, a deathclaw's claws)
+    const combat = world.combat ?? new Combat([])
     for (const $label of $qa('.calledShotLabel')) {
+        const region = $label.id.split('-')[1]
+        const name = combat.hitLocationName(target, region)
+        if (name) {
+            $label.textContent = name
+        }
         Object.assign(($label as HTMLElement).style, { color: '', textDecoration: '', cursor: '', pointerEvents: '' })
         $label.onclick = (evt: MouseEvent) => {
             const clickedRegion = (evt.target as HTMLElement).id.split('-')[1]

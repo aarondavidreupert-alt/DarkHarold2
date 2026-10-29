@@ -2005,9 +2005,11 @@ html, body {
   background-image: url("art/intrface/lilreddn.png");
 }
 
+/* CE combat.cc _draw_loc_: the left column's names start at x 74, the right column's end at
+   x 431 (right-aligned), on rows _call_ty - 86 */
 .calledShotLabel {
   position: absolute;
-  width: 100px;
+  white-space: nowrap;
   color: #00FF00;
   font-size: small;
 }
@@ -2030,7 +2032,8 @@ html, body {
 }
 
 #calledShot-torso-label {
-  left: 380px;
+  right: 73px;
+  text-align: right;
   top: 30px;
 }
 
@@ -2040,8 +2043,9 @@ html, body {
 }
 
 #calledShot-groin-label {
-  left: 380px;
-  top: 90px;
+  right: 73px;
+  text-align: right;
+  top: 95px;
 }
 
 #calledShot-leftArm-chance {
@@ -2050,7 +2054,8 @@ html, body {
 }
 
 #calledShot-leftArm-label {
-  left: 360px;
+  right: 73px;
+  text-align: right;
   top: 160px;
 }
 
@@ -2060,7 +2065,8 @@ html, body {
 }
 
 #calledShot-leftLeg-label {
-  left: 370px;
+  right: 73px;
+  text-align: right;
   top: 225px;
 }
 
@@ -2071,7 +2077,7 @@ html, body {
 }
 
 #calledShot-head-label {
-  left: 75px;
+  left: 74px;
   top: 30px;
 }
 
@@ -2081,7 +2087,7 @@ html, body {
 }
 
 #calledShot-eyes-label {
-  left: 75px;
+  left: 74px;
   top: 95px;
 }
 
@@ -2091,7 +2097,7 @@ html, body {
 }
 
 #calledShot-rightArm-label {
-  left: 75px;
+  left: 74px;
   top: 160px;
 }
 
@@ -2101,7 +2107,7 @@ html, body {
 }
 
 #calledShot-rightLeg-label {
-  left: 75px;
+  left: 74px;
   top: 225px;
 }
 

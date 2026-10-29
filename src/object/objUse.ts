@@ -184,7 +184,7 @@ export const objUseMethods = {
                 uiLog(
                     (
                         getProtoMsg(this.open ? 486 : 485) ?? (this.open ? 'You close the %s.' : 'You search the %s.')
-                    ).replace('%s', this.name ?? ''),
+                    ).replace('%s', this.getName()),
                 )
             toggleObjectOpen(this, true, true)
         } else if (this.isStairs) {
@@ -290,9 +290,10 @@ export const objUseMethods = {
             return false
         } else {
             this.singleAnimation()
-            // CE _obj_use: a scenery use no script overrode — "You see: %s." (proto.msg 480)
+            // CE _obj_use: a scenery use no script overrode — "You see: %s." (proto.msg 480) with
+            // objectGetName: the proto's pro_scen.msg name (obj.name is set for items only)
             if (this.type === 'scenery' && (source?.isPlayer ?? true))
-                uiLog((getProtoMsg(480) ?? 'You see: %s.').replace('%s', this.name ?? ''))
+                uiLog((getProtoMsg(480) ?? 'You see: %s.').replace('%s', this.getName()))
         }
 
         world.gMap!.updateMap()

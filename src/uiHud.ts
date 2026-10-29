@@ -31,6 +31,7 @@ import { getMessage } from './util.js'
 import { currentUnarmed, unarmedAPCost } from './unarmed.js'
 import { $id, $img, $q, clearEl, show, hide, showv, hidev } from './uiDom.js'
 import { font1 } from './uiFont.js'
+import { outlinedCursorText } from './floatText.js'
 import { assetUrl } from './modAssets.js'
 
 // --- Digit readouts (shared by HP / AC / called-shot chance) ---------------
@@ -366,7 +367,9 @@ function dudeIsWeaponDisabled(item: Obj | undefined | null): boolean {
 // attack button is disabled.
 function setAttackButtonDisabled(disabled: boolean): void {
     const c = document.getElementById('attackButtonContainer')
-    if (!c) return
+    if (!c) {
+        return
+    }
     c.classList.toggle('weaponDisabled', disabled)
     for (const id of ['attackButtonType', 'attackButtonAP', 'attackButtonCalled']) {
         const el = document.getElementById(id)
@@ -686,12 +689,17 @@ export function uiShowCombatHover(target: Obj, screenX: number, screenY: number)
         color = rgb555(notPlayerTeam ? 31744 : 18161)
     }
 
+    // CE gameMouseRenderAccuracy: font 101 with a black outline, no box, drawn into the
+    // acttohit frame at (crosshair width + 1, 1) — just right of the crosshair image (21 x 21,
+    // centred on the mouse, renderer.ts), its outline one pixel further out
+    const canvas = outlinedCursorText(text, color)
+    if (!canvas) {
+        return
+    }
     $hover.style.display = 'block'
-    $hover.style.left = screenX + 16 + 'px'
+    $hover.style.left = screenX - 10 + 21 + 'px'
     $hover.style.top = screenY - 10 + 'px'
-    $hover.style.color = color
-    $hover.style.whiteSpace = 'pre'
-    $hover.textContent = text
+    $hover.replaceChildren(canvas)
 }
 
 export function uiHideCombatHover(): void {

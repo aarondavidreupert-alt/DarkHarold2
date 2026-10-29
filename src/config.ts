@@ -125,6 +125,9 @@ export const Config = {
         // (art/fonts/font1_aaf.woff, CE FONT 101) instead of the browser font.
         // Set in fallout2.cfg: [dh2] pixel_font=0 to use the browser font instead.
         pixelFont: true,
+        // main menu button labels: 'white' (DH2) or 'ce' (CE mainmenu.cc: _colorTable[21091], the
+        // footer's yellow). Set in fallout2.cfg: [dh2] menu_text=ce.
+        menuText: 'white' as 'white' | 'ce',
         // DH2 option, not in CE: a Use action on an elevator (its car / door scenery) walks
         // the player in, as stepping in does (CE: the elevator's spatial script only).
         // fallout2.cfg: [dh2] elevator_use=0 for the CE action menu.

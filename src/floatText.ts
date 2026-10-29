@@ -190,6 +190,24 @@ function buildCanvas(spec: FloatSpec, fm?: any): HTMLCanvasElement | null {
     return canvas
 }
 
+// Font 101 text with CE's black bufferOutline, as the mouse cursors draw it (game_mouse.cc
+// gameMouseRenderActionPoints: the AP / X in the hex cursor; gameMouseRenderAccuracy: the
+// to-hit next to the crosshair). Cached: the cursors ask every frame. Null until the font loads.
+const cursorTexts = new Map<string, HTMLCanvasElement>()
+export function outlinedCursorText(text: string, color: string): HTMLCanvasElement | null {
+    const key = color + '|' + text
+    let c = cursorTexts.get(key)
+    if (!c) {
+        const built = buildCanvas({ msg: text, color, outline: FLOAT_OUTLINE_BLACK })
+        if (!built) {
+            return null
+        }
+        c = built
+        cursorTexts.set(key, c)
+    }
+    return c
+}
+
 let layer: HTMLDivElement | null = null
 const canvases = new Map<object, HTMLCanvasElement>()
 
@@ -271,7 +289,9 @@ export function updateFloatText(tileScreen: (tile: Point) => Point, z: number, v
                 },
                 fm,
             )
-            if (!built) continue
+            if (!built) {
+                continue
+            }
             c = built
             canvases.set(fm, c)
             parent.appendChild(c)

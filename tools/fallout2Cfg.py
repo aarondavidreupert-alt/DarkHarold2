@@ -154,6 +154,8 @@ mods=
 script_fixes=1
 ; 1 = the Pip-Boy opens before the Vault Suit movie (sfall option), 0 = CE
 pipboy_available_at_game_start=0
+; main menu button labels: white = DH2, ce = CE's yellow (like the menu's footer text)
+menu_text=white
 ; 1 = the developer console commands (skipTemple(), revealWorldmap(), giveCar(), ...) in the
 ; browser console on every start; 0 = only with play.html#dev
 dev_console=0

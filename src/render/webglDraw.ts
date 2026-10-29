@@ -18,6 +18,7 @@ import type { FrameCell } from '../renderer.js'
 declare module './webglContext.js' {
     interface WebGLRenderer {
         renderText(txt: string, x: number, y: number, align?: CanvasTextAlign, color?: string): void
+        renderCanvas(canvas: HTMLCanvasElement, x: number, y: number): void
         renderScrollBorderOverlay(): void
         renderImage(imgPath: string, x: number, y: number, width: number, height: number): void
         renderFont(font: Font, x: number, y: number): void
@@ -63,6 +64,11 @@ WebGLRenderer.prototype.renderText = function (
     ctx.lineWidth = 2
     ctx.strokeText(txt, x, y)
     ctx.fillText(txt, x, y)
+}
+
+WebGLRenderer.prototype.renderCanvas = function (canvas: HTMLCanvasElement, x: number, y: number): void {
+    this.textCtx.imageSmoothingEnabled = false
+    this.textCtx.drawImage(canvas, x, y)
 }
 
 // Screen-parallel black border bars. These are axis-aligned rectangles filled
