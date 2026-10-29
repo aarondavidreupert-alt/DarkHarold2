@@ -99,8 +99,33 @@ def setup_check():
 		warn("Installation directory does not contain fallout2.exe. Please ensure this is the right directory and the file exists. Some features may not be available without it!")
 	else:
 		EXE_PATH = os.path.join(SRC_DIR, "fallout2.exe")
+		check_game_version(EXE_PATH)
 
 	return True
+
+# fallout2.exe builds DarkHarold2 is tested with: Fallout 2 1.02 US (the Steam release; CE
+# and sfall need that version too). CRC32 of the whole file.
+TESTED_EXE_CRC32 = {
+	0xD1A5F960: "Fallout 2 1.02 US (Steam)",
+	0xEC8A43A1: "Fallout 2 1.02 US (Steam, hi-res patched copy)",
+}
+
+def check_game_version(exe_path):
+	"""Warn (do not stop) when fallout2.exe is not a build the pipeline was tested with."""
+	import zlib
+	try:
+		with open(exe_path, "rb") as f:
+			crc = zlib.crc32(f.read()) & 0xFFFFFFFF
+	except OSError as e:
+		warn("Could not read %s to check the game version: %s" % (exe_path, e))
+		return False
+	if crc in TESTED_EXE_CRC32:
+		info("Game version: %s" % TESTED_EXE_CRC32[crc])
+		return True
+	warn("fallout2.exe (CRC32 %08X) is not a version DarkHarold2 was tested with. Only Fallout 2 1.02 US "
+	     "is tested (the version CE and sfall need); another version or language may convert "
+	     "with missing or wrong data. Continuing." % crc)
+	return False
 
 def parse_crit_table(overwrite=True):
 	outFile = "lut/criticalTables.json"
@@ -124,9 +149,56 @@ def parse_crit_table(overwrite=True):
 
 	return True
 
+def install_music_dirs():
+	"""The install's music folders: CE gameSoundInit reads [sound] music_path1 / music_path2
+	from fallout2.cfg (default sound/music, outside data/ and the DATs)."""
+	paths = []
+	cfg = os.path.join(SRC_DIR, "fallout2.cfg")
+	if os.path.isfile(cfg):
+		section = None
+		with open(cfg, encoding="latin-1") as f:
+			for line in f:
+				line = line.strip()
+				if line.startswith("[") and line.endswith("]"):
+					section = line[1:-1].lower()
+				elif section == "sound" and "=" in line:
+					key, value = line.split("=", 1)
+					if key.strip().lower() in ("music_path1", "music_path2") and value.strip():
+						paths.append(value.strip())
+	paths += [os.path.join("sound", "music"), os.path.join("data", "sound", "music")]
+	found = []
+	for p in paths:
+		p = p.replace("\\", os.sep).rstrip(os.sep)
+		full = p if os.path.isabs(p) else os.path.join(SRC_DIR, p)
+		if os.path.isdir(full) and os.path.normcase(os.path.abspath(full)) not in [os.path.normcase(os.path.abspath(x)) for x in found]:
+			found.append(full)
+	return found
+
+def copy_music():
+	"""Copy the install's music (*.acm) to data/sound/music for export_audio."""
+	out = os.path.join("data", "sound", "music")
+	copied = 0
+	for src in install_music_dirs():
+		for name in os.listdir(src):
+			if not name.lower().endswith(".acm"):
+				continue
+			dest = os.path.join(out, name.lower())
+			path = os.path.join(src, name)
+			if os.path.exists(dest) and os.path.getsize(dest) == os.path.getsize(path):
+				continue
+			os.makedirs(out, exist_ok=True)
+			shutil.copyfile(path, dest)
+			copied += 1
+	if copied:
+		info("Copied %d music file(s) to %s" % (copied, out))
+	elif not (os.path.isdir(out) and os.listdir(out)):
+		warn("No music found in the install (fallout2.cfg [sound] music_path1, sound/music) - the game will have no music.")
+	return True
+
 def extract_dats(overwrite=True):
 	if not overwrite and os.path.exists("data") and os.path.exists(os.path.join("data", "color.pal")):
 		info("Skipping DAT extraction - data/ already populated")
+		copy_music()  # not in the DATs: an older pipeline never copied it
 		return True
 
 	# Create data directory
@@ -160,6 +232,9 @@ def extract_dats(overwrite=True):
 			os.remove(stale)
 
 		info("Done extracting DAT archives.")
+
+	# the music is not in the DATs: the install keeps it in sound\music (fallout2.cfg)
+	copy_music()
 
 	return True
 
