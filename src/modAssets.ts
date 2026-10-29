@@ -158,9 +158,9 @@ export function mergeModJSON(path: string, value: any, load: (url: string) => an
     return value
 }
 
-/** Rewrites the page's stylesheet rules whose url(...) names a file an active mod
- *  overrides (ui.css's interface art), so CSS-drawn interface pieces use the mod's
- *  image too. Same-origin sheets only. */
+/** Rewrites the page's stylesheet rules and <img> tags whose url(...) / src names a file
+ *  an active mod overrides (ui.css's and play.html's interface art), so those pieces use
+ *  the mod's image too, and adds the art version. Same-origin sheets only. */
 export function overrideStylesheets(): void {
     if (layers.length === 0 && !artVersion) {
         return // nothing to rewrite: no mod copies, no art version
@@ -196,4 +196,19 @@ export function overrideStylesheets(): void {
         }
     }
     if (changed) dbg('load', `mod assets: ${changed} stylesheet images overridden`)
+
+    // play.html's own <img src="art/..."> (the dialogue frame and highlights, the AP lights,
+    // the world map): the same, or a re-export's new image hides behind the cached old one
+    let images = 0
+    for (const img of Array.from(document.querySelectorAll<HTMLImageElement>('img[src]'))) {
+        const src = img.getAttribute('src')!
+        const to = assetUrl(src)
+        if (to !== src) {
+            img.src = to
+            images++
+        }
+    }
+    if (images) {
+        dbg('load', `mod assets: ${images} page images overridden`)
+    }
 }

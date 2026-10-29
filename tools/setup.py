@@ -49,6 +49,7 @@ except ImportError:
 import dat2
 import parseCritTable
 import exportImagesPar
+import export_mask_frms
 import exportFonts
 import exportPRO
 import fomap
@@ -452,6 +453,16 @@ def export_images(overwrite=True):
 	except Exception:
 		traceback.print_exc()
 		warn("Error when converting images (see traceback above). Will not finish converting images, but will continue setup.")
+		return False
+
+	# egg.frm, hilight1.frm and hilight2.frm hold blend weights, not colours: the palette
+	# export above paints them as pictures (a far too strong egg, coloured dialogue
+	# highlights), so export_mask_frms writes them again as alpha masks.
+	try:
+		export_mask_frms.main()
+	except Exception:
+		traceback.print_exc()
+		warn("Error when exporting the egg / dialogue highlight masks (see traceback above).")
 		return False
 
 	return True

@@ -312,7 +312,7 @@ window.onload = async function () {
     // the art/ files' version (modAssets.ts setArtVersion): every sprite URL changes when the
     // pipeline re-exports the art, so no stale sheet comes from the browser cache
     setArtVersion(await fileStamp('art/imageMap.json'))
-    overrideStylesheets() // ui.css url()s: mod copies and the art version
+    overrideStylesheets() // ui.css url()s and play.html <img>s: mod copies and the art version
     // CE gameInitWithOptions → showSplash while the game loads — not for a ?map / ?crawl
     // start, a return to the main menu, or SkipOpeningMovies=2
     if (!location.search && !isMainMenuReturn() && skipOpeningMoviesLevel() < 2) showSplash()

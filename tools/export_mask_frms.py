@@ -23,9 +23,9 @@ limitations under the License.
 # paints each gradient step a different hue — wrong for mask data, though
 # harmless-looking for ordinary sprites.
 #
-# Deliberately NOT wired into the main pipeline (tools/frmpixels.py,
-# tools/exportImagesPar.py are untouched) — re-running the full asset
-# pipeline to fix 3 files is slow and unnecessary. Run this directly:
+# tools/setup.py runs it at the end of the export_images stage (after the palette
+# export, which would otherwise leave these three as coloured pictures; 2026-10-29).
+# It can also run on its own while data/art/intrface/*.frm are extracted:
 #   pipenv run python tools/export_mask_frms.py
 #
 # Writes the raw byte values unquantized into the alpha channel of a
