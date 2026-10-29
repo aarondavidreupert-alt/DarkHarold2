@@ -11,6 +11,7 @@ import { services } from '../state/services.js'
 import * as Lightmap from '../lightmap.js'
 import { blackBar, borderSave, clearBorder, scrollDebug } from '../render/camera.js'
 import * as Worldmap from '../worldmap.js'
+import { Config } from '../config.js'
 import { registerEggCommands } from './egg.js'
 import { registerLightingCommands } from './lighting.js'
 import { registerCacheAndOutlineCommands, registerToggleCommands } from './toggles.js'
@@ -18,9 +19,10 @@ import { registerCacheAndOutlineCommands, registerToggleCommands } from './toggl
 // console commands are free-form globals (play.html#dev)
 const devWindow = window as unknown as Record<string, unknown>
 
-/** play.html#dev (or #...&dev): the developer console commands are registered. */
+/** play.html#dev (or #...&dev), or [dh2] dev_console=1 in fallout2.cfg: the developer console
+ *  commands are registered. */
 export function devConsoleEnabled(): boolean {
-    return /(?:^#|&)dev(?:&|$)/.test(location.hash)
+    return Config.engine.devConsole || /(?:^#|&)dev(?:&|$)/.test(location.hash)
 }
 
 /** Put the developer commands on `window` (only call it when devConsoleEnabled()). */

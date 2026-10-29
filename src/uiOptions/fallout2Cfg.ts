@@ -221,6 +221,11 @@ export function applyCfg(cfg: CfgSections): void {
     //   save_slots=dh2|ce             unlimited slots with DELETE (default) or CE's ten
     const ss = dh2['save_slots']?.trim().toLowerCase()
     if (ss === 'ce' || ss === 'dh2') Config.ui.saveSlots = ss
+    //   dev_console=1|0               the developer console commands without play.html#dev
+    const dc = int(dh2['dev_console'])
+    if (dc !== null) {
+        Config.engine.devConsole = dc !== 0
+    }
     //   egg_mode=dh2-egg|ce-egg|alpha|bbox   wall transparency around the player (Config.ui.eggMode)
     const em = dh2['egg_mode']?.trim().toLowerCase()
     if (em === 'dh2-egg' || em === 'ce-egg' || em === 'alpha' || em === 'bbox') Config.ui.eggMode = em

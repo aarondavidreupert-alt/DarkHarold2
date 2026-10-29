@@ -256,6 +256,9 @@ export const Config = {
         // sfall pipboy_available_at_game_start (CE pipboy.cc _pip_init_): the Pip-Boy opens
         // before the Vault Suit movie. Set in fallout2.cfg: [dh2] pipboy_available_at_game_start=1.
         pipboyAvailableAtStart: false,
+        // the developer console commands (skipTemple(), revealWorldmap(), ...; src/devConsole/)
+        // on every start, not only for play.html#dev. Set in fallout2.cfg: [dh2] dev_console=1.
+        devConsole: false,
         doZOrder: true, // Z-order objects?
         doEncounters: true, // allow random encounters?
         doInfiniteUse: false, // allow infinite-range object usage?

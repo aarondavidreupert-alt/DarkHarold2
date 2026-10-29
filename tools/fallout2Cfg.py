@@ -154,6 +154,9 @@ mods=
 script_fixes=1
 ; 1 = the Pip-Boy opens before the Vault Suit movie (sfall option), 0 = CE
 pipboy_available_at_game_start=0
+; 1 = the developer console commands (skipTemple(), revealWorldmap(), giveCar(), ...) in the
+; browser console on every start; 0 = only with play.html#dev
+dev_console=0
 ; dragging windows by their background (DH2 addition; CE windows are fixed)
 ; drag_windows=0 turns it off everywhere; drag_<window>=0/1 per window
 drag_windows=1
