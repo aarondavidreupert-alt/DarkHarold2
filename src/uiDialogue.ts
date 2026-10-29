@@ -37,6 +37,7 @@ import { setIndicatorBarHidden } from './uiHud.js'
 import { getProtoMsg } from './util.js'
 import { uiShowDialogueReview } from './uiDialogueReview.js'
 import { assetUrl } from './modAssets.js'
+import { heart } from './heart.js'
 
 // Smoothly transition an element's top property from an origin to a target
 // position over a duration. Used for the dialogue / barter slide-up animation.
@@ -188,16 +189,18 @@ export function uiStartDialogue(force: boolean, target?: Critter) {
     dialogueReturn = { center: getCenterTile(), dudeTile: p ? { ...p.position } : null }
     const bbox = objectBoundingBox(target)
     if (bbox !== null) {
-        const dc = $id('dialogueContainer')
-        // alternatively: dc.offset().left - $(heart.canvas).offset().left
-        const dx = ((dc.offsetWidth / 2) | 0) + dc.offsetLeft
-        const dy = ((dc.offsetHeight / 4) | 0) + dc.offsetTop - ((bbox.h / 2) | 0)
-        // dx/dy are HTML-layout (screen) pixels; divide by zoom so the
-        // resulting camera offset is in world units (which is what
-        // cameraPosition is stored in).
+        // CE: the speaker in the middle of the view hole, (126,14)-(514,214) of the 640x480
+        // dialogue window. Measured on screen relative to the game canvas (the mouse's
+        // screen pixels), so the UI stage's offset and scale (a window larger than 800x600,
+        // the UI scale option) count; offsetLeft/Top are only relative to #uiStage.
+        const dc = $id('dialogueContainer').getBoundingClientRect()
+        const canvas = heart.canvas.getBoundingClientRect()
+        const sx = dc.left - canvas.left + (320 * dc.width) / 640
+        const sy = dc.top - canvas.top + (114 * dc.height) / 480
+        // screen pixels; divide by zoom for world units (what cameraPosition is stored in)
         const z = view.cameraZoom || 1.0
-        view.cameraPosition.x = bbox.x - dx / z
-        view.cameraPosition.y = bbox.y - dy / z
+        view.cameraPosition.x = bbox.x + bbox.w / 2 - sx / z
+        view.cameraPosition.y = bbox.y + bbox.h / 2 - sy / z
         // CE _gdialogInitFromScript → _tile_scroll_to(speaker, 2): the scroll limits hold
         clampCameraPosition()
     }
