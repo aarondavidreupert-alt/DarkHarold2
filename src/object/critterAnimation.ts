@@ -326,9 +326,18 @@ Critter.prototype.updateStaticAnim = function (this: Critter): void {
             if (reversed) this.frame++ // clamp back to frame 0
             // An action frame past the last frame (or missing data) still resolves first.
             this.fireActionFrame()
+            const art = this.art
             // animation is done
             if (this.animCallback) {
                 this.animCallback()
+            }
+            // A reversed animation whose callback left it running (the anim opcode's "stay on
+            // the frame", CE opAnim → animationRegisterSetFid) holds frame 0 and is over — not
+            // busy. Stepping on went 0 → -1 → 0 every tick and took frame 0's delta off each
+            // time: the critter slid sideways in that pose (Den's orphan after a theft).
+            if (reversed && this.anim === 'reverse' && this.art === art) {
+                this.anim = 'held'
+                this.animCallback = null
             }
         }
     }
@@ -409,6 +418,8 @@ Critter.prototype.updateAnim = function (this: Critter): void {
     // 'dead' is a permanent sentinel set by critterKill after the death animation
     // completes — do nothing so the corpse stays frozen on its last frame.
     if (this.anim === 'dead') return
+    // a finished reversed animation held on its frame 0 (updateStaticAnim)
+    if (this.anim === 'held') return
 
     if (!this.anim || this.anim === 'idle') {
         this.updateLoopingAnim()
