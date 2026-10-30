@@ -42,7 +42,10 @@ import { approachToTalk } from './talkApproach.js'
 import { pathfinderFindPath } from './map/pathfinder.js'
 
 export function uiHideContextMenu() {
-    uiState.uiMode = UIMode.none
+    // only the menu's own mode: a window an action opened keeps its mode
+    if (uiState.uiMode === UIMode.contextMenu) {
+        uiState.uiMode = UIMode.none
+    }
     // CE: the mode stays ARROW after an action menu ([dh2] mouse_mode=ce); DH2 goes back to move
     uiState.cursorMode = Config.ui.mouseMode === 'ce' ? 'command' : 'move'
     $id('itemContextMenu').style.visibility = 'hidden'
@@ -132,10 +135,13 @@ export function uiContextMenu(obj: Obj, evt: any) {
             id: 'context_' + action,
             classes: ['itemContextMenuButton'],
             click: () => {
+                // close the menu first: an action can open its window at once (talk next to the
+                // critter, inventory, skilldex), and closing after it reset that window's UI mode
+                // to none — a dialogue then could not be ended
+                uiHideContextMenu()
                 if (onclick) {
                     onclick()
                 }
-                uiHideContextMenu()
             },
         })
     }
