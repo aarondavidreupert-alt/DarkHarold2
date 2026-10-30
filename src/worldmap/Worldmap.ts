@@ -1005,6 +1005,11 @@ function _onWMMouseLeave(): void {
 }
 
 export function start() {
+    // one frame loop: opening the world map again while it runs (an exit grid and a script
+    // both asking, a second exit-grid hex) started a second loop — travel at double speed —
+    // and stop() then ended only one, so the other went on walking after a town was entered
+    // (the clock racing 30 minutes a frame until that walk ran out)
+    clearTimeout(worldmapTimer)
     resetEncounterTimer() // CE wmInterfaceInit: wmLastRndTime = getTicks()
     partyHealTime = 0
     updateWorldmapPlayer()
