@@ -419,7 +419,9 @@ Critter.prototype.updateAnim = function (this: Critter): void {
     // completes — do nothing so the corpse stays frozen on its last frame.
     if (this.anim === 'dead') return
     // a finished reversed animation held on its frame 0 (updateStaticAnim)
-    if (this.anim === 'held') return
+    if (this.anim === 'held') {
+        return
+    }
 
     if (!this.anim || this.anim === 'idle') {
         this.updateLoopingAnim()
