@@ -641,10 +641,13 @@ export function uiEndCombat(): void {
     if ($hover) $hover.style.display = 'none'
 }
 
-// CE _colorTable[rgb555] → CSS.
+// CE _colorTable[rgb555] → CSS hex (#rrggbb: the bitmap-font tint needs hex, floatText.ts).
 const rgb555 = (v: number): string => {
-    const c = (x: number) => Math.round(((x & 31) * 255) / 31)
-    return `rgb(${c(v >> 10)}, ${c(v >> 5)}, ${c(v)})`
+    const c = (x: number) =>
+        Math.round(((x & 31) * 255) / 31)
+            .toString(16)
+            .padStart(2, '0')
+    return `#${c(v >> 10)}${c(v >> 5)}${c(v)}`
 }
 let _lastHoverObj: Obj | null = null
 
