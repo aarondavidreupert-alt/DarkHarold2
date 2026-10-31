@@ -16,7 +16,7 @@ limitations under the License.
 
 // CE game.cc showSplash — the start-up splash: art/splash/splash<n>.rix (RIX3: width and
 // height as int16 after the tag, the 6-bit palette at offset 10, then the pixels), centred,
-// faded in from black; n is [system] splash, and the next start shows the next one (CE
+// faded in from black (DH2: shown at once, see showSplash); n is [system] splash, and the next start shows the next one (CE
 // writes splash + 1 back to fallout2.cfg; DH2 keeps it in localStorage).
 
 import { getFileBinarySync } from './util.js'
@@ -114,11 +114,10 @@ export function showSplash(): void {
     overlay = document.createElement('div')
     overlay.style.cssText =
         'position:fixed;left:0;top:0;width:100%;height:100%;background:#000;z-index:5000;display:flex;align-items:center;justify-content:center;'
-    splash.canvas.style.cssText = 'opacity:0;transition:opacity 700ms linear;image-rendering:pixelated;'
+    // shown at once, without CE's 700 ms paletteFadeTo from black: the start-up's blocking
+    // loads held the fade's first frame back, so the page showed black for seconds, then
+    // faded the splash in (DH2 choice)
+    splash.canvas.style.cssText = 'image-rendering:pixelated;'
     overlay.appendChild(splash.canvas)
     document.body.appendChild(overlay)
-    // paletteFadeTo from black (CE's fade takes about 700 ms)
-    requestAnimationFrame(() => {
-        splash.canvas.style.opacity = '1'
-    })
 }

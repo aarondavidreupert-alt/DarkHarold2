@@ -121,6 +121,9 @@ let $worldmap: HTMLElement | null = null
 let $worldmapPlayer: HTMLElement | null = null
 let $worldmapTarget: HTMLElement | null = null
 let worldmapTimer: number = -1
+// the world map is open (start → stop): an encounter answered after it closed does not
+// restart the frame loop — it then ran on in the town map, walking and advancing the clock
+let running = false
 // CE wmGenData walking state — wmPartyInitWalking sets up a Bresenham line,
 // wmPartyWalkingStep advances it one pixel.
 const walk = {
@@ -1010,6 +1013,7 @@ export function start() {
     // and stop() then ended only one, so the other went on walking after a town was entered
     // (the clock racing 30 minutes a frame until that walk ran out)
     clearTimeout(worldmapTimer)
+    running = true
     resetEncounterTimer() // CE wmInterfaceInit: wmLastRndTime = getTicks()
     partyHealTime = 0
     updateWorldmapPlayer()
@@ -1017,6 +1021,7 @@ export function start() {
 
 export function stop() {
     clearTimeout(worldmapTimer)
+    running = false
     _heldKeys.clear()
     _mouseEdge = { left: false, right: false, top: false, bottom: false }
     document.removeEventListener('keydown', _onWMKeyDown)
@@ -1269,16 +1274,23 @@ async function blinkEncounterIcon(special: boolean): Promise<void> {
 async function runEncounter(roll: EncounterRoll): Promise<void> {
     if (roll.blink) await blinkEncounterIcon(roll.blink === 'special')
     if (roll.ask) {
-        const yes = await showConfirm(`${roll.ask.title}\n${roll.ask.body}`)
-        if (!yes) {
+        // on the world map's own stage: #worldMapContainer paints over #uiStage, where the
+        // question was hidden — the map stood still until a town tab restarted it
+        const stage = document.querySelector<HTMLElement>('#worldMapContainer .ui-stage') ?? undefined
+        const yes = await showConfirm(`${roll.ask.title}\n${roll.ask.body}`, stage)
+        if (!yes || !running) {
             cancelEncounter()
-            worldmapTimer = window.setTimeout(updateWorldmapPlayer, FRAME_MS)
+            if (running) {
+                worldmapTimer = window.setTimeout(updateWorldmapPlayer, FRAME_MS)
+            }
             return
         }
     }
     const mapName = lookupMapName(roll.mapId)
     if (!mapName) {
-        worldmapTimer = window.setTimeout(updateWorldmapPlayer, FRAME_MS)
+        if (running) {
+            worldmapTimer = window.setTimeout(updateWorldmapPlayer, FRAME_MS)
+        }
         return
     }
     if (_isInCar) _currentCarAreaId = areaIdContainingMap(mapName)

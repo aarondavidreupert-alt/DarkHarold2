@@ -159,8 +159,14 @@ function makeDonebox(label: string, x: number): HTMLDivElement {
  *
  * CE ref: dbox.cc showDialogBox() — DIALOG_TYPE_LARGE layout; font1 body, font3 buttons.
  * Keyboard: Enter/Y = buttons[0], Escape/N = buttons[last].
+ * `container`: a full-screen window that paints over #uiStage (the world map) passes its own stage.
  */
-export function showDialog(message: string, buttons: string[], dim = true): Promise<string> {
+export function showDialog(
+    message: string,
+    buttons: string[],
+    dim = true,
+    container: HTMLElement = getUiContainer(),
+): Promise<string> {
     return new Promise((resolve) => {
         const prevMode = uiState.uiMode
         uiState.uiMode = UIMode.dialog
@@ -209,7 +215,7 @@ export function showDialog(message: string, buttons: string[], dim = true): Prom
         }
         document.addEventListener('keydown', keyHandler, true)
 
-        getUiContainer().appendChild(overlay)
+        container.appendChild(overlay)
     })
 }
 
@@ -220,8 +226,8 @@ export function showDialog(message: string, buttons: string[], dim = true): Prom
  * No background dimming — used for routine confirmations (quit, overwrite
  * save, etc.) that shouldn't visually block the game underneath.
  */
-export async function showConfirm(message: string): Promise<boolean> {
-    return (await showDialog(message, ['YES', 'NO'], /*dim*/ false)) === 'YES'
+export async function showConfirm(message: string, container?: HTMLElement): Promise<boolean> {
+    return (await showDialog(message, ['YES', 'NO'], /*dim*/ false, container)) === 'YES'
 }
 
 /**
