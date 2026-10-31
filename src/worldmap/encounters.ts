@@ -46,6 +46,7 @@ import { wmDebug } from './debugStats.js'
 import { areaIdContainingMap, areaPosAtParty, getWorldmap, setAreaVisible, updateAreaMarkerPos } from './Worldmap.js'
 
 const TICKS_PER_DAY = 864000
+const TICKS_PER_HOUR = 36000 // CE GAME_TIME_TICKS_PER_HOUR
 const MAP_IN_GAME_MOVIE1 = 149 // worldmap.h — Frank Horrigan
 const PROTO_ID_MONEY = 41
 const PROTO_ID_MOTION_SENSOR = 59
@@ -62,6 +63,8 @@ let didMeetFrankHorrigan = false
 let oldWorldPosX = 0
 let oldWorldPosY = 0
 let lastRndTime = 0
+// [dh2] encounter_interval: the game time of the last roll (TICKS: 1/10 s)
+let lastRndGameTicks = 0
 
 export interface EncounterRoll {
     mapId: number
@@ -86,6 +89,7 @@ export function forceEncounter(mapId: number, flags: number): void {
 // CE wmInterfaceInit: wmLastRndTime = getTicks()
 export function resetEncounterTimer(): void {
     lastRndTime = performance.now()
+    lastRndGameTicks = world.gameTickTime
 }
 
 function difficulty(): number {
@@ -121,11 +125,20 @@ export function rndEncounterOccurred(
     isInCar: boolean,
 ): EncounterRoll | null {
     const now = performance.now()
-    if (now - lastRndTime < 1500) {
+    // CE: at most one roll per 1.5 s of real time, so the rolls per distance and per game day
+    // follow the frame rate (90 frames of 30 game minutes at CE's 60 fps cap: ~45 game hours).
+    // [dh2] encounter_interval=N (DH2 option, default 24): one roll per N game hours instead.
+    const intervalHours = Config.engine.encounterInterval
+    const waiting =
+        intervalHours > 0
+            ? world.gameTickTime - lastRndGameTicks < intervalHours * TICKS_PER_HOUR
+            : now - lastRndTime < 1500
+    if (waiting) {
         wmDebug.waitFrames++
         return null
     }
     lastRndTime = now
+    lastRndGameTicks = world.gameTickTime
 
     if (Math.abs(oldWorldPosX - pos.x) < 3) {
         wmDebug.skipSameX++

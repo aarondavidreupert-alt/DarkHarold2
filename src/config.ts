@@ -278,6 +278,14 @@ export const Config = {
         // of worldmap.txt's (100 = CE; 200 doubles a Rare square's 4 % to 8 %).
         // Set in fallout2.cfg: [dh2] encounter_rate=<percent>.
         encounterRate: 100,
+        // DH2 option, not in CE: one encounter roll per this many game hours of walking.
+        // 0 = CE: one roll per 1.5 s of real time (worldmap.cc wmRndEncounterOccurred), which
+        // at CE's 60 fps is ~45 game hours. Set in fallout2.cfg: [dh2] encounter_interval=24.
+        encounterInterval: 24,
+        // DH2 option, not in CE: world map travel at this many steps a real second, whatever
+        // the frame rate. 0 = CE: one step a frame (60 a second at CE's fps cap).
+        // Set in fallout2.cfg: [dh2] worldmap_fps=30.
+        worldmapFps: 30,
         doInfiniteUse: false, // allow infinite-range object usage?
         doFloorLighting: true, // use FO2-realistic floor lighting?
         floorLightingMode: 'auto' as 'auto' | 'gpu' | 'cpu', // lighting backend: 'auto' detects GPU capability

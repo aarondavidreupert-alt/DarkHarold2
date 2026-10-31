@@ -1352,9 +1352,13 @@ export function updateWorldmapPlayer() {
     }
 
     if (walk.isWalking) {
-        // DH2 debug (console setWalkSpeed, not in CE): the frame's steps and game time
-        // times wmDebug.walkSpeed — 1 = CE, one step group a frame
-        walkCredit += wmDebug.walkSpeed
+        // The step groups this frame. CE: one a frame (its loop is capped at 60 fps), so the
+        // travel speed follows the frame rate. [dh2] worldmap_fps=N (DH2 option, default 30):
+        // N groups a real second, whatever the frame rate. Game time and fuel go with the
+        // groups, so they stay tied to the distance. Console setWalkSpeed(x) scales either.
+        const fps = Config.engine.worldmapFps
+        const elapsed = frameMs > 0 && frameMs < 250 ? frameMs : FRAME_MS
+        walkCredit += (fps > 0 ? (elapsed * fps) / 1000 : 1) * wmDebug.walkSpeed
         const groups = Math.floor(walkCredit)
         walkCredit -= groups
         // CE: in the car 4 steps a frame (+1 blower, +1 New Reno upgrade, +3 super car)
@@ -1366,7 +1370,10 @@ export function updateWorldmapPlayer() {
         }
         if (_isInCar && _carFuel > 0) {
             updateCarAnimation()
-            carUseGas(100) // wmCarUseGas(100) once per frame
+            // wmCarUseGas(100) once per frame — here per step group
+            for (let g = 0; g < groups; g++) {
+                carUseGas(100)
+            }
             if (_carFuel <= 0) carRanOutOfGas()
             updateCarUI()
         }

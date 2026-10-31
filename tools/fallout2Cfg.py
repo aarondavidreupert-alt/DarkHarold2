@@ -158,6 +158,12 @@ pipboy_available_at_game_start=0
 menu_text=white
 ; random-encounter chance on the world map in percent of worldmap.txt's (100 = CE, 200 = twice as often)
 encounter_rate=100
+; one random-encounter roll per this many game hours of walking (DH2; 24 = about once a day);
+; 0 = CE: one roll per 1.5 s of real time, which depends on the frame rate (~45 game hours at 60 fps)
+encounter_interval=24
+; world map travel speed in steps per real second, independent of the frame rate (DH2; 30 = the
+; pace of CE at 30 fps); 0 = CE: one step a frame, so the speed follows the frame rate (60 fps cap)
+worldmap_fps=30
 ; a town entered from the world map (an entrance without its own tile): exit = at the map's
 ; world-map exit grid (DH2), ce = the map header's start
 worldmap_entry=exit

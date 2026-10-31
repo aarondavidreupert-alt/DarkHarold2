@@ -241,6 +241,16 @@ export function applyCfg(cfg: CfgSections): void {
     if (dragDrop !== null) {
         Config.ui.inventoryDragDrop = dragDrop !== 0
     }
+    //   encounter_interval=<hours>    one encounter roll per N game hours of walking (0 = CE: per 1.5 s real time)
+    const ei = int(dh2['encounter_interval'])
+    if (ei !== null && ei >= 0) {
+        Config.engine.encounterInterval = ei
+    }
+    //   worldmap_fps=<steps a second> world map travel speed independent of the frame rate (0 = CE: a step a frame)
+    const wf = int(dh2['worldmap_fps'])
+    if (wf !== null && wf >= 0) {
+        Config.engine.worldmapFps = wf
+    }
     //   encounter_rate=<percent>      random-encounter chance in percent of worldmap.txt's (100 = CE)
     const er = int(dh2['encounter_rate'])
     if (er !== null && er >= 0) {
