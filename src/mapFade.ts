@@ -47,6 +47,11 @@ function busy(): boolean {
 /** Black at once (isoDisable / wmFadeOut). */
 export function beginMapFade(): void {
     if (typeof document === 'undefined') return
+    // the startup map behind the splash / intro / main menu: nobody sees it, and the black
+    // (above the splash) hid the splash until that map was in
+    if (globalState.backgroundMapLoad) {
+        return
+    }
     token++
     if (!overlay) {
         overlay = document.createElement('div')
