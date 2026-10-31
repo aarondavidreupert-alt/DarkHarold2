@@ -26,6 +26,8 @@ export const wmDebug = {
     hits: 0, // encounters rolled (spotted or not)
     spotted: 0,
     byChance: {} as { [percent: number]: number }, // rolls per square chance
+    // the walk counters at the previous roll (encounterLog's "since last roll")
+    lastRoll: { walkMs: 0, walkFrames: 0, steps: 0, gameTicks: 0 },
 }
 
 export function resetWmDebugStats(): void {
@@ -46,6 +48,7 @@ export function resetWmDebugStats(): void {
         hits: 0,
         spotted: 0,
         byChance: {},
+        lastRoll: { walkMs: 0, walkFrames: 0, steps: 0, gameTicks: 0 },
         ...keep,
     })
 }

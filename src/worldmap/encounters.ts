@@ -188,8 +188,22 @@ export function rndEncounterOccurred(
     if (wmDebug.log) {
         const name = square.frequencies[dayPart] ?? '?'
         const time = `${GameTime.getDateString()} ${GameTime.getTimeString()} ${DAY_PART_NAMES[dayPart]} (${GameTime.getTotalDays()} days in)`
+        // since the previous roll: real walking time, pixels, game time and the loop's fps
+        const last = wmDebug.lastRoll
+        const realS = (wmDebug.walkMs - last.walkMs) / 1000
+        const frames = wmDebug.walkFrames - last.walkFrames
+        const since =
+            `${realS.toFixed(1)} s real, ${wmDebug.steps - last.steps} px, ` +
+            `${((wmDebug.gameTicks - last.gameTicks) / 36000).toFixed(1)} game h, ` +
+            `${realS > 0 ? Math.round(frames / realS) : 0} fps`
+        wmDebug.lastRoll = {
+            walkMs: wmDebug.walkMs,
+            walkFrames: wmDebug.walkFrames,
+            steps: wmDebug.steps,
+            gameTicks: wmDebug.gameTicks,
+        }
         console.log(
-            `[encounter] roll ${wmDebug.rolls} ${time} at ${pos.x},${pos.y}: ${name} ${frequency}%, rolled ${chance} → ${chance < frequency ? 'ENCOUNTER' : 'nothing'}`,
+            `[encounter] roll ${wmDebug.rolls} ${time} at ${pos.x},${pos.y}: ${name} ${frequency}%, rolled ${chance} → ${chance < frequency ? 'ENCOUNTER' : 'nothing'} | since last roll: ${since}`,
         )
     }
     if (chance >= frequency) return null
