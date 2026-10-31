@@ -156,6 +156,8 @@ script_fixes=1
 pipboy_available_at_game_start=0
 ; main menu button labels: white = DH2, ce = CE's yellow (like the menu's footer text)
 menu_text=white
+; random-encounter chance on the world map in percent of worldmap.txt's (100 = CE, 200 = twice as often)
+encounter_rate=100
 ; 1 = the developer console commands (skipTemple(), revealWorldmap(), giveCar(), ...) in the
 ; browser console on every start; 0 = only with play.html#dev
 dev_console=0

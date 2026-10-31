@@ -226,6 +226,11 @@ export function applyCfg(cfg: CfgSections): void {
     if (mt === 'white' || mt === 'ce') {
         Config.ui.menuText = mt
     }
+    //   encounter_rate=<percent>      random-encounter chance in percent of worldmap.txt's (100 = CE)
+    const er = int(dh2['encounter_rate'])
+    if (er !== null && er >= 0) {
+        Config.engine.encounterRate = er
+    }
     //   dev_console=1|0               the developer console commands without play.html#dev
     const dc = int(dh2['dev_console'])
     if (dc !== null) {

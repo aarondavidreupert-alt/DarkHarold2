@@ -612,6 +612,12 @@ if (chance >= frequency) return 0;  // no encounter
 - Normal: `frequency = 25` → ~25% encounter rate
 - Hard: modifier = 1 → `frequency = 26` → ~26% encounter rate
 
+**DH2 option (not in CE):** `[dh2] encounter_rate=<percent>` in `fallout2.cfg` (`Config.engine.encounterRate`,
+default 100 = CE) scales `frequency` after the difficulty modifier, inside the same `0 < frequency < 100`
+branch (Forced and None squares are unchanged), capped at 100. The roll stays at one every 1.5 s of
+walking; on the Arroyo / Klamath / Den squares (Rare 4 %, Uncommon 12 %) CE gives about one encounter per
+30 s of walking, so `encounter_rate=200` gives about one per 15 s. Added 2026-10-31 at the user's request.
+
 ### 8.4 Encounter Table Selection (`wmRndEncounterPick`)
 
 Once the base roll passes, `wmRndEncounterPick()` (`worldmap.cc:3557`) selects

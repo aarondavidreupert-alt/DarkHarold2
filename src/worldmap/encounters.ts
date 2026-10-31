@@ -156,6 +156,10 @@ export function rndEncounterOccurred(
         const modifier = Math.trunc(frequency / 15)
         if (difficulty() === 0) frequency -= modifier
         else if (difficulty() === 2) frequency += modifier
+        // [dh2] encounter_rate (DH2 option; 100 = CE): Forced and None squares stay as they are
+        if (Config.engine.encounterRate !== 100) {
+            frequency = Math.min(100, Math.round((frequency * Config.engine.encounterRate) / 100))
+        }
     }
 
     const chance = getRandomInt(0, 100)

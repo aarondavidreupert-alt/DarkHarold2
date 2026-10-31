@@ -264,6 +264,10 @@ export const Config = {
         devConsole: false,
         doZOrder: true, // Z-order objects?
         doEncounters: true, // allow random encounters?
+        // DH2 option, not in CE: the random-encounter chance of a world map square, in percent
+        // of worldmap.txt's (100 = CE; 200 doubles a Rare square's 4 % to 8 %).
+        // Set in fallout2.cfg: [dh2] encounter_rate=<percent>.
+        encounterRate: 100,
         doInfiniteUse: false, // allow infinite-range object usage?
         doFloorLighting: true, // use FO2-realistic floor lighting?
         floorLightingMode: 'auto' as 'auto' | 'gpu' | 'cpu', // lighting backend: 'auto' detects GPU capability
