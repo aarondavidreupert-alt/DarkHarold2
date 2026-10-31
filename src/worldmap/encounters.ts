@@ -42,6 +42,7 @@ import {
     FORMATION_WEDGE,
 } from './encounterData.js'
 import { Square } from './types.js'
+import { wmDebug } from './debugStats.js'
 import { areaIdContainingMap, areaPosAtParty, getWorldmap, setAreaVisible, updateAreaMarkerPos } from './Worldmap.js'
 
 const TICKS_PER_DAY = 864000
@@ -118,12 +119,24 @@ export function rndEncounterOccurred(
     isInCar: boolean,
 ): EncounterRoll | null {
     const now = performance.now()
-    if (now - lastRndTime < 1500) return null
+    if (now - lastRndTime < 1500) {
+        wmDebug.waitFrames++
+        return null
+    }
     lastRndTime = now
 
-    if (Math.abs(oldWorldPosX - pos.x) < 3) return null
-    if (Math.abs(oldWorldPosY - pos.y) < 3) return null
-    if (inArea) return null
+    if (Math.abs(oldWorldPosX - pos.x) < 3) {
+        wmDebug.skipSameX++
+        return null
+    }
+    if (Math.abs(oldWorldPosY - pos.y) < 3) {
+        wmDebug.skipSameY++
+        return null
+    }
+    if (inArea) {
+        wmDebug.skipInArea++
+        return null
+    }
 
     if (!didMeetFrankHorrigan && Math.trunc(world.gameTickTime / TICKS_PER_DAY) > 35) {
         encounterMapId = -1
@@ -163,6 +176,19 @@ export function rndEncounterOccurred(
     }
 
     const chance = getRandomInt(0, 100)
+    // DH2 debug (console encounterStats / encounterLog)
+    wmDebug.rolls++
+    wmDebug.expected += frequency / 100
+    wmDebug.byChance[frequency] = (wmDebug.byChance[frequency] ?? 0) + 1
+    if (chance < frequency) {
+        wmDebug.hits++
+    }
+    if (wmDebug.log) {
+        const name = square.frequencies[dayPart] ?? '?'
+        console.log(
+            `[encounter] roll ${wmDebug.rolls} at ${pos.x},${pos.y}: ${name} ${frequency}%, rolled ${chance} → ${chance < frequency ? 'ENCOUNTER' : 'nothing'}`,
+        )
+    }
     if (chance >= frequency) return null
 
     rndEncounterPick(square)
@@ -209,6 +235,12 @@ export function rndEncounterOccurred(
     oldWorldPosX = pos.x
     oldWorldPosY = pos.y
 
+    if (detected) {
+        wmDebug.spotted++
+    }
+    if (wmDebug.log) {
+        console.log(`[encounter] map ${lookupMapName(encounterMapId) ?? encounterMapId}, spotted: ${detected}`)
+    }
     dbg(
         'worldmap',
         `encounter: table ${encounterTableId} entry ${encounterEntryId} map ${encounterMapId} detected=${detected}`,

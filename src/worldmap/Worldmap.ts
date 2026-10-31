@@ -38,6 +38,7 @@ import {
     rndEncounterOccurred,
     setupRandomEncounter,
 } from './encounters.js'
+import { wmDebug } from './debugStats.js'
 import { drawHP } from '../hudRefresh.js'
 import { assetUrl } from '../modAssets.js'
 
@@ -143,6 +144,10 @@ let terrainCounter = 1 // CE _terrainCounter
 let currentAreaId = -1
 let gameTimeIncRemainder = 0 // CE gGameTimeIncRemainder (sfall Pathfinder fix)
 let partyHealTime = 0
+// DH2 debug (console setWalkSpeed / encounterStats): step credit carried between frames,
+// the last frame's time
+let walkCredit = 0
+let lastFrameTime = 0
 let $worldMapDial: HTMLElement | null = null
 let _lastDialFrame = -1
 // Current viewport pan offset (pixels into the 1400×1500 worldmap).
@@ -1231,6 +1236,7 @@ function partyWalkingStep(): void {
     worldmapPlayer!.x = nx
     worldmapPlayer!.y = ny
     walk.distance -= 1
+    wmDebug.steps++
 }
 
 // CE wmGameTimeIncrement: the Pathfinder perk takes 25 % per rank off (the remainder
@@ -1306,11 +1312,33 @@ export function updateWorldmapPlayer() {
     // CE wmCheckGameEvents — story events (ARTIMER movies, Arroyo failure)
     scriptsCheckGameEvents(GameTime.getTotalDays())
 
+    // DH2 debug (console encounterStats): the loop's frame rate and the walk
+    const frameNow = performance.now()
+    const frameMs = frameNow - lastFrameTime
+    lastFrameTime = frameNow
+    if (frameMs < 250) {
+        wmDebug.openMs += frameMs
+        wmDebug.frames++
+        if (walk.isWalking) {
+            wmDebug.walkMs += frameMs
+            wmDebug.walkFrames++
+        }
+    }
+
     if (walk.isWalking) {
-        partyWalkingStep()
+        // DH2 debug (console setWalkSpeed, not in CE): the frame's steps and game time
+        // times wmDebug.walkSpeed — 1 = CE, one step group a frame
+        walkCredit += wmDebug.walkSpeed
+        const groups = Math.floor(walkCredit)
+        walkCredit -= groups
         // CE: in the car 4 steps a frame (+1 blower, +1 New Reno upgrade, +3 super car)
+        const stepsPerGroup = _isInCar && _carFuel > 0 ? carStepsPerTick() : 1
+        for (let g = 0; g < groups; g++) {
+            for (let i = 0; i < stepsPerGroup; i++) {
+                partyWalkingStep()
+            }
+        }
         if (_isInCar && _carFuel > 0) {
-            for (let i = 1; i < carStepsPerTick(); i++) partyWalkingStep()
             updateCarAnimation()
             carUseGas(100) // wmCarUseGas(100) once per frame
             if (_carFuel <= 0) carRanOutOfGas()
@@ -1327,7 +1355,8 @@ export function updateWorldmapPlayer() {
 
         if (walk.distance <= 0 && walk.isWalking) stopWalking()
 
-        gameTimeIncrement(WALK_FRAME_TICKS)
+        gameTimeIncrement(WALK_FRAME_TICKS * groups)
+        wmDebug.gameTicks += WALK_FRAME_TICKS * groups
 
         // CE wmInterfaceScrollPixel — the view follows the party
         applyPan(Math.floor(worldmapPlayer!.x - VIEW_W / 2), Math.floor(worldmapPlayer!.y - VIEW_H / 2))

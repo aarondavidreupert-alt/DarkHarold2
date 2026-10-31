@@ -72,3 +72,7 @@ export const serializeEncounters = _Encounters.serializeEncounters
 export const deserializeEncounters = _Encounters.deserializeEncounters
 export const resetEncounters = _Encounters.resetEncounters
 export const forceEncounter = _Encounters.forceEncounter
+
+// DH2 debug counters for the console commands encounterStats / encounterLog / setWalkSpeed
+// (worldmap/debugStats.ts, src/devConsole/worldmapDebug.ts).
+export { wmDebug, resetWmDebugStats } from './worldmap/debugStats.js'

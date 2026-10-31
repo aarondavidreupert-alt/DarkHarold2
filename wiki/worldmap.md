@@ -618,6 +618,12 @@ branch (Forced and None squares are unchanged), capped at 100. The roll stays at
 walking; on the Arroyo / Klamath / Den squares (Rare 4 %, Uncommon 12 %) CE gives about one encounter per
 30 s of walking, so `encounter_rate=200` gives about one per 15 s. Added 2026-10-31 at the user's request.
 
+**Measuring it (DH2 console, `play.html#dev` or `[dh2] dev_console=1`):** `encounterLog()` logs every roll,
+`encounterStats()` prints the world map fps, travel speed, rolls, skipped rolls and expected vs. actual
+encounters as one JSON line (`resetEncounterStats()` restarts the count; counters in
+`src/worldmap/debugStats.ts`). `setWalkSpeed(x)` (1 = CE) multiplies the steps per frame and the game
+time with them; the rolls stay one per 1.5 s of real time, so a slower walk gives more rolls per distance.
+
 ### 8.4 Encounter Table Selection (`wmRndEncounterPick`)
 
 Once the base roll passes, `wmRndEncounterPick()` (`worldmap.cc:3557`) selects

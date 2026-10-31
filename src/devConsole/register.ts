@@ -15,6 +15,7 @@ import { Config } from '../config.js'
 import { registerEggCommands } from './egg.js'
 import { registerLightingCommands } from './lighting.js'
 import { registerCacheAndOutlineCommands, registerToggleCommands } from './toggles.js'
+import { registerWorldmapDebugCommands } from './worldmapDebug.js'
 
 // console commands are free-form globals (play.html#dev)
 const devWindow = window as unknown as Record<string, unknown>
@@ -31,6 +32,7 @@ export function registerDevConsole(): void {
     registerLightingCommands()
     registerEggCommands()
     registerCacheAndOutlineCommands()
+    registerWorldmapDebugCommands()
 
     // the scroll-limit editor (render/camera.ts, wiki/scroll_clamping.md)
     devWindow.scrollDebug = scrollDebug

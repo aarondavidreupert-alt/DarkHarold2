@@ -521,6 +521,12 @@ has `dev`: `play.html#dev`, or with other hash keys `play.html#script_backend=lu
 (`src/devConsole/`), or on every start with `dev_console=1` in the `[dh2]` section of `fallout2.cfg`. `exportEventLog()` / `__eventLog` (Combat Log) and `globalState`, `Config`,
 `Scripting` are always there.
 
+World map: `encounterLog()` prints one line per random-encounter roll (square, chance, roll, result;
+`encounterLog(false)` stops it), `encounterStats()` prints the counters as one line of JSON to copy
+(world map fps, walking seconds, travel px/s, game hours per walking second, rolls, skipped rolls,
+expected and actual encounters), `resetEncounterStats()` starts counting again, and `setWalkSpeed(x)`
+changes the world map travel speed (1 = CE; game time per distance stays CE's).
+
 ### Enabling
 
 `Config.engine.debug` is on by default (`src/config.ts`); the AutoCrawler needs it too.
