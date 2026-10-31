@@ -449,7 +449,11 @@ export function isCEOccludingWallLiteral(obj: Obj, player: Obj): boolean {
 // errs toward NOT occluding rather than risk an incorrect see-through wall.
 export function isBBoxOccludingWall(obj: Obj, player: Obj): boolean {
     if (!hexIsInFrontOf(obj.position, player.position)) return false
+    return spriteOverlapsPlayer(obj, player)
+}
 
+// Does the object's drawn sprite rect overlap the player's?
+function spriteOverlapsPlayer(obj: Obj, player: Obj): boolean {
     const renderer = services.renderer
     if (!renderer) return false
     const objInfo = renderer.objectRenderInfo(obj)
@@ -482,6 +486,17 @@ function isEggObject(obj: Obj): boolean {
     if (hexDistance(player.position, obj.position) > getEggRadius()) return false
 
     if (Config.ui.eggMode === 'dh2-egg') {
+        // DH2: scenery (a hydrant, a sign, a door) only when it can hide the player — drawn
+        // after him (a higher tile, Obj.ts objectZCompare) with its sprite over his. CE
+        // object.cc _obj_render_object gives scenery the walls' rule, and for an unflagged
+        // proto (extendedFlags 0x2000) that is plain tileIsToRightOf(dude, object) ("TODO:
+        // Probably wrong"): it cut holes in things beside or behind the player.
+        if (obj.type === 'scenery') {
+            const tile = (p: { x: number; y: number }) => p.y * 200 + p.x
+            if (tile(obj.position) <= tile(player.position) || !spriteOverlapsPlayer(obj, player)) {
+                return false
+            }
+        }
         return isCEOccludingWall(obj, player)
     }
     if (Config.ui.eggMode === 'ce-egg') {

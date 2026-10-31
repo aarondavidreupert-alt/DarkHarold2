@@ -338,6 +338,15 @@ valued, and correctly placed).
   `eggDebug()` now logs both predicates side by side per object (`egg=… ceLiteral=…`,
   flagged `(DIFF)` on disagreement) — this is the practical tool for resolving
   the bit-30/31 question above once real proto data is loaded.
+- **Scenery in `'dh2-egg'` (2026-10-31, known_bugs CA66).** CE `_obj_render_object` gives
+  scenery (render type 2) the walls' rule. For an unflagged proto (`extendedFlags 0x2000`:
+  hydrants, signs, tables, many doors) that is plain `tileIsToRightOf(dude, object)`, so the
+  egg cut holes in objects beside or in front of the player — the player standing south-east
+  or east of a chair or door. `'dh2-egg'` now eggs scenery only when it can hide the player:
+  a higher tile than his (drawn after him, `objectZCompare`) and its sprite over his
+  (`spriteOverlapsPlayer`). Walls keep `isCEOccludingWall`; `'ce-egg'` keeps CE's rule for
+  scenery too. Measured in Klamath Downtown (player on each neighbour hex and two out): chairs,
+  tables, a gate and doors are egged only from behind (NE / NW), CE also from E / SE.
   **Update 2**: a fourth egg mode, `setEggMode('bbox')`, adds a DH2-original
   alternative that sidesteps the `extendedFlags` bit question entirely —
   `isBBoxOccludingWall()` (`src/render/webglDraw.ts`, also exported via the
