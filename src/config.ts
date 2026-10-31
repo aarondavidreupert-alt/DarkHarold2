@@ -160,7 +160,9 @@ export const Config = {
         showObjects: true, // show objects?
         showWalls: true, // show walls?
         showBoundingBox: false, // show bounding boxes around objects?
-        showSpatials: true, // show spatial script triggers?
+        // the spatial triggers' script names on the map (a debug aid, not in CE). Set in
+        // fallout2.cfg: [dh2] show_spatials=1; console setShowSpatials(true).
+        showSpatials: false,
         showFonts: false, // show all fonts for debugging?
         // FO2-CE ref: preferences.cc TargetHighlight enum (game_config.h:111)
         //   0=off, 1=on (always), 2=targeting-only (only while attack cursor)

@@ -69,6 +69,11 @@ export function registerToggleCommands(): void {
         Config.ui.showDebugOverlay = !!on
         console.log(`[DH2] debug overlay ${on ? 'on' : 'off'}`)
     }
+    // Console: the spatial triggers' script names on the map (fallout2.cfg [dh2] show_spatials)
+    devWindow.setShowSpatials = (on: boolean) => {
+        Config.ui.showSpatials = !!on
+        console.log(`[DH2] spatial trigger names ${on ? 'on' : 'off'}`)
+    }
     devWindow.setFpsOverlay = (on: boolean) => {
         Config.ui.showFPS = !!on
         if (services.$fpsOverlay) services.$fpsOverlay.style.display = on ? '' : 'none'

@@ -628,6 +628,18 @@ html, body {
   image-rendering: pixelated;
 }
 
+/* CE inventory.cc inventoryQuantityWindowInit: the title (inventry.msg 21 MOVE ITEMS /
+   23 SET TIMER) centred at y 9, font 103 */
+#moveMultTitle {
+  position: absolute;
+  left: 0;
+  top: 9px;
+  width: 259px;
+  text-align: center;
+  line-height: 0;
+  pointer-events: none;
+}
+
 #moveMultCanvas {
   position: absolute;
   left: 0; top: 0;

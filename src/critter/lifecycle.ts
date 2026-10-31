@@ -119,14 +119,6 @@ export function critterKill(
     }
     obj.outline = null
     obj.critDeath = false
-    // CE critter.cc critterKill: unless the proto has CRITTER_FLAT, the body stops blocking
-    // (OBJECT_NO_BLOCK) and _obj_toggle_flat makes it OBJECT_FLAT — drawn first on its tile
-    if (((obj.pro?.extra?.flags ?? 0) & 0x800) === 0) {
-        obj.flags = ((obj.flags ?? 0) | 0x10 | 0x08) >>> 0
-        const gm = world.gMap
-        const level = gm?.objects?.[obj.elevation ?? gm.currentElevation]
-        if (level && Config.engine.objectSort !== 'dh2') zsort(level)
-    }
     // CE critter.cc:894 — critter->data.critter.hp = 0; DAM_DEAD replaces the other results
     if (obj.stats.getBase('HP') > 0) obj.stats.setBase('HP', 0)
     removeKnockoutEvents(obj)
@@ -146,6 +138,17 @@ export function critterKill(
 
     let deathAnim: number | null = null
     const finalizeCallback = function () {
+        // CE actions.cc _show_death (an animation callback after the death fall and the
+        // knockback slide): unless the proto has CRITTER_FLAT the body stops blocking
+        // (OBJECT_NO_BLOCK) and _obj_toggle_flat makes it OBJECT_FLAT — drawn first, under
+        // everything. Done at once, the dying critter (the dude too) was drawn under every
+        // object for its whole fall and slide: it vanished (known_bugs CA69).
+        if (((obj.pro?.extra?.flags ?? 0) & 0x800) === 0) {
+            obj.flags = ((obj.flags ?? 0) | 0x10 | 0x08) >>> 0
+            const gm = world.gMap
+            const level = gm?.objects?.[obj.elevation ?? gm.currentElevation]
+            if (level && Config.engine.objectSort !== 'dh2') zsort(level)
+        }
         obj.frame-- // freeze on the last frame of the death animation
         // Use 'dead' sentinel: updateAnim() returns immediately for this value,
         // keeping the corpse frozen on its last frame indefinitely.

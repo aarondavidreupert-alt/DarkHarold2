@@ -197,6 +197,8 @@ drag_dialogBox=1
 debug_overlay=0
 ; fps counter
 fps_overlay=1
+; 1 = the spatial triggers' script names on the map (debug aid); 0 = off
+show_spatials=0
 ; pixels from the screen edge at which the map scrolls (CE: the edge itself)
 scroll_edge=10
 ; 1 = the screen centre never scrolls past the black border around the map (it reaches

@@ -19,10 +19,12 @@ limitations under the License.
 // → "Per-file split proposals" §21.
 
 import { Obj } from '../object.js'
-import { $id } from '../uiDom.js'
+import { $id, clearEl } from '../uiDom.js'
 import { services } from '../state/services.js'
 import { ammoGetQuantity, ammoMergeInto, ammoSplitOff } from '../weaponAmmo.js'
 import { assetUrl } from '../modAssets.js'
+import { FoText, font3 } from '../uiFont.js'
+import { getMessage } from '../util.js'
 
 // CE ref: inventory.cc:5534-5568 _draw_amount — BIGNUM.frm (FRM 170,
 // art/intrface/bignum.png, 336×24) is a 24-glyph sprite strip at 14px/glyph.
@@ -33,11 +35,30 @@ const BIGNUM_DIGITS = 5
 const BIGNUM_X = 125 // relative to movemult.png (259×162)
 const BIGNUM_Y = 45
 
-// CE ref: inventory.cc:5800 — item icon at (16, 46), INVENTORY_LARGE_SLOT 56×56.
+// CE ref: inventory.cc:5800 — item icon at (16, 46) in the INVENTORY_LARGE_SLOT, 90×61
 const ICON_X = 16
 const ICON_Y = 46
-const ICON_W = 56
-const ICON_H = 56
+const ICON_W = 90
+const ICON_H = 61
+
+// CE art.cc artRender: the item centred in the slot at its own size, shrunk (keeping its
+// shape) only when it does not fit
+function drawItemIcon(ctx: CanvasRenderingContext2D, img: HTMLImageElement): void {
+    const sw = img.naturalWidth
+    const sh = img.naturalHeight
+    const scale = Math.min(1, ICON_W / sw, ICON_H / sh)
+    const dw = Math.round(sw * scale)
+    const dh = Math.round(sh * scale)
+    ctx.drawImage(img, ICON_X + Math.trunc((ICON_W - dw) / 2), ICON_Y + Math.trunc((ICON_H - dh) / 2), dw, dh)
+}
+
+// CE inventoryQuantityWindowInit: the window's title, inventry.msg 21 (MOVE ITEMS) or 23
+// (SET TIMER), font 103 in _colorTable[21091]
+function setWindowTitle(msg: number, fallback: string): void {
+    const $title = $id('moveMultTitle')
+    clearEl($title)
+    new FoText(font3, getMessage('inventry', msg) ?? fallback, '#a59c18').appendTo($title)
+}
 
 // CE ref: inventory.cc:5816-5866 — plus at (200,46) 16×12, minus at (200,58) 17×12.
 // Done at (98,128) 15×16, Cancel at (148,128) 15×16 (both baked into background art).
@@ -103,6 +124,7 @@ export function uiGetAmount(item: Obj): Promise<number> {
         const ctx = canvas.getContext('2d')!
 
         overlay.style.display = 'flex'
+        setWindowTitle(21, 'MOVE ITEMS')
 
         // Lazy-load BIGNUM strip and item icon; redraw when each arrives.
         const bignumImg = new Image()
@@ -114,14 +136,7 @@ export function uiGetAmount(item: Obj): Promise<number> {
             ctx.clearRect(0, 0, DIALOG_W, DIALOG_H)
             if (bignumReady) drawBignumDigits(ctx, bignumImg, count)
             if (iconReady && item.invArt) {
-                // CE ref: inventory.cc:5800 artRender — item icon at (ICON_X, ICON_Y),
-                // INVENTORY_LARGE_SLOT 56×56. Preserve aspect ratio within the slot.
-                const sw = iconImg.naturalWidth,
-                    sh = iconImg.naturalHeight
-                const scale = Math.min(ICON_W / sw, ICON_H / sh)
-                const dw = sw * scale,
-                    dh = sh * scale
-                ctx.drawImage(iconImg, ICON_X + (ICON_W - dw) / 2, ICON_Y + (ICON_H - dh) / 2, dw, dh)
+                drawItemIcon(ctx, iconImg) // CE ref: inventory.cc:5800 artRender
             }
         }
 
@@ -291,6 +306,7 @@ export function uiGetTimer(item: Obj): Promise<number> {
         minusBtn.style.top = '76px'
         allBtn.style.display = 'none'
         overlay.style.display = 'flex'
+        setWindowTitle(23, 'SET TIMER')
 
         const bignum = new Image(),
             timer = new Image(),
@@ -300,10 +316,7 @@ export function uiGetTimer(item: Obj): Promise<number> {
             ctx.clearRect(0, 0, DIALOG_W, DIALOG_H)
             if (timer.complete && timer.naturalWidth) ctx.drawImage(timer, 113, 34)
             if (icon.complete && icon.naturalWidth) {
-                const scale = Math.min(ICON_W / icon.naturalWidth, ICON_H / icon.naturalHeight)
-                const dw = icon.naturalWidth * scale,
-                    dh = icon.naturalHeight * scale
-                ctx.drawImage(icon, ICON_X + (ICON_W - dw) / 2, ICON_Y + (ICON_H - dh) / 2, dw, dh)
+                drawItemIcon(ctx, icon)
             }
             if (bignum.complete && bignum.naturalWidth) {
                 const digit = (d: number, x: number) =>

@@ -420,7 +420,14 @@ export const objUseMethods = {
             }, 0)
         }
 
-        scriptsExplodeScenery(this, center, elevation, (obj, target) => {
+        // CE actionExplode → _combat_explode_scenery(explosion): the scenery's damage_p_proc
+        // gets the explosion object as target_obj, which metarule w_damage_type (49) answers
+        // with DAMAGE_TYPE_EXPLOSION — the Arroyo caves' handle-less door (AIBkDor) blows open
+        // only then. The explosive item failed that test, so the door stayed.
+        const explosionObj = createObjectWithPID(makePID(5 /* misc */, 14 /* Explosion */), -1)
+        explosionObj.position = { ...center }
+        explosionObj.elevation = elevation
+        scriptsExplodeScenery(explosionObj, center, elevation, (obj, target) => {
             if (!obj._script) return
             try {
                 Scripting.damage(obj, target, null as any, 20) // fixed param 20

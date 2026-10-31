@@ -5,6 +5,7 @@ import { services } from '../state/services.js'
 import { getFileText } from '../util.js'
 import { dbgWarn } from '../logger.js'
 import { assetUrl } from '../modAssets.js'
+import { AUDIO_ASSET_QUERY } from '../audio.js'
 import { Config } from '../config.js'
 import { font3, font4 } from '../uiFont.js'
 
@@ -53,9 +54,17 @@ function buildSubtitleTimings(lines: string[], durationMs: number): number[] {
 
 // CE: endgame.cc:endgameEndingVoiceOverInit → speechLoad (0x4401A0)
 // Load narrator audio; returns element (already started) or null if missing.
+// CE speechLoad(narrator\<name>) → _gsound_speech_play_preloaded: the speech, at the speech
+// volume. The pipeline converts sound/speech/ to audio/speech/<dir>/<name>.mp3 (as the talking
+// heads, talkingHead.ts); playSound looked for audio/narrator/<name>.wav, so the death screen
+// and the endgame slides were silent (known_bugs CA68).
 function playNarratorAudio(baseName: string): HTMLAudioElement | null {
     if (!baseName) return null
-    return services.audioEngine.playSound('narrator/' + baseName)
+    const ae = services.audioEngine as { speechVolume?: number; masterVolume?: number } | undefined
+    const audio = new Audio(assetUrl(`audio/speech/narrator/${baseName.toLowerCase()}.mp3${AUDIO_ASSET_QUERY}`))
+    audio.volume = Math.max(0, Math.min(1, (ae?.speechVolume ?? 1) * (ae?.masterVolume ?? 1)))
+    audio.play().catch((e) => dbgWarn('endgame', `narrator ${baseName}: ${String(e)}`))
+    return audio
 }
 
 // Resolve with duration in ms once HTMLAudioElement metadata loads, 0 on failure.

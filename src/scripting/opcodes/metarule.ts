@@ -142,8 +142,22 @@ export const metaruleOpcodes = {
                 // CE ref: interpreter_extra.cc:3310 METARULE_VIOLENCE_FILTER
                 // Returns current violence level: 0=None,1=Minimal,2=Normal,3=Maximum
                 return Config.combat.violenceLevel
-            case 49: // METARULE_W_DAMAGE_TYPE
-                // FO2-CE ref: combat_defs.h DMG_* constants
+            case 49: {
+                // CE ref: interpreter_extra.cc METARULE_WEAPON_DAMAGE_TYPE — a weapon item's
+                // damage type; the explosion object (misc, CE FID misc 10: what an explosion
+                // hands the scenery's damage_p_proc as target_obj) is DAMAGE_TYPE_EXPLOSION;
+                // anything else is a script error and 0. FO2-CE ref: combat_defs.h DMG_*
+                if (!isGameObject(target)) {
+                    return 0
+                }
+                const obj = target as unknown as Obj
+                if (obj.pid === makePID(5, 14)) {
+                    return 6 // the explosion
+                }
+                if (obj.type !== 'item' || obj.subtype !== 'weapon') {
+                    dbgWarn('script', 'metarule w_damage_type: not a weapon')
+                    return 0
+                }
                 switch (objectGetDamageType(target)) {
                     case 'normal':
                         return 0
@@ -162,6 +176,7 @@ export const metaruleOpcodes = {
                     default:
                         return 0 // safe fallback instead of throw
                 }
+            }
             case 50: {
                 // CE ref: interpreter_extra.cc:3316 METARULE_CRITTER_BARTERS
                 // CRITTER_BARTER = 0x02 (obj_types.h:93)

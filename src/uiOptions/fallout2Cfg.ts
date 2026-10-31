@@ -170,6 +170,11 @@ export function applyCfg(cfg: CfgSections): void {
     //   debug_overlay=1  mouse-hex / tile / light / camera readouts (default 0)
     const dbo = int(dh2['debug_overlay'])
     if (dbo !== null) Config.ui.showDebugOverlay = dbo !== 0
+    //   show_spatials=1  the spatial triggers' script names on the map (default 0)
+    const ssp = int(dh2['show_spatials'])
+    if (ssp !== null) {
+        Config.ui.showSpatials = ssp !== 0
+    }
     //   fps_overlay=0    hide the fps counter (default 1)
     const fpo = int(dh2['fps_overlay'])
     if (fpo !== null) Config.ui.showFPS = fpo !== 0

@@ -832,21 +832,29 @@ export function loadScriptBySid(sid: number): Script | null {
 export function loadScript(name: string): Script {
     const key = name.toLowerCase()
 
-    // Return a stub if one is registered and the .int file is absent.
-    // The stub is an instance of Script so it has all the engine API methods.
+    // A stub stands in only when the script file is absent (the stub is an instance of Script,
+    // so it has all the engine API methods). It was returned first, hiding the real script:
+    // aibkdor's stub only had a spatial_p_proc, so the Arroyo caves door never got its
+    // damage_p_proc and an explosion did not blow it open (known_bugs CA67).
     const stubProcs = _stubRegistry.get(key)
-    if (stubProcs) {
-        info('loading stub script ' + key, 'load')
-        return _buildStub(key, stubProcs)
-    }
 
     info('loading script ' + name, 'load')
 
     if (Config.scripting.backend === 'lua') {
         const luaScript = loadLuaScript(name)
-        if (luaScript) return luaScript
+        if (luaScript) {
+            return luaScript
+        }
     }
-    return loadIntScript(name)
+    try {
+        return loadIntScript(name)
+    } catch (e) {
+        if (!stubProcs) {
+            throw e
+        }
+        info('loading stub script ' + key, 'load')
+        return _buildStub(key, stubProcs)
+    }
 }
 
 // The .int on the script VM (vm.ts) — also a child program's (callstart / spawn / fork / exec)
@@ -1326,10 +1334,8 @@ registerStubBySid(203, 'actemdor', {
 })
 
 // AIBkDor: cave door script on acavedr2 (pid=33555364) in the Temple of
-// Trials. Vanilla spatial_p_proc removes the intact door and places the
-// destroyed rubble variant (acavedr3, pid=33555365) at the same tile with
-// NoBlock flags so pathfinding allows movement through it.
-// AIBkDor.int does not export spatial_p_proc, so we stub it here.
+// Trials — only for an install without aibkdor.int: the real script's damage_p_proc
+// replaces the door with the blown one (PID_BLOWN_ARROYO_CAVE_DOOR) on explosion damage.
 registerStub('aibkdor', {
     spatial_p_proc(this: Script) {
         const self = this.self_obj as unknown as Obj
