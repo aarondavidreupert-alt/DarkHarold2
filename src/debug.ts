@@ -9,7 +9,7 @@
 import { Config } from './config.js'
 import globalState from './globalState.js'
 import { world } from './state/world.js'
-import { createObjectWithPID } from './object.js'
+import { createObjectWithPID, zsortObject } from './object.js'
 import { heart } from './heart.js'
 import { fromTileNum } from './tile.js'
 import { centerCamera } from './renderer.js'
@@ -164,6 +164,7 @@ export const debug = {
         const p = guardPlayer('movePlayer')
         if (!p) return
         p.position = fromTileNum(tileNum)
+        zsortObject(p)
         centerCamera(p.position)
         console.log(`[debug] Player moved to tile ${tileNum}`)
     },

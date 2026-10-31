@@ -617,6 +617,27 @@ export function zsort(objects: Obj[]): void {
     objects.sort(objectZCompare)
 }
 
+/** Re-place `obj` in its elevation's draw order after its tile was set without move()
+ *  (script move_to, override_map_start, the party placed on a map): CE objectSetLocation
+ *  re-inserts the object by its tile. Left in its old slot, the walls between the old and
+ *  the new tile drew over it (the player at an overridden map start, known_bugs CA65). */
+export function zsortObject(obj: Obj): void {
+    const levels: Obj[][] | null | undefined = world.gMap?.objects
+    const level = levels?.find((l) => l?.includes(obj))
+    if (!level) {
+        return
+    }
+    if (Config.engine.objectSort === 'dh2') {
+        if (level === world.gMap!.getObjects()) {
+            objectZOrder(obj, level.indexOf(obj))
+        }
+        return
+    }
+    level.splice(level.indexOf(obj), 1)
+    const at = level.findIndex((o) => objectZCompare(obj, o) < 0)
+    level.splice(at === -1 ? level.length : at, 0, obj)
+}
+
 /** Put every elevation's objects in draw order after a map or save load: the arrays
  *  come from the map file or a save in whatever order they had, and objectZOrder's
  *  insertion assumes the rest is sorted (an object placed early drew walls over the

@@ -34,7 +34,7 @@ import { world } from '../state/world.js'
 import { services } from '../state/services.js'
 import * as Lightmap from '../lightmap.js'
 import { dbg, dbgWarn } from '../logger.js'
-import { Critter, deserializeObj, Obj, zsortMap } from '../object.js'
+import { Critter, deserializeObj, Obj, zsortMap, zsortObject } from '../object.js'
 import { centerCamera } from '../renderer.js'
 import { computeMapContentBounds, computeObjectContentBounds, computeScrollBlockerBounds } from '../render/camera.js'
 import * as Scripting from '../scripting.js'
@@ -449,6 +449,7 @@ export class GameMap {
             if (overridenStartPos && this.mapObj.levels[overridenStartPos.elevation]) {
                 world.player!.position = overridenStartPos.position
                 world.player!.orientation = overridenStartPos.orientation
+                zsortObject(world.player!) // draw order at the new tile (CA65)
             }
             this.objects!.forEach((level) => {
                 for (const obj of level.slice()) {
@@ -499,6 +500,9 @@ export class GameMap {
 
         // place party again, so if the map script overrided the start position we're in the right place
         this.placeParty()
+        // the player and the party moved after changeElevation's sort (override_map_start,
+        // placeParty): draw order at their new tiles, else the walls between drew over them (CA65)
+        zsortMap(this.objects)
 
         Scripting.startMapScripts(this.mapScript, this.spatials!.flat(), this.objects!.flat()!)
 

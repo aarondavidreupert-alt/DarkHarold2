@@ -29,7 +29,7 @@ import { world } from '../state/world.js'
 import { assets } from '../state/assets.js'
 import { heart } from '../heart.js'
 import { dbg, dbgWarn } from '../logger.js'
-import { createObjectWithPID, Critter, Obj, objectUnjamAll, objFromMapObject } from '../object.js'
+import { createObjectWithPID, Critter, Obj, objectUnjamAll, objFromMapObject, zsortObject } from '../object.js'
 import { randomBetween } from '../random.js'
 import { centerCamera } from '../renderer.js'
 import { setMapScrollLimits } from '../render/camera.js'
@@ -494,8 +494,10 @@ GameMap.prototype.loadMapByID = function (
                       ) {
                           this.changeElevation(startingElevation, false)
                       }
-                      if (player.position.x !== startingPosition.x || player.position.y !== startingPosition.y)
+                      if (player.position.x !== startingPosition.x || player.position.y !== startingPosition.y) {
                           player.position = { ...startingPosition }
+                          zsortObject(player) // draw order at the new tile (CA65)
+                      }
                       player.orientation = startingOrientation
                       centerCamera(player.position)
                   }

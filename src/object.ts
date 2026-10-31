@@ -40,6 +40,7 @@ export {
     explosiveGetDamage,
     zsort,
     zsortMap,
+    zsortObject,
     hitSpatialTrigger,
     setObjectOpen,
     toggleObjectOpen,

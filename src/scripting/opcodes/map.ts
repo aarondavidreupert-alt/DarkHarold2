@@ -3,7 +3,7 @@
 // there; vmBridge.ts and the Lua prelude call them as before (wiki/code_quality.md Q16).
 
 import type { Script } from '../../scripting.js'
-import { Critter, Obj } from '../../object.js'
+import { Critter, Obj, zsortObject } from '../../object.js'
 import * as Endgame from '../../endgame.js'
 import { SCRIPT_MOVIE_FLAGS, gameMoviePlay } from '../../gameMovie.js'
 import * as Worldmap from '../../worldmap.js'
@@ -147,6 +147,8 @@ export const mapOpcodes = {
             }
         }
         obj.position = fromTileNum(tileNum)
+        // CE objectSetLocation re-inserts the object by its new tile (draw order, CA65)
+        zsortObject(obj)
 
         if (isPlayer) centerCamera(obj.position)
         return tileNum

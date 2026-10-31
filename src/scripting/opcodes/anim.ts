@@ -4,7 +4,7 @@
 
 import type { Script } from '../../scripting.js'
 import { Config } from '../../config.js'
-import { Critter, Obj, createObjectWithPID } from '../../object.js'
+import { Critter, Obj, createObjectWithPID, zsortObject } from '../../object.js'
 import { correctDeath } from '../../critter.js'
 import { dbgWarn } from '../../logger.js'
 import { fromTileNum, toTileNum } from '../../tile.js'
@@ -189,6 +189,7 @@ export const animOpcodes = {
                 }
                 if (typeof c.walkTo !== 'function') {
                     entry.obj.position = { ...dest }
+                    zsortObject(entry.obj) // draw order at the new tile (CA65)
                     return done()
                 }
                 // CE animationRegisterMoveToObject: a path onto the object's tile (it may be
