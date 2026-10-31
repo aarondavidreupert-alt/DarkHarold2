@@ -11,6 +11,7 @@
 // limitations under the License.
 
 import { Config } from '../config.js'
+import * as GameTime from '../gametime.js'
 import { resetWmDebugStats, wmDebug } from '../worldmap.js'
 
 // console commands are free-form globals (play.html#dev)
@@ -32,6 +33,9 @@ export function registerWorldmapDebugCommands(): void {
     devWindow.encounterStats = () => {
         const walkS = wmDebug.walkMs / 1000
         const stats = {
+            gameTime: `${GameTime.getDateString()} ${GameTime.getTimeString()}`,
+            gameDays: GameTime.getTotalDays(),
+            gameHoursWalked: round(wmDebug.gameTicks / 36000),
             encounterRate: Config.engine.encounterRate,
             walkSpeed: wmDebug.walkSpeed,
             worldmapSeconds: round(wmDebug.openMs / 1000),

@@ -51,6 +51,8 @@ const PROTO_ID_MONEY = 41
 const PROTO_ID_MOTION_SENSOR = 59
 // CE gDayPartEncounterFrequencyModifiers (morning, afternoon, night) — in the car
 const DAY_PART_CAR_MODIFIERS = [40, 30, 0]
+// worldmap.txt's three chances per square: morning (6:00), afternoon (12:00), night (18:00)
+const DAY_PART_NAMES = ['morning', 'afternoon', 'night']
 
 // CE wmGenData encounter fields (wmLastRndTime is reset when the worldmap opens)
 let encounterMapId = -1
@@ -185,8 +187,9 @@ export function rndEncounterOccurred(
     }
     if (wmDebug.log) {
         const name = square.frequencies[dayPart] ?? '?'
+        const time = `${GameTime.getDateString()} ${GameTime.getTimeString()} ${DAY_PART_NAMES[dayPart]} (${GameTime.getTotalDays()} days in)`
         console.log(
-            `[encounter] roll ${wmDebug.rolls} at ${pos.x},${pos.y}: ${name} ${frequency}%, rolled ${chance} → ${chance < frequency ? 'ENCOUNTER' : 'nothing'}`,
+            `[encounter] roll ${wmDebug.rolls} ${time} at ${pos.x},${pos.y}: ${name} ${frequency}%, rolled ${chance} → ${chance < frequency ? 'ENCOUNTER' : 'nothing'}`,
         )
     }
     if (chance >= frequency) return null
