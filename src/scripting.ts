@@ -787,7 +787,7 @@ export function loadMessageFile(name: string) {
     filterBadwords(scriptMessages[name]) // CE scripts.cc:2703 messageListFilterBadwords
 }
 
-export function setMapScript(script: Script) {
+export function setMapScript(script: Script | null) {
     currentMapObject = script
 }
 

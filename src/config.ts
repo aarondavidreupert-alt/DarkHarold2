@@ -93,6 +93,16 @@ export const Config = {
         // [dh2] elevation_fade: 1 (default, DH2) — a short fade from black on stairs, ladders,
         // elevators and script elevation changes; 0 — CE mapSetElevation's instant switch
         elevationFade: true,
+        // [dh2] worldmap_entry: 'exit' (default, DH2) — a town entered from the world map
+        // without its own entrance tile starts the party at the map's world-map exit grid;
+        // 'ce' — the map header's start (map.cc mapLoad). See src/map/worldmapEntry.ts.
+        worldmapEntry: 'exit' as 'exit' | 'ce',
+        // [dh2] car_marker: 1 (default, DH2) — a car left in a random-encounter map gets the
+        // "Car Outta Gas" circle on the world map; 0 — CE (it turns up in the next encounter).
+        carMarker: true,
+        // [dh2] inventory_drag_drop: 1 (default, DH2) — an item dragged out of the inventory
+        // window onto the game is dropped (the Drop action); 0 — CE (only the item menu's Drop).
+        inventoryDragDrop: true,
         // scroll_bounds=ce's player limit (480×400 px). Off, the view goes as far as
         // the blocker ring / black border allow. fallout2.cfg [dh2]
         // scroll_player_limit=0|1, console setScrollPlayerLimit(on).

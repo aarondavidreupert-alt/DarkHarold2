@@ -226,6 +226,21 @@ export function applyCfg(cfg: CfgSections): void {
     if (mt === 'white' || mt === 'ce') {
         Config.ui.menuText = mt
     }
+    //   worldmap_entry=exit|ce        from the world map: at the world-map exit grid, or CE's map start
+    const we = dh2['worldmap_entry']?.trim().toLowerCase()
+    if (we === 'exit' || we === 'ce') {
+        Config.ui.worldmapEntry = we
+    }
+    //   car_marker=1|0                a car left in an encounter map gets a world map circle (DH2)
+    const carMarker = int(dh2['car_marker'])
+    if (carMarker !== null) {
+        Config.ui.carMarker = carMarker !== 0
+    }
+    //   inventory_drag_drop=1|0       an item dragged out of the inventory window is dropped (DH2)
+    const dragDrop = int(dh2['inventory_drag_drop'])
+    if (dragDrop !== null) {
+        Config.ui.inventoryDragDrop = dragDrop !== 0
+    }
     //   encounter_rate=<percent>      random-encounter chance in percent of worldmap.txt's (100 = CE)
     const er = int(dh2['encounter_rate'])
     if (er !== null && er >= 0) {

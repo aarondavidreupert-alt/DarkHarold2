@@ -17,6 +17,7 @@ limitations under the License.
 // Inventory panel — split out of uiInventory.ts. See
 // wiki/ts-split-refactor.md → "Per-file split proposals" §8.
 
+import { Config } from '../config.js'
 import { beginUseItemOn, usePendingItemOn } from '../useItemOn.js'
 import { ammoGetCapacity, ammoGetQuantity, ammoSplitOff, weaponGetAmmoTypePid } from '../weaponAmmo.js'
 import { weaponAttackType } from '../combat/hitChance.js'
@@ -107,6 +108,13 @@ function buttonSounds($el: HTMLElement, press: string, release: string): void {
  * Wire static DOM event handlers (drop targets, buttons, drag, scroll) for
  * the inventory panel. Call once during uiInit().
  */
+// CE inventory.cc: the arrows' disabled frames at the top / bottom of the list
+function updateInventoryScrollButtons(): void {
+    const $el = $id('inventoryBoxList')
+    $id('inventoryScrollUp').classList.toggle('disabled', $el.scrollTop <= 0)
+    $id('inventoryScrollDown').classList.toggle('disabled', $el.scrollTop + $el.clientHeight >= $el.scrollHeight - 1)
+}
+
 export function initInventory(): void {
     registerCloseInventoryPanel(closeInventory)
 
@@ -141,6 +149,19 @@ export function initInventory(): void {
         $el.scrollTop = $el.scrollTop + 60 * delta
         e.preventDefault()
     }
+    // CE inventory.cc: the list's up / down arrows (KEY_ARROW_UP / DOWN) scroll one item and
+    // are disabled at the top / bottom (_win_register_button_disable)
+    const scrollList = (delta: number) => {
+        const $el = $id('inventoryBoxList')
+        const itemHeight = ($el.firstElementChild as HTMLElement | null)?.offsetHeight || 48
+        $el.scrollTop += itemHeight * delta
+        updateInventoryScrollButtons()
+    }
+    $id('inventoryScrollUp').onclick = () => scrollList(-1)
+    $id('inventoryScrollDown').onclick = () => scrollList(1)
+    buttonSounds($id('inventoryScrollUp'), 'ib1p1xx1', 'ib1lu1x1')
+    buttonSounds($id('inventoryScrollDown'), 'ib1p1xx1', 'ib1lu1x1')
+    $id('inventoryBoxList').addEventListener('scroll', updateInventoryScrollButtons)
 
     // CE interface.cc interfaceInit: the INV button plays _gsound_med_butt_press / _release;
     // opening and closing the inventory make no sound of their own
@@ -495,6 +516,7 @@ export function showInventory(useOn = false) {
             makeDraggable(img, 'i' + i, () => {
                 showInventory()
             })
+            dropWhenDraggedOut(img, invObj, 'inventory')
             img.addEventListener('click', () => {
                 const target = useOnTarget
                 if (!target) return
@@ -651,6 +673,59 @@ export function showInventory(useOn = false) {
         }
     }
 
+    // The Drop action (item menu, and [dh2] inventory_drag_drop)
+    async function dropItem(obj: Obj, slot: string) {
+        // CE ref: inventory.cc:4909 — quantity dialog for drop when amount > 1.
+        if (obj.amount <= 1) {
+            itemAction(obj, slot, 'drop')
+            return
+        }
+        const wanted = await uiGetAmount(obj)
+        if (wanted <= 0) {
+            return
+        }
+        const playerAny = world.player as any
+        if (wanted < obj.amount) {
+            const split = cloneItem(obj)
+            split.amount = wanted
+            obj.amount -= wanted
+            ammoSplitOff(obj, split) // CE itemRemove: the top ammo box goes along
+            // a script that refuses the drop keeps the items with the dude
+            if (!split.drop(world.player!)) {
+                world.player!.addInventoryItem(split, split.amount)
+            }
+        } else {
+            if (slot !== 'inventory') {
+                world.player!.inventory.push(obj)
+                playerAny[slot] = null
+            }
+            obj.drop(world.player!)
+        }
+        world.player!.clearAnim()
+        uiDrawWeapon()
+        showInventory()
+    }
+
+    // [dh2] inventory_drag_drop=1 (DH2 option, not in CE; default on): an item dragged out
+    // of the inventory window and let go over the game is dropped, as with the Drop action
+    function dropWhenDraggedOut(img: HTMLElement, obj: Obj, slot: string) {
+        img.addEventListener('dragend', (e: DragEvent) => {
+            if (!Config.ui.inventoryDragDrop || e.dataTransfer?.dropEffect !== 'none') {
+                return
+            }
+            // no position: the drag was cancelled
+            if (e.clientX === 0 && e.clientY === 0) {
+                return
+            }
+            const box = $id('inventoryBox').getBoundingClientRect()
+            const inside =
+                e.clientX >= box.left && e.clientX <= box.right && e.clientY >= box.top && e.clientY <= box.bottom
+            if (!inside) {
+                void dropItem(obj, slot)
+            }
+        })
+    }
+
     // Actions that have dedicated CSS icon art (id="context_ACTION" → background-image).
     const ICON_ACTIONS = new Set(['look', 'use', 'drop', 'cancel', 'unload'])
 
@@ -667,28 +742,8 @@ export function showInventory(useOn = false) {
         }
         btn.onclick = async () => {
             if (closeOnClick) hidev($id('itemContextMenu'))
-            // CE ref: inventory.cc:4909 — quantity dialog for drop when amount > 1.
-            if (action === 'drop' && obj.amount > 1) {
-                const wanted = await uiGetAmount(obj)
-                if (wanted <= 0) return
-                const playerAny = world.player as any
-                if (wanted < obj.amount) {
-                    const split = cloneItem(obj)
-                    split.amount = wanted
-                    obj.amount -= wanted
-                    ammoSplitOff(obj, split) // CE itemRemove: the top ammo box goes along
-                    // a script that refuses the drop keeps the items with the dude
-                    if (!split.drop(world.player!)) world.player!.addInventoryItem(split, split.amount)
-                } else {
-                    if (slot !== 'inventory') {
-                        world.player!.inventory.push(obj)
-                        playerAny[slot] = null
-                    }
-                    obj.drop(world.player!)
-                }
-                world.player!.clearAnim()
-                uiDrawWeapon()
-                showInventory()
+            if (action === 'drop') {
+                await dropItem(obj, slot)
             } else {
                 itemAction(obj, slot, action)
             }
@@ -758,6 +813,7 @@ export function showInventory(useOn = false) {
             return false
         }
         makeDraggable(img, slot)
+        dropWhenDraggedOut(img, item, slot)
 
         const $slotEl = $id(slotID)
         clearEl($slotEl)
@@ -765,6 +821,7 @@ export function showInventory(useOn = false) {
     }
 
     drawInventory($id('inventoryBoxList'), inventoryList())
+    updateInventoryScrollButtons()
     showStats()
     drawCharacterPortrait()
     updateWeightDisplay()

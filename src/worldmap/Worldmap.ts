@@ -25,6 +25,7 @@ import { Point } from '../geometry.js'
 import { world } from '../state/world.js'
 import { hidev, makeEl, showv } from '../uiDom.js'
 import { uiPort } from '../uiPort.js'
+import { setWorldmapEntryPending } from '../map/worldmapEntry.js'
 import { showConfirm } from '../uiDialog.js'
 import { clamp, getFileBinarySync, getFileText, getMessage } from '../util.js'
 import { Config } from '../config.js'
@@ -805,6 +806,7 @@ function enterArea(area: Area): void {
         setCarAreaId(area.id)
     }
     dbg('worldmap', `[Worldmap] entering ${area.name} → ${entrance.mapName} (no town map)`)
+    setWorldmapEntryPending(true) // [dh2] worldmap_entry (map/worldmapEntry.ts)
     world.gMap!.loadMap(entrance.mapName)
     uiPort.uiCloseWorldMap()
 }
@@ -1019,6 +1021,7 @@ export function start() {
     // (the clock racing 30 minutes a frame until that walk ran out)
     clearTimeout(worldmapTimer)
     running = true
+    markCarLeftInEncounter()
     resetEncounterTimer() // CE wmInterfaceInit: wmLastRndTime = getTicks()
     partyHealTime = 0
     updateWorldmapPlayer()
@@ -1104,16 +1107,39 @@ function carRanOutOfGas(): void {
     if (area) {
         _currentCarAreaId = area.id
     } else {
-        _currentCarAreaId = CITY_CAR_OUT_OF_GAS
         currentAreaId = CITY_CAR_OUT_OF_GAS
-        const outOfGas = world.mapAreas?.[CITY_CAR_OUT_OF_GAS]
-        if (outOfGas) {
-            outOfGas.worldPosition = areaPosAtParty(outOfGas, worldmapPlayer!.x, worldmapPlayer!.y)
-            outOfGas.visitedState = 1
-            setAreaVisible(CITY_CAR_OUT_OF_GAS, true) // CITY_STATE_KNOWN
-            updateAreaMarkerPos(String(CITY_CAR_OUT_OF_GAS), outOfGas.worldPosition.x, outOfGas.worldPosition.y)
-        }
+        carMarkerAtParty()
     }
+}
+
+// CE worldmap.cc:3064-3076: the CITY_CAR_OUT_OF_GAS area moved onto the party and known
+// (its "Car: Desert" map script places the car), the car now in that area
+function carMarkerAtParty(): void {
+    _currentCarAreaId = CITY_CAR_OUT_OF_GAS
+    const outOfGas = world.mapAreas?.[CITY_CAR_OUT_OF_GAS]
+    if (outOfGas) {
+        outOfGas.worldPosition = areaPosAtParty(outOfGas, worldmapPlayer!.x, worldmapPlayer!.y)
+        outOfGas.visitedState = 1
+        setAreaVisible(CITY_CAR_OUT_OF_GAS, true) // CITY_STATE_KNOWN
+        updateAreaMarkerPos(String(CITY_CAR_OUT_OF_GAS), outOfGas.worldPosition.x, outOfGas.worldPosition.y)
+    }
+}
+
+// [dh2] car_marker=1 (DH2 option, not in CE; default on): a car left in a random-encounter
+// map (areas 26-29 "Random", never shown) gets the out-of-gas circle where the party left
+// that map, so it can be found again — in CE it turns up only in the next random encounter
+// (the maps' scripts place a car of areas 26-29)
+const CITY_RANDOM_FIRST = 26
+const CITY_RANDOM_LAST = 29
+function markCarLeftInEncounter(): void {
+    if (!Config.ui.carMarker || _isInCar || !worldmapPlayer || gvar(GVAR_PLAYER_GOT_CAR) === 0) {
+        return
+    }
+    if (_currentCarAreaId < CITY_RANDOM_FIRST || _currentCarAreaId > CITY_RANDOM_LAST) {
+        return
+    }
+    dbg('worldmap', `car left in a random encounter (area ${_currentCarAreaId}) → car marker at the party`)
+    carMarkerAtParty()
 }
 
 // CE wmDrawCursorStopped: the location / encounter marker centred on the party (the

@@ -499,6 +499,41 @@ html, body {
   overflow: hidden;
 }
 
+/* CE inventory.cc _inventory_window_init: the item list's scroll arrows, right of its top —
+   up at (128,39), down at (128,62), 22x23; FRM 49/50/53 (invupout / invupin / invupds
+   disabled) and 51/52/54 (invdnout / invdnin / invdnds) */
+#inventoryScrollUp,
+#inventoryScrollDown {
+  position: absolute;
+  left: 128px;
+  width: 22px;
+  height: 23px;
+  background-size: 100% 100%;
+  cursor: pointer;
+}
+#inventoryScrollUp {
+  top: 39px;
+  background-image: url("art/intrface/invupout.png");
+}
+#inventoryScrollDown {
+  top: 62px;
+  background-image: url("art/intrface/invdnout.png");
+}
+#inventoryScrollUp:active {
+  background-image: url("art/intrface/invupin.png");
+}
+#inventoryScrollDown:active {
+  background-image: url("art/intrface/invdnin.png");
+}
+#inventoryScrollUp.disabled {
+  background-image: url("art/intrface/invupds.png");
+  cursor: default;
+}
+#inventoryScrollDown.disabled {
+  background-image: url("art/intrface/invdnds.png");
+  cursor: default;
+}
+
 #inventoryDoneButton {
   position: absolute;
   left: 433px;

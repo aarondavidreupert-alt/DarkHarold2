@@ -39,6 +39,7 @@ import { getFileJSON } from '../util.js'
 import { showAlert } from '../uiDialog.js'
 import { GameMap } from './GameMap.js'
 import { globalScriptsMapProc } from '../sfallGlobalScripts.js'
+import { takeWorldmapEntryPending, worldmapExitEntry } from './worldmapEntry.js'
 
 const TICKS_PER_HOUR = 36000
 const KILL_TYPE_RAT = 7
@@ -343,7 +344,11 @@ GameMap.prototype.loadNewMap = function (
         // startup code runs before its map_enter_p_proc, the first proc it gets
         Scripting.setDeferObjectStart(true)
         try {
-            this.mapScript = Scripting.loadScript(mapName)
+            // CE map.cc mapLoad: the header's script (fomap.py `script`; null = the map has
+            // none — the random-encounter maps share RndDsrt / RndCoast / RndMnt). A map JSON
+            // from before the field: the script named after the map, as DH2 did before.
+            const scriptName: string | null = map.script === undefined ? mapName : map.script
+            this.mapScript = scriptName ? Scripting.loadScript(scriptName) : null
             Scripting.setMapScript(this.mapScript)
         } catch (e) {
             this.mapScript = null
@@ -356,6 +361,14 @@ GameMap.prototype.loadNewMap = function (
     // warp to the default position (may be overridden by map script)
     world.player!.position = startingPosition || map.startPosition
     world.player!.orientation = map.startOrientation
+    // [dh2] worldmap_entry=exit: from the world map, at its exit grid (map/worldmapEntry.ts)
+    if (takeWorldmapEntryPending() && !startingPosition && Config.ui.worldmapEntry === 'exit') {
+        const entry = worldmapExitEntry(map, elevation)
+        if (entry) {
+            world.player!.position = entry.position
+            world.player!.orientation = entry.orientation
+        }
+    }
 
     if (Config.engine.doSpatials) {
         this.spatials = map.levels.map((level: any) => level.spatials)

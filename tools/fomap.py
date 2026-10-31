@@ -545,10 +545,18 @@ def parseMap(f: BufferedReader, lstFiles: dict[str, list[bytes]]):
                        "objects": objects[level]
                       })
 
+    # CE map.cc mapLoad: the header's scriptIndex (1-based in scripts.lst, 0 = none) is the
+    # map script — the random-encounter maps all run RndDsrt / RndCoast / RndMnt, not a
+    # script named after the map
+    mapScript = None
+    if 0 < mapScriptID <= len(lstFiles["scripts"]):
+        mapScript = stripExt(lstFiles["scripts"][mapScriptID - 1].decode('ascii').split()[0]).lower()
+
     # return map
     return {"version": namedVersion,
             "mapID": mapID,
             "name": mapName,
+            "script": mapScript,
             "levels": levels,
             "startPosition": fromTileNum(playerPosition),
             "startElevation": playerElevation,

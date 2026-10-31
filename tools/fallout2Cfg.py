@@ -158,6 +158,13 @@ pipboy_available_at_game_start=0
 menu_text=white
 ; random-encounter chance on the world map in percent of worldmap.txt's (100 = CE, 200 = twice as often)
 encounter_rate=100
+; a town entered from the world map (an entrance without its own tile): exit = at the map's
+; world-map exit grid (DH2), ce = the map header's start
+worldmap_entry=exit
+; 1 = a car left in a random-encounter map gets the "Car Outta Gas" circle on the world map (DH2), 0 = CE
+car_marker=1
+; 1 = an item dragged out of the inventory window is dropped (DH2), 0 = CE (the item menu's Drop only)
+inventory_drag_drop=1
 ; 1 = the developer console commands (skipTemple(), revealWorldmap(), giveCar(), ...) in the
 ; browser console on every start; 0 = only with play.html#dev
 dev_console=0

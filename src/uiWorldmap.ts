@@ -28,6 +28,7 @@ import { $id, clearEl, show, hide, showv, hidev, appendHTML, makeEl } from './ui
 import { dbg } from './logger.js'
 import { fromTileNum } from './tile.js'
 import { assetUrl } from './modAssets.js'
+import { setWorldmapEntryPending } from './map/worldmapEntry.js'
 
 // CE ref: worldmap.cc — label list visible height ~182px, each tab 27px.
 // tabsBackgroundFrmImage.getHeight()=480, max scroll = 480-230=250, but we
@@ -160,6 +161,7 @@ export function uiWorldMapShowArea(area: Area) {
             // CE worldmap.cc wmTownMapFunc → map.cc mapSetEnteringLocation(entrance elevation,
             // tile, rotation); -1 (most city.txt entrances) is the map header's start (mapLoad)
             const own = entrance.elevation >= 0 && entrance.tileNum >= 0
+            setWorldmapEntryPending(!own) // [dh2] worldmap_entry (map/worldmapEntry.ts)
             world.gMap!.loadMap(
                 mapName!,
                 own ? fromTileNum(entrance.tileNum) : undefined,
