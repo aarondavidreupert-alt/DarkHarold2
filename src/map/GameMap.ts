@@ -17,19 +17,29 @@ limitations under the License.
 import { pathfinderFindPathPoints } from './pathfinder.js'
 import { Config } from '../config.js'
 import { getCurrentMapInfo } from '../data.js'
-import { Events } from '../events.js'
-import { hexDistance, hexFromScreen, hexInDirection, hexInDirectionDistance, hexLine, hexNeighbors, hexToScreen, HEX_GRID_SIZE, Point } from '../geometry.js'
+import * as Events from '../events.js'
+import {
+    hexDistance,
+    hexFromScreen,
+    hexInDirection,
+    hexInDirectionDistance,
+    hexLine,
+    hexNeighbors,
+    hexToScreen,
+    HEX_GRID_SIZE,
+    Point,
+} from '../geometry.js'
 import globalState from '../globalState.js'
-import { Lightmap } from '../lightmap.js'
+import { world } from '../state/world.js'
+import { services } from '../state/services.js'
+import * as Lightmap from '../lightmap.js'
 import { dbg, dbgWarn } from '../logger.js'
 import { Critter, deserializeObj, Obj, zsortMap } from '../object.js'
 import { centerCamera } from '../renderer.js'
 import { computeMapContentBounds, computeObjectContentBounds, computeScrollBlockerBounds } from '../render/camera.js'
-import { Scripting } from '../scripting.js'
+import * as Scripting from '../scripting.js'
 import { fromTileNum, hexToTile, toTileNum } from '../tile.js'
-import { arrayRemove, arrayWithout } from '../util.js'
-
-declare let PF: any
+import { arrayRemove } from '../util.js'
 
 // Representation of game map and its serialized forms
 
@@ -65,19 +75,19 @@ export interface SerializedMap {
 }
 
 export class GameMap {
-    name: string = null
-    startingPosition: Point
-    startingElevation: number
-    numLevels: number
+    name: string | null = null
+    startingPosition!: Point
+    startingElevation!: number
+    numLevels!: number
 
     currentElevation = 0 // current map elevation
 
-    floorMap: string[][] = null // Floor tilemap
-    roofMap: string[][] = null // Roof tilemap
+    floorMap: string[][] | null = null // Floor tilemap
+    roofMap: string[][] | null = null // Roof tilemap
 
     mapScript: any = null // Current map script object
-    objects: Obj[][] = null // Map objects on all levels
-    spatials: any[][] = null // Spatials on all levels
+    objects: Obj[][] | null = null // Map objects on all levels
+    spatials: any[][] | null = null // Spatials on all levels
 
     // CE ref: map.cc gMapHeader.lastVisitTime — ticks when player last left this map (0 = never)
     lastVisitTime: number = 0
@@ -85,7 +95,7 @@ export class GameMap {
     private _removalQueue: Obj[] = []
 
     mapObj: any = null
-    mapID: number
+    mapID!: number
 
     // Cached isOutdoor() result for the current map+elevation.
     // Reset whenever we (re)load a map or change elevation.
@@ -102,7 +112,7 @@ export class GameMap {
     }
 
     getSpatials(level?: number): any[] {
-        return this.spatials[level === undefined ? this.currentElevation : level]
+        return this.spatials![level === undefined ? this.currentElevation : level]
     }
 
     getObjectsAndSpatials(level?: number): Obj[] {
@@ -110,7 +120,9 @@ export class GameMap {
     }
 
     addObject(obj: Obj, level?: number): void {
-        this.objects[level === undefined ? this.currentElevation : level].push(obj)
+        const elevation = level === undefined ? this.currentElevation : level
+        this.objects![elevation].push(obj)
+        obj.elevation = elevation // (its spatial checks and move_to read it)
         // CE ref: objAddToMap (obj.cc) — purely spatial placement; does NOT fire map_enter_p_proc.
         // map_enter_p_proc is fired once per map load by scriptsExecMapEnterProc, not on every add.
         // Calling enterMap() here causes infinite recursion when move_to is used inside map_enter_p_proc.
@@ -130,7 +142,7 @@ export class GameMap {
         for (const obj of toRemove) {
             let found = false
             for (let level = 0; level < this.numLevels; level++) {
-                const objects = this.objects[level]
+                const objects = this.objects![level]
                 for (let i = 0; i < objects.length; i++) {
                     if (objects[i] === obj) {
                         dbg('object', 'drainRemovalQueue: removing index %d (%o)', i, obj)
@@ -141,13 +153,23 @@ export class GameMap {
                 }
                 if (found) break
             }
-            if (!found) dbgWarn('object', "drainRemovalQueue: object not found on map")
+            if (!found) dbgWarn('object', 'drainRemovalQueue: object not found on map')
         }
     }
 
     destroyObject(obj: Obj): void {
+        // CE object.cc / opDestroyObject: _combat_delete_critter — out of the turn order
+        if (obj.type === 'critter' && world.inCombat) world.combat?.removeCombatant(obj as Critter)
         Scripting.destroy(obj)
         this.removeObject(obj)
+        // CE objectDestroy → _obj_turn_off_light / tileWindowRefresh: a light source, or a wall /
+        // scenery that shaped the light, leaves the lightmap at once
+        if (
+            Config.engine.doFloorLighting &&
+            ((obj.lightRadius ?? 0) > 0 || obj.type === 'wall' || obj.type === 'scenery')
+        ) {
+            Lightmap.rebuildLight()
+        }
     }
 
     hasRoofAt(pos: Point, elevation?: number): boolean {
@@ -199,7 +221,7 @@ export class GameMap {
         dbg(
             'map',
             `[lighting] isOutdoor(${this.name}, elev ${this.currentElevation}) = ${result} ` +
-            `(${empty}/${total} empty roof tiles)`
+                `(${empty}/${total} empty roof tiles)`,
         )
         return result
     }
@@ -210,7 +232,7 @@ export class GameMap {
         if (!this.objects) return // no map loaded yet
         const allObjs: Obj[] = (this.objects as Obj[][]).reduce((acc, level) => acc.concat(level), [])
         if (this.spatials) {
-            (this.spatials as any[][]).forEach(level => level.forEach((s: any) => allObjs.push(s)))
+            ;(this.spatials as any[][]).forEach((level) => level.forEach((s: any) => allObjs.push(s)))
         }
         Scripting.updateMap(this.mapScript, allObjs, this.currentElevation)
     }
@@ -222,7 +244,7 @@ export class GameMap {
         }
         const oldElevation = this.currentElevation
         this.currentElevation = level
-        globalState.currentElevation = level // TODO: Get rid of this global
+        world.currentElevation = level // TODO: Get rid of this global
         // Invalidate outdoor detection cache — roof layer differs per elevation.
         this._isOutdoorCached = null
         this._isOutdoorCachedElevation = -1
@@ -235,22 +257,22 @@ export class GameMap {
         //this.spatials = this.mapObj.levels[level]["spatials"]
 
         // If we're in combat, end it since we're moving off of that elevation
-        if (globalState.inCombat) {
-            globalState.combat.forceEnd()
+        if (world.inCombat) {
+            world.combat!.forceEnd()
         }
 
-        globalState.player.clearAnim()
+        world.player!.clearAnim()
 
         // Remove player & party (unless we're loading a new map, in which case they're not present)
         // and place them on the new map
-        for (const obj of globalState.gParty.getPartyMembersAndPlayer()) {
+        for (const obj of world.gParty.getPartyMembersAndPlayer()) {
             if (!isMapLoading) {
-                arrayRemove(this.objects[oldElevation], obj)
+                arrayRemove(this.objects![oldElevation], obj)
             }
 
             // Only add the member once, in case changeElevation is called multiple times
-            if (this.objects[level].indexOf(obj) === -1) {
-                this.objects[level].push(obj)
+            if (this.objects![level].indexOf(obj) === -1) {
+                this.objects![level].push(obj)
             }
             obj.elevation = level
         }
@@ -268,7 +290,12 @@ export class GameMap {
         computeObjectContentBounds(this.getObjects())
 
         // set up renderer data
-        globalState.renderer.initData(this.roofMap, this.floorMap, this.getObjects())
+        services.renderer.initData(
+            this.roofMap!,
+            this.floorMap!,
+            this.getObjects(),
+            this.mapObj.levels[level].tiles.roofFlags ?? null,
+        )
 
         if (updateScripts) {
             // TODO: we need some kind of active/inactive flag on scripts to toggle here,
@@ -283,23 +310,29 @@ export class GameMap {
             Lightmap.rebuildLight()
         }
 
-        centerCamera(globalState.player.position)
+        centerCamera(world.player!.position)
 
         Events.emit('elevationChanged', { elevation: level, oldElevation, isMapLoading })
     }
 
-    // CE ref: map.cc mapSetElevation — fades to black (~166ms), switches elevation, fades in (~83ms).
-    // DH2 approximation: instant black overlay while the switch occurs synchronously underneath,
-    // then fades the overlay to transparent (166ms) so the new elevation is revealed.
+    // DH2: a black overlay while the elevation switches underneath, faded out over 166 ms.
+    // CE map.cc mapSetElevation switches with no fade — [dh2] elevation_fade=0.
     changeElevationFaded(level: number, updateScripts = false): void {
-        if (typeof document === 'undefined') {
+        if (typeof document === 'undefined' || !Config.ui.elevationFade) {
             this.changeElevation(level, updateScripts, false)
             return
         }
         const overlay = document.createElement('div')
         Object.assign(overlay.style, {
-            position: 'fixed', top: '0', left: '0', width: '100%', height: '100%',
-            background: 'black', opacity: '1', pointerEvents: 'none', zIndex: '9000',
+            position: 'fixed',
+            top: '0',
+            left: '0',
+            width: '100%',
+            height: '100%',
+            background: 'black',
+            opacity: '1',
+            pointerEvents: 'none',
+            zIndex: '9000',
         })
         document.body.appendChild(overlay)
         this.changeElevation(level, updateScripts, false)
@@ -315,13 +348,13 @@ export class GameMap {
     // 3, … via _objPMAttemptPlacement. Non-critters (the car trunk) and hidden members
     // stay where they are; their scripts place them.
     placeParty() {
-        const dude = globalState.player
+        const dude = world.player
         if (!dude) return
         const clockwise = (dude.orientation + 2) % 6
         const counterClockwise = (dude.orientation + 4) % 6
         let n = 0
         let distance = 2
-        for (const member of globalState.gParty.getPartyMembers()) {
+        for (const member of world.gParty.getPartyMembers()) {
             if (member.type !== 'critter' || GameMap.isHiddenObj(member)) continue
             const rotation = n % 2 !== 0 ? clockwise : counterClockwise
             const tile = hexInDirectionDistance(dude.position, rotation, Math.trunc(distance / 2))
@@ -338,7 +371,7 @@ export class GameMap {
     // radius + 2, any free neighbour (reachable or not). Returns the tile to use.
     attemptPlacement(tile: number, elevation: number, radius: number): number {
         if (tile === -1) return -1
-        const dude = globalState.player
+        const dude = world.player
         let newTile = tile
         if (this.blockingObjectAt(tile, elevation, 0, null) !== null) {
             let dist = radius >= 1 ? radius : 1
@@ -349,8 +382,13 @@ export class GameMap {
                 if (attempts >= 100) break
                 for (let rotation = 0; rotation < 6; rotation++) {
                     newTile = toTileNum(hexInDirectionDistance(from, rotation, dist))
-                    if (this.blockingObjectAt(newTile, elevation, 0, null) === null && dist > 1
-                        && dude && this.recalcPath(dude.position, fromTileNum(newTile), false, dude).length > 0) break
+                    if (
+                        this.blockingObjectAt(newTile, elevation, 0, null) === null &&
+                        dist > 1 &&
+                        dude &&
+                        this.recalcPath(dude.position, fromTileNum(newTile), false, dude).length > 0
+                    )
+                        break
                 }
                 dist++
             }
@@ -396,24 +434,29 @@ export class GameMap {
         if (!Config.engine.doLoadScripts) return
         Scripting.setLoadingGame(true)
         try {
-            for (const level of this.objects) {
+            for (const level of this.objects!) {
                 for (const obj of level.slice()) {
                     if (obj._script) Scripting.initScript(obj._script, obj)
                 }
             }
-            const overridenStartPos = Scripting.enterMap(this.mapScript, this.getObjectsAndSpatials(),
-                this.currentElevation, this.mapID, false)
+            const overridenStartPos = Scripting.enterMap(
+                this.mapScript,
+                this.getObjectsAndSpatials(),
+                this.currentElevation,
+                this.mapID,
+                false,
+            )
             if (overridenStartPos && this.mapObj.levels[overridenStartPos.elevation]) {
-                globalState.player.position = overridenStartPos.position
-                globalState.player.orientation = overridenStartPos.orientation
+                world.player!.position = overridenStartPos.position
+                world.player!.orientation = overridenStartPos.orientation
             }
-            this.objects.forEach((level) => {
+            this.objects!.forEach((level) => {
                 for (const obj of level.slice()) {
                     if (level.includes(obj)) obj.enterMap()
                 }
             })
-            this.spatials.forEach((level) =>
-                level.forEach((spatial) => Scripting.objectEnterMap(spatial, this.currentElevation, this.mapID))
+            this.spatials!.forEach((level) =>
+                level.forEach((spatial) => Scripting.objectEnterMap(spatial, this.currentElevation, this.mapID)),
             )
             Scripting.updateMap(this.mapScript, this.getObjectsAndSpatials(), this.currentElevation)
         } finally {
@@ -431,62 +474,66 @@ export class GameMap {
             objectsAndSpatials,
             this.currentElevation,
             this.mapID,
-            isFirstRun
+            isFirstRun,
         )
 
         if (overridenStartPos) {
             // Starting position was overridden by map_enter_p_proc -- use the new one
             dbg('map', 'Starting position overriden to %o', overridenStartPos)
-            globalState.player.position = overridenStartPos.position
-            globalState.player.orientation = overridenStartPos.orientation
+            world.player!.position = overridenStartPos.position
+            world.player!.orientation = overridenStartPos.orientation
             // FO2-CE ref: map.cc mapSetupEnter() — elevation from override_map_start is validated
             // against the number of map levels before use. Maps with fewer levels than the script
             // expects (e.g. modinn exported with 2 levels but script targets elevation 2) must not
             // corrupt currentElevation — keep the pre-load value instead.
             const newElev = overridenStartPos.elevation
             if (this.mapObj.levels[newElev]) {
-                this.currentElevation = globalState.currentElevation = newElev
+                this.currentElevation = world.currentElevation = newElev
             } else {
-                dbgWarn('map', `override_map_start: elevation ${newElev} out of bounds (map has ${this.numLevels} levels), ignoring`)
+                dbgWarn(
+                    'map',
+                    `override_map_start: elevation ${newElev} out of bounds (map has ${this.numLevels} levels), ignoring`,
+                )
             }
         }
 
         // place party again, so if the map script overrided the start position we're in the right place
         this.placeParty()
 
+        Scripting.startMapScripts(this.mapScript, this.spatials!.flat(), this.objects!.flat()!)
+
         // Tell objects' scripts that they're now on the map. CE ref: scripts.cc
         // scriptsExecMapUpdateScripts builds the script list first and skips scripts
         // removed meanwhile — map_enter procs create and destroy objects, and a live
         // forEach would skip the entries shifted down by a removal.
         // TODO: Does this apply to all levels or just the current elevation?
-        this.objects.forEach((level) => {
+        this.objects!.forEach((level) => {
             for (const obj of level.slice()) {
                 if (level.includes(obj)) obj.enterMap()
             }
         })
-        this.spatials.forEach((level) =>
-            level.forEach((spatial) => Scripting.objectEnterMap(spatial, this.currentElevation, this.mapID))
+        this.spatials!.forEach((level) =>
+            level.forEach((spatial) => Scripting.objectEnterMap(spatial, this.currentElevation, this.mapID)),
         )
 
         Scripting.updateMap(this.mapScript, objectsAndSpatials, this.currentElevation)
     }
-	
-	/** @internal — used by mapLoader.ts via the prototype. */
-	playMapMusic(): void {
-		// The startup map DH2 loads behind the intro movies and the main menu stays silent:
-		// CE has no map loaded there (main.cc), so no map music plays over the movies.
-		if (globalState.backgroundMapLoad) return
-		const curMapInfo = getCurrentMapInfo()
-		dbg('audio', '[Music] curMapInfo:', curMapInfo)
-		dbg('audio', '[Music] music field:', curMapInfo?.music)
-		globalState.audioEngine.stopAll()
-		// CE map.cc mapLoad starts the looping wind2; wmMapMusicStart replaces it only when
-		// maps.txt gives the map music, so a map without a music= entry keeps the wind.
-		const music = curMapInfo?.music || 'wind2'
-		dbg('audio', '[Music] calling playMusic with:', music)
-		globalState.audioEngine.playMusic(music)
-	}
-	
+
+    /** @internal — used by mapLoader.ts via the prototype. */
+    playMapMusic(): void {
+        // The startup map DH2 loads behind the intro movies and the main menu stays silent:
+        // CE has no map loaded there (main.cc), so no map music plays over the movies.
+        if (globalState.backgroundMapLoad) return
+        const curMapInfo = getCurrentMapInfo()
+        dbg('audio', '[Music] curMapInfo:', curMapInfo)
+        dbg('audio', '[Music] music field:', curMapInfo?.music)
+        services.audioEngine.stopAll()
+        // CE map.cc mapLoad starts the looping wind2; wmMapMusicStart replaces it only when
+        // maps.txt gives the map music, so a map without a music= entry keeps the wind.
+        const music = curMapInfo?.music || 'wind2'
+        dbg('audio', '[Music] calling playMusic with:', music)
+        services.audioEngine.playMusic(music)
+    }
 
     objectsAtPosition(position: Point): Obj[] {
         return this.getObjects().filter((obj: Obj) => obj.position.x === position.x && obj.position.y === position.y)
@@ -499,7 +546,7 @@ export class GameMap {
     // CE object flags (obj_types.h). OBJECT_HIDDEN is 0x01 — DH2 also tracks
     // script-driven hiding as `visible === false` (set_obj_visibility).
     static isHiddenObj(o: Obj): boolean {
-        return o.visible === false || (((o as any).flags ?? 0) & 0x01) !== 0
+        return o.visible === false || ((o.flags ?? 0) & 0x01) !== 0
     }
 
     // CE ref: sfall_opcodes.cc:914-934 BlockType / get_blocking_func — dispatches to one
@@ -511,15 +558,23 @@ export class GameMap {
     //   3 SIGHT  → object.cc:2583 _obj_sight_blocking_at
     //   4 SCROLL → CE get_blocking_func's default branch, i.e. _obj_blocking_at
     // (Restored + extended to all 5 types 2026-10-06; the 2-type version was lost in b282cca.)
-    blockingObjectAt(tile: number, elevation: number, blockType: number, excludeObj?: Obj | null,
-                     aiState?: { moveBlockObj: Obj | null }): Obj | null {
+    blockingObjectAt(
+        tile: number,
+        elevation: number,
+        blockType: number,
+        excludeObj?: Obj | null,
+        aiState?: { moveBlockObj: Obj | null },
+    ): Obj | null {
         if (tile < 0 || tile >= 40000) return null
         const pos = fromTileNum(tile)
         const objs = this.getObjects(elevation)
         const at = (p: Point) => objs.filter((o) => o.position && o.position.x === p.x && o.position.y === p.y)
-        const NO_BLOCK = 0x10, MULTIHEX = 0x800, LIGHT_THRU = 0x20000000, SHOOT_THRU = 0x80000000
+        const NO_BLOCK = 0x10,
+            MULTIHEX = 0x800,
+            LIGHT_THRU = 0x20000000,
+            SHOOT_THRU = 0x80000000
         const isBlockerType = (o: Obj) => o.type === 'critter' || o.type === 'scenery' || o.type === 'wall'
-        const flagsOf = (o: Obj) => ((o as any).flags ?? 0) >>> 0
+        const flagsOf = (o: Obj) => (o.flags ?? 0) >>> 0
         const neighbourMultihex = (pred: (o: Obj) => boolean): Obj | null => {
             for (const nb of hexNeighbors(pos)) {
                 for (const o of at(nb)) {
@@ -557,8 +612,8 @@ export class GameMap {
             return neighbourMultihex(multihex)
         }
 
-        const plain = (o: Obj) => o !== excludeObj && !GameMap.isHiddenObj(o)
-            && (flagsOf(o) & NO_BLOCK) === 0 && isBlockerType(o)
+        const plain = (o: Obj) =>
+            o !== excludeObj && !GameMap.isHiddenObj(o) && (flagsOf(o) & NO_BLOCK) === 0 && isBlockerType(o)
 
         if (blockType === 2) {
             const state = aiState ?? { moveBlockObj: null }
@@ -598,7 +653,7 @@ export class GameMap {
         const test = (p: Point): Obj | null => {
             const o = this.blockingObjectAt(toTileNum(p), elev, blockType, source, aiState)
             if (o === null || o === prev) return null
-            if (shoot && ((((o as any).flags ?? 0) >>> 0) & 0x80000000) !== 0) return null
+            if (shoot && (((o.flags ?? 0) >>> 0) & 0x80000000) !== 0) return null
             return o
         }
 
@@ -607,10 +662,14 @@ export class GameMap {
 
         const fromSc = hexToScreen(from.x, from.y)
         const toSc = hexToScreen(to.x, to.y)
-        let tileX = fromSc.x + 16, tileY = fromSc.y + 8
-        const toX = toSc.x + 16, toY = toSc.y + 8
-        const stepX = Math.sign(toX - tileX), stepY = Math.sign(toY - tileY)
-        const ddx = 2 * Math.abs(toX - tileX), ddy = 2 * Math.abs(toY - tileY)
+        let tileX = fromSc.x + 16,
+            tileY = fromSc.y + 8
+        const toX = toSc.x + 16,
+            toY = toSc.y + 8
+        const stepX = Math.sign(toX - tileX),
+            stepY = Math.sign(toY - tileY)
+        const ddx = 2 * Math.abs(toX - tileX),
+            ddy = 2 * Math.abs(toY - tileY)
         let prevTile = from
 
         if (ddx <= ddy) {
@@ -618,7 +677,10 @@ export class GameMap {
             while (true) {
                 const cur = hexFromScreen(tileX, tileY)
                 if (tileY === toY) return null
-                if (middle >= 0) { tileX += stepX; middle -= ddy }
+                if (middle >= 0) {
+                    tileX += stepX
+                    middle -= ddy
+                }
                 tileY += stepY
                 middle += ddx
                 if (cur.x !== prevTile.x || cur.y !== prevTile.y) {
@@ -632,7 +694,10 @@ export class GameMap {
             while (true) {
                 const cur = hexFromScreen(tileX, tileY)
                 if (tileX === toX) return null
-                if (middle >= 0) { tileY += stepY; middle -= ddx }
+                if (middle >= 0) {
+                    tileY += stepY
+                    middle -= ddx
+                }
                 tileX += stepX
                 middle += ddy
                 if (cur.x !== prevTile.x || cur.y !== prevTile.y) {
@@ -657,10 +722,10 @@ export class GameMap {
         for (let i = 0; i < line.length; i++) {
             const objs = this.objectsAtPosition(line[i])
             for (const o of objs) {
-                const flags = (o as any).flags ?? 0
+                const flags = o.flags ?? 0
                 if (GameMap.isHiddenObj(o)) continue
                 if ((flags & SHOOT_THRU) !== 0) continue
-                if ((o as any).type === 'critter' && (o as any).dead) continue
+                if (o.type === 'critter' && (o as any).dead) continue
                 if (!o.blocks()) continue
                 return o
             }
@@ -672,16 +737,24 @@ export class GameMap {
     // tile must be free unless `isGoalBlocking` is false (CE a5); `mover` (default: the
     // player) decides door use and goo cost and doesn't block itself.
     recalcPath(start: Point, goal: Point, isGoalBlocking?: boolean, mover?: Obj) {
-        if (start.x < 0 || start.x >= HEX_GRID_SIZE || start.y < 0 || start.y >= HEX_GRID_SIZE ||
-            goal.x < 0 || goal.x >= HEX_GRID_SIZE || goal.y < 0 || goal.y >= HEX_GRID_SIZE) {
+        if (
+            start.x < 0 ||
+            start.x >= HEX_GRID_SIZE ||
+            start.y < 0 ||
+            start.y >= HEX_GRID_SIZE ||
+            goal.x < 0 ||
+            goal.x >= HEX_GRID_SIZE ||
+            goal.y < 0 ||
+            goal.y >= HEX_GRID_SIZE
+        ) {
             return []
         }
-        return pathfinderFindPathPoints(mover ?? globalState.player ?? null, start, goal, isGoalBlocking !== false)
+        return pathfinderFindPathPoints(mover ?? world.player ?? null, start, goal, isGoalBlocking !== false)
     }
 
     serialize(): SerializedMap {
         return {
-            name: this.name,
+            name: this.name!,
             mapID: this.mapID,
             numLevels: this.numLevels,
             mapObj: {
@@ -691,30 +764,32 @@ export class GameMap {
             },
 
             // roof/floor maps
-            roofMap: this.roofMap,
-            floorMap: this.floorMap,
+            roofMap: this.roofMap!,
+            floorMap: this.floorMap!,
 
             mapScript: this.mapScript ? this.mapScript._serialize() : null,
             // The party (player, companions, the car trunk) travels with the player, so
             // it isn't part of the map snapshot — otherwise a revisit restores a second
             // copy next to the one that walked in (CE removes the party before mapSave).
-            objects: this.objects.map((level: Obj[]) => {
-                const party = new Set<Obj>(globalState.gParty.getPartyMembersAndPlayer())
+            objects: this.objects!.map((level: Obj[]) => {
+                const party = new Set<Obj>(world.gParty.getPartyMembersAndPlayer())
                 return level
                     .filter((obj): obj is Obj => obj !== null && !party.has(obj) && !(obj as any)._transient)
                     .map((obj) => obj.serialize())
             }),
             // FO2-CE ref: map.cc mapSave — spatials persist their LVARs across saves
             spatials: this.spatials
-                ? this.spatials.map(level => level.map((s: Spatial): SerializedSpatial => ({
-                      script: s.script,
-                      tileNum: s.tileNum,
-                      range: s.range ?? 0,
-                      lvars: s._script ? Object.assign({}, s._script.lvars) : undefined,
-                  })))
+                ? this.spatials.map((level) =>
+                      level.map((s: Spatial): SerializedSpatial => ({
+                          script: s.script,
+                          tileNum: s.tileNum,
+                          range: s.range ?? 0,
+                          lvars: s._script ? Object.assign({}, s._script.lvars) : undefined,
+                      })),
+                  )
                 : [[], [], []],
             // CE ref: map.cc gMapHeader.lastVisitTime — record exit tick so days_since_visited works
-            lastVisitTime: globalState.gameTickTime,
+            lastVisitTime: world.gameTickTime,
         }
     }
 
@@ -724,11 +799,13 @@ export class GameMap {
         this.numLevels = obj.numLevels
         this.mapObj = obj.mapObj
         this.mapScript = obj.mapScript ? Scripting.deserializeScript(obj.mapScript) : null
-        this.objects = obj.objects.map((level, levelIdx) => level.map((o) => {
-            const deserialized = deserializeObj(o)
-            deserialized.elevation = levelIdx
-            return deserialized
-        }))
+        this.objects = obj.objects.map((level, levelIdx) =>
+            level.map((o) => {
+                const deserialized = deserializeObj(o)
+                deserialized.elevation = levelIdx
+                return deserialized
+            }),
+        )
         this.lastVisitTime = obj.lastVisitTime ?? 0
         // Restore spatials: re-load scripts from names, then reapply saved LVARs.
         // FO2-CE ref: map.cc mapLoad — spatials are always re-initialized from map data
@@ -749,7 +826,7 @@ export class GameMap {
                         spatial._script = scr
                     }
                     return spatial
-                })
+                }),
             )
         } else {
             this.spatials = [[], [], []]

@@ -19,11 +19,11 @@ limitations under the License.
 // reaction change in CE: being hit by the player sets the victim's reaction
 // (LVAR 0, reaction.cc reactionSetValue) to -3.
 
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
 import type { Critter } from '../object.js'
 import { randomBetween } from '../random.js'
 
-const isPartyMember = (c: Critter): boolean => !!globalState.gParty?.isPartyMember(c) || c.isPlayer
+const isPartyMember = (c: Critter): boolean => !!world.gParty?.isPartyMember(c) || c.isPlayer
 
 // CE stat.cc statRoll(critter, STAT_INTELLIGENCE, -1) < ROLL_SUCCESS(2)
 function intRollFails(c: Critter): boolean {
@@ -35,7 +35,7 @@ export function critterSetWhoHitMe(a1: Critter, a2: Critter | null): void {
     if (!a1 || a1.type !== 'critter') return
     if (a2 !== null && a2.type !== 'critter') return
     if (a2 === null || a1.teamNum !== a2.teamNum || (intRollFails(a1) && (!isPartyMember(a1) || !isPartyMember(a2)))) {
-        ;(a1 as any).whoHitMe = a2
+        a1.whoHitMe = a2
         if (a2 !== null && a2.isPlayer) {
             const script: any = a1._script
             if (script) {
@@ -53,17 +53,18 @@ export function combatAiRating(obj: Critter | null): number {
     if (obj.dead || ((obj.injuryFlags ?? 0) & 0x01) !== 0) return 0
     let damage = obj.getStat('Melee') // STAT_MELEE_DAMAGE
     for (const hand of ['rightHand', 'leftHand'] as const) {
-        const item: any = (obj as any)[hand]
+        const item: any = obj[hand]
         const max = item?.subtype === 'weapon' ? item.pro?.extra?.maxDmg : undefined
         if (typeof max === 'number' && damage < max) damage = max
     }
-    return damage + obj.getStat('AC') + obj.getArmorAC()
+    // STAT_ARMOR_CLASS: with the unused-AP bonus while it isn't the critter's turn
+    return damage + obj.getStat('AC') + obj.getArmorAC() + (world.combat?.unusedApAC?.(obj) ?? 0)
 }
 
 // CE combat_ai.cc _combatai_check_retaliation — switch to the new attacker if it
 // rates higher than whoever hit us before.
 export function combatAiCheckRetaliation(a1: Critter, a2: Critter): void {
-    const prev: Critter | null = (a1 as any).whoHitMe ?? null
+    const prev: Critter | null = a1.whoHitMe ?? null
     if (prev) {
         if (combatAiRating(a2) > combatAiRating(prev)) critterSetWhoHitMe(a1, a2)
     } else {

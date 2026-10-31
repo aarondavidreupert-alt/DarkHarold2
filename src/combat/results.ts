@@ -18,8 +18,8 @@ limitations under the License.
 // bits of obj_types.h). DH2 keeps them in Critter.injuryFlags; the cripple / blind
 // booleans on Critter read and write the same bits.
 
-import globalState from '../globalState.js'
-import { Scripting } from '../scripting.js'
+import { world } from '../state/world.js'
+import * as Scripting from '../scripting.js'
 import { randomBetween } from '../random.js'
 import type { Critter } from '../object/Critter.js'
 import { itemIsHidden, type Obj } from '../object/Obj.js'
@@ -52,7 +52,7 @@ export const DAM_CRIP_LEG_ANY = DAM_CRIP_LEG_LEFT | DAM_CRIP_LEG_RIGHT
 export const DAM_CRIP_ARM_ANY = DAM_CRIP_ARM_LEFT | DAM_CRIP_ARM_RIGHT
 export const DAM_CRIP = DAM_CRIP_LEG_ANY | DAM_CRIP_ARM_ANY | DAM_BLIND
 
-const CRITTER_NO_DROP = 0x40       // proto critter flags (proto_types.h)
+const CRITTER_NO_DROP = 0x40 // proto critter flags (proto_types.h)
 const CRITTER_INVULNERABLE = 0x400
 
 export function results(c: Critter): number {
@@ -60,7 +60,7 @@ export function results(c: Critter): number {
 }
 
 function protoFlags(c: Critter): number {
-    return ((c.pro as any)?.extra?.flags ?? 0) >>> 0
+    return (c.pro?.extra?.flags ?? 0) >>> 0
 }
 
 // CE critter.cc _critter_is_prone: knocked out or down.
@@ -72,10 +72,14 @@ export function critterIsProne(c: Critter): boolean {
 export function doRandomCripple(flags: number): number {
     flags &= ~DAM_CRIP_RANDOM
     switch (randomBetween(0, 3)) {
-        case 0: return flags | DAM_CRIP_LEG_LEFT
-        case 1: return flags | DAM_CRIP_LEG_RIGHT
-        case 2: return flags | DAM_CRIP_ARM_LEFT
-        default: return flags | DAM_CRIP_ARM_RIGHT
+        case 0:
+            return flags | DAM_CRIP_LEG_LEFT
+        case 1:
+            return flags | DAM_CRIP_LEG_RIGHT
+        case 2:
+            return flags | DAM_CRIP_ARM_LEFT
+        default:
+            return flags | DAM_CRIP_ARM_RIGHT
     }
 }
 
@@ -93,14 +97,16 @@ export function attackFindInvalidFlags(critter: Critter | null, item: Obj | null
 export function setNewResults(c: Critter, flags: number): void {
     if (c.type !== 'critter' || (protoFlags(c) & CRITTER_INVULNERABLE) !== 0) return
     if ((flags & DAM_DEAD) !== 0) {
-        removeKnockoutEvents(c)
+        // CE _set_new_results: queueRemoveEvents(critter) — every queued event it owns
+        // (knockout, drugs, script timers …)
+        const list = Scripting.timeEventList
+        for (let i = list.length - 1; i >= 0; i--) if (list[i].obj === c) list.splice(i, 1)
     } else if ((flags & DAM_KNOCKED_OUT) !== 0) {
         removeKnockoutEvents(c)
-        const ticks = 10 * (35 - 3 * c.getStat('END'))
-        Scripting.timeEventList.push({ obj: c, ticks, userdata: 'knockout', fn: () => knockoutEventProcess(c),
-            leaveMap: () => critterWakeClear(c) })
+        scheduleKnockoutEvent(c, 10 * (35 - 3 * c.getStat('END')))
     }
-    c.injuryFlags = (results(c) | (flags & (DAM_KNOCKED_OUT | DAM_KNOCKED_DOWN | DAM_CRIP | DAM_DEAD | DAM_LOSE_TURN))) >>> 0
+    c.injuryFlags =
+        (results(c) | (flags & (DAM_KNOCKED_OUT | DAM_KNOCKED_DOWN | DAM_CRIP | DAM_DEAD | DAM_LOSE_TURN))) >>> 0
 }
 
 export function removeKnockoutEvents(c: Critter): void {
@@ -120,10 +126,21 @@ function critterWakeClear(c: Critter): boolean {
 
 // CE critter.cc knockoutEventProcess: the critter comes to and lies knocked down; in
 // combat it stands up at the start of its next turn, otherwise at once.
+// CE queue.cc EVENT_TYPE_KNOCKOUT (also rebuilt from a save, saveload.ts)
+export function scheduleKnockoutEvent(c: Critter, ticks: number): void {
+    Scripting.timeEventList.push({
+        obj: c,
+        ticks,
+        userdata: 'knockout',
+        fn: () => knockoutEventProcess(c),
+        leaveMap: () => critterWakeClear(c),
+    })
+}
+
 export function knockoutEventProcess(c: Critter): void {
     if ((results(c) & DAM_DEAD) !== 0 || c.dead) return
     c.injuryFlags = ((results(c) & ~(DAM_KNOCKED_OUT | DAM_KNOCKED_DOWN)) | DAM_KNOCKED_DOWN) >>> 0
-    if (!globalState.inCombat) dudeStandup(c)
+    if (!world.inCombat) dudeStandup(c)
 }
 
 // CE animation.cc _dude_standup: ANIM_BACK_TO_STANDING ('getUpFront', cj) after
@@ -134,7 +151,10 @@ export function dudeStandup(c: Critter, then?: () => void): void {
     const getUp = c.knockdownAnim === 'knockdownBack' ? 'getUpBack' : 'getUpFront'
     c.knockdownAnim = null
     if (c.hasAnimation(getUp)) {
-        c.staticAnimation(getUp, () => { c.clearAnim(); then?.() })
+        c.staticAnimation(getUp, () => {
+            c.clearAnim()
+            then?.()
+        })
     } else {
         c.clearAnim()
         then?.()

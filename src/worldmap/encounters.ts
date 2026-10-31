@@ -20,20 +20,26 @@
 import { Combat } from '../combat.js'
 import { Config } from '../config.js'
 import { getMapInfoById, lookupMapName } from '../data.js'
-import { Encounters } from '../encounters.js'
+import * as Encounters from '../encounters.js'
 import * as GameTime from '../gametime.js'
 import { hexDirectionTo, hexDistance, hexInDirectionDistance, Point } from '../geometry.js'
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
 import { invenWield } from '../inventoryWield.js'
 import { dbg } from '../logger.js'
 import { pathfinderFindPath } from '../map/pathfinder.js'
 import { Critter, createObjectWithPID, Obj } from '../object.js'
 import { fromTileNum, toTileNum } from '../tile.js'
-import { uiLog } from '../ui.js'
+import { uiLog } from '../messageLog.js'
 import { getMessage, getRandomInt } from '../util.js'
 import {
-    EncBaseType, EncEntry, FORMATION_CONE, FORMATION_DOUBLE_LINE, FORMATION_HUDDLE, FORMATION_STRAIGHT_LINE,
-    FORMATION_SURROUNDING, FORMATION_WEDGE,
+    EncBaseType,
+    EncEntry,
+    FORMATION_CONE,
+    FORMATION_DOUBLE_LINE,
+    FORMATION_HUDDLE,
+    FORMATION_STRAIGHT_LINE,
+    FORMATION_SURROUNDING,
+    FORMATION_WEDGE,
 } from './encounterData.js'
 import { Square } from './types.js'
 import { areaIdContainingMap, areaPosAtParty, getWorldmap, setAreaVisible, updateAreaMarkerPos } from './Worldmap.js'
@@ -59,6 +65,19 @@ export interface EncounterRoll {
     blink: 'random' | 'special' | null // wmBlinkRndEncounterIcon
     fadeOut: boolean
     ask: { title: string; body: string } | null // detected: YES/NO before loading
+    forced?: boolean // sfall force_encounter: the map loads without the random encounter setup
+}
+
+// sfall: CE worldmap.cc wmForceEncounter (op_force_encounter / _with_flags): the next
+// encounter check loads this map. Flags: 0x1 NO_CAR, 0x2 LOCK (no override until it
+// happened), 0x4 NO_ICON, 0x8 ICON_SP, 0x10 FADEOUT.
+let forcedEncounterMapId = -1
+let forcedEncounterFlags = 0
+export function forceEncounter(mapId: number, flags: number): void {
+    if ((forcedEncounterFlags & 0x80000000) !== 0) return
+    forcedEncounterMapId = mapId
+    forcedEncounterFlags = (flags >>> 0) & ~0x80000000
+    if ((forcedEncounterFlags & 0x2) !== 0) forcedEncounterFlags = (forcedEncounterFlags | 0x80000000) >>> 0
 }
 
 // CE wmInterfaceInit: wmLastRndTime = getTicks()
@@ -83,7 +102,7 @@ function worldmapMsg(id: number): string {
 // included), hidden members not counted
 function partyBestSkill(skill: string): number {
     let best = 0
-    for (const c of globalState.gParty?.getPartyMembersAndPlayer() ?? [globalState.player]) {
+    for (const c of world.gParty?.getPartyMembersAndPlayer() ?? [world.player]) {
         if (!c || c.type !== 'critter' || c.visible === false) continue
         best = Math.max(best, c.getSkill(skill))
     }
@@ -92,7 +111,12 @@ function partyBestSkill(skill: string): number {
 
 // CE wmRndEncounterOccurred. `pos` is the party's world position, `inArea` whether it
 // stands in an area, `square` its subtile. Returns null when nothing happens.
-export function rndEncounterOccurred(pos: Point, inArea: boolean, square: Square, isInCar: boolean): EncounterRoll | null {
+export function rndEncounterOccurred(
+    pos: Point,
+    inArea: boolean,
+    square: Square,
+    isInCar: boolean,
+): EncounterRoll | null {
     const now = performance.now()
     if (now - lastRndTime < 1500) return null
     lastRndTime = now
@@ -101,10 +125,26 @@ export function rndEncounterOccurred(pos: Point, inArea: boolean, square: Square
     if (Math.abs(oldWorldPosY - pos.y) < 3) return null
     if (inArea) return null
 
-    if (!didMeetFrankHorrigan && Math.trunc(globalState.gameTickTime / TICKS_PER_DAY) > 35) {
+    if (!didMeetFrankHorrigan && Math.trunc(world.gameTickTime / TICKS_PER_DAY) > 35) {
         encounterMapId = -1
         didMeetFrankHorrigan = true
         return { mapId: MAP_IN_GAME_MOVIE1, blink: 'special', fadeOut: true, ask: null }
+    }
+
+    // CE (sfall): the forced encounter, after the Horrigan one; fade-out and the blinking
+    // icon exclude each other
+    if (forcedEncounterMapId !== -1) {
+        const flags = forcedEncounterFlags
+        const roll: EncounterRoll = {
+            mapId: forcedEncounterMapId,
+            fadeOut: (flags & 0x10) !== 0,
+            ask: null,
+            forced: true,
+            blink: (flags & 0x10) !== 0 || (flags & 0x4) !== 0 ? null : (flags & 0x8) !== 0 ? 'special' : 'random',
+        }
+        forcedEncounterMapId = -1
+        forcedEncounterFlags = 0
+        return roll
     }
 
     const worldmap = getWorldmap()
@@ -131,7 +171,7 @@ export function rndEncounterOccurred(pos: Point, inArea: boolean, square: Square
         // sphere / 2) and, unless locked, becomes known
         const mapName = lookupMapName(encounterMapId)
         const areaIdx = mapName ? areaIdContainingMap(mapName) : 0
-        const area: any = globalState.mapAreas?.[areaIdx]
+        const area: any = world.mapAreas?.[areaIdx]
         if (area) {
             area.worldPosition = areaPosAtParty(area, pos.x, pos.y)
             updateAreaMarkerPos(String(areaIdx), area.worldPosition.x, area.worldPosition.y)
@@ -144,7 +184,7 @@ export function rndEncounterOccurred(pos: Point, inArea: boolean, square: Square
     let detected = false
     if (frequency > chance) {
         let outdoorsman = partyBestSkill('Outdoorsman')
-        const player = globalState.player
+        const player = world.player
         if (player?.inventory.some((it) => it.pid === PROTO_ID_MOTION_SENSOR)) outdoorsman += 20
         if (outdoorsman > 95) outdoorsman = 95
         outdoorsman += square.difficulty ?? 0
@@ -165,12 +205,17 @@ export function rndEncounterOccurred(pos: Point, inArea: boolean, square: Square
     oldWorldPosX = pos.x
     oldWorldPosY = pos.y
 
-    dbg('worldmap', `encounter: table ${encounterTableId} entry ${encounterEntryId} map ${encounterMapId} detected=${detected}`)
+    dbg(
+        'worldmap',
+        `encounter: table ${encounterTableId} entry ${encounterEntryId} map ${encounterMapId} detected=${detected}`,
+    )
     return {
         mapId: encounterMapId,
         blink: entry.special ? 'special' : 'random',
         fadeOut: true,
-        ask: detected ? { title: worldmapMsg(2999), body: worldmapMsg(3000 + 50 * encounterTableId + encounterEntryId) } : null,
+        ask: detected
+            ? { title: worldmapMsg(2999), body: worldmapMsg(3000 + 50 * encounterTableId + encounterEntryId) }
+            : null,
     }
 }
 
@@ -184,9 +229,14 @@ export function cancelEncounter(): void {
 // CE wmRndEncounterPick
 function rndEncounterPick(square: Square): void {
     const data = getWorldmap().encounters
-    encounterTableId = data.tables.findIndex((t) => t.lookupName.toLowerCase() === (square.encounterType ?? '').toLowerCase())
+    encounterTableId = data.tables.findIndex(
+        (t) => t.lookupName.toLowerCase() === (square.encounterType ?? '').toLowerCase(),
+    )
     const table = data.tables[encounterTableId]
-    if (!table) { encounterMapId = -1; return }
+    if (!table) {
+        encounterMapId = -1
+        return
+    }
 
     const candidates: number[] = []
     let totalChance = 0
@@ -199,7 +249,7 @@ function rndEncounterPick(square: Square): void {
         }
     })
 
-    const player = globalState.player
+    const player = world.player
     let chance = getRandomInt(0, totalChance) + ((player?.getStat('LUK') ?? 5) - 5)
     if (hasPerk(player, 'Explorer')) chance += 2
     if (hasPerk(player, 'Ranger')) chance += 1
@@ -222,13 +272,17 @@ function rndEncounterPick(square: Square): void {
     encounterEntryId = candidates[index] ?? -1
 
     const entry = table.entries[encounterEntryId]
-    if (!entry) { encounterMapId = -1; return }
+    if (!entry) {
+        encounterMapId = -1
+        return
+    }
     if (entry.counter > 0) entry.counter--
 
     if (entry.map === -1) {
         if (table.maps.length <= 0) {
             const terrain = data.terrains.find((t) => t.name === (square.terrainType ?? '').toLowerCase())
-            encounterMapId = terrain && terrain.maps.length ? terrain.maps[getRandomInt(0, terrain.maps.length - 1)] : -1
+            encounterMapId =
+                terrain && terrain.maps.length ? terrain.maps[getRandomInt(0, terrain.maps.length - 1)] : -1
         } else {
             encounterMapId = table.maps[getRandomInt(0, table.maps.length - 1)]
         }
@@ -248,10 +302,15 @@ export function setupRandomEncounter(): void {
     if (mapId === -1 || !entry) return
 
     // SFALL: the description in one line
-    uiLog(`${worldmapMsg(2998)} ${worldmapMsg(3000 + 50 * getWorldmap().encounters.tables.indexOf(table!) + table!.entries.indexOf(entry))}`)
+    uiLog(
+        `${worldmapMsg(2998)} ${worldmapMsg(3000 + 50 * getWorldmap().encounters.tables.indexOf(table!) + table!.entries.indexOf(entry))}`,
+    )
 
     // CE _getPartyMemberCount: the dude and the living, visible critter members
-    const party = 1 + (globalState.gParty?.getPartyMembers() ?? []).filter((c) => c.type === 'critter' && !c.dead && c.visible !== false).length
+    const party =
+        1 +
+        (world.gParty?.getPartyMembers() ?? []).filter((c) => c.type === 'critter' && !c.dead && c.visible !== false)
+            .length
     let prevCritter: Critter | null = null
     let critter: Critter | null = null // CE's loop variable keeps its value when a group places nobody
     entry.subEntries.forEach((sub, index) => {
@@ -265,16 +324,29 @@ export function setupRandomEncounter(): void {
         if (party > 2) critterCount += 2
 
         if (critterCount === 0) return
-        if (sub.baseType !== -1) critter = setupCritterObjs(getWorldmap().encounters.baseTypes[sub.baseType], critterCount)
+        if (sub.baseType !== -1)
+            critter = setupCritterObjs(getWorldmap().encounters.baseTypes[sub.baseType], critterCount)
 
-        if (index > 0 && prevCritter !== null && prevCritter !== critter && critter !== null && !globalState.inCombat) {
+        if (index > 0 && prevCritter !== null && prevCritter !== critter && critter !== null && !world.inCombat) {
             if (entry.subEntries.length === 2 && Config.engine.doCombat === true) {
-                ;(prevCritter as any).whoHitMe = critter
-                ;(critter as any).whoHitMe = prevCritter
-                Combat.start(prevCritter, {
-                    attacker: prevCritter, defender: critter, actionPointsBonus: 0, accuracyBonus: 0, damageBonus: 0,
-                    minDamage: 0, maxDamage: 500, overrideAttackResults: false, attackerResults: 0, targetResults: 0,
-                }, [critter, prevCritter])
+                prevCritter.whoHitMe = critter
+                critter.whoHitMe = prevCritter
+                Combat.start(
+                    prevCritter,
+                    {
+                        attacker: prevCritter,
+                        defender: critter,
+                        actionPointsBonus: 0,
+                        accuracyBonus: 0,
+                        damageBonus: 0,
+                        minDamage: 0,
+                        maxDamage: 500,
+                        overrideAttackResults: false,
+                        attackerResults: 0,
+                        targetResults: 0,
+                    },
+                    [critter, prevCritter],
+                )
             }
         }
         prevCritter = critter
@@ -299,7 +371,7 @@ function rotationTo(from: number, to: number): number {
 
 // CE wmSetupRndNextTileNumInit
 function setupRndNextTileNumInit(base: EncBaseType): boolean {
-    const dude = globalState.player!
+    const dude = world.player!
     const dudeTile = toTileNum(dude.position)
     rndCenterTiles = [-1, -1]
     rndTileDirs = [0, 0]
@@ -310,7 +382,7 @@ function setupRndNextTileNumInit(base: EncBaseType): boolean {
         rndOriginalCenterTile = rndCenterTiles[0]
         return true
     }
-    const map = getMapInfoById(globalState.gMap?.mapID ?? -1)
+    const map = getMapInfoById(world.gMap?.mapID ?? -1)
     const points = map?.randomStartPoints ?? []
     if (points.length !== 0) {
         const rsp = points[getRandomInt(0, points.length - 1)]
@@ -325,8 +397,8 @@ function setupRndNextTileNumInit(base: EncBaseType): boolean {
 
 // CE wmEvalTileNumForPlacement: not blocked, and the dude can get there (shoot-blocking)
 function evalTileNumForPlacement(tile: number): boolean {
-    const dude = globalState.player!
-    const gMap = globalState.gMap!
+    const dude = world.player!
+    const gMap = world.gMap!
     if (gMap.blockingObjectAt(tile, dude.elevation ?? gMap.currentElevation, 0, dude) !== null) return false
     const to = fromTileNum(tile)
     if (to.x === dude.position.x && to.y === dude.position.y) return true
@@ -335,7 +407,7 @@ function evalTileNumForPlacement(tile: number): boolean {
 
 // CE wmSetupRndNextTileNum: the next tile of the formation (-1: none)
 function setupRndNextTileNum(base: EncBaseType, e: EncEntry): number {
-    const dude = globalState.player!
+    const dude = world.player!
     const dudeTile = toTileNum(dude.position)
     for (let attempt = 1; ; attempt++) {
         let tile: number
@@ -371,7 +443,11 @@ function setupRndNextTileNum(base: EncBaseType, e: EncEntry): number {
             case FORMATION_WEDGE:
                 tile = rndCenterTiles[rndIndex]
                 if (rndCallCount !== 0) {
-                    tile = tileInDirection(rndCenterTiles[rndIndex], (RND_ROT_OFFSETS[rndIndex] + rndTileDirs[rndIndex]) % 6, base.spacing)
+                    tile = tileInDirection(
+                        rndCenterTiles[rndIndex],
+                        (RND_ROT_OFFSETS[rndIndex] + rndTileDirs[rndIndex]) % 6,
+                        base.spacing,
+                    )
                     rndCenterTiles[rndIndex] = tile
                     rndIndex = 1 - rndIndex
                 }
@@ -379,7 +455,11 @@ function setupRndNextTileNum(base: EncBaseType, e: EncEntry): number {
             case FORMATION_CONE:
                 tile = rndCenterTiles[rndIndex]
                 if (rndCallCount !== 0) {
-                    tile = tileInDirection(rndCenterTiles[rndIndex], (rndTileDirs[rndIndex] + 3 + RND_ROT_OFFSETS[rndIndex]) % 6, base.spacing)
+                    tile = tileInDirection(
+                        rndCenterTiles[rndIndex],
+                        (rndTileDirs[rndIndex] + 3 + RND_ROT_OFFSETS[rndIndex]) % 6,
+                        base.spacing,
+                    )
                     rndCenterTiles[rndIndex] = tile
                     rndIndex = 1 - rndIndex
                 }
@@ -403,19 +483,19 @@ function setupRndNextTileNum(base: EncBaseType, e: EncEntry): number {
 
 // CE wmSetupCritterObjs: one group's critters. Returns the first critter created.
 function setupCritterObjs(base: EncBaseType | undefined, critterCount: number): Critter | null {
-    if (!base || !globalState.gMap || !globalState.player) return null
+    if (!base || !world.gMap || !world.player) return null
     dbg('worldmap', `setupCritterObjs: ${base.name}, formation ${base.formation}, ${critterCount} critters`)
     if (!setupRndNextTileNumInit(base)) return null
 
-    const gMap = globalState.gMap
-    const dude = globalState.player
+    const gMap = world.gMap
+    const dude = world.player
     const elevation = gMap.currentElevation
     let first: Critter | null = null
     for (const e of base.entries) {
         if (e.pid === -1) continue
         if (e.cond !== null && !Encounters.evalConds(e.cond, critterCount)) continue
 
-        let count = e.useRatio ? Math.trunc(e.ratio * critterCount / 100) : 1
+        let count = e.useRatio ? Math.trunc((e.ratio * critterCount) / 100) : 1
         if (count < 1) count = 1
 
         for (let n = 0; n < count; n++) {
@@ -426,7 +506,8 @@ function setupCritterObjs(base: EncBaseType | undefined, critterCount: number): 
             if (first === null && obj instanceof Critter) first = obj
             if (e.team !== -1 && obj instanceof Critter) obj.teamNum = e.team
 
-            const placeTile = base.formation !== FORMATION_SURROUNDING ? tile : gMap.attemptPlacement(tile, elevation, 0)
+            const placeTile =
+                base.formation !== FORMATION_SURROUNDING ? tile : gMap.attemptPlacement(tile, elevation, 0)
             obj.elevation = elevation
             gMap.addObject(obj, elevation)
             obj.move(fromTileNum(placeTile))
@@ -451,12 +532,17 @@ function setupCritterObjs(base: EncBaseType | undefined, critterCount: number): 
 
 // Save / load / new game (CE wmWorldMap_save / load: didMeetFrankHorrigan and the
 // encounter entries' counters)
-export interface SavedEncounters { horrigan: boolean; counters: [number, number, number][] }
+export interface SavedEncounters {
+    horrigan: boolean
+    counters: [number, number, number][]
+}
 export function serializeEncounters(): SavedEncounters {
     const counters: [number, number, number][] = []
-    getWorldmap()?.encounters.tables.forEach((t, ti) => t.entries.forEach((e, ei) => {
-        if (e.counter !== -1) counters.push([ti, ei, e.counter])
-    }))
+    getWorldmap()?.encounters.tables.forEach((t, ti) =>
+        t.entries.forEach((e, ei) => {
+            if (e.counter !== -1) counters.push([ti, ei, e.counter])
+        }),
+    )
     return { horrigan: didMeetFrankHorrigan, counters }
 }
 export function deserializeEncounters(data: SavedEncounters | undefined): void {
@@ -469,6 +555,8 @@ export function deserializeEncounters(data: SavedEncounters | undefined): void {
 }
 export function resetEncounters(): void {
     didMeetFrankHorrigan = false
+    forcedEncounterMapId = -1
+    forcedEncounterFlags = 0
     oldWorldPosX = 0
     oldWorldPosY = 0
     cancelEncounter()

@@ -25,31 +25,43 @@ limitations under the License.
 // more and a few frames have been drawn, then fades in.
 
 import globalState from './globalState.js'
+import { assets } from './state/assets.js'
 import { heart } from './heart.js'
-import { Events } from './events.js'
+import * as Events from './events.js'
 
-const FADE_IN_MS = 250          // ≈ CE paletteFadeTo
-const SETTLE_FRAMES = 3         // frames drawn after loading went quiet
-const MAX_BLACK_MS = 5000       // never keep the screen black longer than this
+const FADE_IN_MS = 250 // ≈ CE paletteFadeTo
+const SETTLE_FRAMES = 3 // frames drawn after loading went quiet
+const MAX_BLACK_MS = 5000 // never keep the screen black longer than this
 
 let overlay: HTMLDivElement | null = null
 let token = 0
 
 function busy(): boolean {
-    return globalState.isLoading
-        || Object.values(globalState.lazyAssetLoadingQueue ?? {}).some((v) => v !== undefined)
-        || ((heart as any)._imagesLoading?.length ?? 0) > 0
+    return (
+        globalState.isLoading ||
+        Object.values(assets.lazyAssetLoadingQueue ?? {}).some((v) => v !== undefined) ||
+        (heart._imagesLoading?.length ?? 0) > 0
+    )
 }
 
 /** Black at once (isoDisable / wmFadeOut). */
 export function beginMapFade(): void {
     if (typeof document === 'undefined') return
+    // the startup map behind the splash / intro / main menu: nobody sees it, and the black
+    // (above the splash) hid the splash until that map was in
+    if (globalState.backgroundMapLoad) {
+        return
+    }
     token++
     if (!overlay) {
         overlay = document.createElement('div')
         overlay.id = 'mapFadeOverlay'
         Object.assign(overlay.style, {
-            position: 'fixed', inset: '0', background: '#000', pointerEvents: 'none', zIndex: '9000',
+            position: 'fixed',
+            inset: '0',
+            background: '#000',
+            pointerEvents: 'none',
+            zIndex: '9000',
         })
         document.body.appendChild(overlay)
     }
@@ -58,7 +70,9 @@ export function beginMapFade(): void {
     // A load that fails before its end (missing map file, no save) must not leave the
     // screen black.
     const my = token
-    setTimeout(() => { if (my === token && overlay && overlay.style.opacity === '1') endMapFade() }, 2 * MAX_BLACK_MS)
+    setTimeout(() => {
+        if (my === token && overlay && overlay.style.opacity === '1') endMapFade()
+    }, 2 * MAX_BLACK_MS)
 }
 
 /** Fade in once the map has finished loading and drawing (isoEnable / wmFadeIn). */
@@ -67,10 +81,10 @@ export function endMapFade(): void {
     const my = token
     const start = performance.now()
     let quietFrames = 0
-    let lastFrames = (heart as any)._numFrames ?? 0
+    let lastFrames = heart._numFrames ?? 0
     const poll = () => {
         if (my !== token || !overlay) return // a newer map change took over
-        const frames = (heart as any)._numFrames ?? 0
+        const frames = heart._numFrames ?? 0
         if (busy()) quietFrames = 0
         else if (frames !== lastFrames) quietFrames++
         lastFrames = frames
@@ -79,7 +93,10 @@ export function endMapFade(): void {
             el.style.transition = `opacity ${FADE_IN_MS}ms linear`
             el.style.opacity = '0'
             setTimeout(() => {
-                if (my === token && overlay === el) { el.remove(); overlay = null }
+                if (my === token && overlay === el) {
+                    el.remove()
+                    overlay = null
+                }
             }, FADE_IN_MS + 50)
             return
         }

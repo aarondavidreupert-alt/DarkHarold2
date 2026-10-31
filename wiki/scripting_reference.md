@@ -13,11 +13,11 @@ CE sources:
 DH2 sources:
 - `src/scripting.ts` (all `Scripting.*` exports + `Script` class procs)
 - `src/vm.ts` (VM opcode handlers)
-- `src/vm_bridge.ts` (bridge, `bridgeOpMap`)
+- `src/vmBridge.ts` (bridge, `bridgeOpMap`)
 
 Cross-link: See [damage_formula.md](damage_formula.md) for how `attack_complex` and related opcodes connect to the damage pipeline.
 
-<!-- audited: 2026-10-18 — opcode tables regenerated from CE interpreter.h / interpreter_extra.cc and DH2 vm.ts / vm_bridge.ts; all 1443 .int files scanned -->
+<!-- audited: 2026-10-18 — opcode tables regenerated from CE interpreter.h / interpreter_extra.cc and DH2 vm.ts / vmBridge.ts; all 1443 .int files scanned -->
 
 ---
 
@@ -33,7 +33,7 @@ Status key: `WIRED` = DH2 fires this proc where CE does; `N/A` = CE never fires 
 | 1 | `SCRIPT_PROC_START` | `start` | Script init | `Scripting.initScript()` | WIRED |
 | 2 | `SCRIPT_PROC_SPATIAL` | `spatial_p_proc` | Critter enters radius | `Scripting.spatial()` | WIRED |
 | 3 | `SCRIPT_PROC_DESCRIPTION` | `description_p_proc` | Examine (`_obj_examine`) | `examine.ts` | WIRED |
-| 4 | `SCRIPT_PROC_PICKUP` | `pickup_p_proc` | Pickup from the floor, inventory moves, steal | `Obj.pickup`, `ui_inventory/dragdrop.ts`, `ui_steal.ts` | WIRED |
+| 4 | `SCRIPT_PROC_PICKUP` | `pickup_p_proc` | Pickup from the floor, inventory moves, steal | `Obj.pickup`, `uiInventory/dragdrop.ts`, `uiSteal.ts` | WIRED |
 | 5 | `SCRIPT_PROC_DROP` | `drop_p_proc` | `_obj_drop` (item's script; can override) | `Obj.drop` → `Scripting.drop()` | WIRED |
 | 6 | `SCRIPT_PROC_USE` | `use_p_proc` | Object used | `Scripting.use()` | WIRED |
 | 7 | `SCRIPT_PROC_USE_OBJ_ON` | `use_obj_on_p_proc` | Item used on this object | `useItemOn.ts` | WIRED |
@@ -51,7 +51,7 @@ Status key: `WIRED` = DH2 fires this proc where CE does; `N/A` = CE never fires 
 | 21 | `SCRIPT_PROC_LOOK_AT` | `look_at_p_proc` | Hover / look (`_obj_look_at`) | `examine.ts` | WIRED |
 | 22 | `SCRIPT_PROC_TIMED` | `timed_event_p_proc` | `add_timer_event` fires | `Scripting.timedEvent()` | WIRED |
 | 23 | `SCRIPT_PROC_MAP_UPDATE` | `map_update_p_proc` | Map update events | `Scripting.updateMap()` | WIRED |
-| 24 | `SCRIPT_PROC_PUSH` | `push_p_proc` | `actionPush` | `ui_contextmenu.ts` | WIRED |
+| 24 | `SCRIPT_PROC_PUSH` | `push_p_proc` | `actionPush` | `uiContextMenu.ts` | WIRED |
 | 25 | `SCRIPT_PROC_IS_DROPPING` | `is_dropping_p_proc` | `_obj_drop` (owner's script; can override) | `Obj.drop` → `Scripting.isDropping()` | WIRED (2026-10-18) |
 | 26 | `SCRIPT_PROC_COMBAT_IS_STARTING` | `combat_is_starting_p_proc` | No CE fire site | — | N/A |
 | 27 | `SCRIPT_PROC_COMBAT_IS_OVER` | `combat_is_over_p_proc` | No CE fire site | — | N/A |
@@ -77,7 +77,7 @@ Variables set on the `Script` object before each proc is called:
 
 ## §3 VM Bytecode Opcodes (0x8000–0x804B)
 
-Low-level bytecode handled by `ScriptVM` in `src/vm.ts` (a few that touch map variables are inline in `vm_bridge.ts`). Literal pushes: `0xC001` int, `0xA001` float, `0x9001` string / identifier.
+Low-level bytecode handled by `ScriptVM` in `src/vm.ts` (a few that touch map variables are inline in `vmBridge.ts`). Literal pushes: `0xC001` int, `0xA001` float, `0x9001` string / identifier.
 
 **Floats** (CE `VALUE_TYPE_FLOAT`): `0xA001` pushes a boxed `Number`; `+ − × ÷` keep CE's typing (int op int is an int — division truncates —, anything with a float is a float, a float joins a string as `%.5f`); `floor` truncates like CE's `(int)` cast; stores keep the float; every other consumer gets a plain number. Used by Metzger's slave prices (dcmetzge), the craps tables (dccraps, zccrpdel), ecmststr and ectrappr.
 
@@ -107,9 +107,9 @@ CE source: `src/interpreter.h` (opcode enum), `src/interpreter.cc` (handlers)
 | `0x8011` | STOP_PROGRAM | — |
 | `0x8012` | FETCH_GLOBAL | vm.ts |
 | `0x8013` | STORE_GLOBAL | vm.ts |
-| `0x8014` | FETCH_EXTERNAL | vm_bridge.ts (inline) |
-| `0x8015` | STORE_EXTERNAL | vm_bridge.ts (inline) |
-| `0x8016` | EXPORT_VARIABLE | vm_bridge.ts (inline) |
+| `0x8014` | FETCH_EXTERNAL | vmBridge.ts (inline) |
+| `0x8015` | STORE_EXTERNAL | vmBridge.ts (inline) |
+| `0x8016` | EXPORT_VARIABLE | vmBridge.ts (inline) |
 | `0x8017` | EXPORT_PROCEDURE | — |
 | `0x8018` | SWAP | — |
 | `0x8019` | SWAPA | vm.ts |
@@ -166,7 +166,7 @@ CE source: `src/interpreter.h` (opcode enum), `src/interpreter.cc` (handlers)
 
 ## §4 Script Intrinsic Opcodes (0x80A0+)
 
-The "game API" opcodes. CE registers 181 of them in `interpreter_extra.cc` (`_initIntExtra`); DH2 wires every one in `src/vm_bridge.ts` — `bridged("name", argc)` calls the `Script` method in `src/scripting.ts`, inline entries push context values. (DH2 also maps the sfall opcodes `0x826E` / `0x826F`.) Generated 2026-10-18; "no return" = the bridge pushes nothing.
+The "game API" opcodes. CE registers 181 of them in `interpreter_extra.cc` (`_initIntExtra`); DH2 wires every one in `src/vmBridge.ts` — `bridged("name", argc)` calls the `Script` method in `src/scripting.ts`, inline entries push context values. (DH2 also maps the sfall opcodes `0x826E` / `0x826F`.) Generated 2026-10-18; "no return" = the bridge pushes nothing.
 
 | Opcode | CE handler | DH2 |
 |---|---|---|
@@ -352,7 +352,7 @@ The "game API" opcodes. CE registers 181 of them in `interpreter_extra.cc` (`_in
 | `0x8154` | `opDebugMessage` | `debug_msg` (1, no return) |
 | `0x8155` | `opCritterStopAttacking` | `critter_stop_attacking` (1, no return) |
 
-### Variable/context accessors (INLINE in vm_bridge.ts)
+### Variable/context accessors (INLINE in vmBridge.ts)
 
 These read directly from the script VM context or globalState without going through a Script method:
 
@@ -377,7 +377,7 @@ These read directly from the script VM context or globalState without going thro
 
 Opcode `0x80A6` (`get_pc_stat`) and `0x80CB` (`set_critter_stat`) use indices from the `PcStat` enum (`stat_defs.h:76`). These are **player-only** stats not part of the normal SPECIAL/derived stat array.
 
-**FIXED 2026-07-05**: `get_pc_stat` (`scripting.ts:1225`) is now wired at `0x80A6` in `vm_bridge.ts` — the method existed and was CE-accurate, it had simply never been added to `bridgeOpMap`.
+**FIXED 2026-07-05**: `get_pc_stat` (`scripting.ts:1225`) is now wired at `0x80A6` in `vmBridge.ts` — the method existed and was CE-accurate, it had simply never been added to `bridgeOpMap`.
 
 | Value | CE Constant | DH2 `get_pc_stat` | DH2 `set_pc_stat` |
 |-------|-------------|-------------------|-------------------|
@@ -389,7 +389,7 @@ Opcode `0x80A6` (`get_pc_stat`) and `0x80CB` (`set_critter_stat`) use indices fr
 
 Correction: `DH2 set_pc_stat` is fully implemented for all 5 cases (`scripting.ts:1244`), not a stub — an earlier pass of this table was stale. `mod_pc_stat` (`set_pc_stat` + delta, `scripting.ts:1269`) is likewise implemented, not stubbed.
 
-**Neither `set_pc_stat` nor `mod_pc_stat` is wired in `vm_bridge.ts`, and that's correct** — CE has no `op_set_pc_stat`/`op_mod_pc_stat` opcode at all (verified: no hits for `opSetPcStat`/`opModPcStat`/`ModifyPcStat` anywhere in `interpreter_extra.cc` or elsewhere). `pcSetStat()` is a CE-internal C++ function used only by the character editor, perk, and skill-point-spending code paths (`character_editor.cc`, `perk.cc`, `skill.cc`, `stat.cc`) — it was never exposed to scripts. `mod_pc_stat`'s in-code comment citing `scripts.cc opModifyPcStat()` does not correspond to any real CE function; there is nothing to wire these to.
+**Neither `set_pc_stat` nor `mod_pc_stat` is wired in `vmBridge.ts`, and that's correct** — CE has no `op_set_pc_stat`/`op_mod_pc_stat` opcode at all (verified: no hits for `opSetPcStat`/`opModPcStat`/`ModifyPcStat` anywhere in `interpreter_extra.cc` or elsewhere). `pcSetStat()` is a CE-internal C++ function used only by the character editor, perk, and skill-point-spending code paths (`character_editor.cc`, `perk.cc`, `skill.cc`, `stat.cc`) — it was never exposed to scripts. `mod_pc_stat`'s in-code comment citing `scripts.cc opModifyPcStat()` does not correspond to any real CE function; there is nothing to wire these to.
 
 CE source: `raw/fallout2-ce/src/stat_defs.h` (`PcStat` enum)
 

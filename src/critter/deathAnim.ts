@@ -19,9 +19,10 @@ limitations under the License.
 // _obj_fix_violence_settings. Animations are CE anim ids; Critter.getAnimation
 // resolves 'anim:<id>' to the art code (pro.ts artGetCode).
 
+import { artGetCode } from '../pro.js'
 import { Config } from '../config.js'
 import { hexInDirection } from '../geometry.js'
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
 import type { Critter } from '../object/Critter.js'
 import type { Obj } from '../object/Obj.js'
 import { currentUnarmed } from '../unarmed.js'
@@ -71,16 +72,32 @@ const PERK_WEAPON_FLAMEBOY = 67
 
 // DAMAGE_TYPE_* order (proto_types.h); DH2 names from Weapon.ts.
 const DAMAGE_TYPE_INDEX: { [name: string]: number } = {
-    Normal: 0, Laser: 1, Fire: 2, Plasma: 3, Electrical: 4, EMP: 5, Explosive: 6,
+    Normal: 0,
+    Laser: 1,
+    Fire: 2,
+    Plasma: 3,
+    Electrical: 4,
+    EMP: 5,
+    Explosive: 6,
 }
 // actions.cc:55 gNormalDeathAnimations / :66 gMaximumBloodDeathAnimations
 const NORMAL_DEATH_ANIMATIONS = [
-    ANIM_DANCING_AUTOFIRE, ANIM_SLICED_IN_HALF, ANIM_CHARRED_BODY, ANIM_CHARRED_BODY,
-    ANIM_ELECTRIFY, ANIM_FALL_BACK, ANIM_BIG_HOLE,
+    ANIM_DANCING_AUTOFIRE,
+    ANIM_SLICED_IN_HALF,
+    ANIM_CHARRED_BODY,
+    ANIM_CHARRED_BODY,
+    ANIM_ELECTRIFY,
+    ANIM_FALL_BACK,
+    ANIM_BIG_HOLE,
 ]
 export const MAXIMUM_BLOOD_DEATH_ANIMATIONS = [
-    ANIM_CHUNKS_OF_FLESH, ANIM_SLICED_IN_HALF, ANIM_FIRE_DANCE, ANIM_MELTED_TO_NOTHING,
-    ANIM_ELECTRIFIED_TO_NOTHING, ANIM_FALL_BACK, ANIM_EXPLODED_TO_NOTHING,
+    ANIM_CHUNKS_OF_FLESH,
+    ANIM_SLICED_IN_HALF,
+    ANIM_FIRE_DANCE,
+    ANIM_MELTED_TO_NOTHING,
+    ANIM_ELECTRIFIED_TO_NOTHING,
+    ANIM_FALL_BACK,
+    ANIM_EXPLODED_TO_NOTHING,
 ]
 
 export function damageTypeIndex(damageType: string | undefined): number {
@@ -109,8 +126,14 @@ export function unarmedAttackAnim(obj: Critter): number {
 
 // CE critterGetAnimationForHitMode — the attacker's anim for its current hit mode.
 const ATTACK_MODE_ANIM: { [mode: string]: number } = {
-    punch: ANIM_THROW_PUNCH, kick: ANIM_KICK_LEG, swing: ANIM_SWING_ANIM, thrust: ANIM_THRUST_ANIM,
-    throw: ANIM_THROW_ANIM, 'fire single': ANIM_FIRE_SINGLE, 'fire burst': ANIM_FIRE_BURST, flame: ANIM_FIRE_CONTINUOUS,
+    punch: ANIM_THROW_PUNCH,
+    kick: ANIM_KICK_LEG,
+    swing: ANIM_SWING_ANIM,
+    thrust: ANIM_THRUST_ANIM,
+    throw: ANIM_THROW_ANIM,
+    'fire single': ANIM_FIRE_SINGLE,
+    'fire burst': ANIM_FIRE_BURST,
+    flame: ANIM_FIRE_CONTINUOUS,
 }
 export function attackerAnimation(attacker: Critter | undefined): number {
     if (!attacker) return ANIM_STAND
@@ -150,7 +173,7 @@ export function pickDeath(defender: Critter, ctx: DeathContext): number {
         damageType = DAMAGE_TYPE_INDEX.Fire
         attackerAnim = ANIM_FIRE_SINGLE
     }
-    const attackerIsDude = ctx.attacker !== undefined && ctx.attacker === (globalState.player as unknown as Critter)
+    const attackerIsDude = ctx.attacker !== undefined && ctx.attacker === (world.player as unknown as Critter)
     if (attackerIsDude && ctx.attacker!.hasPerk?.('Pyromaniac') && damageType === DAMAGE_TYPE_INDEX.Fire) {
         normalThreshold = 1
         maximumBloodThreshold = 1
@@ -161,18 +184,21 @@ export function pickDeath(defender: Critter, ctx: DeathContext): number {
     }
 
     const violence = violenceLevel()
-    if (((defender.pro?.extra?.flags ?? 0) & 0x1000) !== 0) { // CRITTER_SPECIAL_DEATH
+    if (((defender.pro?.extra?.flags ?? 0) & 0x1000) !== 0) {
+        // CRITTER_SPECIAL_DEATH
         return checkDeath(defender, ANIM_EXPLODED_TO_NOTHING, VIOLENCE_LEVEL_NORMAL, ctx.hitFromFront)
     }
     const bloodyMess = attackerIsDude && ((ctx.attacker as any).traits ?? []).includes('Bloody Mess')
     const damage = ctx.damage
 
     let deathAnim = ANIM_FALL_BACK
-    if ((attackerAnim === ANIM_THROW_PUNCH && damageType === DAMAGE_TYPE_INDEX.Normal)
-        || attackerAnim === ANIM_KICK_LEG
-        || attackerAnim === ANIM_THRUST_ANIM
-        || attackerAnim === ANIM_SWING_ANIM
-        || (attackerAnim === ANIM_THROW_ANIM && damageType !== DAMAGE_TYPE_INDEX.Explosive)) {
+    if (
+        (attackerAnim === ANIM_THROW_PUNCH && damageType === DAMAGE_TYPE_INDEX.Normal) ||
+        attackerAnim === ANIM_KICK_LEG ||
+        attackerAnim === ANIM_THRUST_ANIM ||
+        attackerAnim === ANIM_SWING_ANIM ||
+        (attackerAnim === ANIM_THROW_ANIM && damageType !== DAMAGE_TYPE_INDEX.Explosive)
+    ) {
         if (violence === VIOLENCE_LEVEL_MAXIMUM_BLOOD && bloodyMess) deathAnim = ANIM_BIG_HOLE
     } else if (attackerAnim === ANIM_FIRE_SINGLE && damageType === DAMAGE_TYPE_INDEX.Normal) {
         if (violence === VIOLENCE_LEVEL_MAXIMUM_BLOOD && (bloodyMess || maximumBloodThreshold <= damage)) {
@@ -196,7 +222,7 @@ export function pickDeath(defender: Critter, ctx: DeathContext): number {
 function blockedAt(obj: Critter, dir: number, distance: number): boolean {
     let pos = obj.position
     for (let i = 0; i < distance; i++) pos = hexInDirection(pos, dir)
-    return (globalState.gMap?.objectsAtPosition(pos) ?? []).some((o: Obj) => o !== obj && o.blocks?.())
+    return (world.gMap?.objectsAtPosition(pos) ?? []).some((o: Obj) => o !== obj && o.blocks?.())
 }
 
 // actions.cc _pick_fall — fall the other way when a blocker is 1-2 hexes behind
@@ -204,9 +230,17 @@ function blockedAt(obj: Critter, dir: number, distance: number): boolean {
 export function pickFall(obj: Critter, anim: number): number {
     const rotation = obj.orientation ?? 0
     if (anim === ANIM_FALL_FRONT) {
-        for (let i = 1; i < 3; i++) if (blockedAt(obj, rotation, i)) { anim = ANIM_FALL_BACK; break }
+        for (let i = 1; i < 3; i++)
+            if (blockedAt(obj, rotation, i)) {
+                anim = ANIM_FALL_BACK
+                break
+            }
     } else if (anim === ANIM_FALL_BACK) {
-        for (let i = 1; i < 3; i++) if (blockedAt(obj, (rotation + 3) % 6, i)) { anim = ANIM_FALL_FRONT; break }
+        for (let i = 1; i < 3; i++)
+            if (blockedAt(obj, (rotation + 3) % 6, i)) {
+                anim = ANIM_FALL_FRONT
+                break
+            }
     }
     if (anim === ANIM_FALL_FRONT && !critterHasAnim(obj, ANIM_FALL_FRONT)) anim = ANIM_FALL_BACK
     return anim
@@ -216,7 +250,8 @@ export function pickFall(obj: Critter, anim: number): number {
 // null when there is none (violence NONE, no art, not a fall).
 export function bloodAnim(obj: Critter, anim: number): number | null {
     if (violenceLevel() === VIOLENCE_LEVEL_NONE) return null
-    const bloody = anim === ANIM_FALL_BACK ? ANIM_FALL_BACK_BLOOD : anim === ANIM_FALL_FRONT ? ANIM_FALL_FRONT_BLOOD : null
+    const bloody =
+        anim === ANIM_FALL_BACK ? ANIM_FALL_BACK_BLOOD : anim === ANIM_FALL_FRONT ? ANIM_FALL_FRONT_BLOOD : null
     return bloody !== null && critterHasAnim(obj, bloody) ? bloody : null
 }
 
@@ -225,13 +260,40 @@ export function bloodAnim(obj: Critter, anim: number): number | null {
 export function fixViolenceSettings(anim: number): number {
     let start: number, end: number
     switch (violenceLevel()) {
-        case VIOLENCE_LEVEL_NONE: start = ANIM_BIG_HOLE_SF; end = ANIM_FALL_FRONT_BLOOD_SF; break
-        case VIOLENCE_LEVEL_MINIMAL: start = ANIM_BIG_HOLE_SF; end = ANIM_FIRE_DANCE_SF; break
-        case VIOLENCE_LEVEL_NORMAL: start = ANIM_BIG_HOLE_SF; end = ANIM_SLICED_IN_HALF_SF; break
-        default: return anim
+        case VIOLENCE_LEVEL_NONE:
+            start = ANIM_BIG_HOLE_SF
+            end = ANIM_FALL_FRONT_BLOOD_SF
+            break
+        case VIOLENCE_LEVEL_MINIMAL:
+            start = ANIM_BIG_HOLE_SF
+            end = ANIM_FIRE_DANCE_SF
+            break
+        case VIOLENCE_LEVEL_NORMAL:
+            start = ANIM_BIG_HOLE_SF
+            end = ANIM_SLICED_IN_HALF_SF
+            break
+        default:
+            return anim
     }
     if (anim >= start && anim <= end) return anim === ANIM_FALL_BACK_BLOOD_SF ? ANIM_FALL_BACK_SF : ANIM_FALL_FRONT_SF
     return anim
+}
+
+// CE object.cc objectRead → _obj_fix_violence_settings: a corpse placed in the map file
+// with a gory single-frame death (its art's two-letter code) becomes a plain fall below the
+// violence level that shows it. Returns the art to use.
+export function fixCorpseArt(art: string): string {
+    const base = art.slice(0, -2)
+    const suffix = art.slice(-2)
+    for (let id = ANIM_BIG_HOLE_SF; id <= ANIM_FALL_FRONT_BLOOD_SF; id++) {
+        const code = artGetCode(id, 0)
+        if (!code || code[0] + code[1] !== suffix) continue
+        const fixed = fixViolenceSettings(id)
+        if (fixed === id) return art
+        const to = artGetCode(fixed, 0)
+        return to ? base + to[0] + to[1] : art
+    }
+    return art
 }
 
 // critter.cc critterKill — the single-frame corpse a kill without animation shows:
@@ -242,7 +304,10 @@ export function corpseFrame(obj: Critter, deathFrame: number | undefined, fallAn
     if (fallAnim === ANIM_FALL_FRONT) {
         return critterHasAnim(obj, ANIM_FALL_FRONT_SF) ? ANIM_FALL_FRONT_SF : ANIM_FALL_BACK_SF
     }
-    let anim = deathFrame === undefined || deathFrame < 0 ? ANIM_FALL_FRONT_BLOOD_SF : Math.min(deathFrame, ANIM_FALL_FRONT_BLOOD_SF)
+    let anim =
+        deathFrame === undefined || deathFrame < 0
+            ? ANIM_FALL_FRONT_BLOOD_SF
+            : Math.min(deathFrame, ANIM_FALL_FRONT_BLOOD_SF)
     anim = fixViolenceSettings(anim)
     if (!critterHasAnim(obj, anim)) anim = fixViolenceSettings(ANIM_FALL_BACK_BLOOD_SF)
     return anim
@@ -260,4 +325,3 @@ export function correctDeath(obj: Critter, anim: number): number {
 export function isDeathFall(anim: number): boolean {
     return anim === ANIM_FALL_BACK || anim === ANIM_FALL_FRONT
 }
-

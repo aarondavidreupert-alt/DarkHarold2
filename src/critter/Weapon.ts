@@ -19,16 +19,11 @@ limitations under the License.
 // Split out of critter.ts. See wiki/ts-split-refactor.md → §13.
 
 import { ammoGetCapacity, ammoGetQuantity } from '../weaponAmmo.js'
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
 import { dbgWarn } from '../logger.js'
 import type { Critter } from '../object/Critter.js'
 import type { WeaponObj } from '../object/items.js'
 import type { Obj } from '../object/Obj.js'
-
-const weaponSkins: { [weapon: string]: string } = {
-    uzi: 'i',
-    rifle: 'j',
-}
 
 const weaponAnims: { [weapon: string]: { [anim: string]: string } } = {
     punch: { idle: 'aa', attack: 'aq' },
@@ -92,8 +87,8 @@ const attackModeToBaseSkill: { [mode: number]: string } = {
     8: 'Small Guns',
 }
 
-// FO2-CE ref: item.cc — Big Gun animCodes: 8 (Big Gun), 9 (Minigun), 10 (Rocket Launcher)
-const BIG_GUN_ANIM_CODES = new Set([8, 9, 10])
+// CE proto_types.h ItemProtoExtendedFlags_BigGun (0x0100: the proto JSON's weaponFlags byte, bit 0)
+const BIG_GUN_FLAG = 0x01
 
 // FO2-CE ref: item.cc — Energy damage types: Laser, Plasma, Electrical
 const ENERGY_DAMAGE_TYPES = new Set(['Laser', 'Plasma', 'Electrical'])
@@ -114,8 +109,8 @@ function getWeaponSkillFromPro(weapon: WeaponObj, slot: 1 | 2 = 1): string {
         if (dmgType && ENERGY_DAMAGE_TYPES.has(dmgType)) {
             skill = 'Energy Weapons'
         } else {
-            const animCode = weapon.pro.extra.animCode ?? 0
-            if (BIG_GUN_ANIM_CODES.has(animCode)) {
+            // (the flag, not the anim code: the Flame Breath, pid 427, has the big-gun anim but not the flag)
+            if ((weapon.pro.extra.weaponFlags ?? 0) & BIG_GUN_FLAG) {
                 skill = 'Big Guns'
             }
         }
@@ -143,27 +138,30 @@ interface AttackInfo {
 }
 
 function parseAttack(weapon: WeaponObj): { first: AttackInfo; second: AttackInfo } {
-    var attackModes = weapon.pro.extra['attackMode']
-    var modeOne = attackMode[attackModes & 0xf] as number
-    var modeTwo = attackMode[(attackModes >> 4) & 0xf] as number
-    var attackOne: AttackInfo = { mode: modeOne, APCost: 0, maxRange: 0 }
-    var attackTwo: AttackInfo = { mode: modeTwo, APCost: 0, maxRange: 0 }
+    const attackModes = weapon.pro!.extra['attackMode']
+    const modeOne = attackMode[attackModes & 0xf] as number
+    const modeTwo = attackMode[(attackModes >> 4) & 0xf] as number
+    const attackOne: AttackInfo = { mode: modeOne, APCost: 0, maxRange: 0 }
+    const attackTwo: AttackInfo = { mode: modeTwo, APCost: 0, maxRange: 0 }
 
     if (modeOne !== attackMode.none) {
-        attackOne.APCost = weapon.pro.extra.APCost1
-        attackOne.maxRange = weapon.pro.extra.maxRange1
+        attackOne.APCost = weapon.pro!.extra.APCost1
+        attackOne.maxRange = weapon.pro!.extra.maxRange1
     }
 
     if (modeTwo !== attackMode.none) {
-        attackTwo.APCost = weapon.pro.extra.APCost2
-        attackTwo.maxRange = weapon.pro.extra.maxRange2
+        attackTwo.APCost = weapon.pro!.extra.APCost2
+        attackTwo.maxRange = weapon.pro!.extra.maxRange2
     }
 
     return { first: attackOne, second: attackTwo }
 }
 
 // Unarmed "weapon": no item, just the proto-shaped fields the AP/range code reads.
-export interface UnarmedWeaponStub { pro: { extra: { [key: string]: any } }; pid?: undefined }
+export interface UnarmedWeaponStub {
+    pro: { extra: { [key: string]: any } }
+    pid?: undefined
+}
 
 // TODO: improve handling of melee
 export class Weapon {
@@ -200,12 +198,12 @@ export class Weapon {
         } else {
             // todo: spears, etc
             this.type = 'gun'
-            this.minDmg = weapon.pro.extra.minDmg
-            this.maxDmg = weapon.pro.extra.maxDmg
-            var s = weapon.art.split('/')
+            this.minDmg = weapon.pro!.extra.minDmg
+            this.maxDmg = weapon.pro!.extra.maxDmg
+            const s = weapon.art.split('/')
             this.name = s[s.length - 1]
 
-            var attacks = parseAttack(weapon)
+            const attacks = parseAttack(weapon)
             this.attackOne = attacks.first
             this.attackTwo = attacks.second
 
@@ -227,7 +225,7 @@ export class Weapon {
             // throw, a knife's thrust).
             this.modes = ['single']
             if (this.canAim(1)) this.modes.push('called')
-            const second = (weapon.pro.extra.attackMode >> 4) & 0xf
+            const second = (weapon.pro!.extra.attackMode >> 4) & 0xf
             if (second === 7 || second === 8) {
                 this.modes.push('burst')
             } else if (second !== 0) {
@@ -247,15 +245,16 @@ export class Weapon {
         const maxAmmo = ammoGetCapacity(item)
         const canReload = maxAmmo > 0 && ammoGetQuantity(item) < maxAmmo
         // CE item.cc critterCanAim: the player's Fast Shot trait forbids aimed attacks.
-        const player = globalState.player as any
-        const fastShot = !!player && (player.traits ?? []).includes('Fast Shot')
-            && (player.leftHand === item || player.rightHand === item)
+        const player = world.player
+        const fastShot =
+            !!player &&
+            (player.traits ?? []).includes('Fast Shot') &&
+            (player.leftHand === item || player.rightHand === item)
         const modes = fastShot ? this.modes.filter((m) => m !== 'called' && m !== 'secondaryCalled') : this.modes
         const effectiveModes = canReload ? [...modes, 'reload'] : modes
 
         const idx = effectiveModes.indexOf(this.mode)
         this.mode = effectiveModes[(idx + 1) % effectiveModes.length]
-
     }
 
     isCalled(): boolean {
@@ -274,13 +273,13 @@ export class Weapon {
 
     /** The proto attack mode (0 none … 8 flame) of a slot (default: the current one). */
     attackModeOf(slot?: 1 | 2): number {
-        const modes = (this.weapon as any).pro?.extra?.attackMode ?? 0
+        const modes = this.weapon.pro?.extra?.attackMode ?? 0
         return (slot ?? this.slot()) === 2 ? (modes >> 4) & 0xf : modes & 0xf
     }
 
     /** CE weaponGetSkillForHitMode for the current action's attack. */
     skillForMode(): string {
-        if ((this.weapon as any).pid === undefined) return this.weaponSkillType
+        if (this.weapon.pid === undefined) return this.weaponSkillType
         const slot = this.slot()
         if (slot === 1) return this.weaponSkillType
         return getWeaponSkillFromPro(this.weapon as WeaponObj, 2)
@@ -292,7 +291,7 @@ export class Weapon {
     private canAim(slot: 1 | 2): boolean {
         const mode = this.attackModeOf(slot)
         if (mode === 7 || mode === 8) return false
-        const dmg = damageType[(this.weapon as any).pro?.extra?.dmgType ?? 0]
+        const dmg = damageType[this.weapon.pro?.extra?.dmgType ?? 0]
         if (dmg === 'Explosive' || dmg === 'Fire' || dmg === 'EMP') return false
         return !(dmg === 'Plasma' && mode === 5)
     }
@@ -312,22 +311,22 @@ export class Weapon {
 
     getProjectilePID(): number {
         if (this.type === 'melee') return -1
-        return this.weapon.pro.extra.projPID
+        return this.weapon.pro!.extra.projPID
     }
 
     // TODO: enum
     // When called without an argument, derives the slot from the current mode.
     getMaximumRange(attackType?: number): number {
         const slot = attackType ?? this.slot()
-        if (slot === 1) return this.weapon.pro.extra.maxRange1
-        if (slot === 2) return this.weapon.pro.extra.maxRange2
-        throw 'invalid attack type ' + slot
+        if (slot === 1) return this.weapon.pro!.extra.maxRange1
+        if (slot === 2) return this.weapon.pro!.extra.maxRange2
+        throw new Error('invalid attack type ' + slot)
     }
 
     // When called without an argument, derives the slot from the current mode.
     getAPCost(attackSlot?: number): number {
         const slot = attackSlot ?? this.slot()
-        return this.weapon.pro.extra['APCost' + slot]
+        return this.weapon.pro!.extra['APCost' + slot]
     }
 
     // CE item.cc weaponGetActionPointCost for an attack by `critter`: the slot's AP cost;
@@ -337,11 +336,14 @@ export class Weapon {
         const s = slot ?? this.slot()
         let ap = this.getAPCost(s)
         if (critter.isPlayer) {
-            const traits: string[] = (critter as any).traits ?? []
-            const isItem = (this.weapon as any).pid !== undefined
-            const modes = isItem ? ((this.weapon as any).pro?.extra?.attackMode ?? 0) : 0
+            const traits: string[] = critter.traits ?? []
+            const isItem = this.weapon.pid !== undefined
+            const modes = isItem ? (this.weapon.pro?.extra?.attackMode ?? 0) : 0
             const mode = s === 2 ? (modes >> 4) & 0xf : modes & 0xf
-            const attackType = !isItem ? 'unarmed' : (['none', 'unarmed', 'unarmed', 'melee', 'melee', 'throw', 'ranged', 'ranged', 'ranged'][mode] ?? 'none')
+            const attackType = !isItem
+                ? 'unarmed'
+                : (['none', 'unarmed', 'unarmed', 'melee', 'melee', 'throw', 'ranged', 'ranged', 'ranged'][mode] ??
+                  'none')
             if (isItem && traits.includes('Fast Shot') && this.getMaximumRange(s) > 2) ap -= 1
             if ((attackType === 'melee' || attackType === 'unarmed') && critter.hasPerk('Bonus HtH Attacks')) ap -= 1
             if (attackType === 'ranged' && critter.hasPerk('Bonus Rate of Fire')) ap -= 1
@@ -360,7 +362,7 @@ export class Weapon {
     }
 
     getSkin(): string | null {
-        if (this.weapon.pro === undefined || this.weapon.pro.extra === undefined) return null
+        if (this.weapon.pro === undefined || this.weapon.pro!.extra === undefined) return null
         const animCodeMap: { [animCode: number]: string } = {
             0: 'a', // None
             1: 'd', // Knife
@@ -374,11 +376,11 @@ export class Weapon {
             9: 'l', // Minigun
             10: 'm',
         } // Rocket Launcher
-        return animCodeMap[this.weapon.pro.extra.animCode]
+        return animCodeMap[this.weapon.pro!.extra.animCode]
     }
 
     getAttackSkin(): string | null {
-        if (this.weapon.pro === undefined || this.weapon.pro.extra === undefined) return null
+        if (this.weapon.pro === undefined || this.weapon.pro!.extra === undefined) return null
 
         const modeSkinMap: { [mode: string]: string } = {
             punch: 'q',
@@ -404,32 +406,32 @@ export class Weapon {
     getAnim(anim: string): string | null {
         if (weaponAnims[this.name] && weaponAnims[this.name][anim]) return weaponAnims[this.name][anim]
 
-        var wep = this.getSkin() || 'a'
+        const wep = this.getSkin() || 'a'
         switch (anim) {
             case 'idle':
                 return wep + 'a'
             case 'walk':
                 return wep + 'b'
             case 'attack':
-                var attackSkin = this.getAttackSkin()
+                let attackSkin = this.getAttackSkin()
                 // CE art.cc (ANIM_THROW_ANIM): knife throw 'dm', spear throw 'gm', any other
                 // throw (rock, grenade, spike) the unarmed 'as'
                 if (attackSkin === 's') return wep === 'd' ? 'dm' : wep === 'g' ? 'gm' : 'as'
                 return wep + attackSkin
             case 'fidget':
-                return wep + 'a'  // idle IS the fidget/reload animation (Xa)
+                return wep + 'a' // idle IS the fidget/reload animation (Xa)
             case 'run':
-                return wep + 't'  // CE ref: art.cc buildFid — Xt = run-while-armed
+                return wep + 't' // CE ref: art.cc buildFid — Xt = run-while-armed
             case 'shoot': {
                 const attackSkin = this.getAttackSkin()
-                return wep + (attackSkin ?? 'j')  // CE ref: art.cc — Xj = fire-single default
+                return wep + (attackSkin ?? 'j') // CE ref: art.cc — Xj = fire-single default
             }
             case 'weapon-reload':
-                return wep + 'a'  // CE ref: art.cc — reload reuses idle FRM (Xa)
+                return wep + 'a' // CE ref: art.cc — reload reuses idle FRM (Xa)
             case 'weapon-draw':
-                return wep + 'c'  // Xc = pull out weapon, played forward
+                return wep + 'c' // Xc = pull out weapon, played forward
             case 'weapon-holster':
-                return wep + 'd'  // Xd = put away weapon, played forward
+                return wep + 'd' // Xd = put away weapon, played forward
             default:
                 return null // let something else handle it
         }
@@ -444,7 +446,7 @@ export class Weapon {
     getDamageType(): string {
         // Return the (string) damage type of the weapon, e.g. "Normal", "Laser", ...
         // Defaults to "Normal" if the weapon's PRO does not provide one.
-        const rawDmgType = this.weapon.pro.extra.dmgType
+        const rawDmgType = this.weapon.pro!.extra.dmgType
         return rawDmgType !== undefined ? (damageType[rawDmgType] as string) : 'Normal'
     }
 }

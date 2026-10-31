@@ -14,46 +14,27 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { makePanelDraggable } from './ui_drag.js'
-import { beginUseItemOn, itemCanUseOn } from './useItemOn.js'
+import { makePanelDraggable } from './uiDrag.js'
+import { beginUseItemOn, cancelUseItemOn, itemCanUseOn } from './useItemOn.js'
 import { ammoGetCapacity, ammoGetQuantity, weaponAttemptReload } from './weaponAmmo.js'
 import { Combat } from './combat.js'
-import globalState from './globalState.js'
+import { world } from './state/world.js'
+import { uiState } from './state/uiState.js'
+import { services } from './state/services.js'
 import { dbg } from './logger.js'
 import { Obj, objectIsWeapon } from './object.js'
 import { Config } from './config.js'
-import { openAutomap, closeAutomap, isAutomapOpen } from './ui_automap.js'
-import { openPipBoy, closePipBoy, isPipBoyOpen } from './ui_pipboy.js'
+import { openAutomap, closeAutomap, isAutomapOpen } from './uiAutomap.js'
+import { openPipBoy, closePipBoy, isPipBoyOpen } from './uiPipBoy.js'
 import { cycleUnarmedAction } from './unarmed.js'
-import { initOptionsMenu, getOptionsWindow, showOptionsMenu, closeOptionsMenu } from './ui_options.js'
-import { initSkilldex, getSkilldexWindow, showSkilldex, closeSkilldex } from './ui_skilldex.js'
+import { initOptionsMenu, getOptionsWindow, showOptionsMenu, closeOptionsMenu } from './uiOptions.js'
+import { initSkilldex, getSkilldexWindow, showSkilldex, closeSkilldex } from './uiSkilldex.js'
+import { initInventory } from './uiInventory.js'
+import { showCharacterScreen, closeCharacterScreen, getCharacterWindow } from './uiCharacter.js'
+import { initLoot } from './uiLoot.js'
+import { initCalledShot } from './uiCalledShot.js'
+import { drawHP, drawAC, drawAP, uiDrawWeapon, uiEndCombatAnimationDone, attackButtonDisabled } from './uiHud.js'
 import {
-    initInventory,
-    showInventory,
-    makeDropTarget,
-    makeDraggable,
-} from './ui_inventory.js'
-import { showCharacterScreen, closeCharacterScreen, getCharacterWindow } from './ui_character.js'
-import { uiBarterMode } from './ui_barter.js'
-import { initLoot, uiLoot } from './ui_loot.js'
-import { uiWorldMap, uiCloseWorldMap, uiWorldMapShowArea } from './ui_worldmap.js'
-import { uiElevator } from './ui_elevator.js'
-import { initCalledShot, uiCalledShot, uiCloseCalledShot } from './ui_calledshot.js'
-import { uiContextMenu, uiHideContextMenu } from './ui_contextmenu.js'
-import {
-    drawHP,
-    drawAC,
-    drawAP,
-    drawDigits,
-    uiLog,
-    uiDrawWeapon,
-    uiEndCombatAnimationDone,
-    initLogScrollZones,
-    attackButtonDisabled,
-} from './ui_hud.js'
-import {
-    UIMode,
-    initUiContainer,
     closeAllPanels,
     isCharacterOpen,
     isSkilldexOpen,
@@ -61,16 +42,17 @@ import {
     registerCharacterWindow,
     registerSkilldexWindow,
     registerOptionsWindow,
-} from './ui_panels.js'
+} from './uiPanels.js'
+import { initUiContainer } from './uiContainer.js'
 
 // --- Re-exports for external callers (keep `from './ui.js'` import sites
 // working after individual panels were extracted into ui_*.ts modules) -----
-export { Widget } from './ui_widget.js'
-export type { CSSBoundingBox } from './ui_widget.js'
-export { WindowFrame, SmallButton, Label, List } from './ui_components.js'
-export { uiSaveLoad } from './ui_saveload.js'
-export { showMainMenu, hideMainMenu, isMainMenuVisible, initMainMenu } from './ui_mainmenu.js'
-export { initCharacterCreator } from './ui_charactercreator.js'
+export { Widget } from './uiWidget.js'
+export type { CSSBoundingBox } from './uiWidget.js'
+export { WindowFrame, SmallButton, Label, List } from './uiComponents.js'
+export { uiSaveLoad } from './uiSaveLoad.js'
+export { showMainMenu, hideMainMenu, isMainMenuVisible, initMainMenu } from './uiMainMenu.js'
+export { initCharacterCreator } from './uiCharacterCreator.js'
 export {
     drawHP,
     drawAC,
@@ -86,24 +68,17 @@ export {
     uiShowCombatHover,
     uiHideCombatHover,
     initLogScrollZones,
-} from './ui_hud.js'
-export {
-    UIMode,
-    closeAllPanels,
-    isInventoryOpen,
-    isCharacterOpen,
-    isSkilldexOpen,
-    isOptionsOpen,
-} from './ui_panels.js'
-export { showInventory as uiInventoryScreen } from './ui_inventory.js'
-export { showCharacterScreen, closeCharacterScreen, getCharacterWindow } from './ui_character.js'
-export { uiStartDialogue, uiEndDialogue, uiSetDialogueReply, uiAddDialogueOption } from './ui_dialogue.js'
-export { uiBarterMode } from './ui_barter.js'
-export { uiLoot } from './ui_loot.js'
-export { uiWorldMap, uiCloseWorldMap, uiWorldMapShowArea } from './ui_worldmap.js'
-export { uiElevator } from './ui_elevator.js'
-export { uiCalledShot, uiCloseCalledShot } from './ui_calledshot.js'
-export { uiContextMenu, uiHideContextMenu } from './ui_contextmenu.js'
+} from './uiHud.js'
+export { UIMode, closeAllPanels, isInventoryOpen, isCharacterOpen, isSkilldexOpen, isOptionsOpen } from './uiPanels.js'
+export { showInventory as uiInventoryScreen } from './uiInventory.js'
+export { showCharacterScreen, closeCharacterScreen, getCharacterWindow } from './uiCharacter.js'
+export { uiStartDialogue, uiEndDialogue, uiSetDialogueReply, uiAddDialogueOption } from './uiDialogue.js'
+export { uiBarterMode } from './uiBarter.js'
+export { uiLoot } from './uiLoot.js'
+export { uiWorldMap, uiCloseWorldMap, uiWorldMapShowArea } from './uiWorldmap.js'
+export { uiElevator } from './uiElevator.js'
+export { uiCalledShot, uiCloseCalledShot } from './uiCalledShot.js'
+export { uiContextMenu, uiHideContextMenu } from './uiContextMenu.js'
 
 // UI system
 
@@ -134,8 +109,8 @@ function uiInit() {
     initCalledShot()
 
     // DH2: the remaining windows can be dragged too (fallout2.cfg [dh2] drag_*)
-    makePanelDraggable($id('lootBox'), 'loot')                // loot, steal
-    makePanelDraggable($id('dialogueContainer'), 'dialogue')  // dialogue, barter, companion screens
+    makePanelDraggable($id('lootBox'), 'loot') // loot, steal
+    makePanelDraggable($id('dialogueContainer'), 'dialogue') // dialogue, barter, companion screens
     makePanelDraggable($id('elevatorBox'), 'elevator')
     makePanelDraggable($id('calledShotBox'), 'calledShot')
     makePanelDraggable($id('moveMultBox'), 'moveItems')
@@ -144,58 +119,88 @@ function uiInit() {
     if (chrBtn) {
         chrBtn.onclick = () => {
             // Toggle: pressing while open closes it.
-            if (isCharacterOpen()) { closeCharacterScreen(); return }
+            if (isCharacterOpen()) {
+                closeCharacterScreen()
+                return
+            }
             closeAllPanels()
             showCharacterScreen()
         }
     }
 
+    // CE interface.cc interfaceInit: the bar's buttons sound _gsound_med_butt_press /
+    // _release (ib2p1xx1 / ib2lu1x1), the item button the large pair (ib3…); the
+    // inventory button is wired in uiInventory/panel.ts
+    const barSounds = (id: string, press: string, release: string) => {
+        const el = document.getElementById(id)
+        if (!el) return
+        el.addEventListener('mousedown', (e) => {
+            if (e.button === 0) services.audioEngine?.playSfxByName?.(press)
+        })
+        el.addEventListener('mouseup', (e) => {
+            if (e.button === 0) services.audioEngine?.playSfxByName?.(release)
+        })
+    }
+    for (const id of ['optionsButton', 'skilldexButton', 'mapButton', 'pipBoyButton', 'chrButton', 'handSwapButton']) {
+        barSounds(id, 'ib2p1xx1', 'ib2lu1x1')
+    }
+    barSounds('attackButtonContainer', 'ib3p1xx1', 'ib3lu1x1')
+
     document.getElementById('pipBoyButton')!.onclick = () => {
-        if (isPipBoyOpen()) { closePipBoy(); return }
+        if (isPipBoyOpen()) {
+            closePipBoy()
+            return
+        }
         closeAllPanels()
         openPipBoy()
     }
 
     document.getElementById('mapButton')!.onclick = () => {
-        if (isAutomapOpen()) { closeAutomap(); return }
+        if (isAutomapOpen()) {
+            closeAutomap()
+            return
+        }
         closeAllPanels()
         openAutomap()
     }
 }
 
-// Panel mutual-exclusion helpers have been moved to ui_panels.ts and are
+// Panel mutual-exclusion helpers have been moved to uiPanels.ts and are
 // re-exported above. closeInventoryPanel/uiInventoryScreen now live in
-// ui_inventory.ts; ui_inventory wires its own registerCloseInventoryPanel()
+// uiInventory.ts; uiInventory wires its own registerCloseInventoryPanel()
 // during initInventory().
 //
-// initSkilldex() has moved to ui_skilldex.ts.
-// initOptionsMenu() has moved to ui_options.ts.
-// initCharacterScreen() has moved to ui_character.ts as showCharacterScreen().
+// initSkilldex() has moved to uiSkilldex.ts.
+// initOptionsMenu() has moved to uiOptions.ts.
+// initCharacterScreen() has moved to uiCharacter.ts as showCharacterScreen().
 
-import { $id, $img, $q, $qa, clearEl, show, hide, showv, hidev, off, appendHTML, makeEl } from './ui_dom.js'
-// Preserve the existing public surface (worldmap.ts and ui_options.ts read
+import { $id } from './uiDom.js'
+// Preserve the existing public surface (worldmap.ts and uiOptions.ts read
 // these via `from './ui.js'`).
-export { showv, hidev, makeEl } from './ui_dom.js'
+export { showv, hidev, makeEl } from './uiDom.js'
 
 // CE interface.cc interfaceBarSwapHands — the B key and the change-hand button.
 export function swapHands(): void {
-    const p = globalState.player as any
-    const player = globalState.player
+    const p = world.player as any
+    const player = world.player
     const nextHand: 'leftHand' | 'rightHand' = p.activeHand === 'leftHand' ? 'rightHand' : 'leftHand'
-    player.playWeaponSwapAnim(() => {
+    player!.playWeaponSwapAnim(() => {
         p.activeHand = nextHand
         uiDrawWeapon()
     })
+    // CE: the crosshair and the use-item crosshair go back to the move cursor
+    if (uiState.cursorMode === 'useItem') cancelUseItemOn()
+    if (uiState.cursorMode === 'attack' || uiState.cursorMode === 'useItem') uiState.cursorMode = 'move'
 }
 
 // CE interface.cc interfaceCycleItemAction — the N key and a right-click on the item
 // button: a weapon's modes, or the unarmed hand's punch / kick moves.
 export function cycleActiveItemAction(): void {
-    const wep = globalState.player.equippedWeapon
+    const wep = world.player!.equippedWeapon
     if (!wep || !wep.weapon) {
-        const player = globalState.player!
-        const activeHand: 'leftHand' | 'rightHand' = (player as any).activeHand ?? 'leftHand'
-        const activeItem = (player as any)[activeHand] as Obj | undefined
+        const player = world.player!
+        const activeHand: 'leftHand' | 'rightHand' = player.activeHand ?? 'leftHand'
+        const activeItem = player[activeHand] as Obj | undefined
         if (activeItem && !objectIsWeapon(activeItem)) return // non-weapon: one action
         cycleUnarmedAction(player)
         uiDrawWeapon()
@@ -208,30 +213,18 @@ export function cycleActiveItemAction(): void {
 export function initUI() {
     uiInit()
 
-    // calledShot digit divs + cancel button live in ui_calledshot.ts → initCalledShot()
-
-    /*
-    $id("worldmapViewButton").onclick = () => {
-        var onAreaMap = ($("#areamap").css("visibility") === "visible")
-        if(onAreaMap)
-            uiWorldMapWorldView()
-        else {
-            var currentArea = areaContainingMap(gMap.name)
-            if(currentArea)
-                uiWorldMapShowArea(currentArea)
-            else
-                uiWorldMapAreaView()
-        }
-    }
-    */
+    // calledShot digit divs + cancel button live in uiCalledShot.ts → initCalledShot()
 
     $id('optionsButton').onclick = () => {
-        if (isOptionsOpen()) { closeOptionsMenu(); return }
+        if (isOptionsOpen()) {
+            closeOptionsMenu()
+            return
+        }
         closeAllPanels()
         showOptionsMenu()
     }
 
-    // lootBoxDoneButton wiring lives in ui_loot.ts → initLoot()
+    // lootBoxDoneButton wiring lives in uiLoot.ts → initLoot()
 
     $id('handSwapButton').onclick = () => swapHands()
 
@@ -240,7 +233,7 @@ export function initUI() {
     function reloadWeapon(weaponObj: Obj): boolean {
         const maxAmmo = ammoGetCapacity(weaponObj)
         if (maxAmmo <= 0 || ammoGetQuantity(weaponObj) >= maxAmmo) return false
-        const inv = globalState.player.inventory
+        const inv = world.player!.inventory
         let loaded = false
         while (weaponAttemptReload(weaponObj, inv) !== -1) loaded = true
         return loaded
@@ -249,28 +242,32 @@ export function initUI() {
     $id('attackButtonContainer').onclick = () => {
         if (attackButtonDisabled()) return // CE buttonDisable(gSingleAttackButton)
         // Reload mode: immediately reload from inventory (AP cost in combat)
-        const wep = globalState.player.equippedWeapon
+        const wep = world.player!.equippedWeapon
         if (wep?.weapon?.mode === 'reload') {
-            if (globalState.inCombat && globalState.player.AP) {
-                const reloadAP = wep.weapon.getReloadAPCost() // CE ref: item.cc:1640
-                if (globalState.player.AP.getAvailableCombatAP() < reloadAP) {
-                    uiLog("You don't have enough action points.")
-                    return
+            // CE interface.cc _intface_use_item (RELOAD): in combat nothing happens without the
+            // AP; the AP go only when something loaded. _intface_item_reload plays the weapon's
+            // ready sound.
+            const ap = world.inCombat ? world.player!.AP : null
+            const reloadAP = wep.weapon.getReloadAPCost() // CE ref: item.cc:1640
+            if (ap && ap.getAvailableCombatAP() < reloadAP) return
+            if (reloadWeapon(wep)) {
+                const soundID = wep.pro?.extra?.soundID
+                if (typeof soundID === 'number')
+                    services.audioEngine?.playWeaponSfx(String.fromCharCode(soundID), 'reload')
+                if (ap) {
+                    ap.subtractCombatAP(reloadAP)
+                    drawAP(ap.getAvailableCombatAP(), ap.getTotalMaxAP(), ap.move)
                 }
-                globalState.player.AP.subtractCombatAP(reloadAP)
-                const ap = globalState.player.AP
-                drawAP(ap.getAvailableCombatAP(), ap.getTotalMaxAP(), ap.move)
             }
-            reloadWeapon(wep)
             wep.weapon.mode = 'single'
             uiDrawWeapon()
             return
         }
 
         if (!wep || !wep.weapon) {
-            const player = globalState.player!
-            const activeHand: 'leftHand' | 'rightHand' = (player as any).activeHand ?? 'leftHand'
-            const activeItem = (player as any)[activeHand] as Obj | undefined
+            const player = world.player!
+            const activeHand: 'leftHand' | 'rightHand' = player.activeHand ?? 'leftHand'
+            const activeItem = player[activeHand] as Obj | undefined
 
             // CE ref: interface.cc:1073-1078,1122-1127 — clicking a non-weapon
             // item's HUD slot fires INTERFACE_ITEM_ACTION_USE (the item's own
@@ -297,9 +294,9 @@ export function initUI() {
         if (!Config.engine.doCombat) {
             return
         }
-        if (!globalState.inCombat) Combat.start()
-        globalState.cursorMode = 'attack'
-        globalState.combat?.refreshHighlights()
+        if (!world.inCombat) Combat.start()
+        uiState.cursorMode = 'attack'
+        world.combat?.refreshHighlights()
     }
 
     $id('attackButtonContainer').oncontextmenu = () => {
@@ -308,20 +305,20 @@ export function initUI() {
     }
 
     $id('endTurnButton').onclick = () => {
-        if (globalState.inCombat && globalState.combat!.inPlayerTurn) {
-            if (globalState.player.anim !== null && globalState.player.anim !== 'idle') {
+        if (world.inCombat && world.combat!.inPlayerTurn) {
+            if (world.player!.anim !== null && world.player!.anim !== 'idle') {
                 dbg('combat', "[Combat] can't end turn while player is in an animation")
                 return
             }
             dbg('combat', '[Combat] player turn ended')
-            globalState.combat!.nextTurn()
+            world.combat!.nextTurn()
         }
     }
 
     $id('endCombatButton').onclick = () => {
         // CE combat.cc combatAttemptEnd
-        if (globalState.inCombat) {
-            globalState.combat!.attemptEnd()
+        if (world.inCombat) {
+            world.combat!.attemptEnd()
         }
     }
 
@@ -331,7 +328,10 @@ export function initUI() {
     $id('skilldexButton').onclick = () => {
         // Toggle: pressing while open closes it; otherwise close any other
         // open panel first and open skilldex.
-        if (isSkilldexOpen()) { closeSkilldex(); return }
+        if (isSkilldexOpen()) {
+            closeSkilldex()
+            return
+        }
         closeAllPanels()
         showSkilldex()
     }
@@ -344,7 +344,7 @@ export function initUI() {
         }
     }
 
-    // inventoryBoxList scroll wiring lives in ui_inventory.ts → initInventory()
+    // inventoryBoxList scroll wiring lives in uiInventory.ts → initInventory()
 
     makeScrollable($id('barterBoxInventoryLeft'))
     makeScrollable($id('barterBoxInventoryRight'))
@@ -356,42 +356,42 @@ export function initUI() {
     makeScrollable($id('displayLog'))
     makeScrollable($id('dialogueBoxReply'), 30)
 
-    drawHP(globalState.player.getStat('HP'))
-    drawAC(globalState.player.getStat('AC'))
+    drawHP(world.player!.getStat('HP'))
+    drawAC(world.player!.getStat('AC'))
     uiDrawWeapon()
 }
 
 // Right-click context menu (uiContextMenu / uiHideContextMenu) has moved to
-// ui_contextmenu.ts.
+// uiContextMenu.ts.
 //
-// HUD bar (HP/AC/AP/weapon/combat-buttons/hover/log) has moved to ui_hud.ts
+// HUD bar (HP/AC/AP/weapon/combat-buttons/hover/log) has moved to uiHud.ts
 // and is re-exported from ui.ts above.
 
 // Inventory panel (uiInventoryScreen, uiMoveSlot, applyArmorArt,
 // makeDropTarget, makeDraggable, tryLoadAmmoIntoWeapon) has moved to
-// ui_inventory.ts; ui_barter and ui_loot pull the dnd helpers from there.
+// uiInventory.ts; uiBarter and uiLoot pull the dnd helpers from there.
 
-// drawHP / drawAC / drawAP / drawDigits have moved to ui_hud.ts.
+// drawHP / drawAC / drawAP / drawDigits have moved to uiHud.ts.
 
 // Dialogue panel (uiStartDialogue / uiEndDialogue / uiSetDialogueReply /
 // uiAddDialogueOption) and the uiAnimateBox slide-up helper have moved to
-// ui_dialogue.ts; ui_barter pulls the slide-up animation from there.
+// uiDialogue.ts; uiBarter pulls the slide-up animation from there.
 //
-// Barter screen (uiBarterMode + uiEndBarterMode) has moved to ui_barter.ts,
+// Barter screen (uiBarterMode + uiEndBarterMode) has moved to uiBarter.ts,
 // along with the cross-list move helpers uiGetAmount / uiSwapItem.
 //
-// Loot screen (uiLoot + uiEndLoot) has moved to ui_loot.ts; ui_loot wires
+// Loot screen (uiLoot + uiEndLoot) has moved to uiLoot.ts; uiLoot wires
 // its own lootBoxDoneButton handler from initLoot().
 
-// uiLog has moved to ui_hud.ts.
+// uiLog has moved to uiHud.ts.
 //
 // World map (uiCloseWorldMap, uiWorldMap, uiWorldMapShowArea, internal
-// area/world view + label-list helpers) has moved to ui_worldmap.ts.
+// area/world view + label-list helpers) has moved to uiWorldmap.ts.
 //
-// Elevator (uiElevator + internal uiElevatorDone) has moved to ui_elevator.ts.
+// Elevator (uiElevator + internal uiElevatorDone) has moved to uiElevator.ts.
 //
 // Called-shot screen (uiCalledShot + uiCloseCalledShot) has moved to
-// ui_calledshot.ts; the static digit-divs and cancel button live in
+// uiCalledShot.ts; the static digit-divs and cancel button live in
 // initCalledShot() called from uiInit.
 
-// uiSaveLoad has moved to ui_saveload.ts — re-exported below.
+// uiSaveLoad has moved to uiSaveLoad.ts — re-exported below.

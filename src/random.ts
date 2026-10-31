@@ -91,9 +91,10 @@ function validatePrerandom(): void {
     const results = new Array<number>(25).fill(0)
     for (let i = 0; i < 100000; i++) results[randomBetween(1, 25) - 1]++
     let chi = 0
-    for (const r of results) chi += (r - 4000) * (r - 4000) / 4000
+    for (const r of results) chi += ((r - 4000) * (r - 4000)) / 4000
     if (chi < 36.42) dbg('script', `[Random] Chi squared is ${chi.toFixed(3)}: sequence is random, 95% confidence.`)
-    else dbgWarn('script', `[Random] Chi squared is ${chi.toFixed(3)}: warning! sequence is not random, 95% confidence.`)
+    else
+        dbgWarn('script', `[Random] Chi squared is ${chi.toFixed(3)}: warning! sequence is not random, 95% confidence.`)
 }
 
 /** CE random.cc:31 randomInit — `timeMs` stands in for compat_timeGetTime(). */

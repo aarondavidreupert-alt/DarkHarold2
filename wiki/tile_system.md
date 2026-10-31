@@ -1,7 +1,7 @@
 # Tile System & Elevation
 
 > **Source anchor:** `raw/fallout2-ce/src/tile.cc`, `tile.h`, `obj_types.h`, `map.cc`, `map.h`, `map_defs.h`, `object.cc`, `scripts.cc`, `interpreter_extra.cc`
-> **DH2 files:** `src/tile.ts`, `src/geometry.ts` (barrel; `src/geometry/{hexScreen,hexGrid}.ts`), `src/map.ts` (barrel; `src/map/{GameMap,mapLoader}.ts`), `src/object.ts` (barrel; `src/object/*.ts`), `src/scripting.ts`, `src/vm_bridge.ts`
+> **DH2 files:** `src/tile.ts`, `src/geometry.ts` (barrel; `src/geometry/{hexScreen,hexGrid}.ts`), `src/map.ts` (barrel; `src/map/{GameMap,mapLoader}.ts`), `src/object.ts` (barrel; `src/object/*.ts`), `src/scripting.ts`, `src/vmBridge.ts`
 > **Last audited:** 2026-06-02
 
 ---
@@ -659,7 +659,7 @@ return globalState.gMap.getSpatials()  // getSpatials() uses currentElevation
 
 ### 16.6 Elevator Objects
 
-`metarule(15, …)` (METARULE_ELEVATOR) → `useElevator()` (`main.ts`) → `uiElevator` with CE's elevator table (`src/ceElevators.ts`; CE `elevatorSelectLevel`); after the trip the elevator doors near the arrival are reset (EL3, fixed).
+`metarule(15, …)` (METARULE_ELEVATOR) → `requestElevator()` (`scripting.ts`, CE `scriptsRequestElevator`) → `uiElevator` with CE's elevator table (`src/ceElevators.ts`; CE `elevatorSelectLevel`); after the trip the elevator doors near the arrival are reset (EL3, fixed).
 
 ### 16.7 Elevation Presence vs. MapHeader.flags
 

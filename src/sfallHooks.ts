@@ -5,8 +5,9 @@
 // set_sfall_return. Only the hook points the Unofficial Patch uses fire (see HOOK_*); the
 // others can be registered and never run. wiki/upu_support.md → "Hooks and global scripts".
 
-import globalState from './globalState.js'
-import { UIMode } from './ui_panels.js'
+import { world } from './state/world.js'
+import { uiState } from './state/uiState.js'
+import { UIMode } from './uiMode.js'
 import { dbg, dbgWarn } from './logger.js'
 
 // sfall.h hook ids
@@ -15,10 +16,26 @@ export const HOOK_GAMEMODECHANGE = 31
 
 // sfall.h get_game_mode flags (LoadGameHook.cpp LoopFlag)
 export const GAME_MODE = {
-    WORLDMAP: 0x1, DIALOG: 0x4, ESCMENU: 0x8, SAVEGAME: 0x10, LOADGAME: 0x20, COMBAT: 0x40,
-    OPTIONS: 0x80, HELP: 0x100, CHARSCREEN: 0x200, PIPBOY: 0x400, PCOMBAT: 0x800,
-    INVENTORY: 0x1000, AUTOMAP: 0x2000, SKILLDEX: 0x4000, INTFACEUSE: 0x8000, INTFACELOOT: 0x10000,
-    BARTER: 0x20000, HEROWIN: 0x40000, DIALOGVIEW: 0x80000, COUNTERWIN: 0x100000,
+    WORLDMAP: 0x1,
+    DIALOG: 0x4,
+    ESCMENU: 0x8,
+    SAVEGAME: 0x10,
+    LOADGAME: 0x20,
+    COMBAT: 0x40,
+    OPTIONS: 0x80,
+    HELP: 0x100,
+    CHARSCREEN: 0x200,
+    PIPBOY: 0x400,
+    PCOMBAT: 0x800,
+    INVENTORY: 0x1000,
+    AUTOMAP: 0x2000,
+    SKILLDEX: 0x4000,
+    INTFACEUSE: 0x8000,
+    INTFACELOOT: 0x10000,
+    BARTER: 0x20000,
+    HEROWIN: 0x40000,
+    DIALOGVIEW: 0x80000,
+    COUNTERWIN: 0x100000,
     SPECIAL: 0x80000000,
 }
 
@@ -56,7 +73,11 @@ export function registerHookProc(hookId: number, owner: object, run: (() => void
 
 /** Unregisters every hook of a script (its global script is removed). */
 export function unregisterHooksOf(owner: object): void {
-    for (const [id, list] of registry) registry.set(id, list.filter((h) => h.owner !== owner))
+    for (const [id, list] of registry)
+        registry.set(
+            id,
+            list.filter((h) => h.owner !== owner),
+        )
 }
 
 export function hasHook(hookId: number): boolean {
@@ -128,26 +149,55 @@ let special = 0 // the SPECIAL flag while it is set (dialogue panel animations)
 export function gameMode(): number {
     const M = GAME_MODE
     let mode = 0
-    switch (globalState.uiMode) {
-        case UIMode.dialogue: mode = M.DIALOG; break
-        case UIMode.companionControl: mode = M.DIALOG; break
-        case UIMode.barter: mode = M.DIALOG | M.BARTER; break
-        case UIMode.loot: mode = M.INTFACELOOT; break
-        case UIMode.inventory: mode = M.INVENTORY; break
-        case UIMode.worldMap: mode = M.WORLDMAP; break
-        case UIMode.skilldex: mode = M.SKILLDEX; break
-        case UIMode.useSkill: mode = 0; break
-        case UIMode.saveLoad: mode = M.SAVEGAME; break
-        case UIMode.char: mode = M.CHARSCREEN; break
-        case UIMode.pipBoy: mode = M.PIPBOY; break
-        case UIMode.automap: mode = M.AUTOMAP; break
-        case UIMode.options: mode = M.ESCMENU; break
-        case UIMode.dialog: mode = M.COUNTERWIN; break
-        default: mode = 0
+    switch (uiState.uiMode) {
+        case UIMode.dialogue:
+            mode = M.DIALOG
+            break
+        case UIMode.companionControl:
+            mode = M.DIALOG
+            break
+        case UIMode.barter:
+            mode = M.DIALOG | M.BARTER
+            break
+        case UIMode.loot:
+            mode = M.INTFACELOOT
+            break
+        case UIMode.inventory:
+            mode = M.INVENTORY
+            break
+        case UIMode.worldMap:
+            mode = M.WORLDMAP
+            break
+        case UIMode.skilldex:
+            mode = M.SKILLDEX
+            break
+        case UIMode.useSkill:
+            mode = 0
+            break
+        case UIMode.saveLoad:
+            mode = M.SAVEGAME
+            break
+        case UIMode.char:
+            mode = M.CHARSCREEN
+            break
+        case UIMode.pipBoy:
+            mode = M.PIPBOY
+            break
+        case UIMode.automap:
+            mode = M.AUTOMAP
+            break
+        case UIMode.options:
+            mode = M.ESCMENU
+            break
+        case UIMode.dialog:
+            mode = M.COUNTERWIN
+            break
+        default:
+            mode = 0
     }
-    if (globalState.inCombat) {
+    if (world.inCombat) {
         mode |= M.COMBAT
-        if ((globalState.combat as any)?.inPlayerTurn) mode |= M.PCOMBAT
+        if (world.combat?.inPlayerTurn) mode |= M.PCOMBAT
     }
     return (mode | special) >>> 0
 }

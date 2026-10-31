@@ -13,12 +13,13 @@
 //   __host_set_ext(script, name, v)
 //   __host_option(script, kind, fn, ...)  gsay_option / giq_option with a Lua target
 //   __host_log(level, text)
+//   __host_stopped(script)           true when the last intrinsic ended the procedure
 
 export const LUA_PRELUDE = String.raw`
 local host_call, host_var = __host_call, __host_var
 local host_get_ext, host_set_ext = __host_get_ext, __host_set_ext
-local host_option, host_log = __host_option, __host_log
-__host_call, __host_var, __host_get_ext, __host_set_ext, __host_option, __host_log = nil
+local host_option, host_log, host_stopped = __host_option, __host_log, __host_stopped
+__host_call, __host_var, __host_get_ext, __host_set_ext, __host_option, __host_log, __host_stopped = nil
 
 local type, tostring, select, pairs, error, pcall = type, tostring, select, pairs, error, pcall
 local load, rawget, rawset, setmetatable = load, rawget, rawset, setmetatable
@@ -76,9 +77,57 @@ local function floor(v)
     return math.tointeger(r) or r
 end
 
--- SSL truth: 0 (and the empty string, as in the VM) is false.
+-- sfall's typed math (CE sfall_opcodes.cc), as the VM's raw ops in vm.ts do it: an int
+-- result wraps to 32 bits, a float is 64-bit except op_power's (a 32-bit float).
+local TWO32 = 4294967296
+local function trunc(x) return x >= 0 and math.floor(x) or math.ceil(x) end
+local function wrap32(x)
+    if x ~= x or x == math.huge or x == -math.huge then return 0 end
+    local n = math.tointeger(trunc(x)) or 0
+    n = n % TWO32
+    if n >= 2147483648 then n = n - TWO32 end
+    return n
+end
+local function num(v) return tonumber(v) or 0 end
+local function fround(x) return (string.unpack("<f", string.pack("<f", x))) end
+-- op_sqrt (0x81EC)
+local function sqrt(v) return math.sqrt(num(v)) + 0.0 end
+-- op_atof (0x8238): parseFloat's leading number, else 0.0
+local function atof(v)
+    local m = string.match(tostring(v), "^%s*([%+%-]?%d*%.?%d+)")
+    return m and (tonumber(m) + 0.0) or 0.0
+end
+-- opTypeOf (0x8253): 1 int, 2 float, 3 anything else
+local function typeof(v)
+    local t = mtype(v)
+    return t == "integer" and 1 or t == "float" and 2 or 3
+end
+-- op_power (0x8263): an int for two ints, else a float
+local function power(base, exp)
+    local r = fround(num(base) ^ num(exp))
+    if mtype(base) == "integer" and mtype(exp) == "integer" then return wrap32(r) end
+    return r
+end
+-- opRound (0x8267): to the nearest int, halves away from zero
+local function round(v)
+    local f = num(v)
+    local i = trunc(f)
+    local m = f - i
+    if math.abs(m) >= 0.5 then i = i + (m > 0 and 1 or -1) end
+    return wrap32(i)
+end
+-- op_div (0x827F): unsigned for two ints, a float division with a float; 0 on division by 0
+local function udiv(a, b)
+    local d = num(b)
+    if mtype(b) ~= "float" and wrap32(d) == 0 then return 0 end
+    if mtype(a) == "float" or mtype(b) == "float" then return num(a) / d + 0.0 end
+    local x, y = math.tointeger(trunc(num(a))) % TWO32, math.tointeger(trunc(d)) % TWO32
+    return wrap32(x // y)
+end
+
+-- SSL truth (CE ProgramValue::isEmpty): 0 is false; a string, even "", is true.
 local function truthy(v)
-    return v ~= 0 and v ~= false and v ~= nil and v ~= ""
+    return v ~= 0 and v ~= false and v ~= nil
 end
 
 -- sslc compiles and/or to opAnd/opOr: both sides are evaluated first.
@@ -115,6 +164,8 @@ local BUILTIN_VARS = {
 
 local SUSPEND = {}  -- yielded by gsay_end / gsay_message
 local EXIT = {}     -- raised by exit() (CE opExit / opExitProgram)
+-- the intrinsics that end the procedure on the script's own self_obj (scriptProcs.ts)
+local STOPS_PROC_ON_SELF = { destroy_object = true, destroy_mult_objs = true, kill_critter = true, critter_dmg = true }
 
 -- Scripts are keyed by a numeric id the host assigns: wasmoon wraps a JS object
 -- in a new userdata every time it crosses into Lua, so the object itself is not
@@ -145,7 +196,16 @@ local function new_env(id, script, name)
     local function intrinsic(k)
         local f = api[k]
         if f == nil then
-            f = function(...) return host_call(script, k, ...) end
+            if STOPS_PROC_ON_SELF[k] then
+                -- CE PROGRAM_FLAG_0x0100: destroying / killing / damaging self_obj ends the procedure
+                f = function(...)
+                    local r = host_call(script, k, ...)
+                    if host_stopped(script) then error(EXIT, 0) end
+                    return r
+                end
+            else
+                f = function(...) return host_call(script, k, ...) end
+            end
             api[k] = f
         end
         return f
@@ -154,6 +214,7 @@ local function new_env(id, script, name)
     -- helpers the generated code calls
     local lib = {
         div = div, mod = mod, floor = floor, AND = AND, OR = OR, b2i = b2i,
+        sqrt = sqrt, atof = atof, typeof = typeof, power = power, round = round, udiv = udiv,
         import = function(...)
             for i = 1, select("#", ...) do imports[(select(i, ...))] = true end
         end,
@@ -162,7 +223,7 @@ local function new_env(id, script, name)
             host_set_ext(script, n, v == nil and 0 or v)
         end,
         entry = function(n) rawset(env, "__entry", n) end,
-        -- the VM's own versions (vm_bridge.ts): roll_dice is CE's predefined
+        -- the VM's own versions (vmBridge.ts): roll_dice is CE's predefined
         -- error stub and pushes 0, display shows nothing (interpreter_lib.cc opDisplay)
         roll_dice = function() return 0 end,
         display = function() end,
@@ -178,8 +239,9 @@ local function new_env(id, script, name)
             return depth_closer
         end,
         gsay_end = function()
-            host_call(script, "gsay_end")
-            co_yield(SUSPEND)
+            -- CE _gdialogGo: the dialogue runs only while a reply is pending
+            local r = host_call(script, "gsay_end")
+            if r ~= 0 and r ~= nil and r ~= false then co_yield(SUSPEND) end
         end,
         gsay_message = function(list, msg, reaction)
             host_call(script, "gsay_message", list, msg, reaction)
@@ -219,9 +281,13 @@ end
 -- ---------------------------------------------------------------------------
 
 local suspended = {}  -- id -> stack of suspended coroutines
+-- CE interpreter.cc: a fatal error sets PROGRAM_FLAG_EXITED, and scripts.cc
+-- scriptExecProc skips every later proc of that script until it is loaded again
+local dead = {}       -- id -> true after an error
 
 local function report(id, where, err)
     if err == EXIT then return end
+    dead[id] = true
     local env = scripts[id]
     host_log("error", tostring(env and env.__name or "?") .. ":" .. tostring(where) .. ": " .. tostring(err))
 end
@@ -269,6 +335,7 @@ function __entry_name(id)
 end
 
 function __call(id, name, ...)
+    if dead[id] then return 0 end
     local env = scripts[id]
     local f = env and rawget(env, name)
     if type(f) ~= "function" then return 0 end
@@ -277,6 +344,7 @@ end
 
 -- A dialogue option target (see option_ref) run as an engine entry.
 function __call_option(id, n)
+    if dead[id] then return 0 end
     local t = options[id]
     local f = t and t[n]
     if f == nil then return 0 end
@@ -296,6 +364,16 @@ function __resume(id)
     return false
 end
 
+-- Resume only the most recently suspended procedure (the one a gsay_message
+-- [Done] returns into, CE _gdialogSayMessage); true if it suspended again.
+function __resume_one(id)
+    local s = suspended[id]
+    if s == nil or #s == 0 then return false end
+    local top = table.remove(s)
+    step(id, top.co, top.where)
+    return co_status(top.co) == "suspended"
+end
+
 function __has_suspended(id)
     local s = suspended[id]
     return s ~= nil and #s > 0
@@ -305,6 +383,7 @@ function __unload(id)
     scripts[id] = nil
     suspended[id] = nil
     options[id] = nil
+    dead[id] = nil
 end
 
 -- nothing in the engine state needs these after this chunk (the locals above

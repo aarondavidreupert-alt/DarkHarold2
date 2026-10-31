@@ -3,7 +3,13 @@
 // entries — callers route them through poison()/critterAdjustRadiation().
 // `null` = CE stat with no DH2 StatSet equivalent.
 export const STAT_NAME_BY_ID: (string | null)[] = [
-    'STR', 'PER', 'END', 'CHA', 'INT', 'AGI', 'LUK', // 0-6
+    'STR',
+    'PER',
+    'END',
+    'CHA',
+    'INT',
+    'AGI',
+    'LUK', // 0-6
     'Max HP', // 7  STAT_MAXIMUM_HIT_POINTS
     'AP', // 8  STAT_MAXIMUM_ACTION_POINTS
     'AC', // 9  STAT_ARMOR_CLASS
@@ -14,8 +20,20 @@ export const STAT_NAME_BY_ID: (string | null)[] = [
     'Healing Rate', // 14
     'Critical Chance', // 15
     'Better Criticals', // 16
-    'DT Normal', 'DT Laser', 'DT Fire', 'DT Plasma', 'DT Electrical', 'DT EMP', 'DT Explosive', // 17-23
-    'DR Normal', 'DR Laser', 'DR Fire', 'DR Plasma', 'DR Electrical', 'DR EMP', 'DR Explosive', // 24-30
+    'DT Normal',
+    'DT Laser',
+    'DT Fire',
+    'DT Plasma',
+    'DT Electrical',
+    'DT EMP',
+    'DT Explosive', // 17-23
+    'DR Normal',
+    'DR Laser',
+    'DR Fire',
+    'DR Plasma',
+    'DR Electrical',
+    'DR EMP',
+    'DR Explosive', // 24-30
     'DR Radiation', // 31 STAT_RADIATION_RESISTANCE
     'DR Poison', // 32 STAT_POISON_RESISTANCE
     'Age', // 33

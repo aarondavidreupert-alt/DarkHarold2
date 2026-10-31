@@ -2,7 +2,7 @@
 
 > Last audited: 2026-10-17  
 > Sources: `raw/fallout2-ce/src/game_dialog.cc`, `dialog.cc`, `reaction.cc`  
-> DH2 sources: `src/scripting.ts`, `src/vm_bridge.ts`, `src/ui_dialogue.ts`
+> DH2 sources: `src/scripting.ts`, `src/vmBridge.ts`, `src/uiDialogue.ts`
 
 ---
 
@@ -67,7 +67,7 @@ This is the core architectural feature. The script VM is single-threaded; it mus
 
 ### gsay_end (halt)
 
-`vm_bridge.ts` line 191–199 (inline, not bridged):
+`vmBridge.ts` line 191–199 (inline, not bridged):
 
 ```typescript
 0x811D: function() {    // gsay_end
@@ -119,7 +119,7 @@ Triggered by:
 
 ### Wiring summary
 
-All opcodes below are wired in `src/vm_bridge.ts`. Opcodes marked INLINE have a custom function body instead of the `bridged()` factory.
+All opcodes below are wired in `src/vmBridge.ts`. Opcodes marked INLINE have a custom function body instead of the `bridged()` factory.
 
 | Opcode | Name | Signature | CE counterpart | DH2 |
 |--------|------|-----------|----------------|-----|
@@ -158,7 +158,7 @@ Gate rules:
 - `iqTest < 0`: option requires `INT ≤ -iqTest` — hidden if player INT is too high (used for "dumb" dialogue)
 - `iqTest == 0`: always shown (no gate)
 
-The `target` argument is an INT bytecode procedure index. In the inline handler (`vm_bridge.ts` line 213–217) it is resolved to a procedure name and wrapped:
+The `target` argument is an INT bytecode procedure index. In the inline handler (`vmBridge.ts` line 213–217) it is resolved to a procedure name and wrapped:
 
 ```typescript
 var targetProc = this.intfile.proceduresTable[target].name
@@ -228,7 +228,7 @@ Implemented (audit 2026-10-17):
 1. Script calls `gdialog_mod_barter(mod)` → `uiBarterMode(self_obj)`.
 2. `uiBarterMode` sets `globalState.uiMode = UIMode.barter` and opens the barter panel.
 3. `dialogueReply` checks `uiMode === UIMode.barter` and returns early instead of closing dialogue.
-4. `gdialog_set_barter_mod` / `dialogueBarterMod` is consumed by `src/ui_barter/screen.ts` via `getDialogueBarterMod()`.
+4. `gdialog_set_barter_mod` / `dialogueBarterMod` is consumed by `src/uiBarter/screen.ts` via `getDialogueBarterMod()`.
 
 ---
 
@@ -344,13 +344,13 @@ Re-audited 2026-10-17. Closed since the first version of this table: `gsay_optio
 
 **Adding a new dialogue opcode:**
 
-1. Add the opcode number → method name mapping in `src/vm_bridge.ts` using `bridged("methodName", argCount)`.
+1. Add the opcode number → method name mapping in `src/vmBridge.ts` using `bridged("methodName", argCount)`.
 2. Implement the method in the `Script` class in `src/scripting.ts` (methods are in the `class Script { ... }` block).
 3. If the opcode needs to halt the VM, follow the `gsay_end` inline pattern: push `pc + 2` to `retStack`, set `halted = true`.
 
 **Tracking down a dialogue opcode:**
 - Cross-reference opcode number in `raw/fallout2-ce/src/scripts.cc` or `interpreter.cc` to get the CE function name.
-- Search `src/vm_bridge.ts` for the hex opcode.
+- Search `src/vmBridge.ts` for the hex opcode.
 - Search `src/scripting.ts` for the method name.
 
 **Debugging a dialogue hang:**
@@ -365,4 +365,4 @@ Re-audited 2026-10-17. Closed since the first version of this table: `gsay_optio
 
 **Implementing `gSay_Option` (0x811F):**
 - Signature: `gSay_Option(msgList, msgID, target, reaction)` — same as `giq_option` but without the `iqTest` gate.
-- Implement as inline handler in `vm_bridge.ts` (same wrapping as `giq_option` but skip the INT check).
+- Implement as inline handler in `vmBridge.ts` (same wrapping as `giq_option` but skip the INT check).

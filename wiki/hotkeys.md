@@ -11,8 +11,8 @@
 **DH2 ref:** `src/heart.ts` (`_getKeyChar`, `window.onkeydown`),
 `src/input.ts` (`heart.keydown` handler — all in-game keys),
 `src/config.ts` (`Config.controls.*` — full binding map),
-`src/ui_options.ts` (`optionsKeyHandler`),
-`src/ui_skilldex.ts` (`skilldexKeyHandler`)
+`src/uiOptions.ts` (`optionsKeyHandler`),
+`src/uiSkilldex.ts` (`skilldexKeyHandler`)
 
 ---
 
@@ -142,12 +142,12 @@ Cases are case-insensitive (CE handles both `KEY_UPPERCASE_X` and `KEY_LOWERCASE
 
 **`src/hotkeys.ts` `gameHandleKey(e)`** is CE `game.cc gameHandleKey` plus `combat.cc _combat_input`, on the full `KeyboardEvent` (`e.key`, `e.code` for Shift+digit, Ctrl / Alt). `installInputHandlers()` (`src/input.ts`) registers it as a window capture listener:
 - not while typing in a field, loading, or with the game UI disabled (movies);
-- an open window gets its own close keys first (CE runs each window's own input loop): Pip-Boy Esc / Return / P / Z, inventory Esc / I, automap Esc / Tab / Return; the options, skilldex, save/load, dialog and barter windows keep their own handlers;
+- an open window gets its own close keys first (CE runs each window's own input loop): Pip-Boy Esc / Return / P / Z, inventory Esc / I, automap Tab / Esc / A (H / L detail, S scanner); the options, skilldex, save/load, dialog and barter windows keep their own handlers;
 - otherwise the game keys only act on the map (`UIMode.none`, or skill targeting, where Esc cancels).
 
 `interfaceBarEnabled()` = not during an AI combat turn; in combat only the player's turn reads keys (Space ends it, Return tries to end combat).
 
-`heart.keydown` (the old lower-case char path) now only carries the camera arrows, the DH2 item-highlight key (Space outside combat) and the DH2 developer keys (`Config.engine.devKeys`, console `setDevKeys(true)`: elevation q/e, layer toggles r/f/o/w, talk t, inspect i, move m, run j, attack g, raycast y, loot v, use u, kill k, worldmap l); with dev keys on, a key bound to one of those is not a game key. The old DarkFO game bindings (c combat, b inventory, n/m save/load, z called shot) are gone.
+`heart.keydown` (the old lower-case char path) now only carries the camera arrows, the DH2 item-highlight key (Space outside combat) and the DH2 developer keys (`Config.engine.devKeys`, console `setDevKeys(true)` on `play.html#dev`: elevation q/e, layer toggles r/f/o/w, talk t, inspect i, move m, run j, attack g, raycast y, loot v, use u, kill k, worldmap l); with dev keys on, a key bound to one of those is not a game key. The old DarkFO game bindings (c combat, b inventory, n/m save/load, z called shot) are gone.
 
 ---
 

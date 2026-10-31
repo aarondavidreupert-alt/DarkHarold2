@@ -227,7 +227,7 @@ html, body {
   top: 30px;
   width: 158px;
   height: 54px;
-  color: #00FF00;
+  color: #3cf800; /* CE _colorTable[992] */
   font-size: 8pt;
   overflow: hidden;
 }
@@ -508,6 +508,31 @@ html, body {
   background-image: url("art/intrface/menuup.png");
 }
 
+/* CE INVENTORY_WINDOW_TYPE_USE_ITEM_ON: use.frm (292 x 376), centred like the normal window */
+#inventoryBox.useOn {
+  left: 254px;
+  width: 292px;
+  height: 376px;
+  background-image: url("art/intrface/use.png");
+}
+#inventoryBox.useOn #inventoryBoxInfo,
+#inventoryBox.useOn #inventoryBoxWeight,
+#inventoryBox.useOn #inventoryBoxItem1,
+#inventoryBox.useOn #inventoryBoxItem2,
+#inventoryBox.useOn #inventoryBoxArmor {
+  display: none;
+}
+#inventoryBox.useOn #inventoryDoneButton {
+  left: 233px;
+  top: 328px;
+  width: 15px;
+  height: 16px;
+  background-image: url("art/intrface/lilredup.png");
+}
+#inventoryBox.useOn #inventoryDoneButton:active {
+  background-image: url("art/intrface/lilreddn.png");
+}
+
 #inventoryDoneButton:hover {
   cursor: pointer;
 }
@@ -680,7 +705,7 @@ html, body {
 }
 
 /* one item in the inventory, loot, steal, barter and companion-trade lists
-   (ui_dom.ts appendItemSlot): icon and stack count centred, the count 2px below */
+   (uiDom.ts appendItemSlot): icon and stack count centred, the count 2px below */
 .invItemSlot {
   text-align: center;
 }
@@ -738,6 +763,11 @@ html, body {
 
 .invStatColRight {
   flex: 1 1 auto;
+}
+
+/* CE inventoryRenderSummary: one line per stat (labels like "Armor Class" don't wrap) */
+.invStatColRight .invStatLabel {
+  white-space: nowrap;
 }
 
 .number {
@@ -1073,7 +1103,7 @@ html, body {
 /* Persistent dialogue-window action buttons — CE ref: game_dialog.cc:4357-4388
    _gdialog_window_create. Barter (593,41) exists on every dialogue; Combat
    Control (593,116) only when talking to a party member (toggled in
-   uiStartDialogue, ui_dialogue.ts). Both 14x14, same di_rdbt2/di_rdbt1
+   uiStartDialogue, uiDialogue.ts). Both 14x14, same di_rdbt2/di_rdbt1
    up/down convention as the companion control screen's action buttons. */
 #dialogueBarterButton,
 #dialogueCombatControlButton {
@@ -1975,9 +2005,11 @@ html, body {
   background-image: url("art/intrface/lilreddn.png");
 }
 
+/* CE combat.cc _draw_loc_: the left column's names start at x 74, the right column's end at
+   x 431 (right-aligned), on rows _call_ty - 86 */
 .calledShotLabel {
   position: absolute;
-  width: 100px;
+  white-space: nowrap;
   color: #00FF00;
   font-size: small;
 }
@@ -2000,7 +2032,8 @@ html, body {
 }
 
 #calledShot-torso-label {
-  left: 380px;
+  right: 73px;
+  text-align: right;
   top: 30px;
 }
 
@@ -2010,8 +2043,9 @@ html, body {
 }
 
 #calledShot-groin-label {
-  left: 380px;
-  top: 90px;
+  right: 73px;
+  text-align: right;
+  top: 95px;
 }
 
 #calledShot-leftArm-chance {
@@ -2020,7 +2054,8 @@ html, body {
 }
 
 #calledShot-leftArm-label {
-  left: 360px;
+  right: 73px;
+  text-align: right;
   top: 160px;
 }
 
@@ -2030,7 +2065,8 @@ html, body {
 }
 
 #calledShot-leftLeg-label {
-  left: 370px;
+  right: 73px;
+  text-align: right;
   top: 225px;
 }
 
@@ -2041,7 +2077,7 @@ html, body {
 }
 
 #calledShot-head-label {
-  left: 75px;
+  left: 74px;
   top: 30px;
 }
 
@@ -2051,7 +2087,7 @@ html, body {
 }
 
 #calledShot-eyes-label {
-  left: 75px;
+  left: 74px;
   top: 95px;
 }
 
@@ -2061,7 +2097,7 @@ html, body {
 }
 
 #calledShot-rightArm-label {
-  left: 75px;
+  left: 74px;
   top: 160px;
 }
 
@@ -2071,7 +2107,7 @@ html, body {
 }
 
 #calledShot-rightLeg-label {
-  left: 75px;
+  left: 74px;
   top: 225px;
 }
 

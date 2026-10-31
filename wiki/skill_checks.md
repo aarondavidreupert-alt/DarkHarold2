@@ -300,7 +300,7 @@ else:
 
 **XP:** 25 XP on success (per `_show_skill_use_messages`; `experience = 25`, `field_28 = 1` in CE descriptor).
 
-**DH2 status: ✅ FIXED 2026-07-05** — `src/skillUse.ts:performSteal()` is now a faithful per-item port of the formula above (item-size penalty, facing check, knocked-down bonus, `stealCount` session penalty, party-member auto-critical-success, and the real two-roll/catchRoll system), called once per item dragged in the new interactive `uiSteal()` screen (`src/ui_steal.ts`) rather than DH2's old single abstract roll. See `known_bugs.md` K3 for the full citation. Session-end bonus XP (`+10`/success capped `300-skill`) lives in `uiSteal()`, matching `inventory.cc:4368-4470` — separate from the flat 25 XP message-list descriptor above.
+**DH2 status: ✅ FIXED 2026-07-05** — `src/skillUse.ts:performSteal()` is now a faithful per-item port of the formula above (item-size penalty, facing check, knocked-down bonus, `stealCount` session penalty, party-member auto-critical-success, and the real two-roll/catchRoll system), called once per item dragged in the new interactive `uiSteal()` screen (`src/uiSteal.ts`) rather than DH2's old single abstract roll. See `known_bugs.md` K3 for the full citation. Session-end bonus XP (`+10`/success capped `300-skill`) lives in `uiSteal()`, matching `inventory.cc:4368-4470` — separate from the flat 25 XP message-list descriptor above.
 
 ---
 
@@ -370,7 +370,7 @@ Speech is checked exclusively by dialogue scripts and the barter system. Scripts
 
 Barter is used by the inventory/trade system: `inventory.cc:4690` reads both `partyGetBestSkillValue(SKILL_BARTER)` and `skillGetValue(npc, SKILL_BARTER)` to compute trade prices.
 
-**DH2:** same — `default:`; the barter screen uses the party's best Barter (`ui_barter/screen.ts`, CE `partyGetBestSkillValue`).
+**DH2:** same — `default:`; the barter screen uses the party's best Barter (`uiBarter/screen.ts`, CE `partyGetBestSkillValue`).
 
 ---
 
@@ -397,13 +397,13 @@ Outdoorsman is used by the world-map system: `worldmap.cc:3456` reads `partyGetB
 ## 5. Scripting Intrinsics
 
 CE ref: `scripts.cc` / script bytecode  
-DH2 ref: `src/scripting.ts`, `src/vm_bridge.ts`
+DH2 ref: `src/scripting.ts`, `src/vmBridge.ts`
 
 Three intrinsics allow scripts to interact with the skill system:
 
 ### `roll_vs_skill(obj, skill, bonus)` — opcode `0x80AC`
 
-**DH2 status: WIRED** (`scripting.ts:802`, `vm_bridge.ts:141`)
+**DH2 status: WIRED** (`scripting.ts:802`, `vmBridge.ts:141`)
 
 Performs a full `randomRoll(skillValue + bonus, critChance)` for the given object and skill ID (0–17, matching the `Skill` enum). Returns a `RollResult` numeric value (0–3). Scripts check the result with `is_success()` or `is_critical()`.
 
@@ -415,7 +415,7 @@ if is_success(roll): unlock_door()
 
 ### `has_skill(obj, skill)` — opcode `0x80AA`
 
-**DH2 status: WIRED** (`scripting.ts:794`, `vm_bridge.ts:144`)
+**DH2 status: WIRED** (`scripting.ts:794`, `vmBridge.ts:144`)
 
 Returns the **effective skill value** (0–300) for the critter. Despite the name, this is not a boolean — it mirrors CE's `skillGetValue(obj, skill)`.
 

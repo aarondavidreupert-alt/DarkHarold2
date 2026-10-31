@@ -16,18 +16,32 @@ limitations under the License.
 
 /* eslint-disable @typescript-eslint/no-empty-function */
 
-import { updateFloatText } from './floatText.js'
+import { outlinedCursorText, updateFloatText } from './floatText.js'
 import { heart } from './heart.js'
-import { BoundingBox, hexCellTopLeft, hexFromScreen, hexesInRadius, hexToScreen, Point, pointInBoundingBox } from './geometry.js'
+import {
+    BoundingBox,
+    hexCellTopLeft,
+    hexDistance,
+    hexFromScreen,
+    hexesInRadius,
+    hexToScreen,
+    Point,
+    pointInBoundingBox,
+} from './geometry.js'
 import globalState from './globalState.js'
+import { world } from './state/world.js'
+import { uiState } from './state/uiState.js'
+import { view } from './state/view.js'
+import { services } from './state/services.js'
+import { assets } from './state/assets.js'
 import { lazyLoadImage } from './images.js'
 import { dbg } from './logger.js'
 import { Obj } from './object.js'
-import { tileFromScreen } from './tile.js'
+import { hexToTile, tileFromScreen } from './tile.js'
 import { Config } from './config.js'
 import { WindowFrame } from './ui.js'
 import { Font } from './formats/fon.js'
-import { Lightmap } from './lightmap.js'
+import * as Lightmap from './lightmap.js'
 import {
     SCREEN_WIDTH,
     SCREEN_HEIGHT,
@@ -53,6 +67,7 @@ export {
     getWorldViewWidth,
     getWorldViewHeight,
     clampCameraPosition,
+    ceMapScroll,
     centerCamera,
     MAP_WORLD_BOUNDS,
 } from './render/camera.js'
@@ -64,12 +79,23 @@ export {
 // roof tiles that form the same building section. The fill stops at 'grid000'
 // (gap / no roof), isolating each structure exactly as CE does.
 // Returns a Set of "x,y" keys for tiles that should NOT be rendered.
-function roofFloodFill(roof: TileMap, startX: number, startY: number): Set<string> {
+// A square whose roof flag has 0x02 (or 0x01, already hidden) stops the fill: CE hides only
+// squares with (flag & 0x03) == 0 and spreads only from those.
+function roofFloodFill(
+    roof: TileMap,
+    startX: number,
+    startY: number,
+    flags?: Record<string, number> | null,
+): Set<string> {
     const hidden = new Set<string>()
     const H = roof.length
     const W = roof[0]?.length ?? 0
-    if (startX < 0 || startX >= W || startY < 0 || startY >= H) return hidden
-    if (roof[startY][startX] === 'grid000') return hidden
+    if (startX < 0 || startX >= W || startY < 0 || startY >= H) {
+        return hidden
+    }
+    if (roof[startY][startX] === 'grid000') {
+        return hidden
+    }
 
     const stack: [number, number][] = [[startX, startY]]
     const visited = new Set<string>()
@@ -80,13 +106,14 @@ function roofFloodFill(roof: TileMap, startX: number, startY: number): Set<strin
         visited.add(key)
         if (x < 0 || x >= W || y < 0 || y >= H) continue
         if (roof[y][x] === 'grid000') continue
+        if (flags && ((flags[key] ?? 0) & 0x02) !== 0) continue
         hidden.add(key)
         stack.push([x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1])
     }
     return hidden
 }
 
-let _animLogLast = { art: '', frame: -1 }
+const _animLogLast = { art: '', frame: -1 }
 
 export type TileMap = string[][]
 
@@ -120,7 +147,14 @@ export interface FrameCell {
 export function frameCell(info: any, orientation: number, frame: number): FrameCell {
     const f = info.frameOffsets?.[orientation]?.[frame]
     if (f && typeof f.sy === 'number' && info.columns) {
-        return { sx: f.sx, sy: f.sy, column: Math.round(f.sx / info.frameWidth), row: Math.round(f.sy / info.frameHeight), columns: info.columns, rows: info.rows ?? 1 }
+        return {
+            sx: f.sx,
+            sy: f.sy,
+            column: Math.round(f.sx / info.frameWidth),
+            row: Math.round(f.sy / info.frameHeight),
+            columns: info.columns,
+            rows: info.rows ?? 1,
+        }
     }
     const n = info.numFrames * orientation + frame
     return { sx: n * info.frameWidth, sy: 0, column: n, row: 0, columns: info.totalFrames, rows: 1 }
@@ -128,15 +162,35 @@ export function frameCell(info: any, orientation: number, frame: number): FrameC
 
 export class Renderer {
     private windows: WindowFrame[] = []
-    private objects: Obj[]
-    roofTiles: TileMap
-    floorTiles: TileMap
-    fonts: Font[]
+    private objects!: Obj[]
+    roofTiles!: TileMap
+    // CE roof square flags from the map file ("x,y" → bits 12-15 of the square), when any
+    roofFlags: Record<string, number> | null = null
+    // squares the map file marks hidden (0x01): out of sight until the roof fill around the
+    // dude has reached them once (CE tile_fill_roof(…, on) then clears the bit)
+    roofPresetHidden = new Set<string>()
+    // the roof squares the last frame left out (the flood fill around the dude); picking reads it
+    lastRoofHideSet: Set<string> | null = null
+    floorTiles!: TileMap
+    fonts!: Font[]
 
-    initData(roof: TileMap, floor: TileMap, objects: Obj[]): void {
+    initData(roof: TileMap, floor: TileMap, objects: Obj[], roofFlags: Record<string, number> | null = null): void {
         this.roofTiles = roof
+        this.roofFlags = roofFlags
+        this.roofPresetHidden = new Set(Object.keys(roofFlags ?? {}).filter((k) => (roofFlags![k] & 0x01) !== 0))
         this.floorTiles = floor
         this.objects = objects
+    }
+
+    // A preset-hidden square is reached when a neighbour is in the dude's hide set.
+    private roofFlagFillReaches(key: string, hideSet: Set<string>): boolean {
+        const [x, y] = key.split(',').map(Number)
+        return (
+            hideSet.has(`${x - 1},${y}`) ||
+            hideSet.has(`${x + 1},${y}`) ||
+            hideSet.has(`${x},${y - 1}`) ||
+            hideSet.has(`${x},${y + 1}`)
+        )
     }
 
     clearTileCache(): void {}
@@ -152,7 +206,7 @@ export class Renderer {
             this.color(0, 0, 0)
             const w = 256,
                 h = 40
-            const w2 = (globalState.loadingAssetsLoaded / globalState.loadingAssetsTotal) * w
+            const w2 = (assets.loadingAssetsLoaded / assets.loadingAssetsTotal) * w
             // draw a loading progress bar
             this.rectangle(SCREEN_WIDTH / 2 - w / 2, SCREEN_HEIGHT / 2, w, h, false)
             this.rectangle(SCREEN_WIDTH / 2 - w / 2 + 2, SCREEN_HEIGHT / 2 + 2, w2 - 4, h - 4)
@@ -176,24 +230,25 @@ export class Renderer {
         // the game field without any wall transparency. Drawn on textCtx (the same
         // 2D canvas used for floating damage text) immediately after the floor so
         // objects render on top of it. No shader changes needed.
-        if (Config.ui.eggMode === 'beta' && globalState.player) {
+        if (Config.ui.eggMode === 'beta' && world.player) {
             const z = getZoom()
             const radius = Config.ui.eggRadius ?? 8
             const ctx = (this as any).textCtx as CanvasRenderingContext2D | undefined
             if (ctx) {
                 ctx.save()
                 ctx.fillStyle = 'rgba(0,255,0,0.3)'
-                for (const pos of hexesInRadius(globalState.player.position, radius)) {
+                for (const pos of hexesInRadius(world.player.position, radius)) {
                     const scr = hexCellTopLeft(pos.x, pos.y)
                     const s = worldToScreen(scr.x, scr.y)
                     // Flat-topped hex tile in isometric view: draw a simple filled rhombus
                     // whose corners match the four cardinal points of the 32×16 hex cell.
-                    const w = 32 * z, h = 16 * z
+                    const w = 32 * z,
+                        h = 16 * z
                     ctx.beginPath()
-                    ctx.moveTo(s.x + w / 2, s.y)          // top
-                    ctx.lineTo(s.x + w,     s.y + h / 2)  // right
-                    ctx.lineTo(s.x + w / 2, s.y + h)      // bottom
-                    ctx.lineTo(s.x,         s.y + h / 2)  // left
+                    ctx.moveTo(s.x + w / 2, s.y) // top
+                    ctx.lineTo(s.x + w, s.y + h / 2) // right
+                    ctx.lineTo(s.x + w / 2, s.y + h) // bottom
+                    ctx.lineTo(s.x, s.y + h / 2) // left
                     ctx.closePath()
                     ctx.fill()
                 }
@@ -207,10 +262,10 @@ export class Renderer {
             // CE ref: object.cc:1462 tile_fill_roof(roofX, roofY, elev, false) —
             // hide only the connected roof section the player is standing under.
             let hideSet: Set<string> | null = null
-            if (globalState.player) {
-                const scr = hexToScreen(globalState.player.position.x, globalState.player.position.y)
-                const own = tileFromScreen(scr.x, scr.y)   // = hexToTile(player); CE behavior
-                hideSet = roofFloodFill(this.roofTiles, own.x, own.y)
+            if (world.player) {
+                const scr = hexToScreen(world.player.position.x, world.player.position.y)
+                const own = hexToTile(world.player.position) // CE objectSetLocation roofX / roofY
+                hideSet = roofFloodFill(this.roofTiles, own.x, own.y, this.roofFlags)
                 // Roofs draw 96px up, so the roof sprite that visually COVERS the
                 // player when they stand behind (north of) a building belongs to a
                 // tile ~2-3 squares south — the player's own tile is roofless there,
@@ -220,9 +275,18 @@ export class Renderer {
                 // reveal the character. DH2 extension (setRoofPeek() to disable).
                 if (Config.ui.roofPeek !== false) {
                     const cover = tileFromScreen(scr.x, scr.y + 96)
-                    for (const k of roofFloodFill(this.roofTiles, cover.x, cover.y)) hideSet.add(k)
+                    for (const k of roofFloodFill(this.roofTiles, cover.x, cover.y, this.roofFlags)) hideSet.add(k)
                 }
             }
+            if (this.roofPresetHidden.size > 0) {
+                hideSet ??= new Set<string>()
+                for (const k of [...this.roofPresetHidden]) {
+                    // the fill around the dude touches it: from now on it follows the fill
+                    if (this.roofFlagFillReaches(k, hideSet)) this.roofPresetHidden.delete(k)
+                    else hideSet.add(k)
+                }
+            }
+            this.lastRoofHideSet = hideSet
             this.renderRoof(this.roofTiles, hideSet)
         }
 
@@ -238,11 +302,11 @@ export class Renderer {
         // combat-outline fills (post-roof) never visually cover the player
         // character. CE never drew player outlines so this case didn't arise
         // there; refreshHighlights() already excludes isPlayer from outlines.
-        if (Config.ui.showObjects && globalState.inCombat && globalState.player) {
-            this.renderObject(globalState.player)
+        if (Config.ui.showObjects && world.inCombat && world.player) {
+            this.renderObject(world.player)
         }
 
-        if (Config.ui.showCursor && globalState.cursorMode === 'move') {
+        if (Config.ui.showCursor && uiState.cursorMode === 'move') {
             // CE ref: object.cc:862 _obj_render_post_roof — the hex cursor is a flat object
             // whose paletted outline (game_mouse.cc:1973) is drawn in the post-roof
             // outline pass, i.e. above objects and roofs. (Was drawn before objects.)
@@ -250,13 +314,24 @@ export class Renderer {
             // position through the zoom and scale the image dimensions too
             // so it lines up with the (zoomed) hex grid underneath.
             const z = getZoom()
-            const hexImg = globalState.images['img/hex_outline']
+            const hexImg = assets.images['img/hex_outline']
             const hexW = hexImg?.naturalWidth ?? 32
             const hexH = hexImg?.naturalHeight ?? 16
             // CE draws the hex cursor at tileToScreenXY (cell top-left).
             const scr = hexCellTopLeft(mouseHex.x, mouseHex.y)
             const screen = worldToScreen(scr.x, scr.y)
             this.renderImage('img/hex_outline', screen.x, screen.y, hexW * z, hexH * z)
+            // CE gameMouseRenderActionPoints: the AP / X centred in the hex cursor, font 101
+            // with a black outline (bufferOutline)
+            const apText = uiState.hexCursorText
+            const apCanvas = apText ? outlinedCursorText(apText.text, apText.color) : null
+            if (apCanvas) {
+                this.renderCanvas(
+                    apCanvas,
+                    Math.round(screen.x + (hexW * z - apCanvas.width) / 2),
+                    Math.round(screen.y + (hexH * z - apCanvas.height) / 2),
+                )
+            }
         }
 
         for (const window of this.windows.filter((w) => w.showing)) {
@@ -271,22 +346,20 @@ export class Renderer {
             }
         }
 
-        if (Config.ui.showDebugOverlay && globalState.inCombat) {
-            const whose = globalState.combat.inPlayerTurn
-                ? 'player'
-                : globalState.combat.combatants[globalState.combat.whoseTurn].name
-            const AP = globalState.combat.inPlayerTurn
-                ? globalState.player.AP
-                : globalState.combat.combatants[globalState.combat.whoseTurn].AP
+        if (Config.ui.showDebugOverlay && world.inCombat) {
+            const whose = world.combat!.inPlayerTurn ? 'player' : world.combat!.combatants[world.combat!.whoseTurn].name
+            const AP = world.combat!.inPlayerTurn
+                ? world.player!.AP
+                : world.combat!.combatants[world.combat!.whoseTurn].AP
             this.renderText(
-                '[turn ' + globalState.combat.turnNum + ' of ' + whose + ' AP: ' + AP.getAvailableMoveAP() + ']',
+                '[turn ' + world.combat!.turnNum + ' of ' + whose + ' AP: ' + AP!.getAvailableMoveAP() + ']',
                 SCREEN_WIDTH - 200,
-                15
+                15,
             )
         }
 
         if (Config.ui.showSpatials && Config.engine.doSpatials) {
-            globalState.gMap.getSpatials().forEach((spatial) => {
+            world.gMap!.getSpatials().forEach((spatial) => {
                 const scr = hexToScreen(spatial.position.x, spatial.position.y)
                 //heart.graphics.draw(hexOverlay, scr.x - 16 - cameraX, scr.y - 12 - cameraY)
                 const s = worldToScreen(scr.x - 10, scr.y - 3)
@@ -298,23 +371,41 @@ export class Renderer {
             this.renderText('x: ' + mouseHex.x, 5, 15)
             this.renderText('y: ' + mouseHex.y, 60, 15)
             const _hudTile = mouseHex.y * 200 + mouseHex.x
-            const _hudLit = (_hudTile >= 0 && _hudTile < 40000) ? Lightmap.tile_intensity[_hudTile] : 0
+            const _hudLit = _hudTile >= 0 && _hudTile < 40000 ? Lightmap.tile_intensity[_hudTile] : 0
             this.renderText('tile: ' + _hudTile, 115, 15)
             this.renderText('mt: ' + mouseSquare.x + ',' + mouseSquare.y, 225, 15)
             this.renderText('m: ' + mousePos[0] + ', ' + mousePos[1], 325, 15)
             this.renderText('lit: ' + _hudLit, 5, 30)
-            const _ctrX = Math.round(globalState.cameraPosition.x + getWorldViewWidth() / 2)
-            const _ctrY = Math.round(globalState.cameraPosition.y + getWorldViewHeight() / 2)
-            this.renderText('ctr: ' + _ctrX + ',' + _ctrY + '  zoom:' + (globalState.cameraZoom || 1).toFixed(2), 5, 45)
-            const _b = (window as any).mapContentBounds
+            const _ctrX = Math.round(view.cameraPosition.x + getWorldViewWidth() / 2)
+            const _ctrY = Math.round(view.cameraPosition.y + getWorldViewHeight() / 2)
+            this.renderText('ctr: ' + _ctrX + ',' + _ctrY + '  zoom:' + (view.cameraZoom || 1).toFixed(2), 5, 45)
+            const _b = window.mapContentBounds
             if (_b) {
                 const _z = getZoom()
-                const _cam = globalState.cameraPosition
+                const _cam = view.cameraPosition
                 const _l = Math.round((_b.minX - _cam.x) * _z)
                 const _r = Math.round((_b.maxX - _cam.x) * _z)
                 const _t = Math.round((_b.minY - _cam.y) * _z)
                 const _bot = Math.round((_b.maxY - _cam.y) * _z)
-                this.renderText('bbox L' + _l + ' R' + _r + ' T' + _t + ' B' + _bot + ' (scr ' + SCREEN_WIDTH + 'x' + SCREEN_HEIGHT + ')', 5, 60, 'left', 'yellow')
+                this.renderText(
+                    'bbox L' +
+                        _l +
+                        ' R' +
+                        _r +
+                        ' T' +
+                        _t +
+                        ' B' +
+                        _bot +
+                        ' (scr ' +
+                        SCREEN_WIDTH +
+                        'x' +
+                        SCREEN_HEIGHT +
+                        ')',
+                    5,
+                    60,
+                    'left',
+                    'yellow',
+                )
             } else {
                 this.renderText('bbox: NULL', 5, 60, 'left', 'red')
             }
@@ -326,12 +417,17 @@ export class Renderer {
         // floatText.ts places them (textObjectFindPlacement) and draws them in the CE
         // interface font in a DOM layer. CE tileToScreenXY is the tile's top-left:
         // hexToScreen gives the sprite anchor (tile + 16, + 8).
-        updateFloatText((tile) => {
-            const scr = hexToScreen(tile.x, tile.y)
-            return worldToScreen(scr.x - 16, scr.y - 8)
-        }, getZoom(), SCREEN_WIDTH, SCREEN_HEIGHT)
+        updateFloatText(
+            (tile) => {
+                const scr = hexToScreen(tile.x, tile.y)
+                return worldToScreen(scr.x - 16, scr.y - 8)
+            },
+            getZoom(),
+            SCREEN_WIDTH,
+            SCREEN_HEIGHT,
+        )
 
-        if (globalState.player.dead) {
+        if (world.player!.dead) {
             this.color(255, 0, 0, 50)
             this.rectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
         }
@@ -344,25 +440,38 @@ export class Renderer {
             const W = SCREEN_WIDTH
             const H = SCREEN_HEIGHT
 
-            if (globalState.cursorMode === 'command') {
-                const actarrowImg = globalState.images['art/intrface/actarrow']
-                this.renderImage('art/intrface/actarrow', rawX, rawY, actarrowImg?.naturalWidth ?? 28, actarrowImg?.naturalHeight ?? 13)
-                if (globalState.showLookCursor) {
-                    const looknImg = globalState.images['art/intrface/lookn']
-                    this.renderImage('art/intrface/lookn', rawX + 40, rawY, looknImg?.naturalWidth ?? 32, looknImg?.naturalHeight ?? 32)
+            if (uiState.cursorMode === 'command') {
+                const actarrowImg = assets.images['art/intrface/actarrow']
+                this.renderImage(
+                    'art/intrface/actarrow',
+                    rawX,
+                    rawY,
+                    actarrowImg?.naturalWidth ?? 28,
+                    actarrowImg?.naturalHeight ?? 13,
+                )
+                if (uiState.showLookCursor) {
+                    const icon = uiState.hoverActionIcon ?? 'art/intrface/lookn'
+                    const iconImg = assets.images[icon]
+                    this.renderImage(icon, rawX + 40, rawY, iconImg?.naturalWidth ?? 32, iconImg?.naturalHeight ?? 32)
                 }
-            } else if (globalState.cursorMode === 'attack') {
+            } else if (uiState.cursorMode === 'attack') {
                 // Fallout 2 attack crosshair cursor (acrshair); centered on the mouse hotspot
-                const attackImg = globalState.images['art/intrface/acrshair']
+                const attackImg = assets.images['art/intrface/acrshair']
                 const w = attackImg?.naturalWidth ?? 32
                 const h = attackImg?.naturalHeight ?? 32
                 this.renderImage('art/intrface/acrshair', rawX - Math.floor(w / 2), rawY - Math.floor(h / 2), w, h)
-            } else if (globalState.cursorMode === 'interface') {
-                const stdarrowImg = globalState.images['art/intrface/stdarrow']
-                this.renderImage('art/intrface/stdarrow', rawX, rawY, stdarrowImg?.naturalWidth ?? 14, stdarrowImg?.naturalHeight ?? 17)
-            } else if (globalState.cursorMode === 'useSkill' || globalState.cursorMode === 'useItem') {
+            } else if (uiState.cursorMode === 'interface') {
+                const stdarrowImg = assets.images['art/intrface/stdarrow']
+                this.renderImage(
+                    'art/intrface/stdarrow',
+                    rawX,
+                    rawY,
+                    stdarrowImg?.naturalWidth ?? 14,
+                    stdarrowImg?.naturalHeight ?? 17,
+                )
+            } else if (uiState.cursorMode === 'useSkill' || uiState.cursorMode === 'useItem') {
                 // FO2-CE ref: crossuse.frm — yellow crosshair for skill targeting
-                const crossuseImg = globalState.images['art/intrface/crossuse']
+                const crossuseImg = assets.images['art/intrface/crossuse']
                 if (crossuseImg) {
                     const w = crossuseImg.naturalWidth
                     const h = crossuseImg.naturalHeight
@@ -370,10 +479,16 @@ export class Renderer {
                     this.renderImage('art/intrface/crossuse', rawX - Math.floor(w / 2), rawY - Math.floor(h / 2), w, h)
                 } else {
                     // Fallback to actarrow if crossuse not available
-                    const fallbackImg = globalState.images['art/intrface/actarrow']
-                    this.renderImage('art/intrface/actarrow', rawX, rawY, fallbackImg?.naturalWidth ?? 28, fallbackImg?.naturalHeight ?? 13)
+                    const fallbackImg = assets.images['art/intrface/actarrow']
+                    this.renderImage(
+                        'art/intrface/actarrow',
+                        rawX,
+                        rawY,
+                        fallbackImg?.naturalWidth ?? 28,
+                        fallbackImg?.naturalHeight ?? 13,
+                    )
                 }
-            } else if (globalState.cursorMode === 'scroll') {
+            } else if (uiState.cursorMode === 'scroll') {
                 const goN = rawY <= PAD
                 const goS = rawY >= H - PAD
                 const goE = rawX >= W - PAD
@@ -389,8 +504,14 @@ export class Renderer {
                 else if (goE) scrollCursor = 'art/intrface/screast'
                 else if (goW) scrollCursor = 'art/intrface/scrwest'
 
-                const scrollImg = globalState.images[scrollCursor]
-                this.renderImage(scrollCursor, rawX, rawY, scrollImg?.naturalWidth ?? 32, scrollImg?.naturalHeight ?? 32)
+                const scrollImg = assets.images[scrollCursor]
+                this.renderImage(
+                    scrollCursor,
+                    rawX,
+                    rawY,
+                    scrollImg?.naturalWidth ?? 32,
+                    scrollImg?.naturalHeight ?? 32,
+                )
             }
             // 'move' mode: hex_outline handles cursor rendering (snapped to hex grid)
         }
@@ -405,27 +526,27 @@ export class Renderer {
     }
 
     objectRenderInfo(obj: Obj): ObjectRenderInfo | null {
-        const scr = hexToScreen(obj.position.x, obj.position.y)
+        const scr = slidScreenPos(obj)
         let visible = obj.visible
 
-        if (globalState.images[obj.art] === undefined) {
+        if (assets.images[obj.art] === undefined) {
             lazyLoadImage(obj.art) // try to load it in
             return null
         }
 
-        const info = globalState.imageInfo[obj.art]
+        const info = assets.imageInfo![obj.art]
         if (info === undefined) {
-            throw 'No image map info for: ' + obj.art
+            throw new Error('No image map info for: ' + obj.art)
         }
 
-        if (!(obj.orientation in info.frameOffsets)) {
+        if (!(obj.orientation! in info.frameOffsets)) {
             obj.orientation = 0
         } // ...
-        const frameInfo = info.frameOffsets[obj.orientation][obj.frame]
+        const frameInfo = info.frameOffsets[obj.orientation!][obj.frame]
         if (!frameInfo) {
             return null
         }
-        const dirOffset = info.directionOffsets[obj.orientation]
+        const dirOffset = info.directionOffsets[obj.orientation!]
 
         // Anchored from the bottom center
         let offsetX = -((frameInfo.w / 2) | 0) + dirOffset.x
@@ -453,11 +574,11 @@ export class Renderer {
             offsetY += frameInfo.oy + obj.artOffset.y
         }
 
-        if (obj === globalState.player &&
-                (obj.art !== _animLogLast.art || obj.frame !== _animLogLast.frame)) {
+        if (obj === world.player && (obj.art !== _animLogLast.art || obj.frame !== _animLogLast.frame)) {
             _animLogLast.art = obj.art
             _animLogLast.frame = obj.frame
-            dbg('animation',
+            dbg(
+                'animation',
                 `[Render] t=${performance.now().toFixed(1)}`,
                 `art=${obj.art} f=${obj.frame}`,
                 `frameOx=${frameInfo.ox} frameOy=${frameInfo.oy}`,
@@ -475,15 +596,15 @@ export class Renderer {
         const viewW = getWorldViewWidth()
         const viewH = getWorldViewHeight()
         if (
-            scrX + frameInfo.w < globalState.cameraPosition.x ||
-            scrY + frameInfo.h < globalState.cameraPosition.y ||
-            scrX >= globalState.cameraPosition.x + viewW ||
-            scrY >= globalState.cameraPosition.y + viewH
+            scrX + frameInfo.w < view.cameraPosition.x ||
+            scrY + frameInfo.h < view.cameraPosition.y ||
+            scrX >= view.cameraPosition.x + viewW ||
+            scrY >= view.cameraPosition.y + viewH
         ) {
             visible = false
         } // out of screen bounds, no need to draw
 
-        const cell = frameCell(info, obj.orientation, obj.frame)
+        const cell = frameCell(info, obj.orientation!, obj.frame)
         const sx = cell.sx
 
         return {
@@ -505,7 +626,7 @@ export class Renderer {
         // items get a temporary outline so players can see what's pickable.
         // Distinct from Config.ui.itemHighlight (the real CE preference for
         // single-item mouse-hover highlighting — see input.ts mousemoved).
-        const highlightItems = globalState.highlightItemsKeyHeld === true
+        const highlightItems = uiState.highlightItemsKeyHeld === true
 
         const renderOne = (obj: Obj): void => {
             if (!Config.ui.showWalls && obj.type === 'wall') return
@@ -540,6 +661,8 @@ export class Renderer {
     color(r: number, g: number, b: number, a = 255): void {}
     rectangle(x: number, y: number, w: number, h: number, filled = true): void {}
     renderText(txt: string, x: number, y: number, align: CanvasTextAlign = 'left', color?: string): void {}
+    // a ready-made image (bitmap-font text) on the screen overlay, top-left at (x, y)
+    renderCanvas(canvas: HTMLCanvasElement, x: number, y: number): void {}
     renderImage(imgPath: string, x: number, y: number, width: number, height: number): void {}
 
     renderRoof(roof: TileMap, hideSet?: Set<string> | null): void {}
@@ -548,6 +671,10 @@ export class Renderer {
         this.renderObject(obj)
     }
     renderObject(obj: Obj): void {}
+    // Whether the egg makes obj see-through near the dude (WebGL: webglDraw.ts isEggObject)
+    isEggTransparent(obj: Obj): boolean {
+        return false
+    }
     renderOutlinePass(objs: Obj[]): void {}
     renderWindow(window: WindowFrame): void {
         this.renderImage(window.background, window.position.x, window.position.y, window.width, window.height)
@@ -570,10 +697,10 @@ export function objectOnScreen(obj: Obj): boolean {
     const viewW = getWorldViewWidth()
     const viewH = getWorldViewHeight()
     if (
-        bbox.x + bbox.w < globalState.cameraPosition.x ||
-        bbox.y + bbox.h < globalState.cameraPosition.y ||
-        bbox.x >= globalState.cameraPosition.x + viewW ||
-        bbox.y >= globalState.cameraPosition.y + viewH
+        bbox.x + bbox.w < view.cameraPosition.x ||
+        bbox.y + bbox.h < view.cameraPosition.y ||
+        bbox.x >= view.cameraPosition.x + viewW ||
+        bbox.y >= view.cameraPosition.y + viewH
     ) {
         return false
     }
@@ -582,33 +709,41 @@ export function objectOnScreen(obj: Obj): boolean {
 
 export function objectTransparentAt(obj: Obj, position: Point) {
     const frame = obj.frame !== undefined ? obj.frame : 0
-    const f = globalState.imageInfo[obj.art].frameOffsets[obj.orientation][frame]
+    const f = assets.imageInfo![obj.art].frameOffsets[obj.orientation!][frame]
     const sx = f.sx
     const sy = f.sy ?? 0
 
-    if (!globalState.tempCanvasCtx) {
+    if (!assets.tempCanvasCtx) {
         throw Error()
     }
 
-    globalState.tempCanvasCtx.clearRect(0, 0, 1, 1) // clear previous color
-    globalState.tempCanvasCtx.drawImage(globalState.images[obj.art], sx + position.x, sy + position.y, 1, 1, 0, 0, 1, 1)
-    const pixelAlpha = globalState.tempCanvasCtx.getImageData(0, 0, 1, 1).data[3]
+    assets.tempCanvasCtx.clearRect(0, 0, 1, 1) // clear previous color
+    assets.tempCanvasCtx.drawImage(assets.images[obj.art], sx + position.x, sy + position.y, 1, 1, 0, 0, 1, 1)
+    const pixelAlpha = assets.tempCanvasCtx.getImageData(0, 0, 1, 1).data[3]
 
     return pixelAlpha === 0
 }
 
 // get an object's bounding box in screen-space (note: not camera-space)
-export function objectBoundingBox(obj: Obj): BoundingBox | null {
+// The object's tile on screen, plus the pixel offset of a straight slide in progress
+// (critter/lifecycle.ts moveStraight: CE _object_straight_move's obj->x/y between tiles).
+function slidScreenPos(obj: Obj): Point {
     const scr = hexToScreen(obj.position.x, obj.position.y)
+    const slide = (obj as any).slideOffset as Point | undefined
+    return slide ? { x: scr.x + slide.x, y: scr.y + slide.y } : scr
+}
 
-    if (globalState.images[obj.art] === undefined) {
+export function objectBoundingBox(obj: Obj): BoundingBox | null {
+    const scr = slidScreenPos(obj)
+
+    if (assets.images[obj.art] === undefined) {
         // no art
         return null
     }
 
-    const info = globalState.imageInfo[obj.art]
+    const info = assets.imageInfo![obj.art]
     if (info === undefined) {
-        throw 'No image map info for: ' + obj.art
+        throw new Error('No image map info for: ' + obj.art)
     }
 
     let frameIdx = 0
@@ -616,14 +751,14 @@ export function objectBoundingBox(obj: Obj): BoundingBox | null {
         frameIdx += obj.frame
     }
 
-    if (!(obj.orientation in info.frameOffsets)) {
+    if (!(obj.orientation! in info.frameOffsets)) {
         obj.orientation = 0
     } // ...
-    const frameInfo = info.frameOffsets[obj.orientation][frameIdx]
+    const frameInfo = info.frameOffsets[obj.orientation!][frameIdx]
     if (!frameInfo) {
         return null
     }
-    const dirOffset = info.directionOffsets[obj.orientation]
+    const dirOffset = info.directionOffsets[obj.orientation!]
     const ceModel = Config.engine.animOffsetModel === 'ce' && obj.type === 'critter' && obj.shift === null
     const ox = ceModel ? obj.ceOff.x : frameInfo.ox + obj.artOffset.x
     const oy = ceModel ? obj.ceOff.y : frameInfo.oy + obj.artOffset.y
@@ -639,22 +774,48 @@ export function getObjectUnderCursor(p: (obj: Obj) => boolean) {
     // in world coordinates) are hit-tested in the same space.
     const mousePosition = screenToWorld(mouse[0], mouse[1])
 
-    // reverse z-ordered search
-    const objects = globalState.gMap.getObjects()
-    for (let i = objects.length - 1; i > 0; i--) {
-        const bbox = objectBoundingBox(objects[i])
-        if (bbox === null) {
-            continue
-        }
-        if (pointInBoundingBox(mousePosition, bbox)) {
-            if (p === undefined || p(objects[i]) === true) {
-                const mouseRel = { x: mousePosition.x - bbox.x, y: mousePosition.y - bbox.y }
-                if (!objectTransparentAt(objects[i], mouseRel)) {
-                    return objects[i]
-                }
-            }
-        }
+    // CE game_mouse.cc gameMouseGetObjectUnderCursor: walk the intersect list top-down;
+    // every hit is a candidate, and the first opaque one outside the egg that is not a
+    // dead or knocked-out critter wins — else the lowest candidate. Hidden objects never
+    // intersect (object.cc _obj_intersects_with).
+    const objects = world.gMap!.getObjects()
+    const player = world.player
+    const mouseHex = hexFromScreen(mousePosition.x, mousePosition.y)
+    const eggRadius = Config.ui.eggRadius ?? 8
+    // CE: with objectType -1 (not the crosshair's critter pick) nothing is picked over a visible
+    // roof outside the egg (_square_roof_intersect / _obj_intersects_with(gEgg))
+    const renderer = services.renderer
+    if (
+        uiState.cursorMode !== 'attack' &&
+        Config.ui.showRoof &&
+        renderer?.roofTiles &&
+        player &&
+        !(Config.ui.showEgg !== false && hexDistance(player.position, mouseHex) <= eggRadius)
+    ) {
+        const sq = tileFromScreen(mousePosition.x, mousePosition.y + 96) // roofs draw 96 px up
+        const roofTile = renderer.roofTiles[sq.x]?.[sq.y]
+        if (roofTile && roofTile !== 'grid000' && !renderer.lastRoofHideSet?.has(`${sq.x},${sq.y}`)) return null
+    }
+    let candidate: Obj | null = null
+    for (let i = objects.length - 1; i >= 0; i--) {
+        const obj = objects[i]
+        if (obj.visible === false || (((obj as any).flags ?? 0) & 0x01) !== 0) continue // GameMap.isHiddenObj (OBJECT_HIDDEN)
+        const bbox = objectBoundingBox(obj)
+        if (bbox === null || !pointInBoundingBox(mousePosition, bbox)) continue
+        if (p !== undefined && p(obj) !== true) continue
+        const mouseRel = { x: mousePosition.x - bbox.x, y: mousePosition.y - bbox.y }
+        if (objectTransparentAt(obj, mouseRel)) continue // DH2 lists only pixel hits
+        candidate = obj
+        const inEgg =
+            Config.ui.showEgg !== false &&
+            player &&
+            hexDistance(player.position, mouseHex) <= eggRadius &&
+            services.renderer?.isEggTransparent(obj)
+        if (inEgg) continue
+        const c = obj as any
+        if (obj.type === 'critter' && (c.dead || ((c.injuryFlags ?? 0) & 0x01) !== 0)) continue // DAM_KNOCKED_OUT | DAM_DEAD
+        return obj
     }
 
-    return null
+    return candidate
 }

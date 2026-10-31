@@ -148,7 +148,7 @@ DH2 uses CSS text drawn on `textCtx` (`src/render/webglDraw.ts:47–57`).
 **Recommended corrections** (low priority — combat text is very brief):
 - Red: `#FC0000` (palette[133]) instead of `#FF4444`
 - Yellow: `#FCFC7C` (palette[57]) instead of `#FFFF44` — notably this hex is already
-  used in `src/ui_components.ts:125` (`selectedTextColor`) so it's the right FO2 gold
+  used in `src/uiComponents.ts:125` (`selectedTextColor`) so it's the right FO2 gold
 - Green: `#64E464` (palette[196]) instead of `#00FF00`
 
 ---

@@ -1,12 +1,41 @@
 // Configuration for the engine internals, controls and UI
 
 // The windows that can be dragged (DH2 addition) — fallout2.cfg [dh2] drag_<name>.
-export type DragWindow = 'inventory' | 'character' | 'characterCreator' | 'options' | 'skilldex' | 'pipboy'
-    | 'automap' | 'loot' | 'dialogue' | 'dialogueReview' | 'elevator' | 'calledShot' | 'moveItems'
-    | 'saveLoad' | 'perks' | 'dialogBox'
-export const DRAG_WINDOWS: DragWindow[] = ['inventory', 'character', 'characterCreator', 'options', 'skilldex',
-    'pipboy', 'automap', 'loot', 'dialogue', 'dialogueReview', 'elevator', 'calledShot', 'moveItems', 'saveLoad',
-    'perks', 'dialogBox']
+export type DragWindow =
+    | 'inventory'
+    | 'character'
+    | 'characterCreator'
+    | 'options'
+    | 'skilldex'
+    | 'pipboy'
+    | 'automap'
+    | 'loot'
+    | 'dialogue'
+    | 'dialogueReview'
+    | 'elevator'
+    | 'calledShot'
+    | 'moveItems'
+    | 'saveLoad'
+    | 'perks'
+    | 'dialogBox'
+export const DRAG_WINDOWS: DragWindow[] = [
+    'inventory',
+    'character',
+    'characterCreator',
+    'options',
+    'skilldex',
+    'pipboy',
+    'automap',
+    'loot',
+    'dialogue',
+    'dialogueReview',
+    'elevator',
+    'calledShot',
+    'moveItems',
+    'saveLoad',
+    'perks',
+    'dialogBox',
+]
 
 export const Config = {
     ui: {
@@ -41,6 +70,29 @@ export const Config = {
         // guessed from the blockers' / floor's bounding box (render/camera.ts).
         // fallout2.cfg [dh2] scroll_bounds=ce|dh2.
         scrollBounds: 'ce' as 'ce' | 'dh2',
+        // [dh2] mouse_mode: 'dh2' (default) — a move-cursor click uses / attacks the object under
+        // it, an arrow-cursor click opens the action menu and the cursor goes back to move;
+        // 'ce' — game_mouse.cc: a move click always walks to the hex, an arrow click does the
+        // primary action, holding the button 250 ms opens the action menu, the arrow stays.
+        mouseMode: 'dh2' as 'ce' | 'dh2',
+        // [dh2] scroll_mode: 'dh2' (default) — smooth edge / arrow scrolling, 15 px a tick; 'ce' —
+        // map.cc mapScroll: 32 × 24 px steps, one every 33 ms (camera.ts ceMapScroll)
+        scrollMode: 'dh2' as 'ce' | 'dh2',
+        // [dh2] mouse_wheel: 'zoom' (default, DH2) zooms the map; 'ce' scrolls it a step
+        // (game.cc gameHandleKey → mapScroll; up / down, sideways with a tilt wheel)
+        mouseWheel: 'zoom' as 'zoom' | 'ce',
+        // [dh2] combat_outline: 'dh2' (default) — red hostile, green team, blue for neutrals
+        // (CI11), seen through walls; 'ce' — combat.cc _combat_update_critter_outline_for_los:
+        // red / green by team in the line of fire, the palette-61 outline for a critter out of
+        // sight within PER × 5 hexes, none farther
+        combatOutline: 'dh2' as 'ce' | 'dh2',
+        // [dh2] save_slots: 'dh2' (default) — any number of slots (at least 20, scrolling), a free one at the end,
+        // DELETE / Del removes a save; 'ce' — loadsave.cc: ten slots, no deleting (the
+        // ten oldest saves fill them; any more stay stored but aren't listed)
+        saveSlots: 'dh2' as 'ce' | 'dh2',
+        // [dh2] elevation_fade: 1 (default, DH2) — a short fade from black on stairs, ladders,
+        // elevators and script elevation changes; 0 — CE mapSetElevation's instant switch
+        elevationFade: true,
         // scroll_bounds=ce's player limit (480×400 px). Off, the view goes as far as
         // the blocker ring / black border allow. fallout2.cfg [dh2]
         // scroll_player_limit=0|1, console setScrollPlayerLimit(on).
@@ -73,12 +125,15 @@ export const Config = {
         // (art/fonts/font1_aaf.woff, CE FONT 101) instead of the browser font.
         // Set in fallout2.cfg: [dh2] pixel_font=0 to use the browser font instead.
         pixelFont: true,
+        // main menu button labels: 'white' (DH2) or 'ce' (CE mainmenu.cc: _colorTable[21091], the
+        // footer's yellow). Set in fallout2.cfg: [dh2] menu_text=ce.
+        menuText: 'white' as 'white' | 'ce',
         // DH2 option, not in CE: a Use action on an elevator (its car / door scenery) walks
         // the player in, as stepping in does (CE: the elevator's spatial script only).
         // fallout2.cfg: [dh2] elevator_use=0 for the CE action menu.
         elevatorUse: true,
         eggMode: 'dh2-egg' as 'alpha' | 'dh2-egg' | 'ce-egg' | 'bbox' | 'beta', // 'alpha'=flat transparent, 'dh2-egg'=CE egg.png mask (DH2 hand-tuned occlusion test), 'ce-egg'=CE egg.png mask using the byte-for-byte CE occlusion test (no DH2 deviations), 'bbox'=CE egg.png mask using a screen-space bounding-box overlap + draw-order depth test (DH2-original, not CE-derived), 'beta'=floor hex debug overlay (no wall transparency)
-        eggAlpha:  undefined as number | undefined, // outer alpha — undefined = use default 0.4
+        eggAlpha: undefined as number | undefined, // outer alpha — undefined = use default 0.4
         eggRadius: undefined as number | undefined, // hex radius — undefined = use default 8
         // Stealth Boy OBJECT_TRANS_GLASS semi-transparent rendering.
         // stealthAlpha: sprite alpha (0–1). Console: Config.ui.stealthAlpha = 0.3
@@ -125,6 +180,8 @@ export const Config = {
         languageFilter: false,
         // FO2-CE ref: preferences.cc text_base_delay — on-screen text linger time, 1.0–6.0 s
         textBaseDelay: 3.5,
+        // fallout2.cfg [preferences] text_line_delay — undefined: derived from textBaseDelay
+        textLineDelay: undefined as number | undefined,
         // CE settings.preferences.combat_taunts — AI combat float messages (combat_ai.cc:3308 _combatai_msg)
         combatTaunts: true,
         // CE settings.preferences.combat_looks — examine whatever the attack cursor points at (game_mouse.cc:745)
@@ -140,10 +197,27 @@ export const Config = {
     },
 
     engine: {
-        debug: true, // set true to enable debug/cheat utilities in src/debug.ts
+        // CE settings.sound.sounds / music / speech (fallout2.cfg [sound] sounds=, music=,
+        // speech=; default 1): sounds=0 silences everything (gameSoundInit is skipped), music=0
+        // the background music, speech=0 the talking heads' speech.
+        // [dh2] talk_mode: 'dh2' (default) — the dude walks up to everyone he talks to; 'ce' —
+        // actions.cc actionTalk: from where he stands when under 9 hexes and in sight (talkApproach.ts)
+        talkMode: 'dh2' as 'ce' | 'dh2',
+        // fallout2.cfg [system] interrupt_walk (CE default 1): 0 — a move click while the dude
+        // is still walking is ignored (CE _check_move only clears the walk when it is on)
+        interruptWalk: true,
+        // [dh2] barter_running_item: 'dh2' (default) — offering a running item (a burning
+        // flare, an armed explosive, a switched-on Geiger counter / Stealth Boy) gets its own
+        // refusal from the merchant; 'ce' — inventory.cc _barter_attempt_transaction's
+        // inventry.msg 28 "No, your offer is not good enough."
+        barterRunningItem: 'dh2' as 'ce' | 'dh2',
+        soundsEnabled: true,
+        musicEnabled: true,
+        speechEnabled: true,
+        debug: true, // debug/cheat utilities (src/debug.ts) and the AutoCrawler; on by default
         // DH2 developer hotkeys (teleport h, elevation q/e, layer toggles r/f/o/w, tile
         // inspector i, kill k, ...; none of them exist in CE). Off so they can't fire
-        // while playing or typing; console: setDevKeys(true).
+        // while playing or typing; console (play.html#dev): setDevKeys(true).
         devKeys: false,
         // Walk/run movement model (console: setWalkModel('ce' | 'dh2' | 'smooth')):
         //   'ce'     — CE animation.cc _object_move: per-frame FRM deltas accumulate, the
@@ -177,7 +251,7 @@ export const Config = {
         doLoadItemInfo: true, // load item information (such as inventory images)?
         doAlwaysRun: false, // always run instead of walk? CE default = false (settings.h:38)
         // FO2-CE ref: preferences.cc player_speedup — apply combat-speed boost to player walk animation.
-        playerSpeedup: true,
+        playerSpeedup: false, // CE game_config.cc gameConfigInit: player_speedup 0
         // DH2 option, not in CE: smooth hour-of-day ambient light curve (gametime.ts).
         // false = CE lighting: only map scripts' set_light_level changes the light.
         // Set in fallout2.cfg: [dh2] day_night_cycle=0/1.
@@ -185,6 +259,9 @@ export const Config = {
         // sfall pipboy_available_at_game_start (CE pipboy.cc _pip_init_): the Pip-Boy opens
         // before the Vault Suit movie. Set in fallout2.cfg: [dh2] pipboy_available_at_game_start=1.
         pipboyAvailableAtStart: false,
+        // the developer console commands (skipTemple(), revealWorldmap(), ...; src/devConsole/)
+        // on every start, not only for play.html#dev. Set in fallout2.cfg: [dh2] dev_console=1.
+        devConsole: false,
         doZOrder: true, // Z-order objects?
         doEncounters: true, // allow random encounters?
         doInfiniteUse: false, // allow infinite-range object usage?
@@ -218,7 +295,8 @@ export const Config = {
         //                        per-column "vertical stripe" texture on wall faces.
         //   'tile-smooth'      — tile-y + the same blur kernel.
         //   'off'              — full per-fragment sampling (dark tops on tall sprites).
-        objectLightingMode: 'wall-clamp' as 'tile-y' | 'foot-y' | 'off' | 'flat' | 'foot-smooth' | 'tile-smooth' | 'wall-clamp',
+        objectLightingMode: 'wall-clamp' as
+            'tile-y' | 'foot-y' | 'off' | 'flat' | 'foot-smooth' | 'tile-smooth' | 'wall-clamp',
         // Blur kernel radius (world px) for the '*-smooth' object lighting modes.
         // Larger = smoother wall faces but softer light detail. Tune: setObjectLightSmooth(px).
         objectLightSmoothPx: 12,
@@ -343,47 +421,47 @@ export const Config = {
         scriptFixes: true,
         debugLogShowType: {
             // ── Scripting VM ──────────────────────────────────────────────────────
-            stub: true,           // log unimplemented script opcodes (always-on recommended)
-            log: false,           // script-level log() calls
-            timer: false,         // registered timed events (fire/cancel)
-            load: false,          // script file loads and resets
-            debugMessage: true,   // debug_message() calls from scripts
+            stub: true, // log unimplemented script opcodes (always-on recommended)
+            log: false, // script-level log() calls
+            timer: false, // registered timed events (fire/cancel)
+            load: false, // script file loads and resets
+            debugMessage: true, // debug_message() calls from scripts
             displayMessage: true, // display_message() calls (in-game console output)
-            floatMessage: false,  // floating messages above critters
-            gvars: false,         // global variable reads/writes
-            lvars: false,         // local variable reads/writes
-            mvars: false,         // map variable reads/writes
-            tiles: true,          // tile/elevation changes
-            animation: false,     // animation state transitions
-            animOffset: false,    // artOffset zero-jump formula inputs/outputs at every FRM switch
-            movement: false,      // critter movement and pathfinding steps
-            inventory: true,      // inventory add/remove operations
-            party: false,         // party member join/leave/status
-            dialogue: false,      // dialogue node entry and exit
+            floatMessage: false, // floating messages above critters
+            gvars: false, // global variable reads/writes
+            lvars: false, // local variable reads/writes
+            mvars: false, // map variable reads/writes
+            tiles: true, // tile/elevation changes
+            animation: false, // animation state transitions
+            animOffset: false, // artOffset zero-jump formula inputs/outputs at every FRM switch
+            movement: false, // critter movement and pathfinding steps
+            inventory: true, // inventory add/remove operations
+            party: false, // party member join/leave/status
+            dialogue: false, // dialogue node entry and exit
 
             // ── Engine debug categories — flip in DevTools to surface output ──────
             // e.g. Config.scripting.debugLogShowType.combat = true
-            combat: true,        // combat flow: turn start/end, enrollment, forceEnd
-            ai: false,            // AI turn decisions: packet lookup, action chosen, AP spent
-            rolls: false,         // every dice roll: hit chance, roll result, hit/miss/crit
-            skills: false,        // skill check rolls and outcomes
-            damage: false,        // damage formula breakdown: RD/CM/ADR/ADT/Base/Adj/Final
-            script: false,        // script execution tracing (verbose)
-            lua: true,            // Lua script backend: load fallbacks, script errors
-            map: false,           // map load, elevation change, exit grid transitions
-            object: false,        // object creation, destruction, flag changes
-            audio: true,         // audio load, play, stop events
-            renderer: false,      // WebGL draw calls and render state changes
-            lighting: false,      // lightmap recalculation and light source updates
-            worldmap: false,      // worldmap travel, encounter checks, location transitions
-            encounters: false,    // random encounter rolls and table lookups
-            saveload: false,      // save/load operations and slot management
-            endgame: false,       // endgame slideshow and death ending selection
-            automap: false,       // automap IDB reads, writes, and migrations
+            combat: true, // combat flow: turn start/end, enrollment, forceEnd
+            ai: false, // AI turn decisions: packet lookup, action chosen, AP spent
+            rolls: false, // every dice roll: hit chance, roll result, hit/miss/crit
+            skills: false, // skill check rolls and outcomes
+            damage: false, // damage formula breakdown: RD/CM/ADR/ADT/Base/Adj/Final
+            script: false, // script execution tracing (verbose)
+            lua: true, // Lua script backend: load fallbacks, script errors
+            map: false, // map load, elevation change, exit grid transitions
+            object: false, // object creation, destruction, flag changes
+            audio: true, // audio load, play, stop events
+            renderer: false, // WebGL draw calls and render state changes
+            lighting: false, // lightmap recalculation and light source updates
+            worldmap: false, // worldmap travel, encounter checks, location transitions
+            encounters: false, // random encounter rolls and table lookups
+            saveload: false, // save/load operations and slot management
+            endgame: false, // endgame slideshow and death ending selection
+            automap: false, // automap IDB reads, writes, and migrations
         },
     },
 }
 
 if (typeof window !== 'undefined') {
-    ;(window as any).Config = Config
+    window.Config = Config
 }

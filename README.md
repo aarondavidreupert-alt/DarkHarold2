@@ -21,7 +21,8 @@ no full end-to-end playthrough yet, and a handful of places still simplify CE (l
 below). The 2026-10-24 function-by-function CE parity audit
 ([`wiki/CE_PARITY_AUDIT.md`](wiki/CE_PARITY_AUDIT.md)) found 1780 CE function rows, 835 of them matching, and opened
 23 HIGH groups (known_bugs §33) plus ~150 MED findings; all 23 HIGH groups were fixed the same day (script opcodes,
-character rules, combat, the map pipeline, doors, worldmap, dialogue, VM robustness, music), the MED findings are open. See [`ROADMAP.md`](ROADMAP.md) and [`wiki/known_bugs.md`](wiki/known_bugs.md) for the canonical trackers.
+character rules, combat, the map pipeline, doors, worldmap, dialogue, VM robustness, music), and on 2026-10-25 119 of the
+120 MED findings (known_bugs §34 lists what is left). See [`ROADMAP.md`](ROADMAP.md) and [`wiki/known_bugs.md`](wiki/known_bugs.md) for the canonical trackers.
 
 If you're looking for documentation on how Fallout 2 works, documentation on certain file formats, or
 tools to work with them, this project will be useful to you as well.
@@ -49,9 +50,10 @@ existing maintainers stay oriented; each section builds on the previous.
 |---|---|
 | [`CODEBASE.md`](CODEBASE.md) | Full module map, repository layout, file responsibilities, key data flows |
 | `src/` | TypeScript engine (renderer, object, critter, vm, scripting, combat, party, …) |
-| `src/main.ts` | Main game loop, input handling, map-load entry |
+| `src/main.ts` | Boot: renderer, audio, fallout2.cfg, asset caches, `initGame` (game loop: `gameTick.ts`; input: `input.ts`) |
 | `src/heart.ts` | 60 Hz heartbeat loop |
-| `src/globalState.ts` | Central game-state singleton (`gMap`, `player`, `combatActive`, …) |
+| `src/state/` | Owned game state: `world` (`gMap`, `player`, `combat`, …), `uiState`, `view`, `services`, `assets` |
+| `src/globalState.ts` | Engine runtime fields plus one-object access to all of `src/state/` (also `window.globalState`) |
 | `src/config.ts` | Engine / UI / scripting / combat flags |
 | `shaders/` | GLSL shaders (vertex, fragment, lighting, font) |
 | `lut/` | Pre-baked JSON lookup tables (LST indexes, crit tables, palette data) |
@@ -73,7 +75,7 @@ Pre-audited summaries of CE behaviour with DH2 gaps already identified. Trust th
 | 9 | [`wiki/weapon_combat.md`](wiki/weapon_combat.md) | Weapon AP costs, burst spread, called shots, reload |
 | 10 | [`wiki/damage_formula.md`](wiki/damage_formula.md) | Per-step damage math (RD → DT → DR → CM → final) |
 | 11 | [`wiki/ai_behavior.md`](wiki/ai_behavior.md) | AI packets, distance modes, perception, taunts |
-| 12 | [`wiki/scripting_vm.md`](wiki/scripting_vm.md) | VM architecture, three-file split (`vm.ts`/`vm_bridge.ts`/`scripting.ts`) |
+| 12 | [`wiki/scripting_vm.md`](wiki/scripting_vm.md) | VM architecture, three-file split (`vm.ts`/`vmBridge.ts`/`scripting.ts`) |
 | 13 | [`wiki/scripting_reference.md`](wiki/scripting_reference.md) | Opcode reference and coverage table |
 | 14 | [`wiki/dialogue_system.md`](wiki/dialogue_system.md) | Dialogue runtime, MSG files, `gsay`/`giq` chain |
 | 15 | [`wiki/worldmap.md`](wiki/worldmap.md) | Worldmap travel, encounter tables, area entrances |
@@ -116,6 +118,9 @@ Pre-audited summaries of CE behaviour with DH2 gaps already identified. Trust th
 | 51 | [`wiki/upu_support.md`](wiki/upu_support.md) | The Unofficial Patch (UPU) and mod folders: what UPU changes, how DH2 builds and loads it (`mods/<name>/`, sfall functions, global scripts, hooks), conflicts |
 | 52 | [`wiki/edit_history.md`](wiki/edit_history.md) | Sprint notes, newest first |
 | 53 | [`wiki/autocrawler.md`](wiki/autocrawler.md) | AutoCrawler: automated map / dialogue / combat test harness, URL auto-start, report format |
+| 54 | [`wiki/cleanup_audit.md`](wiki/cleanup_audit.md) | 2026-10-26 codebase hygiene audit: dead code, debug console (`play.html#dev`), stale docs; SAFE items fixed, RISKY items open |
+| 55 | [`wiki/code_quality.md`](wiki/code_quality.md) | Code quality vs modern standards (2026-10-27): type safety, import cycle, sync I/O, tests / CI, toolchain; phased fixing plan Q1–Q17 |
+| 56 | [`wiki/planning_archive.md`](wiki/planning_archive.md) | The early (spring 2026) planning documents, formerly `docs/planning/*.docx`, as text; superseded |
 
 ### 🐛 Known issues & roadmap
 
@@ -126,7 +131,7 @@ Pre-audited summaries of CE behaviour with DH2 gaps already identified. Trust th
 | Inline `// TODO` / `// FIXME` in `src/` | Source-level annotations |
 | [`CLAUDE.md`](CLAUDE.md) → "Intentionally Incomplete Systems" | Remaining deliberate approximations |
 
-### 🔧 Asset pipeline (Python 3.9+)
+### 🔧 Asset pipeline (Python 3.11+)
 
 All pipeline scripts live under [`tools/`](tools/) (moved from the repository root
 2026-06-18 for a cleaner layout). `tools/setup.py` orchestrates the full extraction; the
@@ -158,14 +163,11 @@ pipenv run python tools/pipeline_gui.py
 | [`tools/convertAudio.py`](tools/convertAudio.py) | ACM → WAV (`export_audio` stage; ACM decoded by `tools/acmDecoder.py`, a port of CE `sound_decoder.cc`) |
 | [`tools/dat2.py`](tools/dat2.py) | DAT2 archive extractor |
 | [`tools/pal.py`](tools/pal.py) | PAL palette loading |
-| [`tools/fonts.py`](tools/fonts.py) | FON font extraction |
 | [`tools/convertLST.py`](tools/convertLST.py) | LST → JSON pre-bake (`lut/lst/`) |
 | [`tools/convertPRO.py`](tools/convertPRO.py) | Standalone PRO converter (debug) |
 | [`tools/convertEndgame.py`](tools/convertEndgame.py) | Endgame slide extraction |
 | [`tools/parseCritTable.py`](tools/parseCritTable.py) | EXE table extractor → `lut/` |
 | [`tools/stitchWorldmap.py`](tools/stitchWorldmap.py) | World map tiles → `art/worldmap.png` (`stitch_worldmap` stage) |
-| [`tools/mpserv.py`](tools/mpserv.py) | Multiplayer WebSocket server (unrelated to asset conversion) |
-| [`tools/oldPy/`](tools/oldPy/) | Superseded/experimental script iterations, kept for reference only |
 | [`wiki/animation.md`](wiki/animation.md) → "imageMap.json" | Atlas/imageMap.json schema reference |
 
 ---
@@ -173,7 +175,7 @@ pipenv run python tools/pipeline_gui.py
 ## Feature completion
 
 The buckets below are sourced from [`wiki/known_bugs.md`](wiki/known_bugs.md) (current
-audit: 2026-10-18). Items marked FIXED there roll up here. If you spot a contradiction,
+audit: 2026-10-25, the CE parity audit §33 / §34). Items marked FIXED there roll up here. If you spot a contradiction,
 the wiki tracker is the source of truth.
 
 ### ✅ Substantially implemented (~85–100%)
@@ -189,7 +191,7 @@ the wiki tracker is the source of truth.
 - **Dialogue** — full `gsay_*`/`giq_option`/`gsay_option` set, barter/combat-control buttons, review log, highlight overlays; **talking heads** with fidgets, reactions and lip-synced speech (P4)
 - **Bartering** — CE `_barter_compute_value`, reaction LVAR, Master Trader, difficulty bonus, scrollable tables, quantity picker
 - **Party / companions** — `party_add`/`party_remove`, companion level-ups from `party.txt` (`_partyMemberIncLevels`), CE `_partyMemberSyncPosition` placement on map entry, script-driven following (`critter_p_proc`), companion control/customize/trade screens; the party travels with the player and is excluded from map snapshots (M10)
-- **Inventory & items** — drag-and-drop, equip slots, carry weight, CE ammo stacks (C36), container capacity, CE ammo bar (AF5); script wield / unwield / strip as CE (C44); flares light, burn out and light their holder (C46)
+- **Inventory & items** — drag-and-drop, equip slots, carry weight, CE ammo stacks (C36), container capacity, CE ammo bar (AF5); script wield / unwield / strip as CE (C44); flares light, burn out and light their holder (C46); CE item menus and bags (open up to 9 deep) in the inventory, loot, steal and trade windows
 - **Active skill use** — CE `skillUse` (C59): First Aid / Doctor / Repair with CE heal ranges, per-limb rolls by the party's best, robots only for Repair, time per attempt, the 3-a-day use slots (saved) and skill XP; Lockpick / Traps / Science left to the scripts as in CE; Sneak, Steal; party delegation (AC6)
 - **Look & examine** — `look_at_p_proc`/`description_p_proc` scripts, CE health/crippled text, Awareness details, weapon/ammo lines (IU6)
 - **Karma & reputation** — karma title, per-town reputation tiers; CE has no engine-side reaction modifier beyond the who-hit-me reaction hit (C19)
@@ -202,12 +204,12 @@ the wiki tracker is the source of truth.
 - **Status effects** — radiation (`critterAdjustRadiation`/`processRads`), drugs and addiction from proto data with withdrawal perks, poison decay (S26)
 - **Movies** — MVE → WebM pipeline stage, CE `gameMoviePlay` with subtitles and fades, Pip-Boy video archive (S15)
 - **Audio** — music, weapon/action/ambient SFX, master/music/sfx/speech volumes, speech playback for talking heads
-- **Pip-Boy** — CE STATUS page (quest locations from `quests.txt`, holodisk reader), ARCHIVES (video archive), AUTOMAP, the CE alarm clock (`pipboyRest`: rest-location check, healing every 3 hours, until-party-healed), available after the Vault Suit movie (C40)
+- **Pip-Boy** — CE STATUS page (quest locations from `quests.txt`, holodisk reader), ARCHIVES (video archive), AUTOMAP (CE's seen band, colours and High / Low detail; critters only with the Motion Sensor scanner), the CE alarm clock (`pipboyRest`: rest-location check, healing every 3 hours, until-party-healed), available after the Vault Suit movie (C40)
 - **Character screen / HUD** — SPECIAL/skills/perks, warnbox indicator badges, numbers.frm counters, AP lights, end-turn lights with enable/disable (AF6), CE to-hit hover readout, CE action menu (use-on inventory, skill on target, push, rotate — C42)
 - **Keyboard** — CE `gameHandleKey` layout: C I S O P Z N B M A Tab, 1–8 skills, Space / Return in combat, F1–F7 incl. quick save / load, Ctrl keys, brightness, rotate, date (C43)
 - **Endings** — victory slideshow (CE pan timing), credits, death screen then back to the main menu (C41)
 - **Save / load** — IndexedDB; player, party (+ levels), inventory + weapon ammo, GVARs, MVARs, area states, timed events, car state, kills, automap, skill use slots, seen movies, thumbnails; CE `gameReset` before NEW GAME and every load, so nothing leaks between games (U12); a load runs the map's start / map_enter / map_update procs with `is_loading_game` set, as CE (C61)
-- **Preferences** — full CE options panel, persisted (localStorage) and seeded from `fallout2.cfg` (CI1); DH2-only options in a `[dh2]` section of the same file, e.g. `day_night_cycle=0` for CE lighting instead of the default smooth day/night curve (GTC10), `pixel_font=0` to use the browser font instead of the default Fallout pixel font on all UI text (U15), `script_fixes=0` to keep the original Black Isle script bugs the decompiled Lua repairs (L7), `elevator_use=0` to drop the Use action on elevators (a DH2 addition; CE elevators open only when you walk in, C66), `walk_model` / `anim_offset_model` to switch the CE walk and animation-offset models (FA13), `object_sort=ce|ce-dh2|dh2` for the object draw order (default `ce-dh2`: CE's tile order plus walls first on a shared tile; `dh2` = the old screen-space test, C67), `pipboy_available_at_game_start=1` (the sfall option; CE opens the Pip-Boy only after the Vault Suit movie, C40); `drag_windows=0` / `drag_<window>=0` to fix windows in place (dragging is a DH2 addition, C48); `debug_overlay=1` for the mouse-hex / tile / light / camera readouts (default off; console `setDebugOverlay(true)`), `fps_overlay=0` to hide the fps counter (default on; console `setFpsOverlay(false)`); `scroll_edge=<px>` for how close to the screen edge the map scrolls (default 10 — CE scrolls only on the edge itself); `scroll_limit=0` to let the screen centre scroll past the black map border (default 1: the border reaches the middle of the screen at most, RD19); `scroll_bounds=dh2` for the older scroll rectangle (default `ce`: CE's limits — the map's scroll-blocker ring and 480×400 px from the player, RD20), `scroll_player_limit=0` to drop that player limit (console `setScrollPlayerLimit(false)`), `walk_limit=0` to let the player and NPCs walk past the black border (default 1: they stop at it; exits outside it stay reachable); the pipeline's `write_config` stage creates the file with CE defaults; combat looks/taunts, brightness (CE gamma table) are live (CI18)
+- **Preferences** — full CE options panel, persisted (localStorage) and seeded from `fallout2.cfg` (CI1); DH2-only options in a `[dh2]` section of the same file, e.g. `day_night_cycle=0` for CE lighting instead of the default smooth day/night curve (GTC10), `pixel_font=0` to use the browser font instead of the default Fallout pixel font on all UI text (U15), `script_fixes=0` to keep the original Black Isle script bugs the decompiled Lua repairs (L7), `elevator_use=0` to drop the Use action on elevators (a DH2 addition; CE elevators open only when you walk in, C66), `walk_model` / `anim_offset_model` to switch the CE walk and animation-offset models (FA13), `object_sort=ce|ce-dh2|dh2` for the object draw order (default `ce-dh2`: CE's tile order plus walls first on a shared tile; `dh2` = the old screen-space test, C67), `pipboy_available_at_game_start=1` (the sfall option; CE opens the Pip-Boy only after the Vault Suit movie, C40); `drag_windows=0` / `drag_<window>=0` to fix windows in place (dragging is a DH2 addition, C48); `debug_overlay=1` for the mouse-hex / tile / light / camera readouts (default off; console `setDebugOverlay(true)`), `fps_overlay=0` to hide the fps counter (default on; console `setFpsOverlay(false)`); `scroll_edge=<px>` for how close to the screen edge the map scrolls (default 10 — CE scrolls only on the edge itself); `scroll_limit=0` to let the screen centre scroll past the black map border (default 1: the border reaches the middle of the screen at most, RD19); `scroll_bounds=dh2` for the older scroll rectangle (default `ce`: CE's limits — the map's scroll-blocker ring and 480×400 px from the player, RD20), `scroll_player_limit=0` to drop that player limit (console `setScrollPlayerLimit(false)`), `walk_limit=0` to let the player and NPCs walk past the black border (default 1: they stop at it; exits outside it stay reachable); `mouse_mode=ce` for CE's clicks (a move click always walks, an arrow click does the primary action, holding the button opens the action menu; default `dh2`); `talk_mode=ce` to talk from where you stand when the critter is under 9 hexes away and in sight (CE; default `dh2` walks up first); `scroll_mode=ce` for CE's 32 × 24 px scroll steps at the edge and on the arrow keys (default `dh2`: smooth); `mouse_wheel=ce` to scroll the map with the wheel (default `zoom`); `barter_running_item=ce` for CE's plain "not good enough" when you offer a running item (default `dh2`: the merchant names it — a burning flare, a ticking explosive, a switched-on Geiger counter or Stealth Boy); `save_slots=ce` for CE's ten save slots without DELETE (default `dh2`: unlimited); `combat_outline=ce` for CE's combat outlines (red / green by team in the line of fire, a dim outline out of sight within Perception × 5 hexes; default `dh2`: hostile red, team green, neutrals blue, seen through walls); `elevation_fade=0` for CE's instant elevation switch (default 1: a short fade from black); `egg_mode=dh2-egg|ce-egg|alpha|bbox` for the wall transparency around the player (default `dh2-egg`); `damage_formula=vanilla|glovz|glovz_tweak|yaam` for sfall's alternative damage formulas (default `vanilla`, wiki/damage_formula.md); `dev_console=1` for the developer console commands on every start (default 0: only with `play.html#dev`); `menu_text=ce` for CE's yellow main-menu button labels (default `white`); the pipeline's `write_config` stage creates the file with CE defaults; combat looks/taunts, brightness (CE gamma table) are live (CI18)
 - **Random numbers** — CE Park-Miller generator with MSVC seeding (RN)
 
 ---
@@ -215,7 +217,7 @@ the wiki tracker is the source of truth.
 ### 🔶 Known approximations
 
 - **Hover readout** is a DOM overlay rather than a cursor blit, and isn't shown for non-critter targets (CI18).
-- **Action menu** opens on a command-mode left click instead of CE's held left button (README previously said right-click; see CE parity audit MOUSE-02); the mouse wheel zooms instead of scrolling (C42 / C43).
+- **Action menu** opens on a command-mode left click instead of CE's held left button, and a move-cursor click uses what is under it (MOUSE-01 / 02); `[dh2] mouse_mode=ce` gives CE's clicks. The mouse wheel zooms instead of scrolling (C42 / C43; `[dh2] mouse_wheel=ce` scrolls). Map scrolling is smooth (`scroll_mode=ce`: CE's steps), Talk walks up to the critter first (`talk_mode=ce`: CE talks within 9 hexes in sight), and saves have unlimited slots (`save_slots=ce`: CE's ten).
 - **Pip-Boy** — no idle screensaver (cosmetic).
 - **Day / night** — DH2 adds a smooth day/night light curve by default; `[dh2] day_night_cycle=0` gives CE's script-only lighting (GTC10).
 - **Skill use** — no black palette fade around First Aid / Doctor / Repair (cosmetic).
@@ -300,7 +302,7 @@ To use this, you'll need a few things:
 
 The other dependencies (on macOS with [Homebrew](https://brew.sh): `brew install pipenv innoextract node`):
 
--   Python 3.9 or later, earlier minor versions of Python 3 may work, but are not tested. Python 2 is not supported.
+-   Python 3.11 or later (the locked numpy 2.4 needs it; `tools/` already uses 3.10 syntax). Python 2 is not supported.
 
 -   [Pipenv](https://github.com/pypa/pipenv) for Python dependency management.
 
@@ -340,6 +342,20 @@ If you're comfortable with setting up nginx, lighttpd, or Apache, go for that. I
 The pipeline's last stage, `compile_ts`, compiles the source code to `js/` (it runs
 `npm install` first when `node_modules/` has no TypeScript yet, and needs node.js). After
 changing `src/`, or without that stage, run `npm install` once and then `npx tsc`.
+
+Checks (node.js 22 or later; GitHub Actions runs the first five on every push and pull request,
+`.github/workflows/ci.yml`):
+
+| Command | What it checks |
+|---|---|
+| `npm run build` | `tsc -p .`, must report 0 errors (writes `js/` with source maps) |
+| `npm run format:check` | Prettier (`npm run format` rewrites) |
+| `npm run cycles` | the import cycles between modules; CI fails if the largest grows (`--max 73`) |
+| `npm run lint:ratchet` | ESLint over `src/`; fails only if errors or warnings rise above `tools/eslintBaseline.json` (`-- --update` lowers it) |
+| `npm test` | unit tests (`test/*.test.mjs`, `node --test`) of formula code against values from fallout2-ce |
+| `npm run smoke` | boots `play.html?<map>` headless (artemple, klamall, denbus1) and fails on page errors; `SMOKE_SYNC_XHR=1` counts blocking requests. Needs the game data |
+| `npm run storycrawl` | the AutoCrawler's story crawler on both script backends; fails unless VM = Lua (`--save` / `--compare` a stored run). Needs the game data |
+| `npm run parity` | `tools/luadiff.html` (VM vs Lua scripts) in headless Chromium; needs the extracted game data, so local only. First time: `npx playwright install chromium` (or it uses an installed Chrome / Edge) |
 
 Browse to `http://localhost/play.html?artemple` (or whatever port you're using). If all went well, it should begin the game. If not, check the JavaScript console for errors.
 
@@ -494,21 +510,20 @@ of DarkHarold2 and are only given to explain the status quo. The technical direc
 ## Development / Debug
 
 `src/debug.ts` exports a typed `debug` object with cheat/testing utilities.
-It is a **no-op in production** — all methods return immediately unless
-`Config.engine.debug` is `true`.
+All methods return immediately unless `Config.engine.debug` is `true` (the default).
+
+### Developer console (`play.html#dev`)
+
+The DH2 console commands — `skipTemple()`, `revealWorldmap()`, `giveCar()`, `blackBar()`,
+`lightingDebug()`, `setEggMode()`, `setDevKeys()`, the other `set...()` switches and the
+`debugGlobalState` / `debugRenderer` / `debugLightmap` handles — are only registered when the URL hash
+has `dev`: `play.html#dev`, or with other hash keys `play.html#script_backend=lua&dev`
+(`src/devConsole/`), or on every start with `dev_console=1` in the `[dh2]` section of `fallout2.cfg`. `exportEventLog()` / `__eventLog` (Combat Log) and `globalState`, `Config`,
+`Scripting` are always there.
 
 ### Enabling
 
-Open `src/config.ts` and flip the flag:
-
-```ts
-engine: {
-    debug: true,   // ← change this
-    ...
-}
-```
-
-Rebuild (`npx tsc`) and reload the page.
+`Config.engine.debug` is on by default (`src/config.ts`); the AutoCrawler needs it too.
 
 ### Using from the Browser DevTools
 
@@ -532,8 +547,8 @@ _debug.addXP(2000)
 | Method | Description | Example |
 |---|---|---|
 | `addXP(n)` | Add `n` experience points. Fires level-up and opens the perk picker if the XP threshold is crossed. | `debug.addXP(2000)` |
-| `skipTemple()` | Skip the Temple of Trials: load Arroyo Village at the temple exit's destination (map 4, tile 11683). Also on `window` as `skipTemple()`. | `debug.skipTemple()` |
-| `revealWorldmap()` | Open the worldmap with every square, town and entrance revealed; clicks (map or town list) then move the party there at once — no game time, no encounters. `revealWorldmap(false)` reveals without instant travel; `setInstantTravel(false)` stops it. DH2 debug, not in CE. | `revealWorldmap()` |
+| `skipTemple()` | Skip the Temple of Trials: load Arroyo Village at the temple exit's destination (map 4, tile 11683). Also on `window` as `skipTemple()` (`play.html#dev`). | `debug.skipTemple()` |
+| `revealWorldmap()` | (`window`, `play.html#dev`) Open the worldmap with every square, town and entrance revealed; clicks (map or town list) then move the party there at once — no game time, no encounters. `revealWorldmap(false)` reveals without instant travel; `setInstantTravel(false)` stops it. DH2 debug, not in CE. | `revealWorldmap()` |
 | `setHP(n)` | Set player current HP to `n`. | `debug.setHP(1)` |
 | `setKarma(n)` | Set player karma to `n`. Clamped to ±99999999. | `debug.setKarma(500)` |
 | `combatLog()` | Returns the current `eventLog` array (same data exported by the Combat Log tools). | `debug.combatLog()` |
@@ -545,7 +560,7 @@ _debug.addXP(2000)
 
 ### Car system (worldmap travel)
 
-In-game, the car is handed over by quest scripts (`GVAR_PLAYER_GOT_CAR` + metarule 31 `GIVE_CAR_TO_PARTY`). To enable it instantly from the DevTools console — **no in-game unlock required**:
+In-game, the car is handed over by quest scripts (`GVAR_PLAYER_GOT_CAR` + metarule 31 `GIVE_CAR_TO_PARTY`). To enable it instantly from the DevTools console (`play.html#dev`) — **no in-game unlock required**:
 
 ```js
 // Give the car with a full tank (80 000 fuel units)

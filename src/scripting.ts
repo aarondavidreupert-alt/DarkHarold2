@@ -1,3950 +1,1374 @@
-/*
-Copyright 2014 darkf
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
-Scripting system/engine for DarkFO
-*/
-
-import { Events } from './events.js'
-import { activeAssetMods, assetLayer } from './modAssets.js'
-import { sfallIniGetInt, sfallIniSet } from './sfallIni.js'
-import * as SfallArrays from './sfallArrays.js'
-import * as SfallFs from './sfallFs.js'
-import * as SfallHooks from './sfallHooks.js'
+import * as Events from './events.js'
+import { activeAssetMods, assetLayer, assetUrl } from './modAssets.js'
 import * as GlobalScripts from './sfallGlobalScripts.js'
 import { isPartyMemberPid } from './party.js'
-import { addFloatMessage, FLOAT_MSG_COLOR } from './floatText.js'
-import { sfxBuildOpenName } from './sfxNames.js'
-import { FIDGET_BAD, FIDGET_GOOD, FIDGET_NEUTRAL, GAME_DIALOG_REACTION_NEUTRAL, reactToOption, startLips, startTalkingHead, talkToCritterReacts, isTalkingHeadActive } from './talkingHead.js'
-import { gameMoviePlay, SCRIPT_MOVIE_FLAGS } from './gameMovie.js'
+import { filterBadwords } from './badwords.js'
+import { GAME_DIALOG_REACTION_NEUTRAL, reactToOption } from './talkingHead.js'
 import { randomSeedPrerandom } from './random.js'
-import { critterAdjustRadiation } from './radiation.js'
-import { Combat, combatGetData, isCombatActive } from './combat.js'
-import { ANIM_FALL_BACK_SF, ANIM_FALL_FRONT_BLOOD_SF, correctDeath, critterDamage, critterKill, itemDropAll, killCounts } from './critter.js'
-import { areaContainingMap, getLstJson, lookupMapName, lookupScriptName, mapIndexOf, parseMsgFile, scriptNumberOf, setMapMusicOverride } from './data.js'
-import { CHEM_USE_MAP, getAiPacket } from './aiPackets.js'
+import { critterKill } from './critter.js'
+import { getElevator, lookupScriptName, mapIndexOf, parseMsgFile } from './data.js'
+import { prefetchMap } from './map/prefetch.js'
 import * as GameTime from './gametime.js'
-import {
-    hexDirectionTo,
-    hexDistance,
-    hexInDirection,
-    hexNearestNeighbor,
-    Point,
-    tile_in_tile_rect,
-} from './geometry.js'
-import { Lightmap } from './lightmap.js'
+import { Point } from './geometry.js'
 import globalState from './globalState.js'
+import { world } from './state/world.js'
+import { uiState } from './state/uiState.js'
 import { parseIntFile } from './intfile.js'
 import { dbg, dbgWarn } from './logger.js'
-import { useElevator } from './main.js'
-import { Critter, createObjectWithPID, explosiveGetDamage, Obj, objectGetDamageType, zsort } from './object.js'
-import { applyPerk, CE_PERKS, getPerkRank, perkApplyEffect, perkNameById, PERKS } from './perks.js'
-import { Player } from './player.js'
-import { loadPRO, lookupArt, makePID } from './pro.js'
-import * as Endgame from './endgame.js'
-import { centerCamera, objectOnScreen } from './renderer.js'
-import { fromTileNum, toTileNum } from './tile.js'
-import { uiAddDialogueOption, uiBarterMode, uiDrawWeapon, uiEndDialogue, uiLog, uiSetDialogueReply, uiStartDialogue, uiWorldMap, UIMode } from './ui.js'
-import { drawAC, updateIndicatorBar } from './ui_hud.js'
-import { carriedObjectByPid, carriedQuantityByPid, findItemHolder, invenUnwield, invenWield, moveAllInventory, scriptHand, unequipForRemoval } from './inventoryWield.js'
-import { SKILL_NAMES } from './skills.js'
-import { skillRoll } from './skillUse.js'
-import { arrayRemove, assert, BinaryReader, getFileBinarySync, getFileJSON, getFileText, getMessage, getRandomInt, randomRoll, RollResult, rollIsSuccess, rollIsCritical } from './util.js'
+import { uiElevator } from './uiElevator.js'
+import { Critter, createObjectWithPID, Obj } from './object.js'
+
+import { uiPort } from './uiPort.js'
+import { uiLog } from './messageLog.js'
+import { UIMode } from './uiMode.js'
+import { updateIndicatorBar } from './hudRefresh.js'
+import { BinaryReader, getFileBinarySync, getFileJSON, getFileText, getMessage } from './util.js'
+import { getGlobalVar, loadGlobalVars, resetGlobalVars, setGlobalVar } from './globalVars.js'
+export { getGlobalVar, getGlobalVars, loadGlobalVars, setGlobalVar, setGlobalVars } from './globalVars.js'
 import { ScriptVM } from './vm.js'
 import { attachLuaScript, isLuaReady, LuaScriptHandle } from './lua/luaRuntime.js'
-import { Worldmap } from './worldmap.js'
-import { ScriptVMBridge } from './vm_bridge.js'
-import { processMidnightForDay } from './gameTick.js'
+import * as Worldmap from './worldmap.js'
+import * as ScriptVMBridge from './vmBridge.js'
+import { setChildProgramLoader, vmClearPrograms, vmDoEvents } from './vm.js'
 import { Config } from './config.js'
-import { ammoGetQuantity, ammoSetQuantity, ammoSplitOff, weaponGetAmmoTypePid, weaponSetAmmoTypePid } from './weaponAmmo.js'
-import { refreshStealthState } from './miscItem.js'
 import { isWithinPerception } from './perception.js'
+import * as ScriptingModule from './scripting.js' // itself: window.Scripting below
+import type { coreOpcodes } from './scripting/opcodes/core.js'
+import type { metaruleOpcodes } from './scripting/opcodes/metarule.js'
+import type { critterOpcodes } from './scripting/opcodes/critter.js'
+import type { inventoryOpcodes } from './scripting/opcodes/inventory.js'
+import type { objectsOpcodes } from './scripting/opcodes/objects.js'
+import type { mapOpcodes } from './scripting/opcodes/map.js'
+import type { animOpcodes } from './scripting/opcodes/anim.js'
+import type { dialogueOpcodes } from './scripting/opcodes/dialogue.js'
+import type { combatOpcodes } from './scripting/opcodes/combat.js'
+import type { sfallOpcodes } from './scripting/opcodes/sfall.js'
+import { dialogueExit, talk } from './scripting/events.js'
+export {
+    getScriptMessage,
+    speakScriptMessage,
+    dialogueEnd,
+    dialogueExit,
+    reenterDialogue,
+    getDialogueOptionCount,
+    talk,
+    updateCritter,
+    spatial,
+    destroy,
+    damage,
+    useSkillOn,
+    pickup,
+    isDropping,
+    drop,
+    useObjOnItem,
+    useObjOnMe,
+    combatEvent,
+} from './scripting/events.js'
 
-export module Scripting {
-    var gameObjects: Obj[] | null = null
-    var mapVars: any = null
-    let floatMsgLastColor = 0 // CE _last_color (opFloatMessage COLOR_SEQUENCE)
-    var globalVars: any = {}
-    var globalVarsLoaded = false
-    var currentMapID: number | null = null
-    var currentMapObject: Script | null = null
-    var mapFirstRun = true
-    // CE loadsave.cc _loadingGame / _isLoadingGame — set while a saved game's map runs
-    // its start / map_enter / map_update procs (GameMap.runLoadGameProcs).
-    var loadingGame = false
-    export function isLoadingGame(): boolean { return loadingGame }
-    export function setLoadingGame(v: boolean): void { loadingGame = v }
-    var scriptMessages: { [scriptName: string]: { [msgID: number]: string } } = {}
-    var dialogueOptionProcs: (() => void)[] = [] // Maps dialogue options to handler callbacks
-    var dialogueOptionTexts: string[] = [] // parallel to dialogueOptionProcs — display text, for the review log
+// Module state the Script methods share (an object, so the methods kept in src/scripting/*.ts can
+// assign it too; wiki/code_quality.md Q16).
+export const scriptingState = {
+    animBatch: null as AnimEntry[] | null,
+    overrideStartPos: null as StartPos | null,
+    nextSfallListId: 0xcccccc,
+    sfallMessageWindowOpen: false,
+    // Per-dialogue barter modifier set by gdialog_set_barter_mod.
+    // Reset to 0 on dialogue exit. Applied as a percentage markup in uiBarter.ts.
+    // ref: fallout2-ce barter.cc, dialog.cc gDialogSetBarterMod
+    dialogueBarterMod: 0,
     // CE game_dialog.cc gameDialogBarter only sets _dialogue_switch_mode = 2; the dialogue
     // loop opens the barter screen once the option's procedure has returned (with the
     // reply and options it set up). The merchant waiting for that, while an option runs.
-    var pendingBarter: Critter | null = null
-    var inDialogueReply = false
-    var dialogueOptionReactions: number[] = [] // parallel — GAME_DIALOG_REACTION_* (head reaction on pick)
-    var scriptMessageAudio: { [msgFile: string]: { [msgID: number]: string } } = {} // {id}{audio}{text} middle field
-    var currentDialogueObject: Obj | null = null
+    pendingBarter: null as Critter | null,
+    dialogueReviewLog: [] as DialogueReviewEntry[],
+    // CE gDialogReplyMessageListId != -1: a reply the dialogue loop has to show (set by
+    // gsay_reply / gsay_message, cleared when a gsay_message's loop ends)
+    dialogueReplyPending: false,
+    currentDialogueObject: null as Obj | null,
+    dialogueOptionProcs: [] as (() => void)[], // Maps dialogue options to handler callbacks
+    dialogueOptionTexts: [] as string[], // parallel to dialogueOptionProcs — display text, for the review log
+    dialogueOptionReactions: [] as number[], // parallel — GAME_DIALOG_REACTION_* (head reaction on pick)
+    // dialogue_system_enter's request (CE gGameDialogSpeaker + game state 4)
+    requestedDialogue: null as Obj | null,
+    floatMsgLastColor: 0, // CE _last_color (opFloatMessage COLOR_SEQUENCE)
+    fadeOverlay: null as HTMLDivElement | null,
+    // load_map's transition (CE mapSetTransition): a map name or index
+    pendingMapTransition: null as string | number | null,
+}
 
-    // Conversation review log. CE ref: game_dialog.cc gDialogReviewEntries —
-    // every NPC line (gsay_reply/gsay_message) paired with whichever option
-    // text the player picked in response (set once the player actually
-    // chooses, game_dialog.cc:2040-2044 _gdProcessChoice), shown via the
-    // Review button (game_dialog.cc:1512 gameDialogReviewButtonOnMouseUp).
-    export interface DialogueReviewEntry {
-        reply: string
-        option: string | null
+let gameObjects: Obj[] | null = null
+export let mapVars: any = null
+export let currentMapID: number | null = null
+let currentMapObject: Script | null = null
+export let mapFirstRun = true
+// CE loadsave.cc _loadingGame / _isLoadingGame — set while a saved game's map runs
+// its start / map_enter / map_update procs (GameMap.runLoadGameProcs).
+export let loadingGame = false
+export function isLoadingGame(): boolean {
+    return loadingGame
+}
+export function setLoadingGame(v: boolean): void {
+    loadingGame = v
+}
+export let scriptMessages: { [scriptName: string]: { [msgID: number]: string } } = {}
+// the map script's map_enter_p_proc is running (override_map_start hands its position
+// to the map loader then)
+export let inMapEnter = false
+// CE _scr_spatials_disable / _scr_spatials_enable: no spatial_p_proc while map_enter /
+// map_update scripts run or scenery explodes
+let spatialsOff = 0
+export function spatialsEnabled(): boolean {
+    return spatialsOff === 0
+}
+export function withSpatialsOff<T>(fn: () => T): T {
+    spatialsOff++
+    try {
+        return fn()
+    } finally {
+        spatialsOff--
     }
-    var dialogueReviewLog: DialogueReviewEntry[] = []
+}
+export let inDialogueReply = false
+export let scriptMessageAudio: { [msgFile: string]: { [msgID: number]: string } } = {} // {id}{audio}{text} middle field
+/** CE game_dialog.cc _gdialogActive: a dialogue (or its barter / control screens) is up. */
+export function dialogueActive(): boolean {
+    return scriptingState.currentDialogueObject !== null
+}
 
-    export function getDialogueReviewLog(): readonly DialogueReviewEntry[] {
-        return dialogueReviewLog
+// Conversation review log. CE ref: game_dialog.cc gDialogReviewEntries —
+// every NPC line (gsay_reply/gsay_message) paired with whichever option
+// text the player picked in response (set once the player actually
+// chooses, game_dialog.cc:2040-2044 _gdProcessChoice), shown via the
+// Review button (game_dialog.cc:1512 gameDialogReviewButtonOnMouseUp).
+export interface DialogueReviewEntry {
+    reply: string
+    option: string | null
+}
+
+export function getDialogueReviewLog(): readonly DialogueReviewEntry[] {
+    return scriptingState.dialogueReviewLog
+}
+export let timeEventList: TimedEvent[] = []
+
+const PROTO_ID_MONEY = 41
+
+// CE perk.cc perkGetRankData: whose perk ranks a critter has — the dude's own, a
+// party.txt member's own, else (CE's fallback for any other critter) the dude's.
+export function perkRankOwner(c: Critter): Critter {
+    if (c.isPlayer || isPartyMemberPid(c.pid)) return c
+    return world.player as Critter
+}
+
+// CE item.cc itemGetTotalCaps — money in the inventory and, recursively, in containers.
+export function itemGetTotalCaps(obj: Obj): number {
+    let amount = 0
+    for (const item of obj.inventory ?? []) {
+        if (item.pid === PROTO_ID_MONEY) amount += item.amount ?? 1
+        else if (item.subtype === 'container') amount += itemGetTotalCaps(item)
     }
-    export var timeEventList: TimedEvent[] = []
+    return amount
+}
 
-    const PROTO_ID_MONEY = 41
-
-    // CE perk.cc perkGetRankData: whose perk ranks a critter has — the dude's own, a
-    // party.txt member's own, else (CE's fallback for any other critter) the dude's.
-    export function perkRankOwner(c: Critter): Critter {
-        if (c.isPlayer || isPartyMemberPid(c.pid)) return c
-        return globalState.player as Critter
-    }
-
-    // CE item.cc itemGetTotalCaps — money in the inventory and, recursively, in containers.
-    export function itemGetTotalCaps(obj: Obj): number {
-        let amount = 0
-        for (const item of obj.inventory ?? []) {
-            if (item.pid === PROTO_ID_MONEY) amount += item.amount ?? 1
-            else if (item.subtype === 'container') amount += itemGetTotalCaps(item)
-        }
-        return amount
-    }
-
-    // CE item.cc itemCapsAdjust — take from (or add to) the money stacks first, then the
-    // containers; with no money at all a positive amount becomes a new stack.
-    export function itemCapsAdjust(obj: Obj, amount: number): number {
-        const caps = itemGetTotalCaps(obj)
-        if (amount < 0 && caps < -amount) return -1
-        if (amount <= 0 || caps !== 0) {
-            const inv = obj.inventory
-            for (let i = 0; i < inv.length && amount !== 0; i++) {
-                const item = inv[i]
-                if (item.pid !== PROTO_ID_MONEY) continue
-                if (amount <= 0 && -amount >= (item.amount ?? 1)) {
-                    amount += item.amount ?? 1
-                    inv.splice(i, 1)
-                    i = -1
-                } else {
-                    item.amount = (item.amount ?? 1) + amount
-                    amount = 0
-                }
+// CE item.cc itemCapsAdjust — take from (or add to) the money stacks first, then the
+// containers; with no money at all a positive amount becomes a new stack.
+export function itemCapsAdjust(obj: Obj, amount: number): number {
+    const caps = itemGetTotalCaps(obj)
+    if (amount < 0 && caps < -amount) return -1
+    if (amount <= 0 || caps !== 0) {
+        const inv = obj.inventory
+        for (let i = 0; i < inv.length && amount !== 0; i++) {
+            const item = inv[i]
+            if (item.pid !== PROTO_ID_MONEY) continue
+            if (amount <= 0 && -amount >= (item.amount ?? 1)) {
+                amount += item.amount ?? 1
+                inv.splice(i, 1)
+                i = -1
+            } else {
+                item.amount = (item.amount ?? 1) + amount
+                amount = 0
             }
-            for (let i = 0; i < inv.length && amount !== 0; i++) {
-                const item = inv[i]
-                if (item.subtype !== 'container') continue
-                const inside = itemGetTotalCaps(item)
-                if (amount <= 0 || inside <= 0) {
-                    if (amount < 0) {
-                        if (inside < -amount) { if (itemCapsAdjust(item, inside) === 0) amount += inside }
-                        else if (itemCapsAdjust(item, amount) === 0) amount = 0
-                    }
-                } else if (itemCapsAdjust(item, amount) === 0) {
-                    amount = 0
-                }
-            }
-            return 0
         }
-        obj.addInventoryItem(createObjectWithPID(PROTO_ID_MONEY), amount)
+        for (let i = 0; i < inv.length && amount !== 0; i++) {
+            const item = inv[i]
+            if (item.subtype !== 'container') continue
+            const inside = itemGetTotalCaps(item)
+            if (amount <= 0 || inside <= 0) {
+                if (amount < 0) {
+                    if (inside < -amount) {
+                        if (itemCapsAdjust(item, inside) === 0) amount += inside
+                    } else if (itemCapsAdjust(item, amount) === 0) amount = 0
+                }
+            } else if (itemCapsAdjust(item, amount) === 0) {
+                amount = 0
+            }
+        }
         return 0
     }
-    // CE ref: game_vars.h GVAR_TOWN_REP_* — maps each town-reputation GVAR index
-    // (verified against CE source; indices are NOT contiguous) to its display name.
-    // character_editor.cc gTownReputationEntries[TOWN_REPUTATION_COUNT=19].
-    export const TOWN_REP_GVARS: { [gvar: number]: string } = {
-        47: 'Arroyo', 48: 'Klamath', 49: 'The Den', 50: 'Vault City',
-        51: 'Gecko', 52: 'Modoc', 53: 'Sierra Base', 54: 'Broken Hills',
-        55: 'New Reno', 56: 'Redding', 57: 'NCR', 59: 'Vault 13',
-        61: 'San Francisco', 63: 'Abbey', 64: 'EPA', 65: 'Primitive Tribe',
-        66: 'Raiders', 294: 'Vault 15', 308: 'Ghost Farm',
+    obj.addInventoryItem(createObjectWithPID(PROTO_ID_MONEY), amount)
+    return 0
+}
+// CE ref: game_vars.h GVAR_TOWN_REP_* — maps each town-reputation GVAR index
+// (verified against CE source; indices are NOT contiguous) to its display name.
+// character_editor.cc gTownReputationEntries[TOWN_REPUTATION_COUNT=19].
+export const TOWN_REP_GVARS: { [gvar: number]: string } = {
+    47: 'Arroyo',
+    48: 'Klamath',
+    49: 'The Den',
+    50: 'Vault City',
+    51: 'Gecko',
+    52: 'Modoc',
+    53: 'Sierra Base',
+    54: 'Broken Hills',
+    55: 'New Reno',
+    56: 'Redding',
+    57: 'NCR',
+    59: 'Vault 13',
+    61: 'San Francisco',
+    63: 'Abbey',
+    64: 'EPA',
+    65: 'Primitive Tribe',
+    66: 'Raiders',
+    294: 'Vault 15',
+    308: 'Ghost Farm',
+}
+
+export function getDialogueBarterMod(): number {
+    return scriptingState.dialogueBarterMod
+}
+
+// CE animation.cc animationRegisterAnimate: the object's fid for `anim` (buildFid) —
+// a critter plays that animation (its weapon code kept), other objects their single
+// FRM.
+export function playAnimId(obj: Obj, anim: number, reversed: boolean, then: () => void): void {
+    if (obj.type === 'critter') (obj as Critter).staticAnimation('anim:' + anim, then, true, reversed)
+    else obj.singleAnimation(reversed, then)
+}
+
+// Animation batch (reg_anim_begin / reg_anim_end queue)
+// ref: fallout2-ce animation.cc animationRegAnimFunc / animationRegAnimAnimate
+export interface AnimStep {
+    kind: 'animate'
+    obj: Obj
+    anim: number
+    delay: number
+    reversed?: boolean
+}
+interface AnimFunc {
+    kind: 'func'
+    fn: (() => void) | null
+    delay?: number
+}
+// animationRegisterMoveTo{Tile,Object} / RunTo…: walk (or run) there; the next step
+// waits until it arrives (or can't get there).
+export interface AnimMove {
+    kind: 'move'
+    obj: Obj
+    to: Point | Obj
+    run: boolean
+    delay: number
+}
+// animationRegisterAnimateForever (ANIM_KIND_ANIMATE_FOREVER): loops until cleared
+export interface AnimForever {
+    kind: 'forever'
+    obj: Obj
+    anim: number
+}
+export type AnimEntry = AnimStep | AnimFunc | AnimMove | AnimForever
+// CE game_dialog.cc DIALOG_OPTION_ENTRIES_CAPACITY
+export const DIALOG_OPTION_ENTRIES_CAPACITY = 30
+
+export interface StartPos {
+    position: Point
+    orientation: number
+    elevation: number
+}
+
+export interface TimedEvent {
+    obj: Obj | null
+    ticks: number
+    userdata: any
+    fn: () => void
+    // CE queue.cc gEventTypeDescriptions — what _queue_leaving_map does with the event:
+    // 'keep' (poison, radiation), or a clear proc that returns true when the event goes
+    // (false keeps it). Unset: the event is dropped (script timers and the rest).
+    leaveMap?: 'keep' | (() => boolean)
+    script?: boolean // CE EVENT_TYPE_SCRIPT (add_timer_event)
+}
+
+// CE queue.cc _queue_leaving_map (map.cc _map_save_in_game): every event type marked
+// for it is cleared, through its clear proc where it has one.
+export function queueLeavingMap(): void {
+    for (const e of timeEventList.slice()) {
+        if (e.leaveMap === 'keep') continue
+        if (e.leaveMap && !e.leaveMap()) continue
+        const i = timeEventList.indexOf(e)
+        if (i !== -1) timeEventList.splice(i, 1)
     }
-    let overrideStartPos: StartPos | null = null
-    let fadeOverlay: HTMLDivElement | null = null
+}
 
-    // Per-dialogue barter modifier set by gdialog_set_barter_mod.
-    // Reset to 0 on dialogue exit. Applied as a percentage markup in ui_barter.ts.
-    // ref: fallout2-ce barter.cc, dialog.cc gDialogSetBarterMod
-    let dialogueBarterMod = 0
+export interface SerializedTimedEvent {
+    objUid?: number | null // CE queueSave writes the owner's object id; saves before 2026-10-25 only have the PID
+    objPid: number | null
+    ticks: number
+    userdata: any
+}
 
-    export function getDialogueBarterMod(): number { return dialogueBarterMod }
+// CE critter.cc critterAdjustHitPoints: capped at Max HP; at 0 or less the critter dies
+export function critterAdjustHitPoints(c: Critter, delta: number): void {
+    c.stats.modifyBase('HP', delta)
+    const max = c.getStat('Max HP')
+    const hp = c.getStat('HP')
+    if (hp > max) c.stats.modifyBase('HP', max - hp)
+    else if (hp <= 0 && !c.dead) critterKill(c)
+}
 
-    // CE animation.cc animationRegisterAnimate: the object's fid for `anim` (buildFid) —
-    // a critter plays that animation (its weapon code kept), other objects their single
-    // FRM.
-    function playAnimId(obj: Obj, anim: number, reversed: boolean, then: () => void): void {
-        if (obj.type === 'critter') (obj as Critter).staticAnimation('anim:' + anim, then, true, reversed)
-        else obj.singleAnimation(reversed, then)
+// The dude's trait part of a SPECIAL base (DH2 keeps Gifted, Bruiser and Small Frame in
+// the base; CE traitGetStatModifier)
+export function traitSpecialPart(c: Critter, stat: number): number {
+    if (!c.isPlayer) return 0
+    const t: string[] = (c as any).traits ?? []
+    let n = t.includes('Gifted') ? 1 : 0
+    if (stat === 0 && t.includes('Bruiser')) n += 2
+    if (stat === 5 && t.includes('Small Frame')) n += 1
+    return n
+}
+
+export function setGameUiDisabled(disabled: boolean): void {
+    uiState.gameUIDisabled = disabled
+    const $bar = document.getElementById('bar')
+    if ($bar) $bar.style.pointerEvents = disabled ? 'none' : ''
+}
+
+export let statMap: { [stat: number]: string } = {
+    0: 'STR',
+    1: 'PER',
+    2: 'END',
+    3: 'CHA',
+    4: 'INT',
+    5: 'AGI',
+    6: 'LUK',
+    7: 'Max HP',
+    9: 'AC',
+    // CE stat_defs.h: 11=STAT_MELEE_DAMAGE, 12=STAT_CARRY_WEIGHT, 14=STAT_HEALING_RATE
+    11: 'Melee',
+    12: 'Carry',
+    14: 'Healing Rate',
+    15: 'Critical Chance',
+    16: 'Better Criticals',
+    35: 'HP',
+}
+
+type DebugLogShowType = keyof typeof Config.scripting.debugLogShowType
+
+function stub(name: string, args: IArguments, type?: DebugLogShowType) {
+    if (Config.scripting.debugLogShowType.stub === false || Config.scripting.debugLogShowType[type!] === false) return
+    let a = ''
+    for (let i = 0; i < args.length; i++)
+        if (i === args.length - 1) a += args[i]
+        else a += args[i] + ', '
+    console.log('STUB: ' + name + ': ' + a)
+}
+
+export function log(name: string, args: unknown[], type?: DebugLogShowType) {
+    if (Config.scripting.debugLogShowType.log === false || Config.scripting.debugLogShowType[type!] === false) return
+    let a = ''
+    for (let i = 0; i < args.length; i++)
+        if (i === args.length - 1) a += args[i]
+        else a += args[i] + ', '
+    console.log('log: ' + name + ': ' + a)
+}
+
+export function warn(msg: string, type?: DebugLogShowType, script?: Script) {
+    if (type !== undefined && Config.scripting.debugLogShowType[type] === false) return
+    if (script) console.log(`WARNING [${script.scriptName}]: ${msg}`)
+    else console.log(`WARNING: ${msg}`)
+}
+
+export function info(msg: string, type?: DebugLogShowType, script?: Script) {
+    if (type !== undefined && Config.scripting.debugLogShowType[type] === false) return
+    if (script) console.log(`INFO [${script.scriptName}]: ${msg}`)
+    else console.log(`INFO: ${msg}`)
+}
+
+// CE ref: critter.cc:327 critterAdjustPoison — player only. Positive amounts are
+// reduced by poison resistance; a positive result (re)schedules the decay event at
+// 10*(505-5*poison) ticks; messages misc.msg 3000/3002/3003.
+export function adjustPoison(critter: Critter, amount: number): void {
+    if (critter !== world.player) return
+    if (amount > 0) {
+        amount -= Math.trunc((amount * (critter.getStat('DR Poison') ?? 0)) / 100)
+    } else if ((critter.poisonLevel ?? 0) <= 0) {
+        return
     }
-
-    // Animation batch (reg_anim_begin / reg_anim_end queue)
-    // ref: fallout2-ce animation.cc animationRegAnimFunc / animationRegAnimAnimate
-    interface AnimStep { kind: 'animate'; obj: Obj; anim: number; delay: number; reversed?: boolean }
-    interface AnimFunc  { kind: 'func';    fn: (() => void) | null }
-    // animationRegisterMoveTo{Tile,Object} / RunTo…: walk (or run) there; the next step
-    // waits until it arrives (or can't get there).
-    interface AnimMove  { kind: 'move'; obj: Obj; to: Point | Obj; run: boolean; delay: number }
-    // animationRegisterAnimateForever (ANIM_KIND_ANIMATE_FOREVER): loops until cleared
-    interface AnimForever { kind: 'forever'; obj: Obj; anim: number }
-    type AnimEntry = AnimStep | AnimFunc | AnimMove | AnimForever
-    let animBatch: AnimEntry[] | null = null
-
-    export interface StartPos {
-        position: Point
-        orientation: number
-        elevation: number
-    }
-
-    export interface TimedEvent {
-        obj: Obj | null
-        ticks: number
-        userdata: any
-        fn: () => void
-        // CE queue.cc gEventTypeDescriptions — what _queue_leaving_map does with the event:
-        // 'keep' (poison, radiation), or a clear proc that returns true when the event goes
-        // (false keeps it). Unset: the event is dropped (script timers and the rest).
-        leaveMap?: 'keep' | (() => boolean)
-    }
-
-    // CE queue.cc _queue_leaving_map (map.cc _map_save_in_game): every event type marked
-    // for it is cleared, through its clear proc where it has one.
-    export function queueLeavingMap(): void {
-        for (const e of timeEventList.slice()) {
-            if (e.leaveMap === 'keep') continue
-            if (e.leaveMap && !e.leaveMap()) continue
-            const i = timeEventList.indexOf(e)
-            if (i !== -1) timeEventList.splice(i, 1)
-        }
-    }
-
-    export interface SerializedTimedEvent {
-        objPid: number | null
-        ticks: number
-        userdata: any
-    }
-
-    var statMap: { [stat: number]: string } = {
-        0: 'STR',
-        1: 'PER',
-        2: 'END',
-        3: 'CHA',
-        4: 'INT',
-        5: 'AGI',
-        6: 'LUK',
-        7: 'Max HP',
-        9: 'AC',
-        // CE stat_defs.h: 11=STAT_MELEE_DAMAGE, 12=STAT_CARRY_WEIGHT, 14=STAT_HEALING_RATE
-        11: 'Melee',
-        12: 'Carry',
-        14: 'Healing Rate',
-        15: 'Critical Chance',
-        16: 'Better Criticals',
-        35: 'HP',
-    }
-
-    type DebugLogShowType = keyof typeof Config.scripting.debugLogShowType
-
-    function stub(name: string, args: IArguments, type?: DebugLogShowType) {
-        if (Config.scripting.debugLogShowType.stub === false || Config.scripting.debugLogShowType[type] === false)
-            return
-        var a = ''
-        for (var i = 0; i < args.length; i++)
-            if (i === args.length - 1) a += args[i]
-            else a += args[i] + ', '
-        console.log('STUB: ' + name + ': ' + a)
-    }
-
-    function log(name: string, args: IArguments, type?: DebugLogShowType) {
-        if (Config.scripting.debugLogShowType.log === false || Config.scripting.debugLogShowType[type] === false) return
-        var a = ''
-        for (var i = 0; i < args.length; i++)
-            if (i === args.length - 1) a += args[i]
-            else a += args[i] + ', '
-        console.log('log: ' + name + ': ' + a)
-    }
-
-    function warn(msg: string, type?: DebugLogShowType, script?: Script) {
-        if (type !== undefined && Config.scripting.debugLogShowType[type] === false) return
-        if (script) console.log(`WARNING [${script.scriptName}]: ${msg}`)
-        else console.log(`WARNING: ${msg}`)
-    }
-
-    export function info(msg: string, type?: DebugLogShowType, script?: Script) {
-        if (type !== undefined && Config.scripting.debugLogShowType[type] === false) return
-        if (script) console.log(`INFO [${script.scriptName}]: ${msg}`)
-        else console.log(`INFO: ${msg}`)
-    }
-
-    // CE ref: critter.cc:327 critterAdjustPoison — player only. Positive amounts are
-    // reduced by poison resistance; a positive result (re)schedules the decay event at
-    // 10*(505-5*poison) ticks; messages misc.msg 3000/3002/3003.
-    export function adjustPoison(critter: Critter, amount: number): void {
-        if (critter !== globalState.player) return
-        if (amount > 0) {
-            amount -= Math.trunc(amount * (critter.getStat('DR Poison') ?? 0) / 100)
-        } else if ((critter.poisonLevel ?? 0) <= 0) {
-            return
-        }
-        const newPoison = (critter.poisonLevel ?? 0) + amount
-        let msgId: number
-        if (newPoison > 0) {
-            critter.poisonLevel = newPoison
-            // CE: _queue_clear_type(EVENT_TYPE_POISON) — neutralised in place because this
-            // also runs from inside the gameTick timed-event loop (via poisonDecayEvent).
-            for (const e of timeEventList) {
-                if (e.obj === critter && e.userdata === 'poison' && e.ticks > 0) {
-                    e.userdata = 'poison-cancelled'; e.fn = () => {}; e.ticks = 1
-                }
+    const newPoison = (critter.poisonLevel ?? 0) + amount
+    let msgId: number
+    if (newPoison > 0) {
+        critter.poisonLevel = newPoison
+        // CE: _queue_clear_type(EVENT_TYPE_POISON) — neutralised in place because this
+        // also runs from inside the gameTick timed-event loop (via poisonDecayEvent).
+        for (const e of timeEventList) {
+            if (e.obj === critter && e.userdata === 'poison' && e.ticks > 0) {
+                e.userdata = 'poison-cancelled'
+                e.fn = () => {}
+                e.ticks = 1
             }
-            timeEventList.push({ obj: critter, ticks: 10 * (505 - 5 * newPoison), userdata: 'poison', fn: () => poisonDecayEvent(critter), leaveMap: 'keep' })
-            msgId = amount < 0 ? 3002 : 3000 // "You feel a little better." / "You have been poisoned!"
-        } else {
-            critter.poisonLevel = 0
-            msgId = 3003 // "You feel better."
         }
-        const msg = getMessage('misc', msgId)
-        if (msg) uiLog(msg)
-        updateIndicatorBar()
+        timeEventList.push({
+            obj: critter,
+            ticks: 10 * (505 - 5 * newPoison),
+            userdata: 'poison',
+            fn: () => poisonDecayEvent(critter),
+            leaveMap: 'keep',
+        })
+        msgId = amount < 0 ? 3002 : 3000 // "You feel a little better." / "You have been poisoned!"
+    } else {
+        critter.poisonLevel = 0
+        msgId = 3003 // "You feel better."
     }
+    const msg = getMessage('misc', msgId)
+    if (msg) uiLog(msg)
+    updateIndicatorBar()
+}
 
-    // CE ref: critter.cc:378 poisonEventProcess — -2 poison (reschedules), -1 HP, msg 3001.
-    export function poisonDecayEvent(critter: Critter): void {
-        if (!critter || critter.dead || critter !== globalState.player) return
-        adjustPoison(critter, -2)
-        const hp = critter.getStat('HP') - 1
-        critter.stats.setBase('HP', Math.min(hp, critter.getStat('Max HP')))
-        const msg = getMessage('misc', 3001) // "You take damage from poison."
-        if (msg) uiLog(msg)
-        if (hp <= 0 && !critter.dead) critterKill(critter, undefined, true)
-        // CE returns 1 at 5 HP or less: queueProcessEvents stops (a rest ends)
-        if (hp <= 5) Events.emit('queueBail')
-    }
+// CE ref: critter.cc:378 poisonEventProcess — -2 poison (reschedules), -1 HP, msg 3001.
+export function poisonDecayEvent(critter: Critter): void {
+    if (!critter || critter.dead || critter !== world.player) return
+    adjustPoison(critter, -2)
+    const hp = critter.getStat('HP') - 1
+    critter.stats.setBase('HP', Math.min(hp, critter.getStat('Max HP')))
+    const msg = getMessage('misc', 3001) // "You take damage from poison."
+    if (msg) uiLog(msg)
+    if (hp <= 0 && !critter.dead) critterKill(critter, undefined, false) // CE critterAdjustHitPoints → critterKill: no destroy_p_proc
+    // CE returns 1 at 5 HP or less: queueProcessEvents stops (a rest ends)
+    if (hp <= 5) Events.emit('queueBail')
+}
 
-    export function setGlobalVar(gvar: number, value: number): void {
-        globalVars[gvar] = value
-    }
+// CE random.cc — seeding goes to the ported Park-Miller generator (src/random.ts);
+// Math.random is no longer overridden.
+function seed(s: number) {
+    randomSeedPrerandom(Math.abs(Math.trunc(s)) % 0x7fffffff)
+}
 
-    // CE random.cc — seeding goes to the ported Park-Miller generator (src/random.ts);
-    // Math.random is no longer overridden.
-    function seed(s: number) {
-        randomSeedPrerandom(Math.abs(Math.trunc(s)) % 0x7fffffff)
-    }
+// CE ref: game.cc gameReset → gameLoadGlobalVars (vault13.gam defaults), _scr_reset /
+// scriptsReset (queue, MVARs of every map) — a new game or a load starts clean.
+export function resetGameState(): void {
+    vmClearPrograms() // a new game / load: no program's exports or call_at / call_when survive
+    resetGlobalVars()
+    mapVars = null
+    timeEventList.length = 0
+}
 
-    export function getGlobalVar(gvar: number): any {
-        return globalVars[gvar] !== undefined ? globalVars[gvar] : 0
-    }
+export function getMapVars(): any {
+    return mapVars
+}
 
-    export function getGlobalVars(): any {
-        return globalVars
-    }
+export function setMapVars(vars: any): void {
+    mapVars = vars ?? {}
+}
 
-    export function setGlobalVars(vars: { [k: string]: number }): void {
-        globalVars = Object.assign({}, vars)
-    }
+// CE ref: scripts.cc scriptsSaveProcedureNames — timed events persisted with map save
+export function getTimedEventsSerialized(): SerializedTimedEvent[] {
+    return timeEventList.map((e) => ({
+        objUid: e.obj?.uid ?? null,
+        objPid: e.obj?.pid ?? null,
+        ticks: e.ticks,
+        userdata: e.userdata,
+    }))
+}
 
-    // CE ref: game.cc gameReset → gameLoadGlobalVars (vault13.gam defaults), _scr_reset /
-    // scriptsReset (queue, MVARs of every map) — a new game or a load starts clean.
-    export function resetGameState(): void {
-        globalVars = {}
-        globalVarsLoaded = false
-        loadGlobalVars()
-        mapVars = null
-        timeEventList.length = 0
-    }
+// data/maps/<map>.mvars.json per map (null = none), fetched once per session.
+const mapVarsFileCache: { [map: string]: { [idx: string]: number } | null } = {}
 
-    export function getMapVars(): any {
-        return mapVars
-    }
-
-    export function setMapVars(vars: any): void {
-        mapVars = vars ?? {}
-    }
-
-    // CE ref: scripts.cc scriptsSaveProcedureNames — timed events persisted with map save
-    export function getTimedEventsSerialized(): SerializedTimedEvent[] {
-        return timeEventList.map(e => ({
-            objPid: e.obj?.pid ?? null,
-            ticks: e.ticks,
-            userdata: e.userdata,
-        }))
-    }
-
-    export function loadGlobalVars(): void {
-        if (globalVarsLoaded) return
-        try {
-            const data = getFileJSON('data/gvars.json')
-            for (const key of Object.keys(data)) {
-                const idx = Number(key)
-                if (globalVars[idx] === undefined) {
-                    globalVars[idx] = data[key]
-                }
+export function loadMapVars(mapName: string): void {
+    const scriptName = mapName.toLowerCase()
+    try {
+        if (!(scriptName in mapVarsFileCache)) {
+            try {
+                mapVarsFileCache[scriptName] = getFileJSON('data/maps/' + scriptName + '.mvars.json')
+            } catch (e) {
+                mapVarsFileCache[scriptName] = null
             }
-            globalVarsLoaded = true
-            info('loadGlobalVars: loaded ' + Object.keys(data).length + ' global vars from gvars.json')
-        } catch (e: any) {
-            globalVarsLoaded = true
-            dbg('load', 'loadGlobalVars: gvars.json not found, using defaults (' + e.message + ')')
         }
-    }
-
-    // data/maps/<map>.mvars.json per map (null = none), fetched once per session.
-    const mapVarsFileCache: { [map: string]: { [idx: string]: number } | null } = {}
-
-    export function loadMapVars(mapName: string): void {
-        const scriptName = mapName.toLowerCase()
-        try {
-            if (!(scriptName in mapVarsFileCache)) {
-                try {
-                    mapVarsFileCache[scriptName] = getFileJSON('data/maps/' + scriptName + '.mvars.json')
-                } catch (e) {
-                    mapVarsFileCache[scriptName] = null
-                }
+        const data = mapVarsFileCache[scriptName]
+        if (data === null) return
+        if (mapVars[scriptName] === undefined) mapVars[scriptName] = {}
+        for (const key of Object.keys(data)) {
+            const idx = Number(key)
+            if (mapVars[scriptName][idx] === undefined) {
+                mapVars[scriptName][idx] = data[key]
             }
-            const data = mapVarsFileCache[scriptName]
-            if (data === null) return
-            if (mapVars[scriptName] === undefined) mapVars[scriptName] = {}
-            for (const key of Object.keys(data)) {
-                const idx = Number(key)
-                if (mapVars[scriptName][idx] === undefined) {
-                    mapVars[scriptName][idx] = data[key]
-                }
+        }
+        info('loadMapVars: loaded ' + Object.keys(data).length + ' map vars for ' + scriptName)
+    } catch (e: any) {
+        // No mvars file for this map is normal - many maps have no MVARs
+    }
+}
+
+export function isGameObject(obj: any) {
+    // TODO: just use isinstance Obj?
+    if (obj === undefined || obj === null) return false
+    if (obj.isPlayer === true) return true
+    if (
+        obj.type === 'item' ||
+        obj.type === 'critter' ||
+        obj.type === 'scenery' ||
+        obj.type === 'wall' ||
+        obj.type === 'tile' ||
+        obj.type === 'misc'
+    )
+        return true
+
+    //warn("is NOT GO: " + obj.toString())
+    dbg('script', 'is NOT GO: %o', obj)
+    return false
+}
+
+// DAMAGE_TYPE_* order (proto_types.h), as Weapon.ts names them
+export const DAMAGE_TYPE_NAMES = ['Normal', 'Laser', 'Fire', 'Plasma', 'Electrical', 'EMP', 'Explosive']
+
+// CE scripts.cc scriptsRequestElevator(self, type): the elevator stub (0x200050D) in the
+// 10×10 tiles around the script's object (its type and level win), else the explicit
+// type; -1 refuses. The elevator opens after the script (a request).
+export function requestElevator(self: Obj | null, explicitType: number): void {
+    if (!self?.position) return
+    let type = explicitType
+    const elevation = (self as any).elevation ?? world.gMap!.currentElevation
+    const objects: Obj[] = world.gMap!.getObjects(elevation)
+    search: for (let dy = -5; dy < 5; dy++) {
+        for (let dx = -5; dx < 5; dx++) {
+            const x = self.position.x + dx,
+                y = self.position.y + dy
+            const stub = objects.find((o) => o.pid === 0x200050d && o.position?.x === x && o.position?.y === y)
+            if (stub) {
+                type = (stub as any).extra?.type ?? type
+                break search
             }
-            info('loadMapVars: loaded ' + Object.keys(data).length + ' map vars for ' + scriptName)
-        } catch (e: any) {
-            // No mvars file for this map is normal - many maps have no MVARs
         }
     }
+    if (type === -1 || type === undefined) return
+    setTimeout(() => {
+        const elevator = getElevator(type)
+        if (elevator) uiElevator(elevator)
+        else warn('metarule(15): no elevator type ' + type)
+    }, 0)
+}
 
-    function isGameObject(obj: any) {
-        // TODO: just use isinstance Obj?
-        if (obj === undefined || obj === null) return false
-        if (obj.isPlayer === true) return true
-        if (
-            obj.type === 'item' ||
-            obj.type === 'critter' ||
-            obj.type === 'scenery' ||
-            obj.type === 'wall' ||
-            obj.type === 'tile' ||
-            obj.type === 'misc'
-        )
-            return true
+// Every object that can carry items: the map's objects on all elevations and the dude.
+export function allCarriers(): Obj[] {
+    const levels: Obj[][] = world.gMap?.objects ?? []
+    const all = levels.flat()
+    const dude = world.player
+    if (dude && !all.includes(dude)) all.push(dude)
+    return all
+}
 
-        //warn("is NOT GO: " + obj.toString())
-        dbg('script', 'is NOT GO: %o', obj)
-        return false
+export function isSpatial(obj: any): boolean {
+    if (!obj) return false
+    return obj.isSpatial === true
+}
+
+export function getScriptName(id: number): string {
+    // return getLstId("scripts/scripts", id - 1).split(".")[0].toLowerCase()
+    return lookupScriptName(id)
+}
+
+export function dialogueReply(id: number): void {
+    const f = scriptingState.dialogueOptionProcs[id]
+    // CE ref: game_dialog.cc:2040-2044 _gdProcessChoice — records the
+    // chosen option's text onto the most recent review entry, before
+    // running its callback (which may clear/replace state).
+    const pickedText = scriptingState.dialogueOptionTexts[id]
+    // CE game_dialog.cc _gdProcessChoice → _talk_to_critter_reacts(option reaction).
+    reactToOption(scriptingState.dialogueOptionReactions[id] ?? GAME_DIALOG_REACTION_NEUTRAL)
+    scriptingState.dialogueOptionReactions = []
+    if (scriptingState.dialogueReviewLog.length > 0 && pickedText !== undefined) {
+        scriptingState.dialogueReviewLog[scriptingState.dialogueReviewLog.length - 1].option = pickedText
     }
-
-    // DAMAGE_TYPE_* order (proto_types.h), as Weapon.ts names them
-    const DAMAGE_TYPE_NAMES = ['Normal', 'Laser', 'Fire', 'Plasma', 'Electrical', 'EMP', 'Explosive']
-
-    // Every object that can carry items: the map's objects on all elevations and the dude.
-    function allCarriers(): Obj[] {
-        const levels: Obj[][] = globalState.gMap?.objects ?? []
-        const all = levels.flat()
-        const dude = globalState.player
-        if (dude && !all.includes(dude)) all.push(dude)
-        return all
+    scriptingState.dialogueOptionProcs = []
+    scriptingState.dialogueOptionTexts = []
+    scriptingState.dialogueOptionReactions = []
+    inDialogueReply = true
+    try {
+        f()
+    } finally {
+        inDialogueReply = false
     }
-
-    function isSpatial(obj: any): boolean {
-        if (!obj) return false
-        return obj.isSpatial === true
+    if (scriptingState.pendingBarter) {
+        const merchant = scriptingState.pendingBarter
+        scriptingState.pendingBarter = null
+        uiPort.uiBarterMode(merchant)
+        return
     }
-
-    function getScriptName(id: number): string {
-        // return getLstId("scripts/scripts", id - 1).split(".")[0].toLowerCase()
-        return lookupScriptName(id)
+    // by this point the option's callback may have switched to an
+    // entirely different screen (barter, companion control/customize) —
+    // the "no more options, close dialogue" logic below only applies if
+    // we're still actually showing the dialogue UI. Checking only for
+    // UIMode.barter (pre-2026-06-22) missed companionControl, causing
+    // dialogueExit() to fire immediately after opening Combat Control —
+    // hiding the dialogue UI instantly and nulling currentDialogueObject
+    // out from under it.
+    if (uiState.uiMode !== UIMode.dialogue) {
+        return
     }
-
-    function getScriptMessage(id: number, msg: string | number) {
-        if (typeof msg === 'string')
-            // passed in a string message
-            return msg
-
-        var name = getScriptName(id)
-        if (name === null) {
-            warn('getScriptMessage: no script with ID ' + id)
-            return null
-        }
-
-        if (scriptMessages[name] === undefined) loadMessageFile(name)
-        if (scriptMessages[name] === undefined) throw 'getScriptMessage: loadMessageFile failed?'
-        if (scriptMessages[name][msg] === undefined) {
-            // CE scripts.cc _scr_get_msg_str_speech: a missing message is the text "Error"
-            // (vccharly asks for 134, which its .msg does not have)
-            warn('getScriptMessage: no message ' + msg + ' for script ' + id + ' (' + name + ')')
-            return 'Error'
-        }
-
-        return scriptMessages[name][msg]
-    }
-
-    // CE scripts.cc:2726 _scr_get_msg_str_speech(…, a3=1): with a talking head
-    // active, a reply whose message has a speech name starts the lip-synced audio.
-    function speakScriptMessage(msgList: number, msgID: string | number): void {
-        if (typeof msgID !== 'number' || !isTalkingHeadActive()) return
-        const name = getScriptName(msgList)
-        if (!name) return
-        const audio = scriptMessageAudio[name.toLowerCase()]?.[msgID]
-        if (audio) startLips(audio)
-        else dbg('dialogue', `Missing speech name: ${msgID}`)
-    }
-
-    export function dialogueReply(id: number): void {
-        var f = dialogueOptionProcs[id]
-        // CE ref: game_dialog.cc:2040-2044 _gdProcessChoice — records the
-        // chosen option's text onto the most recent review entry, before
-        // running its callback (which may clear/replace state).
-        const pickedText = dialogueOptionTexts[id]
-        // CE game_dialog.cc _gdProcessChoice → _talk_to_critter_reacts(option reaction).
-        reactToOption(dialogueOptionReactions[id] ?? GAME_DIALOG_REACTION_NEUTRAL)
-        dialogueOptionReactions = []
-        if (dialogueReviewLog.length > 0 && pickedText !== undefined) {
-            dialogueReviewLog[dialogueReviewLog.length - 1].option = pickedText
-        }
-        dialogueOptionProcs = []
-        dialogueOptionTexts = []
-        dialogueOptionReactions = []
-        inDialogueReply = true
-        try {
-            f()
-        } finally {
-            inDialogueReply = false
-        }
-        if (pendingBarter) {
-            const merchant = pendingBarter
-            pendingBarter = null
-            uiBarterMode(merchant)
-            return
-        }
-        // by this point the option's callback may have switched to an
-        // entirely different screen (barter, companion control/customize) —
-        // the "no more options, close dialogue" logic below only applies if
-        // we're still actually showing the dialogue UI. Checking only for
-        // UIMode.barter (pre-2026-06-22) missed companionControl, causing
-        // dialogueExit() to fire immediately after opening Combat Control —
-        // hiding the dialogue UI instantly and nulling currentDialogueObject
-        // out from under it.
-        if (globalState.uiMode !== UIMode.dialogue) {
-            return
-        }
-        if (currentDialogueObject !== null && dialogueOptionProcs.length === 0) {
-            // after running the option procedure we have no options...
-            // so close the dialogue
-            dbg('dialogue', '[dialogue exit via dialogueReply (no replies)]')
-            dialogueExit()
-        }
-    }
-
-    export function dialogueEnd() {
-        // dialogue exited from [Done] or the UI
-        dbg('dialogue', '[dialogue exit via dialogueExit]')
+    if (scriptingState.currentDialogueObject !== null && scriptingState.dialogueOptionProcs.length === 0) {
+        // after running the option procedure we have no options...
+        // so close the dialogue
+        dbg('dialogue', '[dialogue exit via dialogueReply (no replies)]')
         dialogueExit()
     }
+}
 
-    function dialogueExit() {
-        SfallHooks.gameModeSpecial(false) // sfall: SPECIAL while the dialogue panel closes
-        uiEndDialogue()
-        dialogueBarterMod = 0
-        info('[dialogue exit]')
+/** Seed Math.random for deterministic crawler runs. */
+export function setSeed(n: number): void {
+    seed(n)
+}
 
-        const lua = currentDialogueObject?._script?._lua
-        if (lua) {
-            // the Lua backend suspended the procedure in gsay_end / gsay_message;
-            // the dialogue is over, so it continues (CE: gsay_end returns). Clear
-            // the dialogue first: the code after gsay_end calls end_dialogue.
-            currentDialogueObject = null
-            lua.resume()
-            return
+// CE opObjectCanSeeObject: same elevation, both on the map, within perception (any
+// target), and the target is the first obstacle of _make_straight_path(a, a, b)
+export function objCanSeeObj(obj: Critter, target: Obj): boolean {
+    if (obj.elevation !== target.elevation || !obj.position || !target.position) return false
+    if (!isWithinPerception(obj, target as Critter)) return false
+    return world.gMap!.straightPathBlockingObject(obj, target.position, 0) === target
+}
+
+export interface SerializedScript {
+    name: string
+    lvars: { [lvar: number]: any }
+}
+
+export interface ScriptableObj {
+    _script: Script
+}
+
+// CE game_sound.cc:92 _snd_lookup_scenery_action
+export const SND_SCENERY_ACTION = 'OCLNU'
+// CE art.cc _art_get_code for sound names (weapon code, anim code)
+export function artGetCodeForSfx(animation: number, weaponType: number): [string, string] | null {
+    const chr = (b: string, o: number) => String.fromCharCode(b.charCodeAt(0) + o)
+    if (weaponType < 0 || weaponType >= 11) return null
+    if (animation >= 38 && animation <= 47)
+        return weaponType === 0 ? null : [chr('d', weaponType - 1), chr('c', animation - 38)]
+    if (animation === 36) return ['c', 'h']
+    if (animation === 37) return ['c', 'j']
+    if (animation === 64) return ['n', 'a']
+    if (animation >= 48) return ['r', chr('a', animation - 48)]
+    if (animation >= 20) return ['b', chr('a', animation - 20)]
+    if (animation === 18) return weaponType === 1 ? ['d', 'm'] : weaponType === 4 ? ['g', 'm'] : ['a', 's']
+    if (animation === 13) return weaponType <= 0 ? ['a', 'n'] : [chr('d', weaponType - 1), 'e']
+    if (animation <= 1 && weaponType > 0) return [chr('d', weaponType - 1), chr('a', animation)]
+    return ['a', chr('a', animation)]
+}
+
+// sfall get_object_data on combat_data (CE combat_defs.h Attack at sfall's 32-bit offsets)
+export const ATTACK_FIELDS_BY_OFFSET: { [offset: number]: string } = {
+    0: 'attacker',
+    8: 'weapon',
+    16: 'attackerDamage',
+    20: 'attackerFlags',
+    24: 'ammoQuantity',
+    28: 'criticalMessageId',
+    32: 'defender',
+    44: 'defenderDamage',
+    48: 'defenderFlags',
+    52: 'defenderKnockback',
+    56: 'oops',
+}
+
+// sfall: CE hit locations → DH2 region names (combat_defs.h HIT_LOCATION_*)
+export const SFALL_HIT_LOCATIONS = ['head', 'leftArm', 'rightArm', 'torso', 'rightLeg', 'leftLeg', 'eyes', 'groin']
+// CE message.cc STANDARD_MESSAGE_LIST_* / PROTO_MESSAGE_LIST_* file names
+export const SFALL_STANDARD_MESSAGE_FILES = [
+    'combat',
+    'combatai',
+    'scrname',
+    'misc',
+    'custom',
+    'inventry',
+    'item',
+    'lsgame',
+    'map',
+    'options',
+    'perk',
+    'pipboy',
+    'quests',
+    'proto',
+    'script',
+    'skill',
+    'skilldex',
+    'stat',
+    'trait',
+    'worldmap',
+]
+export const SFALL_PROTO_MESSAGE_FILES = ['pro_item', 'pro_crit', 'pro_scen', 'pro_wall', 'pro_tile', 'pro_misc']
+// CE sfall_lists.cc: the open object lists
+export const sfallLists = new Map<number, { objects: any[]; next: number }>()
+
+// the class + interface merge is intended: the interface carries the opcode methods installed below
+// eslint-disable-next-line @typescript-eslint/no-unsafe-declaration-merging
+export class Script {
+    // Stuff we hacked in
+    _didOverride = false // Did the procedure call override the default action?
+
+    scriptName!: string
+    lvars!: { [lvar: number]: any }
+    _vm?: ScriptVM
+    _lua?: LuaScriptHandle // set when the Lua backend runs this script (src/lua/)
+    _pendingEntry?: () => void // startup code not run yet (setDeferObjectStart)
+    _mapScript?: Script
+
+    // Special built-in variables
+    self_obj!: { _script: Script }
+    self_tile!: number
+    cur_map_index!: number | null
+    fixed_param!: number
+    source_obj!: Obj | 0
+    returnValue = 0 // CE Script.returnValue (scr_return)
+    howMuch = 0 // CE Script.howMuch
+    action = 0 // CE Script.action
+    target_obj!: Obj
+    action_being_used!: number
+    game_time_hour!: number
+
+    // Script procedure prototypes
+    start!: () => void
+
+    map_enter_p_proc!: () => void
+    map_exit_p_proc!: () => void
+    map_update_p_proc!: () => void
+
+    timed_event_p_proc!: () => void
+
+    critter_p_proc!: () => void
+    spatial_p_proc!: () => void
+
+    use_p_proc!: () => void
+    use_obj_on_p_proc!: () => void
+    talk_p_proc!: () => void
+    push_p_proc!: () => void
+    pickup_p_proc!: () => void
+    drop_p_proc!: () => void
+    is_dropping_p_proc!: () => void
+
+    combat_p_proc!: () => void
+    damage_p_proc!: () => void
+    destroy_p_proc!: () => void
+
+    use_skill_on_p_proc!: () => void
+    // CE op_set_self (0x8206): the next use_obj_on_obj / pickup_obj runs as obj
+    // (interpreter_extra.cc opUseObjectOnObject / opPickup consume overriddenSelf)
+    overriddenSelf: Obj | null = null
+
+    _serialize(): SerializedScript {
+        return { name: this.scriptName, lvars: Object.assign({}, this.lvars) }
+    }
+}
+
+export function deserializeScript(obj: SerializedScript): Script {
+    const script = loadScript(obj.name)
+    script.lvars = obj.lvars
+    // TODO: do some kind of logic like enterMap/updateMap
+    return script
+}
+
+export function loadMessageFile(name: string) {
+    name = name.toLowerCase()
+    info('loading message file: ' + name, 'load')
+    const msg = getFileText('data/text/english/dialog/' + name + '.msg')
+    if (scriptMessages[name] === undefined) scriptMessages[name] = {}
+
+    for (const e of parseMsgFile(msg, name)) {
+        scriptMessages[name][e.num] = e.text
+        // CE message.cc: the middle field is the speech file for talking heads.
+        if (e.audio.trim() !== '') {
+            if (scriptMessageAudio[name] === undefined) scriptMessageAudio[name] = {}
+            scriptMessageAudio[name][e.num] = e.audio.trim()
         }
+    }
+    filterBadwords(scriptMessages[name]) // CE scripts.cc:2703 messageListFilterBadwords
+}
 
-        if (currentDialogueObject) {
-            // resume what halted in gsay_end / gsay_message, like the Lua path
-            // above; clear the dialogue first, the code after gsay_end calls
-            // end_dialogue
-            const vm = currentDialogueObject._script!._vm!
-            currentDialogueObject = null
-            info('[resuming from gsay_end/gsay_message]')
-            vm.resume()
-            return
-        }
+export function setMapScript(script: Script) {
+    currentMapObject = script
+}
 
-        currentDialogueObject = null
+// --- Stub script registry ---
+// When a .int file is absent, JS-defined stubs let the engine preserve
+// expected spatial/destroy behaviour. Keyed by lowercase script name and,
+// independently, by proto SID number (avoids depending on scripts.lst
+// resolution to find the canonical name).
+const _stubRegistry = new Map<string, Partial<Script>>()
+const _stubBySid = new Map<number, Partial<Script>>()
+
+export function registerStub(name: string, procs: Partial<Script>): void {
+    _stubRegistry.set(name.toLowerCase(), procs)
+}
+
+export function registerStubBySid(sid: number, name: string, procs: Partial<Script>): void {
+    _stubBySid.set(sid, procs)
+    _stubRegistry.set(name.toLowerCase(), procs)
+}
+
+function _buildStub(name: string, procs: Partial<Script>): Script {
+    const stub = Object.create(Script.prototype) as Script
+    stub.scriptName = name
+    stub.lvars = {}
+    stub._mapScript = currentMapObject ?? stub
+    Object.assign(stub, procs)
+    return stub
+}
+
+/** CE sfall_gl_scr_exec_start_proc after a save is loaded (loadsave.cc) */
+export function startSfallGlobalScripts(): void {
+    GlobalScripts.startGlobalScripts((name) => loadScript(name))
+}
+
+export function loadScriptBySid(sid: number): Script | null {
+    const procs = _stubBySid.get(sid)
+    if (!procs) return null
+    info('loading stub script for sid=' + sid, 'load')
+    return _buildStub(`stub:sid${sid}`, procs)
+}
+
+export function loadScript(name: string): Script {
+    const key = name.toLowerCase()
+
+    // Return a stub if one is registered and the .int file is absent.
+    // The stub is an instance of Script so it has all the engine API methods.
+    const stubProcs = _stubRegistry.get(key)
+    if (stubProcs) {
+        info('loading stub script ' + key, 'load')
+        return _buildStub(key, stubProcs)
     }
 
-    // Back from Barter / Trade / Combat Control. CE gameDialogTicker mode 1 recreates the
-    // window and gdUnhide shows the same reply and options again — talk_p_proc runs once
-    // per conversation. With no options left (the node that opened barter set none), the
-    // dialogue is over.
-    export function reenterDialogue(): void {
-        if (!currentDialogueObject || !currentDialogueObject._script) {
-            return
-        }
-        uiStartDialogue(true, currentDialogueObject as Critter)
-        if (dialogueOptionProcs.length === 0) {
-            dbg('dialogue', '[dialogue exit after barter (no options)]')
-            dialogueExit()
-        }
+    info('loading script ' + name, 'load')
+
+    if (Config.scripting.backend === 'lua') {
+        const luaScript = loadLuaScript(name)
+        if (luaScript) return luaScript
     }
+    return loadIntScript(name)
+}
 
-    /** Returns the number of currently pending dialogue option procs.
-     *  Used by the AutoCrawler to check whether options are visible without DOM access. */
-    export function getDialogueOptionCount(): number {
-        return dialogueOptionProcs.length
-    }
+// The .int on the script VM (vm.ts) — also a child program's (callstart / spawn / fork / exec)
+function loadIntScript(name: string): Script {
+    const path = 'data/scripts/' + name.toLowerCase() + '.int'
+    const data: DataView = getFileBinarySync(path)
+    const reader = new BinaryReader(data)
+    const intfile = parseIntFile(reader, name.toLowerCase())
 
+    if (!currentMapObject) dbg('load', 'note: using current script (%s) as map script for this object', intfile.name)
 
-    /** Seed Math.random for deterministic crawler runs. */
-    export function setSeed(n: number): void {
-        seed(n)
-    }
+    reader.seek(0)
+    const vm = new ScriptVMBridge.GameScriptVM(reader, intfile, new Script())
+    vm.scriptObj.scriptName = name
+    vm.scriptObj.lvars = {}
+    vm.scriptObj._mapScript = currentMapObject || vm.scriptObj // map scripts are their own map scripts
+    vm.scriptObj._vm = vm
+    // CE scriptExecProc runs the startup code when the program loads, on its first proc —
+    // for a map's objects that is scriptsExecStartProc (startMapScripts)
+    if (deferObjectStart) vm.scriptObj._pendingEntry = () => vm.run()
+    else vm.run()
 
-    function objCanSeeObj(obj: Critter, target: Obj): boolean {
-        // Is target within obj's perception, or is it a non-critter object (without perception)?
-        if (target.type !== 'critter' || isWithinPerception(obj, target as Critter)) {
-            // Then, is anything blocking obj from drawing a straight line to target?
-            const hit = globalState.gMap.hexLinecast(obj.position, target.position)
-            return !hit
+    // return the scriptObj, which is a clone of ScriptProto
+    // which will be patched by the GameScriptVM to allow
+    // transparent procedure calls
+    return vm.scriptObj
+}
+
+// Lua backend (src/lua/): data/scripts/<name>.lua from tools/int2lua.py, or a
+// mod's mods/<mod>/scripts/<name>.lua (Config.scripting.mods, the last listed
+// mod that has the script wins). Null when there is no .lua file or it does
+// not load, so the .int runs instead. data/scripts/ paths go through the mod
+// asset overlay (modAssets.ts): a mod whose .int did not decompile has no .lua,
+// and the .lua of a lower layer (the vanilla script) must not run in its place.
+function loadLuaScript(name: string): Script | null {
+    if (!isLuaReady()) return null
+    const key = name.toLowerCase()
+    // hand-written Lua mods (no manifest) first; a pipeline-built mod folder's scripts
+    // come through the asset overlay as data/scripts/<name>.lua, unless that layer has
+    // only the .int
+    const assetMods = activeAssetMods()
+    const paths = Config.scripting.mods
+        .filter((m) => !assetMods.includes(m))
+        .reverse()
+        .map((m) => `mods/${m}/scripts/${key}.lua`)
+    if (assetLayer(`data/scripts/${key}.int`) <= assetLayer(`data/scripts/${key}.lua`))
+        paths.push('data/scripts/' + key + '.lua')
+    else dbg('lua', `${key}: the mod's ${key}.int has no .lua`)
+    let source: string | null = null
+    for (const path of paths) {
+        try {
+            source = getFileText(path)
+        } catch (e) {
+            continue
         }
+        if (path.startsWith('mods/')) dbg('lua', `${key}: using ${path}`)
+        break
+    }
+    if (source === null) {
+        dbg('lua', `no ${key}.lua, using ${key}.int`)
+        return null
+    }
+    const script = new Script()
+    script.scriptName = name
+    script.lvars = {}
+    script._mapScript = currentMapObject || script // map scripts are their own map scripts
+    try {
+        attachLuaScript(script, key, source, deferObjectStart)
+    } catch (e) {
+        dbgWarn('lua', `${key}.lua failed to load (${e}), using ${key}.int`)
+        return null
+    }
+    return script
+}
+
+// CE map.cc mapLoad → scriptsExecStartProc: after the map script's map_enter_p_proc and
+// the party's placement, `start` runs for every script on the map, list by list — the map
+// script, the spatials, items (and scenery), critters. Scripts loaded meanwhile (the map's,
+// its objects', those its map_enter_p_proc creates) wait for it (setDeferObjectStart); their
+// startup code runs when their first proc does, as CE loads a program on its first proc.
+let deferObjectStart = false
+export function setDeferObjectStart(on: boolean): void {
+    deferObjectStart = on
+}
+export function startMapScripts(mapScript: Script | null, spatials: Obj[], objects: Obj[]): void {
+    deferObjectStart = false
+    if (mapScript) initScript(mapScript, { _script: mapScript } as any)
+    for (const spatial of spatials) if (spatial._script) initScript(spatial._script, spatial)
+    const scripted = objects.filter((o) => o._script)
+    for (const o of scripted) if (o.type !== 'critter' && o._script) initScript(o._script, o)
+    for (const o of scripted) if (o.type === 'critter' && o._script) initScript(o._script, o)
+}
+
+// CE scripts.cc scriptsSetDudeScript (object.cc objectsInit / new game): the dude runs
+// obj_dude.int (scripts.lst index 0) — GECK experience, the GECK drop block, the mutation
+// messages, its timers (add_timer_event(dude_obj, …)). A loaded game's LVARs go in
+// before its start proc runs.
+let pendingDudeLvars: { [lvar: number]: any } | null = null
+export function setPendingDudeLvars(lvars: { [lvar: number]: any } | null): void {
+    pendingDudeLvars = lvars
+    if (world.player) world.player._script = undefined
+}
+export function ensureDudeScript(): void {
+    const player = world.player
+    if (!player || player._script) return
+    let script: Script | null = null
+    try {
+        script = loadScript('obj_dude')
+    } catch (e) {
+        warn('obj_dude: ' + e)
+    }
+    if (!script) return
+    if (pendingDudeLvars) script.lvars = pendingDudeLvars
+    pendingDudeLvars = null
+    player.script = 'obj_dude'
+    player._script = script
+    initScript(script, player)
+}
+
+export function initScript(script: Script, obj: Obj) {
+    script.self_obj = obj as ScriptableObj
+    script.cur_map_index = currentMapID!
+    if (deferObjectStart) return // startMapScripts runs it
+    const entry = script._pendingEntry
+    if (entry) {
+        script._pendingEntry = undefined
+        entry()
+    }
+    if (script.start !== undefined) script.start()
+}
+
+// CE scripts.cc scriptExecProc: a procedure the script doesn't have (procs[proc] == 0) runs
+// its procedure #1 instead (SCR-11). DH2 runs nothing; the console says so, once per script
+// and procedure, when CE's #1 would do something — not the sslc door helper
+// checkPartyMembersNearDoor that is #1 in most scripts.
+const missingProcWarned = new Set<string>()
+const procedureOneNames: { [script: string]: Promise<string | null> } = {}
+// (the Lua backend reads the .int's procedure table in the background, once per script)
+function procedureOneName(script: Script): Promise<string | null> {
+    const key = (script.scriptName ?? '').toLowerCase()
+    if (!(key in procedureOneNames)) {
+        procedureOneNames[key] = script._vm
+            ? Promise.resolve(script._vm.intfile.proceduresTable?.[1]?.name ?? null)
+            : fetch(assetUrl('data/scripts/' + key + '.int'))
+                  .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject()))
+                  .then(
+                      (buf) =>
+                          parseIntFile(new BinaryReader(new DataView(buf)), key).proceduresTable?.[1]?.name ?? null,
+                  )
+                  .catch((): null => null) // a stub, or no .int
+    }
+    return procedureOneNames[key]
+}
+export function noteMissingProc(script: Script | undefined, proc: string): void {
+    if (!script?.scriptName) return
+    const key = script.scriptName + ':' + proc
+    if (missingProcWarned.has(key)) return
+    missingProcWarned.add(key)
+    void procedureOneName(script).then((one) => {
+        if (!one || one.toLowerCase() === 'checkpartymembersneardoor' || one.toLowerCase() === proc) return
+        console.warn(
+            `[script] ${script.scriptName} has no ${proc}: CE (scripts.cc scriptExecProc) would run ` +
+                `its procedure #1, ${one}, here instead; DH2 runs nothing (SCR-11, wiki/ce_audit/script_engine.md)`,
+        )
+    })
+}
+
+export function timedEvent(script: Script, userdata: any): boolean {
+    info('timedEvent: ' + script.scriptName + ': ' + userdata, 'timer')
+    if (script.timed_event_p_proc === undefined) {
+        noteMissingProc(script, 'timed_event_p_proc')
+        warn(
+            `timedEvent called on script without a timed_event_p_proc! script: ${script.scriptName} userdata: ${userdata}`,
+        )
         return false
     }
 
-    export interface SerializedScript {
-        name: string
-        lvars: { [lvar: number]: any }
+    script.fixed_param = userdata
+    script._didOverride = false
+    script.timed_event_p_proc()
+    return script._didOverride
+}
+
+// CE proto_instance.cc _obj_look_at_func / _obj_examine_func — SCRIPT_PROC_LOOK_AT /
+// SCRIPT_PROC_DESCRIPTION with source = the viewer; true if the script overrode the
+// engine's text (script_overrides).
+function runViewProc(obj: Obj, source: Obj, proc: 'look_at_p_proc' | 'description_p_proc'): boolean {
+    const script: any = obj._script
+    if (!script || script[proc] === undefined) {
+        noteMissingProc(script, proc)
+        return false
     }
-
-    interface ScriptableObj {
-        _script: Script
-    }
-
-
-    // CE game_sound.cc:92 _snd_lookup_scenery_action
-    const SND_SCENERY_ACTION = 'OCLNU'
-    // CE art.cc _art_get_code for sound names (weapon code, anim code)
-    function artGetCodeForSfx(animation: number, weaponType: number): [string, string] | null {
-        const chr = (b: string, o: number) => String.fromCharCode(b.charCodeAt(0) + o)
-        if (weaponType < 0 || weaponType >= 11) return null
-        if (animation >= 38 && animation <= 47) return weaponType === 0 ? null : [chr('d', weaponType - 1), chr('c', animation - 38)]
-        if (animation === 36) return ['c', 'h']
-        if (animation === 37) return ['c', 'j']
-        if (animation === 64) return ['n', 'a']
-        if (animation >= 48) return ['r', chr('a', animation - 48)]
-        if (animation >= 20) return ['b', chr('a', animation - 20)]
-        if (animation === 18) return weaponType === 1 ? ['d', 'm'] : weaponType === 4 ? ['g', 'm'] : ['a', 's']
-        if (animation === 13) return weaponType <= 0 ? ['a', 'n'] : [chr('d', weaponType - 1), 'e']
-        if (animation <= 1 && weaponType > 0) return [chr('d', weaponType - 1), chr('a', animation)]
-        return ['a', chr('a', animation)]
-    }
-
-    // sfall get_object_data on combat_data (CE combat_defs.h Attack at sfall's 32-bit offsets)
-    const ATTACK_FIELDS_BY_OFFSET: { [offset: number]: string } = {
-        0: 'attacker', 8: 'weapon', 16: 'attackerDamage', 20: 'attackerFlags', 24: 'ammoQuantity',
-        28: 'criticalMessageId', 32: 'defender', 44: 'defenderDamage', 48: 'defenderFlags', 52: 'defenderKnockback',
-        56: 'oops',
-    }
-
-    export class Script {
-        // Stuff we hacked in
-        _didOverride = false // Did the procedure call override the default action?
-
-        scriptName!: string
-        lvars!: { [lvar: number]: any }
-        _vm?: ScriptVM
-        _lua?: LuaScriptHandle // set when the Lua backend runs this script (src/lua/)
-        _mapScript?: Script
-
-        // Special built-in variables
-        self_obj!: { _script: Script }
-        self_tile!: number
-        cur_map_index!: number | null
-        fixed_param!: number
-        source_obj!: Obj | 0
-        returnValue = 0 // CE Script.returnValue (scr_return)
-        howMuch = 0 // CE Script.howMuch
-        action = 0 // CE Script.action
-        target_obj!: Obj
-        action_being_used!: number
-        game_time_hour!: number
-
-
-        // Script procedure prototypes
-        start!: () => void
-
-        map_enter_p_proc!: () => void
-        map_exit_p_proc!: () => void
-        map_update_p_proc!: () => void
-
-        timed_event_p_proc!: () => void
-
-        critter_p_proc!: () => void
-        spatial_p_proc!: () => void
-
-        use_p_proc!: () => void
-        use_obj_on_p_proc!: () => void
-        talk_p_proc!: () => void
-        push_p_proc!: () => void
-        pickup_p_proc!: () => void
-        drop_p_proc!: () => void
-        is_dropping_p_proc!: () => void
-
-        combat_p_proc!: () => void
-        damage_p_proc!: () => void
-        destroy_p_proc!: () => void
-
-        use_skill_on_p_proc!: () => void
-
-        // Actual scripting engine API implementations
-
-        set_global_var(gvar: number, value: any) {
-            globalVars[gvar] = value
-            info('set_global_var: ' + gvar + ' = ' + value, 'gvars')
-            log('set_global_var', arguments, 'gvars')
-            // CE ref: game.cc:995 gameSetGlobalVar — GVAR 0 is the main karma score
-            // Sync to player stat so the character-sheet title display stays current.
-            if (gvar === 0 && globalState.player) {
-                globalState.player.stats.setBase('Karma', typeof value === 'number' ? value : parseInt(value))
-            }
-            // CE ref: scripts.cc:487 gameSetGlobalVar(GVAR_TOWN_REP_ARROYO, ...) —
-            // town reps are plain GVARs; sync to player stat so viewer.ts reputation
-            // panel reflects script writes instead of only ever reading an unset default.
-            const townRepName = TOWN_REP_GVARS[gvar]
-            if (townRepName !== undefined && globalState.player) {
-                globalState.player.stats.setBase('Rep_' + townRepName, typeof value === 'number' ? value : parseInt(value))
-            }
-        }
-        set_local_var(lvar: number, value: any) {
-            this.lvars[lvar] = value
-            info('set_local_var: ' + lvar + ' = ' + value + ' [' + this.scriptName + ']', 'lvars')
-            log('set_local_var', arguments, 'lvars')
-        }
-        local_var(lvar: number) {
-            log('local_var', arguments, 'lvars')
-            // CE scriptGetLocalVar: every LVAR exists from the start as 0 and a read
-            // never writes (an unset one is 0 here, not stored)
-            return this.lvars[lvar] ?? 0
-        }
-        map_var(mvar: number) {
-            if (this._mapScript === undefined) {
-                warn('map_var: no map script')
-                return
-            }
-            var scriptName = this._mapScript.scriptName
-            if (scriptName === undefined) {
-                warn('map_var: map script has no name')
-                return
-            }
-            // CE mapGetGlobalVar: an MVAR the map never set is 0; a read never writes
-            return mapVars[scriptName]?.[mvar] ?? 0
-        }
-        set_map_var(mvar: number, value: any) {
-            if (!this._mapScript) throw Error('set_map_var: no map script')
-            var scriptName = this._mapScript.scriptName
-            if (scriptName === undefined) {
-                warn('map_var: map script has no name')
-                return
-            }
-            info('set_map_var: ' + mvar + ' = ' + value, 'mvars')
-            if (mapVars[scriptName] === undefined) mapVars[scriptName] = {}
-            mapVars[scriptName][mvar] = value
-        }
-        global_var(gvar: number) {
-            if (globalVars[gvar] === undefined) {
-                warn('global_var: unknown gvar ' + gvar + ', using default (0)', 'gvars')
-                globalVars[gvar] = 0
-            }
-            return globalVars[gvar]
-        }
-        random(min: number, max: number) {
-            log('random', arguments)
-            return getRandomInt(min, max)
-        }
-        debug_msg(msg: string) {
-            log('debug_msg', arguments)
-            info('DEBUG MSG: [' + this.scriptName + ']: ' + msg, 'debugMessage')
-        }
-        display_msg(msg: string) {
-            log('display_msg', arguments)
-            info('DISPLAY MSG: ' + msg, 'displayMessage')
-            uiLog(msg)
-        }
-        message_str(msgList: number, msgNum: number) {
-            return getScriptMessage(msgList, msgNum)
-        }
-        metarule(id: number, target: number): any {
-            switch (id) {
-                case 13: {
-                    // CE ref: interpreter_extra.cc:3208 METARULE_SIGNAL_END_GAME
-                    // Sets _game_user_wants_to_quit = 2 → triggers endgame sequence
-                    dbg('script', 'metarule(13): signal end game')
-                    // DH2 defers full end-game to Endgame.triggerEnd; fire whatever we have
-                    ;(Endgame as any).triggerEnd?.()
-                    return 0
-                }
-                case 14:
-                    return mapFirstRun // map_first_run
-                case 15: // elevator
-                    if (target !== -1) throw 'elevator given explicit type'
-                    useElevator()
-                    break
-                case 16:
-                    // CE ref: interpreter_extra.cc:3219 METARULE_PARTY_COUNT → party_member.cc
-                    // _getPartyMemberCount: the dude plus every member that is a live, visible critter.
-                    return 1 + (globalState.gParty?.party ?? []).filter((m) => m.type === 'critter' && !m.dead && m.visible !== false).length
-                case 17: // METARULE_AREA_KNOWN — CE wmAreaVisitedState
-                    return Worldmap.areaVisitedState(target)
-                case 18: {
-                    // FO2-CE ref: proto.cc drugEffect — is critter under influence of drugs?
-                    const checkObj = (this as any).self ?? null
-                    if (checkObj) {
-                        const hasDrug = timeEventList.some(
-                            (e: any) => e.obj === checkObj &&
-                            typeof e.userdata === 'string' &&
-                            (e.userdata as string).startsWith('drug:') &&
-                            !(e.userdata as string).startsWith('drug:delayed:')
-                        )
-                        return hasDrug ? 1 : 0
-                    }
-                    return 0
-                }
-                case 19: {
-                    // CE ref: interpreter_extra.cc:3228 METARULE_MAP_KNOWN
-                    // wmMapIsKnown() — in CE maps have their own known-state; in DH2 we
-                    // approximate using knownAreas: a map is known if its area has been visited
-                    if (!globalState.mapAreas) return 0
-                    for (const key of Object.keys(globalState.mapAreas)) {
-                        const area = globalState.mapAreas[key]
-                        if (area.entrances.some((e: any) => e.mapName === target || (e.mapLookupName ?? '') === target))
-                            return globalState.knownAreas.has(area.id) ? 1 : 0
-                    }
-                    return 0
-                }
-                case 22:
-                    return loadingGame ? 1 : 0 // METARULE_IS_LOADGAME → _isLoadingGame
-                case 42: {
-                    // CE ref: interpreter_extra.cc:3246 METARULE_DROP_ALL_INVEN —
-                    // itemDropAll: everything (hands and armor too) onto the critter's
-                    // tile, no scripts run; the dude's interface items refresh.
-                    const dropTarget = target as any
-                    if (!isGameObject(dropTarget) || dropTarget.type !== 'critter' || !globalState.gMap) return 0
-                    itemDropAll(dropTarget as Critter)
-                    if ((dropTarget as Critter).isPlayer) {
-                        uiDrawWeapon()
-                        drawAC(dropTarget.getStat('AC'))
-                    }
-                    return 0
-                }
-                case 43: {
-                    // CE ref: interpreter_extra.cc:3256 METARULE_INVEN_UNWIELD_WHO —
-                    // moves the active-hand weapon back to inventory (unwield)
-                    const unObj = target as any
-                    if (!isGameObject(unObj)) return 0
-                    const isPlayer = unObj === globalState.player
-                    const handKey: 'leftHand' | 'rightHand' = isPlayer
-                        ? ((unObj.activeHand as 'leftHand' | 'rightHand') ?? 'rightHand')
-                        : 'rightHand'
-                    const heldItem = unObj[handKey] as Obj | null | undefined
-                    if (heldItem) {
-                        unObj[handKey] = null
-                        unObj.inventory.push(heldItem)
-                    }
-                    return 0
-                }
-                case 40: {
-                    // CE ref: interpreter_extra.cc:3243 METARULE_SKILL_CHECK_TAG
-                    const skillName = SKILL_NAMES[target as number]
-                    if (!skillName || !globalState.player) return 0
-                    return globalState.player.skills.isTagged(skillName) ? 1 : 0
-                }
-                case 44: {
-                    // CE ref: interpreter_extra.cc:3280 METARULE_GET_WORLDMAP_XPOS
-                    const wpos = Worldmap.getPlayerWorldPos()
-                    return wpos ? wpos.x : 0
-                }
-                case 45: {
-                    // CE ref: interpreter_extra.cc:3283 METARULE_GET_WORLDMAP_YPOS
-                    const wpos = Worldmap.getPlayerWorldPos()
-                    return wpos ? wpos.y : 0
-                }
-                case 46: // METARULE_CURRENT_TOWN — CE wmGetPartyCurArea (-1 in the wastes)
-                    return Worldmap.getCurrentAreaId()
-                case 47:
-                    // CE ref: interpreter_extra.cc:3291 METARULE_LANGUAGE_FILTER — profanity filter state
-                    return Config.ui.languageFilter ? 1 : 0
-                case 48:
-                    // CE ref: interpreter_extra.cc:3310 METARULE_VIOLENCE_FILTER
-                    // Returns current violence level: 0=None,1=Minimal,2=Normal,3=Maximum
-                    return Config.combat.violenceLevel
-                case 49: // METARULE_W_DAMAGE_TYPE
-                    // FO2-CE ref: combat_defs.h DMG_* constants
-                    switch (objectGetDamageType(target)) {
-                        case 'normal':     return 0
-                        case 'laser':      return 1
-                        case 'fire':       return 2
-                        case 'plasma':     return 3
-                        case 'electrical': return 4
-                        case 'emp':        return 5
-                        case 'explosion':  return 6
-                        default:           return 0 // safe fallback instead of throw
-                    }
-                case 50: {
-                    // CE ref: interpreter_extra.cc:3316 METARULE_CRITTER_BARTERS
-                    // CRITTER_BARTER = 0x02 (obj_types.h:93)
-                    if (!isGameObject(target as any)) return 0
-                    const pro = (target as any).pro
-                    return ((pro?.extra?.flags ?? 0) & 0x02) !== 0 ? 1 : 0
-                }
-                case 51: {
-                    // CE ref: interpreter_extra.cc:3328 METARULE_CRITTER_KILL_TYPE
-                    if (!isGameObject(target as any)) return 0
-                    return (target as any).killType ?? 0
-                }
-                case 30:
-                    // CE ref: interpreter_extra.cc:3235 METARULE_CAR_CURRENT_TOWN →
-                    // worldmap.cc:6037 wmCarCurrentArea — returns wmGenData.currentCarAreaId.
-                    return Worldmap.getCarAreaId()
-                case 31: {
-                    // CE ref: interpreter_extra.cc:3238 METARULE_GIVE_CAR_TO_PARTY →
-                    // worldmap.cc:6043 wmCarGiveToParty — refuses an empty tank (worldmap
-                    // msg 1502), else puts the party in the car and goes to the worldmap
-                    // (mapSetTransition map -2), resetting the CAR_OUT_OF_GAS area. The
-                    // fuel and GVAR_PLAYER_GOT_CAR are the calling script's business.
-                    if (Worldmap.getCarFuel() <= 0) {
-                        uiLog(getMessage('worldmap', 1502) ?? 'The car is out of power.')
-                        return -1
-                    }
-                    Worldmap.setIsInCar(true)
-                    Worldmap.updateCarUI()
-                    const outOfGas = globalState.mapAreas?.[21] // CITY_CAR_OUT_OF_GAS
-                    if (outOfGas) { Worldmap.setAreaVisible(21, false); (outOfGas as any).visitedState = 0 }
-                    uiWorldMap()
-                    return 0
-                }
-                case 32: {
-                    // CE ref: interpreter_extra.cc:3241 METARULE_GIVE_CAR_GAS →
-                    // worldmap.cc:5984 wmCarFillGas(amount).
-                    const gasAmount = typeof target === 'number' ? target : 0
-                    Worldmap.addCarFuel(gasAmount)
-                    return 1
-                }
-                case 52: {
-                    // CE ref: interpreter_extra.cc:3331 METARULE_SET_CAR_CARRY_AMOUNT — writes
-                    // maxSize on the shared PROTO_ID_CAR_TRUNK (455) proto.
-                    const trunkPro = loadPRO(455, 455)
-                    if (!trunkPro) return 0
-                    trunkPro.extra.maxSize = typeof target === 'number' ? target : 0
-                    return 1
-                }
-                case 53: {
-                    // CE ref: interpreter_extra.cc:3340 METARULE_GET_CAR_CARRY_AMOUNT.
-                    const trunkPro = loadPRO(455, 455)
-                    return trunkPro?.extra?.maxSize ?? 0
-                }
-                default:
-                    dbgWarn('script', `metarule: unhandled id ${id}`)
-                    return 0 // CE opMetarule: result stays 0
-            }
-        }
-        metarule3(id: number, obj: any, userdata: any, radius: number): any {
-            switch (id) {
-            case 100: {
-                // METARULE3_CLR_FIXED_TIMED_EVENTS
-                for (var i = 0; i < timeEventList.length; i++) {
-                    if (timeEventList[i].obj === obj && timeEventList[i].userdata === userdata) {
-                        info('removing timed event (userdata ' + userdata + ')', 'timer')
-                        timeEventList.splice(i, 1)
-                        return
-                    }
-                }
-                return
-            }
-            case 101:
-                // METARULE3_MARK_SUBTILE — CE ref: worldmap.cc:5076 wmSubTileMarkRadiusVisited(x, y, radius)
-                Worldmap.markSubTileRadiusVisited(obj as number, userdata as number, radius as number)
-                return 0
-            case 102:
-                // METARULE3_SET_WM_MUSIC — CE ref: interpreter_extra.cc:1968-2060:
-                // the switch has no case for this ID despite the enum name; result stays 0.
-                // Not a DH2 gap — this matches CE exactly.
-                return 0
-            case 103:
-                // CE ref: interpreter_extra.cc:1989 METARULE3_GET_KILL_COUNT
-                // Returns how many critters of killType `obj` have been killed.
-                return killCounts.get(obj as number) ?? 0
-            case 104: {
-                // CE ref: worldmap.cc:2940 wmMapMarkMapEntranceState(mapIdx, elevation, state);
-                // the result stays 0 (interpreter_extra.cc opMetarule3)
-                const entrMapName = typeof obj === 'number' && obj >= 0 ? lookupMapName(obj) : null
-                if (entrMapName) Worldmap.markMapEntranceState(entrMapName, userdata as number, (radius as number) !== 0)
-                return 0
-            }
-            case 105:
-                // METARULE3_WM_SUBTILE_STATE — CE ref: worldmap.cc:5125 wmSubTileGetVisitedState:
-                // 0 unknown, 1 known, 2 visited (Vault City's vcstark tests > 1)
-                return Worldmap.subTileVisitedState(obj as number, userdata as number)
-            case 106: {
-                // METARULE3_TILE_GET_NEXT_CRITTER
-                // TODO: use elevation
-                var tile = obj,
-                    elevation = userdata,
-                    lastCritter = radius
-                var objs = globalState.gMap.objectsAtPosition(fromTileNum(tile))
-                log('metarule3 106 (tile_get_next_critter)', arguments)
-                for (var i = 0; i < objs.length; i++) {
-                    if (objs[i].type === 'critter' && !(<Critter>objs[i]).isPlayer) return objs[i]
-                }
-                return 0
-            }
-            case 107: {
-                // METARULE3_ART_SET_BASE_FID_NUM — CE ref: interpreter_extra.cc:2029
-                // Rebuilds the object's FID with a new frmId, keeping type/animType/rotation.
-                // DH2 stores `art` as a path; resolve via lookupArt(makePID(frmType, frmId)).
-                if (!isGameObject(obj) || !obj.pro) {
-                    warn('metarule3 107: not a game object or no proto')
-                    return 0
-                }
-                const newArt = lookupArt(makePID(obj.pro.frmType, userdata as number))
-                if (newArt) obj.art = newArt
-                return 0
-            }
-            case 108: {
-                // CE ref: interpreter_extra.cc:2045 METARULE3_TILE_SET_CENTER
-                // Centers the game camera on the given tile number.
-                centerCamera(fromTileNum(obj as number))
-                return 0
-            }
-            case 109: {
-                // METARULE3_109 (chem use preference) — CE ref: combat_ai.cc:804
-                // aiGetChemUse() → ai->chem_use. Reads live AI packet and returns CE's numeric index.
-                if (!isGameObject(obj)) return 0
-                const critter = obj as Critter
-                const packet = critter.ai?.packet ?? getAiPacket(critter.aiNum)
-                const idx = CHEM_USE_MAP.indexOf(packet.chemUse)
-                return idx === -1 ? 0 : idx
-            }
-            case 110:
-                // CE ref: worldmap.cc:5984 wmCarIsOutOfGas — returns 1 if car fuel is 0.
-                return (Worldmap.getIsInCar() && Worldmap.getCarFuel() === 0) ? 1 : 0
-            case 111: {
-                // METARULE3_111 (_map_target_load_area) — CE ref: map.cc:1202.
-                // Returns the worldmap area index containing the current map, or -1.
-                const mapName = lookupMapName(globalState.gMap.mapID)
-                const area = mapName ? areaContainingMap(mapName) : null
-                return area ? area.id : -1
-            }
-            default:
-                dbgWarn('script', `metarule3: unhandled id ${id}`)
-                return 0 // CE opMetarule3: result stays 0
-            }
-        }
-        script_overrides() {
-            log('script_overrides', arguments)
-            info('[SCRIPT OVERRIDES]')
-            this._didOverride = true
-        }
-
-        // player
-        give_exp_points(xp: number) {
-            // CE opGiveExpPoints → pcAddExperience: no message — the scripts display their
-            // own "You gain %d experience points." (the extra uiLog doubled it)
-            if (!globalState.player) return
-            globalState.player.addExperience(xp)
-        }
-
-        // critters
-        get_critter_stat(obj: Critter, stat: number) {
-            if (stat === 34) {
-                // STAT_GENDER — the player's choice, else the proto's
-                if (obj.isPlayer) return (<Player>obj).gender === 'female' ? 1 : 0
-                return obj.getStat('Gender') ?? 0
-            }
-            if (stat === 8) {
-                // STAT_MAXIMUM_ACTION_POINTS — CE stat.cc critterGetStat (base + modifiers)
-                return obj.getStat('AP')
-            }
-            if (stat === 9) {
-                // STAT_ARMOR_CLASS — CE stat.cc critterGetStat: base + bonus (the worn armor's
-                // AC, _adjust_ac) + in combat the unused AP while it isn't the critter's turn
-                // (Combat.unusedApAC, HtH Evade included).
-                return obj.getStat('AC') + obj.getArmorAC() + (globalState.combat?.unusedApAC(obj as Critter) ?? 0)
-            }
-            if (stat === 10) {
-                // STAT_UNARMED_DAMAGE — CE ref: stat.cc critterStatBaseGetter (default 0 bonus)
-                // The unarmed moves' bonus damage is per hit mode (unarmed.ts), not this stat.
-                return 0
-            }
-            if (stat === 13) {
-                // STAT_SEQUENCE — CE ref: stat.cc:572 baseStats[STAT_SEQUENCE] = 2 * perception
-                return obj.getStat('Sequence')
-            }
-            // STAT_DAMAGE_THRESHOLD (17-23) and STAT_DAMAGE_RESISTANCE (24-30)
-            // CE ref: stat.cc critterGetStat — returns critter base stat + equipped armour contribution
-            const DT_DR_TYPES = ['Normal', 'Laser', 'Fire', 'Plasma', 'Electrical', 'EMP', 'Explosive']
-            if (stat >= 17 && stat <= 23) {
-                const dmgType = DT_DR_TYPES[stat - 17]
-                return obj.getStat('DT ' + dmgType) + obj.getArmorDT(dmgType)
-            }
-            if (stat >= 24 && stat <= 30) {
-                const dmgType = DT_DR_TYPES[stat - 24]
-                return obj.getStat('DR ' + dmgType) + obj.getArmorDR(dmgType)
-            }
-            if (stat === 31) return obj.getStat('DR Radiation') // STAT_RADIATION_RESISTANCE
-            if (stat === 32) return obj.getStat('DR Poison')    // STAT_POISON_RESISTANCE
-            if (stat === 33) {
-                // STAT_AGE — CE stat.cc critterGetStat: base age + game years (Critter.getStat)
-                return obj.getStat('Age')
-            }
-            if (stat === 36) return obj.poisonLevel ?? 0    // STAT_CURRENT_POISON_LEVEL
-            if (stat === 37) return obj.radiationLevel ?? 0 // STAT_CURRENT_RADIATION_LEVEL
-            var namedStat = statMap[stat]
-            if (namedStat !== undefined) return obj.getStat(namedStat)
-            dbgWarn('script', `get_critter_stat: unknown stat ${stat}`)
-            return 0
-        }
-        set_critter_stat(obj: Obj, stat: number, value: number) {
-            // CE ref: interpreter_extra.cc:1313 opSetCritterStat — player only, additive
-            // Adds `value` to base+trait-modified stat and stores as new base.
-            if (!isGameObject(obj) || obj.type !== 'critter') {
-                warn('set_critter_stat: not a critter')
-                return -1
-            }
-            if (!(obj as Critter).isPlayer) {
-                warn('set_critter_stat: can only modify obj_dude')
-                return -1
-            }
-            // CE stat.cc:439 critterSetBaseStat: derived stats (STAT_MAXIMUM_HIT_POINTS 7 ..
-            // STAT_POISON_RESISTANCE 32) can't be set; current HP / poison / radiation (35-37)
-            // route through their adjust functions with the delta.
-            if (stat > 6 && stat <= 32) return 0
-            if (stat === 35) { (obj as Critter).stats.modifyBase('HP', value); return 0 }
-            if (stat === 36) { this.poison(obj, value); return 0 }
-            if (stat === 37) { critterAdjustRadiation(obj as Critter, value); return 0 }
-            const statName = statMap[stat]
-            if (!statName) {
-                warn('set_critter_stat: unknown stat ' + stat)
-                return -1
-            }
-            // critterGetBaseStatWithTraitModifier: the base (DH2 keeps trait SPECIAL there),
-            // not drugs, perks or blindness
-            const current = (obj as Critter).stats.getBase(statName)
-            ;(obj as Critter).stats.setBase(statName, current + value)
-            return 0
-        }
-        has_trait(traitType: number, obj: Obj, trait: number) {
-            if (!isGameObject(obj)) {
-                warn('has_trait: not game object: ' + obj, undefined, this)
-                return 0
-            }
-
-            if (traitType === 0) {
-                // CRITTER_TRAIT_PERK — CE ref: interpreter_extra.cc:2570 opHasTrait
-                // perkGetRank returns number of times perk acquired (0 = not present).
-                // `trait` is the CE perk id (perk_defs.h), not an index into DH2's
-                // selectable PERKS list (the two diverge from id 33 on).
-                const name = perkNameById(trait)
-                if (!name) return 0
-                return getPerkRank(perkRankOwner(obj as Critter) as any, name)
-            }
-
-            if (traitType === 1) {
-                // CRITTER_TRAIT_OBJECT — CE ref: interpreter_extra.cc:2570 opHasTrait
-                switch (trait) {
-                    case 5:
-                        return (<Critter>obj).aiNum ?? 0 // OBJECT_AI_PACKET
-                    case 6:
-                        return (<Critter>obj).teamNum ?? 0 // OBJECT_TEAM_NUM
-                    case 10:
-                        return obj.orientation // OBJECT_CUR_ROT
-                    case 34: // OBJECT_SEX — CE ref: critter.cc critterGetSex
-                        if ((<Critter>obj).isPlayer) return (<Player>obj).gender === 'female' ? 1 : 0
-                        return 0
-                    case 666: // OBJECT_VISIBILITY
-                        return obj.visible === false ? 0 : 1 // 1 = visible, 0 = invisible
-                    case 667: // OBJECT_CUR_POISON — CE ref: critter.cc critterGetPoison
-                        return (<Critter>obj).poisonLevel ?? 0
-                    case 668: // OBJECT_CUR_RADIATION — CE ref: critter.cc critterGetRadiation
-                        return (<Critter>obj).radiationLevel ?? 0
-                    case 669: {
-                        // CE ref: interpreter_extra.cc:2595 CRITTER_TRAIT_OBJECT_GET_INVENTORY_WEIGHT
-                        return obj.getInventoryWeight() // item.cc objectGetInventoryWeight
-                    }
-                    default:
-                        dbgWarn('script', `has_trait: unhandled OBJECT trait ${trait}`)
-                        return -1
-                }
-            }
-
-            if (traitType === 2) {
-                // CRITTER_TRAIT_TRAIT — CE ref: interpreter_extra.cc:2600 opHasTrait
-                const TRAIT_NAMES: string[] = [
-                    'Fast Metabolism', 'Bruiser', 'Small Frame', 'One Hander',
-                    'Finesse', 'Kamikaze', 'Heavy Handed', 'Fast Shot',
-                    'Bloody Mess', 'Jinxed', 'Good Natured', 'Chem Reliant',
-                    'Chem Resistant', 'Sex Appeal', 'Skilled', 'Gifted',
-                ]
-                const traitName = TRAIT_NAMES[trait]
-                if (!traitName) return 0
-                return globalState.player?.traits?.includes(traitName) ? 1 : 0
-            }
-
-            dbgWarn('script', `has_trait: unknown traitType ${traitType}`)
-            return 0
-        }
-        critter_add_trait(obj: Obj, traitType: number, trait: number, amount: number) {
-            if (!isGameObject(obj)) {
-                warn('critter_add_trait: not game object: ' + obj, undefined, this)
-                return
-            }
-
-            if (obj.type !== 'critter') {
-                warn('critter_add_trait: not a critter: ' + obj, undefined, this)
-                return
-            }
-
-            if (traitType === 1) {
-                // CRITTER_TRAIT_OBJECT — CE ref: interpreter_extra.cc:2869 opCritterAddTrait
-                // Unknown OBJECT traits are silently ignored in CE (default: break).
-                switch (trait) {
-                    case 5: // OBJECT_AI_PACKET
-                        ;(<Critter>obj).aiNum = amount
-                        return
-                    case 6: // OBJECT_TEAM_NUM
-                        if (loadingGame) return // CE opCritterAddTrait: not while a game loads
-                        ;(<Critter>obj).teamNum = amount
-                        return
-                    case 10: // OBJECT_CUR_ROT
-                        obj.orientation = Math.max(0, Math.min(5, amount))
-                        return
-                    case 666: // OBJECT_VISIBILITY — 0=invisible, 1=visible
-                        obj.visible = amount !== 0
-                        return
-                    case 669: // OBJECT_CUR_WEIGHT — read-only (computed), no-op
-                        return
-                    default:
-                        dbgWarn('script', `critter_add_trait: unhandled OBJECT trait ${trait} (amount=${amount}) — ignored`)
-                        return
-                }
-            } else if (traitType === 0) {
-                // CRITTER_TRAIT_PERK — CE ref: interpreter_extra.cc:2869 opCritterAddTrait
-                // amount > 0 → perkAddForce (no requirement check); amount <= 0 → perkRemove
-                // CE perk.cc perkAddForce / perkRemove, by CE perk id (ids 70-118 included):
-                // the ranks go to perkGetRankData's owner (the dude, a party.txt member's
-                // own list, or — CE's fallback — the dude's for anyone else), the effect
-                // (perkAddEffect) to the critter itself.
-                const player = perkRankOwner(<Critter>obj)
-                const target = <Critter>obj
-                const name = perkNameById(trait)
-                const ce = CE_PERKS[trait]
-                if (!name || !ce) {
-                    warn(`critter_add_trait: unknown perk id ${trait}`)
-                    return
-                }
-                if (amount > 0) {
-                    const rank = getPerkRank(player as any, name)
-                    if (ce.maxRank !== -1 && rank >= ce.maxRank) return
-                    player.perks.push(name)
-                    perkApplyEffect(target, trait, 1)
-                } else {
-                    const idx = player.perks.indexOf(name)
-                    if (idx >= 0) {
-                        player.perks.splice(idx, 1)
-                        perkApplyEffect(target, trait, -1)
-                    }
-                }
-                return
-            }
-
-            dbgWarn('script', `critter_add_trait: unhandled traitType ${traitType}`)
-        }
-        // CE interpreter_extra.cc opItemCapsTotal → item.cc itemGetTotalCaps (containers included)
-        item_caps_total(obj: Obj) {
-            if (!isGameObject(obj)) throw 'item_caps_total: not game object'
-            return itemGetTotalCaps(obj)
-        }
-        // CE opItemCapsAdjust → item.cc itemCapsAdjust: 0, or −1 when there isn't enough money
-        item_caps_adjust(obj: Obj, amount: number) {
-            if (!isGameObject(obj)) {
-                warn('item_caps_adjust: not game object: ' + obj)
-                return -1
-            }
-            // DH2 guard, not CE: an amount that is not a number (bhrnddst's caravan
-            // guards pass their rifle object, L7; the VM makes that NaN) changes
-            // nothing instead of turning the caps stack into NaN. CE (interpreter.cc
-            // opMultiply, interpreter_extra.cc opItemCapsAdjust) multiplies the
-            // pointer's bits and adds a garbage amount, which cannot be reproduced.
-            if (typeof amount !== 'number' || !Number.isFinite(amount)) {
-                warn('item_caps_adjust: amount is not a number: ' + amount)
-                return -1
-            }
-            info('item_caps_adjust: ' + obj.name + ' caps ' + (amount >= 0 ? '+' : '') + amount)
-            return itemCapsAdjust(obj, amount)
-        }
-        // Not an opcode: the decompiled Lua asks this before a script fix
-        // (tools/int2lua.py SCRIPT_FIXES): 1 = use the fix, 0 = the original behaviour.
-        // DH2 addition, fallout2.cfg [dh2] script_fixes.
-        dh2_script_fixes() {
-            return Config.scripting.scriptFixes ? 1 : 0
-        }
-        move_obj_inven_to_obj(obj: Obj, other: Obj) {
-            if (obj === null || other === null) {
-                warn('move_obj_inven_to_obj: null pointer passed in')
-                return
-            }
-
-            if (!isGameObject(obj) || !isGameObject(other)) {
-                warn('move_obj_inven_to_obj: not game object')
-                return
-            }
-
-            info('move_obj_inven_to_obj: ' + obj.inventory.length + ' to ' + other.inventory.length, 'inventory')
-            moveAllInventory(obj, other) // CE itemMoveAll — armor and hands included
-        }
-        // CE opObjectIsCarryingObjectWithPid → objectGetCarriedQuantityByPid: the quantity of
-        // every matching stack, bags and the dude's equipped items included.
-        obj_is_carrying_obj_pid(obj: Obj, pid: number) {
-            log('obj_is_carrying_obj_pid', arguments)
-            if (!isGameObject(obj)) {
-                warn('obj_is_carrying_obj_pid: not a game object')
-                return 0
-            } else if (obj.inventory === undefined) {
-                warn('obj_is_carrying_obj_pid: object has no inventory!')
-                return 0
-            }
-            return carriedQuantityByPid(obj, pid)
-        }
-        // CE opAddMultipleObjectsToInventory (quantity clamped to 1..99999; 0 adds nothing)
-        // → item.cc itemAdd, then _obj_disconnect: the object itself becomes the inventory
-        // entry and leaves the map. Joining a stack, itemAdd keeps the new object and
-        // destroys the old one, so the script's handle stays the carried item.
-        add_mult_objs_to_inven(obj: Obj, item: Obj, count: number) {
-            if (!isGameObject(obj)) {
-                warn('add_mult_objs_to_inven: not a game object')
-                return
-            } else if (!isGameObject(item)) {
-                warn('add_mult_objs_to_inven: item not a game object: ' + item)
-                return
-            } else if (obj.inventory === undefined) {
-                warn('add_mult_objs_to_inven: object has no inventory!')
-                return
-            }
-            const quantity = count < 0 ? 1 : Math.min(count, 99999)
-            if (quantity < 1) return
-            // CE checks item->owner only in the single form; DH2 has no owner pointer, and
-            // a carried object listed twice would be two references to one object.
-            if (findItemHolder(item, allCarriers())) {
-                warn('add_mult_objs_to_inven: item was already attached to something else')
-                return
-            }
-            dbg('inventory', 'add_mult_objs_to_inven: %d counts of %o to %o', quantity, item, obj)
-            const a = obj as any
-            const i = obj.inventory.findIndex((stack) => stack.approxEq(item))
-            const stack = i === -1 ? null : obj.inventory[i]
-            if (!stack) {
-                item.amount = quantity
-                obj.inventory.push(item)
-            } else if (item.subtype === 'ammo' || stack === a.leftHand || stack === a.rightHand || stack === a.armor) {
-                obj.addInventoryItem(item, quantity) // ammo boxes combine; an equipped stack stays
-            } else {
-                item.amount = stack.amount + quantity
-                obj.inventory[i] = item
-            }
-            if (globalState.gMap?.objects?.some((level: Obj[]) => level.includes(item))) globalState.gMap.removeObject(item)
-        }
-        // CE opRemoveMultipleObjectsFromInventory: itemRemove(owner, item, min(quantity
-        // held, count)) — that object, equipped or not — and returns the quantity removed.
-        rm_mult_objs_from_inven(obj: Obj, item: Obj, count: number): number {
-            if (!isGameObject(obj) || !isGameObject(item) || obj.inventory === undefined) {
-                warn('rm_mult_objs_from_inven: not a game object / no inventory')
-                return 0
-            }
-            dbg('inventory', 'rm_mult_objs_from_inven: %d counts of %o from %o', count, item, obj)
-            if (obj.type === 'critter') unequipForRemoval(obj as Critter, item)
-            let i = obj.inventory.indexOf(item)
-            if (i === -1) i = obj.inventory.findIndex((it) => it.approxEq(item))
-            if (i === -1) {
-                warn('rm_mult_objs_from_inven: item not found in inventory')
-                return 0
-            }
-            const stack = obj.inventory[i]
-            const quantity = Math.min(stack.amount, count)
-            if (quantity <= 0) return 0
-            stack.amount -= quantity
-            if (stack.amount <= 0) {
-                obj.inventory.splice(i, 1)
-                stack.amount = quantity // the removed object carries the quantity on (_obj_connect)
-            } else {
-                ammoSplitOff(stack, stack.clone()) // the boxes left are full
-            }
-            return quantity
-        }
-        add_obj_to_inven(obj: Obj, item: Obj) {
-            this.add_mult_objs_to_inven(obj, item, 1)
-        }
-        rm_obj_from_inven(obj: Obj, item: Obj) {
-            this.rm_mult_objs_from_inven(obj, item, 1)
-        }
-        // CE opObjectCarryingObjectByPid → objectGetCarriedObjectByPid (bags searched).
-        obj_carrying_pid_obj(obj: Obj, pid: number) {
-            log('obj_carrying_pid_obj', arguments)
-            if (!isGameObject(obj)) {
-                warn('obj_carrying_pid_obj: not a game object: ' + obj)
-                return 0
-            }
-            return carriedObjectByPid(obj, pid) ?? 0
-        }
-        elevation(obj: Obj) {
-            // CE ref: interpreter_extra.cc:2285 opGetObjectElevation — returns obj->elevation
-            if (isSpatial(obj) || isGameObject(obj)) return obj.elevation
-            else {
-                warn('elevation: not an object: ' + obj)
-                return -1
-            }
-        }
-        obj_can_see_obj(a: Critter, b: Critter) {
-            log('obj_can_see_obj', arguments)
-            if (!isGameObject(a) || !isGameObject(b)) {
-                warn(`obj_can_see_obj: not game object: a=${a} b=${b}`, undefined, this)
-                return 0
-            }
-            return +objCanSeeObj(a, b)
-        }
-        obj_can_hear_obj(a: Obj, b: Obj) {
-            // CE ref: interpreter_extra.cc:2620 opObjectCanHearObject (sfall-fixed form CE
-            // ships): same elevation, both on valid tiles, and isWithinPerception(a, b).
-            if (!isGameObject(a) || !isGameObject(b)) return 0
-            if (a.type !== 'critter') return 0
-            if (a.elevation !== b.elevation) return 0
-            if (!a.position || !b.position) return 0
-            return isWithinPerception(a as Critter, b) ? 1 : 0
-        }
-        critter_mod_skill(obj: Obj, skill: number, amount: number) {
-            if (!isGameObject(obj) || obj.type !== 'critter') {
-                warn('critter_mod_skill: not a critter: ' + obj)
-                return 0
-            }
-            const skillName = SKILL_NAMES[skill]
-            if (!skillName) {
-                warn('critter_mod_skill: unknown skill id ' + skill)
-                return 0
-            }
-            const critter = obj as Critter
-            try {
-                const current = critter.skills.getBase(skillName)
-                critter.skills.setBase(skillName, current + amount)
-                info('critter_mod_skill: ' + obj.name + ' ' + skillName + (amount >= 0 ? '+' : '') + amount)
-            } catch (e) {
-                warn('critter_mod_skill: error: ' + e)
-            }
-            return 0
-        }
-        using_skill(obj: Obj, skill: number) {
-            // FO2-CE ref: interpreter_extra.cc opUsingSkill — only SKILL_SNEAK(8) on gDude returns meaningful data
-            if (skill === 8 /* SKILL_SNEAK */ && (obj as any).isPlayer) {
-                return (obj as Player).isSneaking ? 1 : 0
-            }
-            return 0
-        }
-        has_skill(obj: Obj, skill: number) {
-            // FO2-CE ref: skill.cc skillGetValue() — returns the critter's effective skill value
-            const skillName = SKILL_NAMES[skill] ?? `Unknown(${skill})`
-            const critter = obj as Critter
-            const value = (typeof critter.getSkill === 'function') ? critter.getSkill(skillName) : 0
-            dbg('script', `has_skill(${skillName}, id=${skill}) → ${value}`)
-            return value
-        }
-        // CE opRollVsSkill → skill.cc skillRoll(obj, skill, modifier, &script->howMuch): for
-        // the dude the party member best at the skill rolls when it is also its own best
-        // skill (not Steal); sneaking adds +30 to Steal. A non-critter gives
-        // ROLL_CRITICAL_FAILURE.
-        roll_vs_skill(obj: Obj, skill: number, bonus: number) {
-            const skillName = SKILL_NAMES[skill]
-            if (!isGameObject(obj) || obj.type !== 'critter' || skillName === undefined) return RollResult.CriticalFailure
-            const out = { howMuch: 0 }
-            const roll = skillRoll(obj as Critter, skillName, bonus, out)
-            this.howMuch = out.howMuch
-            dbg('script', `roll_vs_skill: ${skillName} (id=${skill}) bonus=${bonus} → ${RollResult[roll]}(${roll}), howMuch=${out.howMuch}`)
-            return roll
-        }
-        do_check(obj: Obj, check: number, modifier: number) {
-            // FO2-CE ref: interpreter_extra.cc opDoCheck + stat.cc statRoll
-            // Only SPECIAL stats (0=STR…6=LUK) are valid; CE treats others as script errors.
-            // CE: an out-of-range stat or a null object leaves the roll at 0
-            // (ROLL_CRITICAL_FAILURE); statRoll sets script->howMuch = value − d10.
-            if (check < 0 || check > 6 || !isGameObject(obj)) {
-                dbg('script', `do_check: stat index ${check} out of range (0–6); returning critical failure`)
-                return RollResult.CriticalFailure
-            }
-            const critter = obj as Critter
-            const statName = statMap[check]!
-            const value = ((typeof critter.getStat === 'function') ? critter.getStat(statName) : 0) + modifier
-            const chance = getRandomInt(1, 10)
-            this.howMuch = value - chance
-            const roll = chance <= value ? RollResult.Success : RollResult.Failure
-            dbg('script', `do_check: stat=${statName} base=${value} mod=${modifier} roll=${chance} → ${RollResult[roll]}`)
-            return roll
-        }
-        is_success(roll: number) {
-            // FO2-CE ref: random.h — Success=2, CriticalSuccess=3
-            const result = rollIsSuccess(roll as RollResult) ? 1 : 0
-            dbg('script', `is_success(${RollResult[roll] ?? roll}) → ${result}`)
-            return result
-        }
-        is_critical(roll: number) {
-            // FO2-CE ref: random.h — CriticalFailure=0, CriticalSuccess=3
-            const result = rollIsCritical(roll as RollResult) ? 1 : 0
-            dbg('script', `is_critical(${RollResult[roll] ?? roll}) → ${result}`)
-            return result
-        }
-        critter_inven_obj(obj: Critter, where: number) {
-            if (!isGameObject(obj)) throw 'critter_inven_obj: not game object'
-            if (where === 0) return (obj as Critter).getEquippedArmor() ?? null // INVEN_TYPE_WORN
-            else if (where === 1) return obj.rightHand // INVEN_TYPE_RIGHT_HAND
-            else if (where === 2) return obj.leftHand // INVEN_TYPE_LEFT_HAND
-            else if (where === -2) {
-                // INVEN_TYPE_INV_COUNT — CE ref: inventory.cc critter_inven_obj() returns inventory.length
-                return (obj as Critter).inventory.length
-            }
-            warn('critter_inven_obj: unknown where=' + where)
-            return null
-        }
-        inven_cmds(obj: Critter, invenCmd: number, itemIndex: number): Obj | null {
-            // CE ref: interpreter_extra.cc:3088 _op_inven_cmds
-            // Only cmd=13 exists in CE: _inven_index_ptr(obj, index) → inventory[index]
-            if (invenCmd !== 13) {
-                dbgWarn('script', `inven_cmds: unhandled cmd ${invenCmd}`)
-                return null
-            }
-            if (!isGameObject(obj as any) || !obj.inventory) return null
-            if (itemIndex < 0 || itemIndex >= obj.inventory.length) return null
-            return obj.inventory[itemIndex]
-        }
-        critter_attempt_placement(obj: Obj, tileNum: number, elevation: number) {
-            // CE opCritterAttemptPlacement: the critter leaves its tile (tile 0) first, then
-            // proto_instance.cc _obj_attempt_placement(critter, tile, elevation, 1)
-            if (!isGameObject(obj) || !globalState.gMap) return -1
-            if (tileNum === -1) return -1
-            obj.position = fromTileNum(0)
-            const placed = globalState.gMap.attemptPlacement(tileNum, elevation, 1)
-            this.move_to(obj, placed, elevation)
-            return 0
-        }
-        critter_state(obj: Critter) {
-            // CE ref: interpreter_extra.cc:2730 opGetCritterState
-            // CRITTER_STATE_DEAD=1, CRITTER_STATE_PRONE=2, CRITTER_STATE_NORMAL=0
-            // Plus cripple flags: leg_left=0x10, leg_right=0x20, arm_left=0x40, arm_right=0x80
-            if (!isGameObject(obj)) {
-                warn('critter_state: not game object: ' + obj)
-                return 0
-            }
-
-            // CE opGetCritterState: an active critter is NORMAL, PRONE while its sprite
-            // is a knockdown fall, plus its DAM_CRIP bits (0x04-0x40); an inactive one
-            // (knocked out) is PRONE, a dead one DEAD.
-            const c = obj as Critter
-            if (c.dead === true || c.getStat('HP') <= 0) return 1 // CRITTER_STATE_DEAD
-            const results = c.injuryFlags ?? 0
-            if ((results & 0x01) !== 0) return 2 // knocked out: !critterIsActive → PRONE
-            let state = c.knockdownAnim !== null && (results & 0x02) !== 0 ? 2 : 0
-            state |= results & 0x7c // DAM_CRIP
-            return state
-        }
-        // CE opKillCritter — critterKill(obj, deathFrame) without animation: the corpse
-        // is the single-frame death `deathFrame` (ANIM_*_SF; others → LAST_SF_DEATH_ANIM).
-        kill_critter(obj: Critter, deathFrame: number) {
-            log('kill_critter', arguments)
-            critterKill(obj, undefined, true, { deathFrame })
-        }
-        get_poison(obj: Obj) {
-            // FO2-CE ref: critter.cc critterGetPoison
-            return (obj as Critter).poisonLevel ?? 0
-        }
-        get_pc_stat(pcstat: number) {
-            // FO2-CE ref: stat.cc pcGetStat() — PCSTAT constants from stat_defs.h
-            switch (pcstat) {
-                case 0: // PCSTAT_unspent_skill_points
-                    return globalState.player?.skills?.skillPoints ?? 0
-                case 1: // PCSTAT_level
-                    return globalState.player?.getStat('Level') ?? 1
-                case 2: // PCSTAT_experience
-                    return globalState.player?.getStat('Experience') ?? 0
-                case 3: // PCSTAT_reputation
-                    return globalState.player?.stats.getBase('Reputation') ?? 0
-                case 4: // PCSTAT_karma
-                    return globalState.player?.stats.getBase('Karma') ?? 0
-                case 5: // PCSTAT_max_pc_stat (sentinel, always 5)
-                    return 5
-                default:
-                    throw `get_pc_stat: unhandled ${pcstat}`
-            }
-        }
-        set_pc_stat(pcstat: number, value: number) {
-            // FO2-CE ref: stat.cc pcSetStat()
-            const p = globalState.player
-            if (!p) return -1
-            switch (pcstat) {
-                case 0: // PCSTAT_unspent_skill_points
-                    p.skills.skillPoints = Math.max(0, value)
-                    return 0
-                case 1: // PCSTAT_level — direct set, no side effects
-                    p.stats.setBase('Level', Math.max(1, Math.min(99, value)))
-                    return 0
-                case 2: // PCSTAT_experience — direct set
-                    p.stats.setBase('Experience', Math.max(0, value))
-                    return 0
-                case 3: // PCSTAT_reputation
-                    p.stats.setBase('Reputation', Math.max(-20, Math.min(20, value)))
-                    return 0
-                case 4: // PCSTAT_karma
-                    p.stats.setBase('Karma', Math.max(-99999999, Math.min(99999999, value)))
-                    return 0
-                case 5: // PCSTAT_max_pc_stat — sentinel count; CE pcSetStat returns -1
-                    return -1
-                default:
-                    dbgWarn('script', `set_pc_stat: unknown pcstat ${pcstat}`)
-                    return -1
-            }
-        }
-        mod_pc_stat(pcstat: number, delta: number) {
-            // FO2-CE ref: scripts.cc opModifyPcStat()
-            const p = globalState.player
-            if (!p) return -1
-            switch (pcstat) {
-                case 0: // PCSTAT_unspent_skill_points
-                    p.skills.skillPoints = Math.max(0, p.skills.skillPoints + delta)
-                    return 0
-                case 1: { // PCSTAT_level
-                    const cur = p.stats.getBase('Level')
-                    p.stats.setBase('Level', Math.max(1, Math.min(99, cur + delta)))
-                    return 0
-                }
-                case 2: // PCSTAT_experience — addExperience triggers level-up loop
-                    p.addExperience(delta)
-                    return 0
-                case 3: { // PCSTAT_reputation
-                    const cur = p.stats.getBase('Reputation')
-                    p.stats.setBase('Reputation', Math.max(-20, Math.min(20, cur + delta)))
-                    return 0
-                }
-                case 4: { // PCSTAT_karma
-                    const cur = p.stats.getBase('Karma')
-                    p.stats.setBase('Karma', Math.max(-99999999, Math.min(99999999, cur + delta)))
-                    return 0
-                }
-                case 5: // PCSTAT_max_pc_stat — sentinel; CE mod returns -1
-                    return -1
-                default:
-                    dbgWarn('script', `mod_pc_stat: unknown pcstat ${pcstat}`)
-                    return -1
-            }
-        }
-        critter_injure(obj: Obj, how: number) {
-            if (!isGameObject(obj)) {
-                warn('critter_injure: not game object: ' + obj)
-                return
-            }
-            // CE opCritterInjure: only the DAM_CRIP bits; DAM_PERFORM_REVERSE heals them.
-            const c = obj as Critter
-            const reverse = (how & 0x800000) !== 0
-            const flags = how & 0x7c
-            c.injuryFlags = (reverse ? (c.injuryFlags & ~flags) : (c.injuryFlags | flags)) >>> 0
-            if (c.isPlayer && (flags & 0x30) !== 0) uiDrawWeapon() // interfaceUpdateItems
-            info('critter_injure: ' + obj.name + ' flags=0x' + how.toString(16))
-        }
-        critter_is_fleeing(obj: Obj) {
-            if (!isGameObject(obj)) return 0
-            return (obj as any).fleeing ? 1 : 0
-        }
-        wield_obj_critter(obj: Obj, item: Obj) {
-            if (!isGameObject(obj) || obj.type !== 'critter') {
-                warn('wield_obj_critter: not a critter: ' + obj)
-                return
-            }
-            if (!isGameObject(item)) {
-                warn('wield_obj_critter: item not a game object: ' + item)
-                return
-            }
-            info('wield_obj_critter: ' + obj.name + ' wields ' + (item.name ?? item.pid))
-            // CE opWieldItem → inventory.cc _invenWieldFunc: the dude's active hand (an
-            // NPC's right), armor on the body; the old item back to the inventory.
-            invenWield(obj as Critter, item, scriptHand(obj as Critter))
-        }
-        // CE opCritterDamage → actions.cc actionDamage: bit 0x100 of the type bypasses
-        // armor, 0x200 skips the animation; otherwise _compute_dmg_damage takes the
-        // target's DT for the type, then its DR percent (never below 0). No knockback:
-        // CE computes it only for CRITTER_NO_KNOCKBACK critters, which can't be knocked back.
-        critter_dmg(obj: Critter, damage: number, damageTypeWithFlags: number) {
-            if (!isGameObject(obj)) {
-                warn('critter_dmg: not game object: ' + obj)
-                return
-            }
-            if (obj.type !== 'critter') {
-                warn("critter_dmg: can't call on non-critters")
-                return
-            }
-            const flags = Number(damageTypeWithFlags) | 0
-            const animate = (flags & 0x200) === 0
-            const bypassArmor = (flags & 0x100) !== 0
-            const damageType = DAMAGE_TYPE_NAMES[flags & ~0x300] ?? 'Normal'
-            let amount = damage
-            if (!bypassArmor) {
-                amount = damage - (obj.getStat('DT ' + damageType) + obj.getArmorDT(damageType))
-                if (amount > 0) amount -= Math.trunc((obj.getStat('DR ' + damageType) + obj.getArmorDR(damageType)) * amount / 100)
-                if (amount < 0) amount = 0
-            }
-            critterDamage(obj, amount, this.self_obj as Critter, true, animate, damageType, undefined, { scriptDamage: true })
-        }
-        // CE opCritterHeal → critter.cc critterAdjustHitPoints: HP + amount, capped at max;
-        // at 0 or below (a negative amount) the critter dies. Returns 0.
-        critter_heal(obj: Obj, amount: number) {
-            if (!isGameObject(obj)) {
-                warn('critter_heal: not game object: ' + obj)
-                return 0
-            }
-            if (obj.type !== 'critter') return 0
-            const c = obj as Critter
-            const maxHp = c.getStat('Max HP')
-            const newHp = c.getStat('HP') + amount
-            c.stats.setBase('HP', Math.min(newHp, maxHp))
-            if (newHp <= 0 && !c.dead) critterKill(c, undefined, true)
-            if (c.isPlayer) updateIndicatorBar()
-            info('critter_heal: ' + obj.name + ' ' + amount + ' HP')
-            return 0
-        }
-        poison(obj: Obj, amount: number) {
-            // CE ref: interpreter_extra.cc opPoison → critter.cc:327 critterAdjustPoison.
-            if (!isGameObject(obj) || obj.type !== 'critter') return
-            adjustPoison(obj as Critter, amount)
-        }
-        radiation_inc(obj: Obj, amount: number) {
-            // CE ref: interpreter_extra.cc:2777 opRadiationIncrease → critter.cc:412
-            // critterAdjustRadiation (player only; resistance, geiger, CRITTER_RADIATED).
-            if (!isGameObject(obj) || obj.type !== 'critter') return
-            critterAdjustRadiation(obj as Critter, amount)
-        }
-        radiation_dec(obj: Obj, amount: number) {
-            // CE ref: interpreter_extra.cc:2792 opRadiationDecrease.
-            if (!isGameObject(obj) || obj.type !== 'critter') return
-            const radiation = (obj as Critter).radiationLevel ?? 0
-            critterAdjustRadiation(obj as Critter, radiation >= 0 ? -amount : 0)
-        }
-
-        // combat
-        attack_complex(
-            obj: Obj,
-            calledShot: number,
-            numAttacks: number,
-            bonus: number,
-            minDmg: number,
-            maxDmg: number,
-            attackerResults: number,
-            targetResults: number
-        ) {
-            info('[enter combat via attack_complex]')
-            // CE opAttackComplex: self attacks the target. Nothing happens when either is
-            // inactive (dead / knocked out) or hidden, or the target is fleeing.
-            if (!Config.engine.doCombat) return
-            const initiator = this.self_obj as Critter
-            const target = obj as Critter
-            if (!initiator || !isGameObject(obj) || target.type !== 'critter') return
-            const inactive = (c: Critter) => c.dead || (c.injuryFlags & 0x01) !== 0 || c.visible === false
-            if (inactive(initiator) || inactive(target)) return
-            if ((target as any).fleeing) return
-            if (isCombatActive() || globalState.combat) {
-                // In combat: the attacker engages the target.
-                if (!initiator.hostile && !initiator.isPlayer) {
-                    initiator.hostile = true
-                    ;(initiator as any).whoHitMe = target
-                }
-                return
-            }
-            ;(initiator as any).whoHitMe = target
-            // Mark the initiating critter hostile before combat starts so the LOS
-            // scan in nextTurn() counts it as active and doesn't skip its turn.
-            if (!initiator.isPlayer) initiator.hostile = true
-            // CombatStartData: bonus → accuracy, min/max damage; equal attacker / target
-            // results override the hit's results (CE's quirk: the target's are used).
-            Combat.start(initiator, {
-                attacker: initiator, defender: target, actionPointsBonus: 0,
-                accuracyBonus: bonus, damageBonus: 0, minDamage: minDmg, maxDamage: maxDmg,
-                overrideAttackResults: attackerResults === targetResults,
-                attackerResults, targetResults,
-            })
-        }
-        terminate_combat() {
-            info('[terminate_combat]')
-            if (globalState.combat) globalState.combat.forceEnd()
-        }
-        critter_set_flee_state(obj: Obj, isFleeing: number) {
-            if (!isGameObject(obj)) {
-                warn('critter_set_flee_state: not game object: ' + obj)
-                return
-            }
-            info('critter_set_flee_state: ' + obj.name + ' fleeing=' + isFleeing)
-            ;(obj as any).fleeing = !!isFleeing
-        }
-
-        // objects
-        obj_is_locked(obj: Obj) {
-            log('obj_is_locked', arguments)
-            if (!isGameObject(obj)) {
-                warn('obj_is_locked: not game object: ' + obj, undefined, this)
-                return 1
-            }
-            return obj.locked ? 1 : 0
-        }
-        obj_lock(obj: Obj) {
-            log('obj_lock', arguments)
-            if (!isGameObject(obj)) {
-                warn('obj_lock: not game object: ' + obj, undefined, this)
-                return
-            }
-            obj.locked = true
-        }
-        obj_unlock(obj: Obj) {
-            log('obj_unlock', arguments)
-            if (!isGameObject(obj)) {
-                warn('obj_unlock: not game object: ' + obj, undefined, this)
-                return
-            }
-            obj.locked = false
-        }
-        // CE ref: interpreter_extra.cc:4688 opJamLock — sets jammed flag on lockable objects
-        jam_lock(obj: Obj) {
-            log('jam_lock', arguments)
-            if (!isGameObject(obj)) {
-                warn('jam_lock: not game object: ' + obj, undefined, this)
-                return
-            }
-            if (obj.isDoor || obj.isContainer) obj.jammed = true
-        }
-        obj_is_open(obj: Obj) {
-            log('obj_is_open', arguments)
-            if (!isGameObject(obj)) {
-                warn('obj_is_open: not game object: ' + obj, undefined, this)
-                return 0
-            }
-            return obj.open ? 1 : 0
-        }
-        obj_close(obj: Obj) {
-            if (!isGameObject(obj)) {
-                warn('obj_close: not game object: ' + obj)
-                return
-            }
-            info('obj_close')
-            if (!obj.open) return
-            obj.use(this.self_obj as Critter, false)
-            //stub("obj_close", arguments)
-        }
-        obj_open(obj: Obj) {
-            if (!isGameObject(obj)) {
-                warn('obj_open: not game object: ' + obj)
-                return
-            }
-            info('obj_open')
-            if (obj.open) return
-            obj.use(this.self_obj as Critter, false)
-            //stub("obj_open", arguments)
-        }
-        proto_data(pid: number, data_member: number): any {
-            // CE ref: proto.cc:1099 protoGetDataMember (+ proto.h *_DATA_MEMBER_* enums).
-            // Field mapping to tools/proto.py JSON:
-            //   flags            → pro.flags (common header)
-            //   extendedFlags    → items: the 32-bit word proto.py splits into
-            //                      itemFlags/actionFlags/weaponFlags/attackMode bytes;
-            //                      critters: extra.actionFlags; scenery/wall/misc: extra.extendedFlags
-            //   sid              → extra.scriptID (scenery: extra.scriptPID)
-            // CRITTER_DATA_MEMBER_DATA (9) / SCENERY_DATA_MEMBER_DATA (10) return C
-            // pointers in CE and have no script-visible meaning — 0 here.
-            // (Rewritten 2026-10-06 — flags/extended-flags/head-FID previously read the
-            // wrong JSON fields.)
-            const pidID = pid & 0xffff
-            const pro = loadPRO(pid, pidID)
-            if (!pro) {
-                warn('proto_data: no PRO for pid=0x' + pid.toString(16))
-                return 0
-            }
-            const objType = (pid >> 24) & 0xff
-            const extra = pro.extra ?? {}
-            const msgCat = ['pro_item', 'pro_crit', 'pro_scen', 'pro_wall', 'pro_tile', 'pro_misc'][objType]
-            // Members 0-5 are identical for every type.
-            switch (data_member) {
-                case 0: return pid
-                case 1: return getMessage(msgCat, pro.textID) ?? ''
-                case 2: return getMessage(msgCat, pro.textID + 1) ?? ''
-                case 3: return ((pro.frmType ?? objType) << 24) | (pro.frmPID ?? 0)
-                case 4: return pro.lightDistance ?? 0
-                case 5: return pro.lightIntensity ?? 0
-                case 6: return pro.flags ?? 0
-            }
-            if (objType === 0 /* OBJ_TYPE_ITEM */) {
-                switch (data_member) {
-                    case 7: return (((extra.itemFlags ?? 0) << 24) | ((extra.actionFlags ?? 0) << 16)
-                        | ((extra.weaponFlags ?? 0) << 8) | (extra.attackMode ?? 0)) >>> 0
-                    case 8: return extra.scriptID ?? -1
-                    case 9: return extra.subType ?? 0
-                    case 11: return extra.materialID ?? 0
-                    case 12: return extra.size ?? 0
-                    case 13: return extra.weight ?? 0
-                    case 14: return extra.cost ?? 0
-                    case 15: return extra.invFRM ?? 0
-                    case 555: return extra.maxRange1 ?? 0 // ITEM_DATA_MEMBER_WEAPON_RANGE
-                }
-            } else if (objType === 1 /* OBJ_TYPE_CRITTER */) {
-                switch (data_member) {
-                    case 7: return extra.actionFlags ?? 0
-                    case 8: return extra.scriptID ?? -1
-                    case 9: return 0 // CRITTER_DATA_MEMBER_DATA (pointer)
-                    case 10: return extra.headFID ?? -1
-                    case 11: return extra.bodyType ?? 0
-                }
-            } else if (objType === 2 /* OBJ_TYPE_SCENERY */) {
-                switch (data_member) {
-                    case 7: return extra.extendedFlags ?? 0
-                    case 8: return extra.scriptPID ?? -1
-                    case 9: return extra.subType ?? 0
-                    case 10: return 0 // SCENERY_DATA_MEMBER_DATA (pointer)
-                    case 11: return extra.materialID ?? 0
-                }
-            } else if (objType === 3 /* OBJ_TYPE_WALL */) {
-                switch (data_member) {
-                    case 7: return extra.extendedFlags ?? 0
-                    case 8: return extra.scriptID ?? -1
-                    case 9: return extra.material ?? 0
-                }
-            } else if (objType === 5 /* OBJ_TYPE_MISC */) {
-                if (data_member === 7) return extra.extendedFlags ?? 0
-            }
-            // CE: unknown members for a valid type log "Invalid data member" and yield 0;
-            // OBJ_TYPE_TILE has no members at all.
-            dbgWarn('script', `proto_data: invalid data member ${data_member} for objType=${objType}`)
-            return 0
-        }
-        create_object_sid(pid: number, tile: number, elev: number, sid: number) {
-            // Create object of pid and possibly script
-            info('create_object_sid: pid=' + pid + ' tile=' + tile + ' elev=' + elev + ' sid=' + sid, undefined, this)
-
-            // CE opCreateObject: nothing is created while a game loads
-            if (loadingGame) { warn('create_object_sid: attempt to create in load/save-game', undefined, this); return null }
-            if (elev < 0 || elev > 2) { warn('create_object_sid: elev out of range: elev=' + elev, undefined, this); return null }
-            if (tile === -1) tile = 0 // CE opCreateObject
-
-            var obj = createObjectWithPID(pid, sid)
-            if (!obj) {
-                warn("create_object_sid: couldn't create object", undefined, this)
-                return null
-            }
-            obj.elevation = elev
-
-            //stub("create_object_sid", arguments)
-
-            // TODO: if tile is valid...
-            /*if(elevation !== currentElevation) {
-                warn("create_object_sid: want to create object on another elevation (current=" + currentElevation + ", elev=" + elevation + ")")
-                return
-            }*/
-
-            // add it to the map, then set its position and fix its draw order.
-            // Rendering is a plain painter's-algorithm draw in array order (no
-            // depth buffer, no per-tile sort) — a raw `obj.position = ...`
-            // assignment before pushing left every dynamically-created object
-            // (critters, scenery, anything a map script spawns at runtime) stuck
-            // at the tail of the array, drawing on top of literally everything
-            // regardless of its actual position. `elev` isn't always the
-            // currently-displayed elevation, so `obj.move()` (which only
-            // re-splices the *current* elevation's array) can't be used
-            // directly here — a full zsort() of the target elevation's array is
-            // safe and correct regardless of which elevation that is.
-            globalState.gMap.addObject(obj, elev)
-            obj.position = fromTileNum(tile)
-            zsort(globalState.gMap.objects[elev])
-
-            return obj
-        }
-        obj_name(obj: Obj) {
-            return obj.name
-        }
-        obj_item_subtype(obj: Obj) {
-            if (!isGameObject(obj)) {
-                warn('obj_item_subtype: not game object: ' + obj)
-                return null
-            }
-
-            if (obj.type === 'item' && obj.pro != null) {
-                // pro.py serializes as 'subType' (capital T)
-                return obj.pro.extra.subType ?? obj.pro.extra.subtype ?? null
-            }
-            warn('obj_item_subtype: not an item: ' + obj)
-            return null
-        }
-        anim_busy(obj: Obj) {
-            log('anim_busy', arguments)
-            if (!isGameObject(obj)) {
-                warn('anim_busy: not game object: ' + obj)
-                return false
-            }
-            return obj.inAnim()
-        }
-        obj_art_fid(obj: Obj) {
-            // FO2-CE ref: art.cc obj_art_fid() — returns the object's current FID
-            if (!isGameObject(obj)) {
-                warn('obj_art_fid: not game object: ' + obj)
-                return 0
-            }
-            return obj.frmPID ?? 0
-        }
-        art_anim(fid: number): number {
-            // FO2-CE ref: art.cc artAlias() — anim field is bits 23-16 of the FID
-            return (fid >>> 16) & 0xFF
-        }
-        set_obj_visibility(obj: Obj, visibility: number) {
-            if (!isGameObject(obj)) {
-                warn('set_obj_visibility: not a game object: ' + obj)
-                return
-            }
-            // CE opSetObjectVisibility: refused while a game loads
-            if (loadingGame) return
-            // CE ref: interpreter_extra.cc:2096 objectHide/objectShow call
-            // _obj_turn_off_light/_obj_turn_on_light → triggers lightmap rebuild.
-            obj.visible = !visibility
-            if (Config.engine.doFloorLighting) Lightmap.rebuildLight()
-        }
-        use_obj_on_obj(obj: Obj, who: Obj) {
-            if (!isGameObject(obj) || !isGameObject(who)) {
-                warn('use_obj_on_obj: not game objects')
-                return
-            }
-            info('use_obj_on_obj: ' + (obj.name ?? obj.pid) + ' on ' + (who.name ?? who.pid))
-            // CE ref: interpreter_extra.cc:4564 opUseObjectOnObject; proto_instance.cc:1296
-            // obj=item, who=target, this.self_obj=critter doing the using
-            // sfall set_self: this one call runs as that object (CE opUseObjectOnObject)
-            const source = (this.overriddenSelf ?? this.self_obj) as unknown as Obj
-            this.overriddenSelf = null
-            // Step 1: if item has use_obj_on_p_proc, fire it with target_obj=who
-            if (obj._script && obj._script.use_obj_on_p_proc !== undefined) {
-                obj._script.self_obj = obj as ScriptableObj
-                obj._script.source_obj = source
-                obj._script.target_obj = who
-                obj._script.cur_map_index = currentMapID
-                obj._script._didOverride = false
-                obj._script.use_obj_on_p_proc()
-                if (obj._script._didOverride) return
-            }
-            // Step 2: fire use_obj_on_p_proc on target with source=critter, target_obj=item
-            Scripting.useObjOnMe(who, obj, source)
-        }
-        use_obj(obj: Obj) {
-            if (!isGameObject(obj)) {
-                warn('use_obj: not a game object: ' + obj)
-                return
-            }
-            info('use_obj: ' + (obj.name ?? obj.pid))
-            obj.use(this.self_obj as Critter, true)
-        }
-        anim(obj: Obj, anim: number, param: number) {
-            if (!isGameObject(obj)) {
-                warn('anim: not a game object: ' + obj)
-                return
-            }
-            if (anim === 1000) {
-                // OBJECT_SET_ROTATION — CE ref: interpreter_extra.cc:3421 opAnim
-                if (param >= 0 && param < 6) obj.orientation = param
-            } else if (anim === 1010) {
-                // OBJECT_SET_FRAME — CE ref: interpreter_extra.cc:3427 opAnim
-                obj.frame = param
-            } else if (anim >= 0 && anim < 65) {
-                // CE interpreter_extra.cc opAnim (anim < ANIM_COUNT): _correctDeath, then
-                // param 0 plays the animation forward — a knockdown / death animation
-                // (ANIM_FALL_BACK … ANIM_FALL_FRONT_BLOOD) leaves the critter lying on its
-                // single-frame pose — and `results &= DAM_KNOCKED_DOWN` (CE's literal mask);
-                // any other param plays it reversed, the critter ends up lying
-                // (PRONE_TO_STANDING reversed = lying on the front) and is knocked down.
-                const c = obj.type === 'critter' ? obj as Critter : null
-                if (c) anim = correctDeath(c, anim)
-                const reversed = param !== 0
-                const lying = reversed || (anim >= 20 && anim <= 35) // ANIM_FALL_BACK..ANIM_FALL_FRONT_BLOOD
-                if (c) {
-                    c.injuryFlags = (reversed ? (c.injuryFlags | 0x02) : (c.injuryFlags & 0x02)) >>> 0 // DAM_KNOCKED_DOWN
-                }
-                if (lying && c) {
-                    // which way it lies, for _dude_standup later (lifecycle.ts naming)
-                    const onFront = anim === 21 || anim === 35 || anim === 36 // FALL_FRONT(_BLOOD), PRONE_TO_STANDING
-                    ;(c as any).knockdownAnim = onFront ? 'knockdownBack' : 'knockdownFront'
-                    playAnimId(obj, anim, reversed, () => {}) // stays on the last frame
-                    return
-                }
-                const saved = animBatch
-                animBatch = []
-                animBatch.push({ kind: 'animate', obj, anim, delay: 0, reversed })
-                this.reg_anim_end()
-                animBatch = saved
-            } else {
-                dbgWarn('script', `anim: unhandled anim value ${anim}`)
-            }
-        }
-
-        // environment
-        set_light_level(level: number) {
-            log('set_light_level', arguments)
-            // Fallout 2 passes 0..100. A call with the "default" magic
-            // value releases the override and lets the time-of-day curve
-            // take back over on the next map load.
-            GameTime.setLightLevelOverride(level)
-        }
-        obj_set_light_level(obj: Obj, intensity: number, distance: number) {
-            // CE ref: interpreter_extra.cc:3071 opSetObjectLightLevel calls objectSetLight()
-            // which does a full turn-off/turn-on cycle and triggers a lightmap rebuild.
-            // intensity arrives as 0–100 percent; CE converts: (intensity * 65636) / 100
-            if (!isGameObject(obj)) {
-                warn('obj_set_light_level: not game object: ' + obj)
-                return
-            }
-            // CE literally (65636 is CE's own constant); objectSetLight: a light caps its
-            // distance at 8, no intensity means no light at all.
-            const lightIntensity = intensity !== 0 ? Math.trunc((intensity * 65636) / 100) : 0
-            if (lightIntensity > 0) {
-                obj.lightRadius = Math.min(distance, 8)
-                obj.lightIntensity = lightIntensity
-            } else {
-                obj.lightRadius = 0
-                obj.lightIntensity = 0
-            }
-            if (Config.engine.doFloorLighting) Lightmap.rebuildLight()
-        }
-        // CE interpreter_extra.cc opSetMapStart — map_set_elevation, tile_set_center and
-        // mapSetStart(tile, elevation, rotation).
-        set_map_start(x: number, y: number, elevation: number, rotation: number) {
-            const gMap = globalState.gMap
-            if (!gMap) return
-            if (elevation !== gMap.currentElevation) gMap.changeElevation(elevation, true)
-            centerCamera({ x, y })
-            gMap.mapObj.startPosition = { x, y }
-            gMap.mapObj.startOrientation = rotation
-            gMap.mapObj.startElevation = elevation
-        }
-        override_map_start(x: number, y: number, elevation: number, rotation: number) {
-            log('override_map_start', arguments)
-            info(`override_map_start: ${x}, ${y} / elevation ${elevation}`)
-            overrideStartPos = { position: { x, y }, orientation: rotation, elevation }
-        }
-        obj_pid(obj: Obj) {
-            if (!isGameObject(obj)) {
-                warn('obj_pid: not game object: ' + obj, undefined, this)
-                return null
-            }
-            return obj.pid
-        }
-        obj_on_screen(obj: Obj) {
-            log('obj_on_screen', arguments)
-            if (!isGameObject(obj)) {
-                warn('obj_on_screen: not a game object: ' + obj)
-                return 0
-            }
-            return objectOnScreen(obj) ? 1 : 0
-        }
-        obj_type(obj: Obj) {
-            if (!isGameObject(obj)) {
-                warn('obj_type: not game object: ' + obj)
-                return null
-            } else if (obj.type === 'critter') return 1 // critter
-            else if (obj.pid === undefined) {
-                warn('obj_type: no PID')
-                return null
-            }
-            return (obj.pid >> 24) & 0xff
-        }
-        destroy_object(obj: Obj) {
-            // destroy object from world
-            log('destroy_object', arguments)
-            // CE opDestroyObject: a critter isn't destroyed while a game loads
-            if (loadingGame && obj?.type === 'critter') { warn('destroy_object: attempt to destroy critter in load/save-game'); return }
-            // CE: a carried object first leaves its owner (objectGetOwner → itemRemove, the
-            // dude's interface refreshed), then objectDestroy runs its destroy_p_proc.
-            const holder = isGameObject(obj) ? findItemHolder(obj, allCarriers()) : null
-            if (holder) {
-                if (holder.type === 'critter') unequipForRemoval(holder as Critter, obj)
-                arrayRemove(holder.inventory, obj)
-                if (holder === globalState.player) uiDrawWeapon()
-                destroy(obj)
-                return
-            }
-            globalState.gMap.destroyObject(obj)
-        }
-        set_exit_grids(onElev: number, mapID: number, elevation: number, tileNum: number, rotation: number) {
-            // CE ref: interpreter_extra.cc:2180 opSetExitGrids — iterates objectFindFirstAtElevation(onElev)
-            // and updates all exit-grid objects (PIDs 0x5000010-0x5000017) on that elevation.
-            for (const obj of globalState.gMap?.objects?.[onElev] ?? []) {
-                const pid = obj.pid >>> 0
-                if (pid >= 0x5000010 && pid <= 0x5000017 && obj.extra) { // FIRST/LAST_EXIT_GRID_PID
-                    obj.extra.exitMapID = mapID
-                    obj.extra.startingPosition = tileNum
-                    obj.extra.startingElevation = elevation
-                }
-            }
-        }
-
-        // tiles
-        tile_distance_objs(a: Obj, b: Obj) {
-            if (!isSpatial(a) && !isSpatial(b) && (!isGameObject(a) || !isGameObject(b))) {
-                warn('tile_distance_objs: ' + a + ' or ' + b + ' are not game objects')
-                return null
-            }
-            return hexDistance(a.position, b.position)
-        }
-        tile_distance(a: number, b: number) {
-            if (a === -1 || b === -1) return 9999
-            return hexDistance(fromTileNum(a), fromTileNum(b))
-        }
-        tile_num(obj: Obj) {
-            if (!isSpatial(obj) && !isGameObject(obj)) {
-                warn('tile_num: not a game object: ' + obj, undefined, this)
-                return null
-            }
-            return toTileNum(obj.position)
-        }
-        tile_contains_pid_obj(tile: number, elevation: number, pid: number): any {
-            var pos = fromTileNum(tile)
-            var objects = globalState.gMap.getObjects(elevation)
-            for (var i = 0; i < objects.length; i++) {
-                if (objects[i].position.x === pos.x && objects[i].position.y === pos.y && objects[i].pid === pid) {
-                    return objects[i]
-                }
-            }
-            return 0 // it's not there
-        }
-        tile_is_visible(tile: number) {
-            // FO2-CE ref: scripts.cc — checks tile light intensity > 0
-            if (tile < 0 || tile >= Lightmap.tile_intensity.length) return 0
-            return Lightmap.tile_intensity[tile] > 0 ? 1 : 0
-        }
-        // CE ref: sfall_opcodes.cc:951 op_obj_blocking_at — first blocking object at
-        // (tile, elevation) for block type 0=BLOCK/1=SHOOT/2=AI/3=SIGHT/4=SCROLL
-        // (see GameMap.blockingObjectAt); SHOOT drops OBJECT_SHOOT_THRU obstacles.
-        obj_blocking_at(tile: number, elevation: number, blockingType: number): Obj | null {
-            if (!globalState.gMap) return null
-            const o = globalState.gMap.blockingObjectAt(tile, elevation, blockingType, null)
-            if (o && blockingType === 1 && ((((o as any).flags ?? 0) >>> 0) & 0x80000000) !== 0) return null
-            return o
-        }
-        // CE ref: sfall_opcodes.cc:937 op_make_straight_path — screen-space straight line
-        // from obj's tile to dest, returning the first obstacle (animation.cc
-        // _make_straight_path_func; see GameMap.straightPathBlockingObject).
-        make_straight_path(obj: Obj, destTile: number, blockingType: number): Obj | null {
-            if (!isGameObject(obj) || !globalState.gMap) return null
-            return globalState.gMap.straightPathBlockingObject(obj, fromTileNum(destTile), blockingType)
-        }
-        // ── sfall arrays (CE sfall_opcodes.cc op*Array → sfall_arrays.cc; src/sfallArrays.ts).
-        // Used by the Unofficial Patch's scripts, never by vanilla ones.
-        // CE opCreateArray (0x822D) / opTempArray (0x8233): a negative length = associative
-        create_array(len: number, flags: number) { return SfallArrays.createArray(len, flags) }
-        temp_array(len: number, flags: number) { return SfallArrays.createTempArray(len, flags) }
-        // CE opFixArray (0x8234) / opFreeArray (0x8230)
-        fix_array(id: number) { SfallArrays.fixArray(id) }
-        free_array(id: number) { SfallArrays.freeArray(id) }
-        // CE opSetArray (0x822E): a 0 written to a map key removes it
-        set_array(id: number, key: any, value: any) { SfallArrays.setArray(id, key, value, true) }
-        // CE opGetArray (0x822F): with a string instead of an array id, the character at key
-        get_array(id: any, key: any) {
-            if (typeof id === 'string') return typeof key === 'number' && key >= 0 && key < id.length ? id[key] : ''
-            return SfallArrays.getArray(id, key)
-        }
-        // CE opLenArray (0x8231): -1 for no such array; opResizeArray (0x8232): also sort / reverse / shuffle
-        len_array(id: number) { return SfallArrays.lenArray(id) }
-        resize_array(id: number, len: number) { SfallArrays.resizeArray(id, len) }
-        // CE opScanArray (0x8239): a list's index / a map's key holding value, else -1
-        scan_array(id: number, value: any) { return SfallArrays.scanArray(id, value) }
-        // CE opGetArrayKey (0x8256): the key at index (index -1: 1 if associative)
-        array_key(id: number, index: number) { return SfallArrays.arrayKey(id, index) }
-        // CE opStackArray (0x8257): sslc's array literals, into the last created array
-        arrayexpr(key: any, value: any) { return SfallArrays.stackArray(key, value) }
-        // CE opStringSplit (0x8235)
-        string_split(str: string, split: string) { return SfallArrays.stringSplit(String(str ?? ''), String(split ?? '')) }
-        // CE op_list_as_array (0x8236) → sfall_lists.cc sfall_lists_fill: the map's objects of
-        // a type (0 critters, 1 items, 2 scenery, 3 walls, 5 misc, 6 spatial, 9 all; 4 tiles:
-        // nothing, as in sfall), every elevation, as a temporary list
-        list_as_array(type: number) {
-            const map = globalState.gMap
-            const out: object[] = []
-            if (map && type === 6) {
-                for (const level of (map.spatials ?? []) as any[][]) for (const s of level ?? []) out.push(s)
-            } else if (map && type !== 4) {
-                const kinds: { [t: number]: string } = { 0: 'critter', 1: 'item', 2: 'scenery', 3: 'wall', 5: 'misc' }
-                for (const level of map.objects ?? []) {
-                    for (const o of level ?? []) if (type === 9 || o.type === kinds[type]) out.push(o)
-                }
-            }
-            return SfallArrays.arrayFromObjects(out)
-        }
-        // ── other sfall functions the Unofficial Patch uses (CE sfall_opcodes.cc)
-        // CE op_abs (0x81ED)
-        abs(v: number) { return Math.abs(Number(v) || 0) }
-        // CE op_get_ini_setting (0x81AC) → sfall_ini.cc; src/sfallIni.ts
-        get_ini_setting(triplet: string) { return sfallIniGetInt(triplet) }
-        // CE op_explosions_metarule (0x8261). The UPU uses only 6, EXPL_GET_EXPLOSION_DAMAGE:
-        // a temporary array [min, max] of an explosive's damage (item.cc explosiveGetDamage);
-        // the others change the next explosion and are not supported (a warning, 0).
-        explosions_metarule(metarule: number, param1: number, _param2: number) {
-            if (metarule === 6) {
-                const d = explosiveGetDamage(param1)
-                const id = SfallArrays.createTempArray(2, 0)
-                SfallArrays.setArray(id, 0, d?.min ?? 0, false)
-                SfallArrays.setArray(id, 1, d?.max ?? 0, false)
-                return id
-            }
-            warn('explosions_metarule: metarule ' + metarule + ' is not supported')
-            return 0
-        }
-        // CE op_set_self (0x8206): the next use_obj_on_obj / pickup_obj runs as obj
-        // (interpreter_extra.cc opUseObjectOnObject / opPickup consume overriddenSelf)
-        overriddenSelf: Obj | null = null
-        set_self(obj: Obj) { this.overriddenSelf = isGameObject(obj) ? obj : null }
-        // CE op_get_proto_data / op_set_proto_data (0x8204 / 0x8205) read and write a proto
-        // by byte offset. DH2's protos are JSON, so only the offsets the UPU uses map to a
-        // field: an item's 96 (weapon d.max_ammo) and a critter's 388 (d.body). Others: -1.
-        get_proto_data(pid: number, offset: number) {
-            const pro = loadPRO(pid, pid & 0xffff) as any
-            if (!pro) return -1
-            if (offset === 96 && pro.type === 0) return pro.extra?.maxAmmo ?? -1
-            if (offset === 388 && pro.type === 1) return pro.extra?.bodyType ?? -1
-            warn('get_proto_data: offset ' + offset + ' of pid ' + pid + ' is not mapped')
-            return -1
-        }
-        set_proto_data(pid: number, offset: number, value: number) {
-            const pro = loadPRO(pid, pid & 0xffff) as any
-            if (!pro || !pro.extra) return
-            if (offset === 96 && pro.type === 0) pro.extra.maxAmmo = value
-            else if (offset === 388 && pro.type === 1) pro.extra.bodyType = value
-            else warn('set_proto_data: offset ' + offset + ' of pid ' + pid + ' is not mapped')
-        }
-        // CE opGetWeaponAmmoPid / opSetWeaponAmmoPid / opGetWeaponAmmoCount /
-        // opSetWeaponAmmoCount (0x8217-0x821A): a weapon's loaded ammo (misc items:
-        // their charges)
-        get_weapon_ammo_pid(obj: Obj) {
-            if (!isGameObject(obj) || obj.type !== 'item') return -1
-            if (obj.subtype === 'weapon') return weaponGetAmmoTypePid(obj)
-            return -1
-        }
-        set_weapon_ammo_pid(obj: Obj, pid: number) {
-            if (isGameObject(obj) && obj.type === 'item' && obj.subtype === 'weapon') weaponSetAmmoTypePid(obj, pid)
-        }
-        get_weapon_ammo_count(obj: Obj) {
-            if (!isGameObject(obj) || obj.type !== 'item') return 0
-            if (obj.subtype === 'weapon' || obj.subtype === 'ammo') return ammoGetQuantity(obj)
-            if (obj.subtype === 'misc') return (obj as any).charges ?? 0
-            return 0
-        }
-        set_weapon_ammo_count(obj: Obj, count: number) {
-            if (!isGameObject(obj) || obj.type !== 'item') return
-            if (obj.subtype === 'weapon' || obj.subtype === 'ammo') ammoSetQuantity(obj, count)
-            else if (obj.subtype === 'misc') (obj as any).charges = count
-        }
-        // CE op_set_pc_base_stat / op_get_pc_base_stat / opSetPcBonusStat / opGetPcBonusStat
-        // (0x815A-0x815D) and sfall's critter forms (0x815F-0x8161; not in CE, same work)
-        set_pc_base_stat(stat: number, value: number) { this.setCritterStatPart(globalState.player as Critter, stat, value, false) }
-        set_pc_extra_stat(stat: number, value: number) { this.setCritterStatPart(globalState.player as Critter, stat, value, true) }
-        get_pc_base_stat(stat: number) { return this.getCritterStatPart(globalState.player as Critter, stat, false) }
-        get_pc_extra_stat(stat: number) { return this.getCritterStatPart(globalState.player as Critter, stat, true) }
-        set_critter_extra_stat(obj: Critter, stat: number, value: number) { this.setCritterStatPart(obj, stat, value, true) }
-        get_critter_base_stat(obj: Critter, stat: number) { return this.getCritterStatPart(obj, stat, false) }
-        get_critter_extra_stat(obj: Critter, stat: number) { return this.getCritterStatPart(obj, stat, true) }
-        private setCritterStatPart(obj: Critter, stat: number, value: number, bonus: boolean) {
-            const name = statMap[stat]
-            if (!isGameObject(obj) || obj.type !== 'critter' || !name) return
-            if (bonus) obj.stats.setBonus(name, value)
-            else obj.stats.setBase(name, value) // CE critterSetBaseStat
-        }
-        private getCritterStatPart(obj: Critter, stat: number, bonus: boolean): number {
-            const name = statMap[stat]
-            if (!isGameObject(obj) || obj.type !== 'critter' || !name) return 0
-            return bonus ? obj.stats.getBonus(name) : obj.stats.getBase(name)
-        }
-        // CE opPartyMemberList (0x8271): a temporary array of the party (party_member.cc
-        // get_all_party_members_objects: the dude first; without include_hidden only
-        // living, visible critters)
-        party_member_list(includeHidden: number) {
-            const members = [globalState.player, ...(globalState.gParty?.getPartyMembers() ?? [])]
-                .filter((o: any) => o && (includeHidden || (o.type === 'critter' && !o.dead && o.visible !== false)))
-            return SfallArrays.arrayFromObjects(members as object[])
-        }
-        // CE op_get_script (0x81F5): the object's script number (scripts.lst line + 1), 0 for none
-        get_script(obj: Obj) {
-            const name = isGameObject(obj) ? (obj as any)._script?.scriptName : null
-            return name ? scriptNumberOf(name) : 0
-        }
-        // CE op_set_world_map_pos (0x8172) → worldmap.cc wmSetPartyWorldPos
-        set_world_map_pos(x: number, y: number) { Worldmap.setPlayerWorldPos(x, y) }
-        // CE op_set_car_current_town (0x81B6) → wmCarSetCurrentArea
-        set_car_current_town(area: number) { Worldmap.setCarAreaId(area) }
-        // sfall's virtual file system (0x81F8-0x820B; not in CE) → src/sfallFs.ts. The UPU
-        // edits critter FRM frame rates (gl_k_goris_derobing, gl_k_walking_speed) and asks
-        // whether a talking head exists (Cassidy's has_head: fs_copy(...) != -1).
-        fs_copy(path: string, source: string) { return SfallFs.fsCopy(path, source) }
-        fs_find(path: string) { return SfallFs.fsFind(path) }
-        fs_delete(id: number) { SfallFs.fsDelete(id) }
-        fs_size(id: number) { return SfallFs.fsSize(id) }
-        fs_pos(id: number) { return SfallFs.fsPos(id) }
-        fs_seek(id: number, pos: number) { SfallFs.fsSeek(id, pos) }
-        fs_resize(id: number, size: number) { SfallFs.fsResize(id, size) }
-        fs_read_byte(id: number) { return SfallFs.fsReadByte(id) }
-        fs_read_short(id: number) { return SfallFs.fsReadShort(id) }
-        fs_read_int(id: number) { return SfallFs.fsReadInt(id) }
-        fs_write_byte(id: number, v: number) { SfallFs.fsWriteByte(id, v) }
-        fs_write_short(id: number, v: number) { SfallFs.fsWriteShort(id, v) }
-        fs_write_int(id: number, v: number) { SfallFs.fsWriteInt(id, v) }
-
-        // ── sfall global scripts, global variables and hooks (src/sfallGlobalScripts.ts,
-        // CE sfall_global_scripts.cc / sfall_global_vars.cc; hooks: src/sfallHooks.ts,
-        // not in CE)
-        // CE op_game_loaded (0x8164)
-        game_loaded() { return GlobalScripts.globalScriptIsLoaded(this) ? 1 : 0 }
-        // CE op_set_global_script_repeat (0x816A) / op_set_global_script_type (0x819B)
-        set_global_script_repeat(frames: number) { GlobalScripts.setGlobalScriptRepeat(this, frames) }
-        set_global_script_type(type: number) { GlobalScripts.setGlobalScriptType(this, type) }
-        // CE opSetGlobalVar / opGetGlobalInt (0x819D / 0x819E)
-        set_sfall_global(key: any, value: number) { GlobalScripts.setSfallGlobal(key, value) }
-        get_sfall_global_int(key: any) { return GlobalScripts.getSfallGlobal(key) }
-        // CE opGetGameMode (0x81AF): sfall's loop flags
-        get_game_mode() { return SfallHooks.gameMode() | 0 }
-        // CE op_tap_key (0x8162): a DirectInput key press. DH2 dispatches the key to the
-        // page; only the keys scripts use are mapped (DIK_ESCAPE: gl_k_dogmeat_fix).
-        tap_key(dik: number) {
-            const key = ({ 1: 'Escape', 28: 'Enter', 57: ' ' } as { [dik: number]: string })[dik]
-            if (key === undefined) {
-                warn('tap_key: DirectInput key ' + dik + ' is not mapped')
-                return
-            }
-            for (const type of ['keydown', 'keyup']) document.dispatchEvent(new KeyboardEvent(type, { key, bubbles: true }))
-        }
-        // sfall register_hook_proc (0x8262): `proc` a procedure of this script (a function on
-        // both backends: vm_bridge.ts wraps the procedure number), 0 unregisters
-        register_hook_proc(hookId: number, proc: any) {
-            SfallHooks.registerHookProc(hookId, this, typeof proc === 'function' ? () => proc.call(this) : null)
-        }
-        // sfall get_sfall_arg / set_sfall_return / get_sfall_args / set_sfall_arg
-        // (0x81E4 / 0x81E5 / 0x823C / 0x823D)
-        get_sfall_arg() { return SfallHooks.hookArg() }
-        set_sfall_return(value: any) { SfallHooks.hookReturn(value) }
-        get_sfall_args() { return SfallArrays.arrayFromObjects(SfallHooks.hookArgs() as object[]) }
-        set_sfall_arg(n: number, value: any) { SfallHooks.setHookArg(n, value) }
-        // sfall set_script (0x81F4; not in CE, sfall Objects.cpp op_set_script): gives the
-        // object script number `value` (scripts.lst line, 1-based) and runs its start, then
-        // its map_enter_p_proc unless bit 0x80000000 is set
-        set_script(obj: Obj, value: number) {
-            if (!isGameObject(obj)) return
-            const index = (value >>> 0) & ~0xf0000000
-            if (index === 0) {
-                warn('set_script: invalid script index ' + index)
-                return
-            }
-            ;(obj as any).script = undefined
-            obj._script = undefined
-            obj.loadScript(index)
-            const script = obj._script as Script | undefined
-            if (script && ((value >>> 0) & 0x80000000) === 0 && script.map_enter_p_proc !== undefined) objectEnterMap(obj, obj.elevation ?? 0, currentMapID ?? 0)
-        }
-        // sfall_func0-2 (0x8276-0x8278) → CE sfall_metarules.cc sfall_metarule, by name. The
-        // UPU uses combat_data (mf_combat_data: the current attack while in combat),
-        // get_object_data (mf_get_object_data: an int at a byte offset of an Attack or an
-        // object, at sfall's 32-bit offsets — here only the fields the UPU reads),
-        // dialog_obj (the critter the player talks to) and get_sfall_arg_at (hooks).
-        sfall_func0(name: string) { return this.sfallMetarule(name, []) }
-        sfall_func1(name: string, a: any) { return this.sfallMetarule(name, [a]) }
-        sfall_func2(name: string, a: any, b: any) { return this.sfallMetarule(name, [a, b]) }
-        private sfallMetarule(name: string, args: any[]): any {
-            switch (name) {
-                case 'combat_data': return combatGetData()
-                case 'dialog_obj': return currentDialogueObject ?? 0
-                case 'set_ini_setting': sfallIniSet(args[0], args[1]); return 0 // sfall IniFiles.cpp
-                case 'get_sfall_arg_at': return SfallHooks.hookArgAt(args[0])
-                case 'get_object_data': {
-                    const a: any = args[0]
-                    if (isGameObject(a)) {
-                        // CE object_types.h Object, sfall define_extra.h OBJ_DATA_*
-                        if (args[1] === 0x64) return a.pid ?? 0 // OBJ_DATA_PID
-                        if (args[1] === 0x78 || args[1] === 0x80) { // OBJ_DATA_SID / SCRIPT_INDEX
-                            const name = a._script?.scriptName
-                            const n = name ? scriptNumberOf(name) : 0
-                            return n > 0 ? (args[1] === 0x80 ? n - 1 : n) : -1
-                        }
-                        warn('get_object_data: object offset ' + args[1] + ' is not mapped')
-                        return 0
-                    }
-                    const field = ATTACK_FIELDS_BY_OFFSET[args[1]]
-                    if (a && field && field in a) {
-                        const v = a[field]
-                        return v ?? 0
-                    }
-                    warn('get_object_data: offset ' + args[1] + ' is not mapped')
-                    return 0
-                }
-            }
-            warn('sfall_func: ' + name + ' is not supported')
-            return 0
-        }
-        tile_num_in_direction(tile: number, direction: number, distance: number) {
-            if (distance === 0) {
-                //warn("tile_num_in_direction: distance=" + distance)
-                return -1
-            }
-            let newTile = hexInDirection(fromTileNum(tile), direction)
-            for (
-                var i = 0;
-                i < distance - 1;
-                i++ // repeat for each further distance
-            )
-                newTile = hexInDirection(newTile, direction)
-            return toTileNum(newTile)
-        }
-        tile_in_tile_rect(ul: number, ur: number, ll: number, lr: number, t: number) {
-            //stub("tile_in_tile_rect", arguments, "tiles")
-            const _ul = fromTileNum(ul),
-                _ur = fromTileNum(ur)
-            const _ll = fromTileNum(ll),
-                _lr = fromTileNum(lr)
-            const _t = fromTileNum(t)
-            return tile_in_tile_rect(_t, _ur, _lr, _ll, _ul) ? 1 : 0
-        }
-        tile_contains_obj_pid(tile: number, elevation: number, pid: number) {
-            if (elevation !== globalState.currentElevation) {
-                warn('tile_contains_obj_pid: not same elevation')
-                return 0
-            }
-            var objs = globalState.gMap.objectsAtPosition(fromTileNum(tile))
-            for (var i = 0; i < objs.length; i++) {
-                if (objs[i].pid === pid) return 1
-            }
-            return 0
-        }
-        rotation_to_tile(srcTile: number, destTile: number) {
-            var src = fromTileNum(srcTile),
-                dest = fromTileNum(destTile)
-            var hex = hexNearestNeighbor(src, dest)
-            if (hex !== null) return hex.direction
-            warn('rotation_to_tile: invalid hex: ' + srcTile + ' / ' + destTile)
-            return -1 // TODO/XXX: what does this return if invalid?
-        }
-        move_to(obj: Obj, tileNum: number, elevation: number) {
-            if (!isGameObject(obj)) {
-                warn('move_to: not a game object: ' + obj)
-                return
-            }
-            if (elevation !== globalState.currentElevation) {
-                info('move_to: moving to elevation ' + elevation)
-
-                if (obj instanceof Critter && obj.isPlayer) globalState.gMap.changeElevationFaded(elevation, true)
-                else {
-                    globalState.gMap.removeObject(obj)
-                    globalState.gMap.addObject(obj, elevation)
-                }
-            }
-            obj.position = fromTileNum(tileNum)
-
-            if (obj instanceof Critter && obj.isPlayer) centerCamera(obj.position)
-        }
-
-        // combat
-        node998() {
-            // enter combat
-            dbg('script', '[enter combat]')
-        }
-
-        // dialogue
-        node999() {
-            // exit dialogue
-            info('DIALOGUE EXIT (Node999)')
-            dialogueExit()
-        }
-        gdialog_set_barter_mod(mod: number) {
-            // ref: fallout2-ce barter.cc, dialog.cc gDialogSetBarterMod
-            log('gdialog_set_barter_mod', arguments)
-            dialogueBarterMod = mod
-        }
-        gdialog_mod_barter(mod: number) {
-            // CE ref: game_dialog.cc:3163 gameDialogBarter — sets _dialogBarterMod then opens barter
-            log('gdialog_mod_barter', arguments)
-            dbg('dialogue', '--> barter mode')
-            if (!this.self_obj) throw 'need self_obj'
-            dialogueBarterMod = mod
-            // inside an option's procedure: open it when the procedure has returned
-            if (inDialogueReply) pendingBarter = this.self_obj as Critter
-            else uiBarterMode(this.self_obj as Critter)
-        }
-        start_gdialog(msgFileID: number, obj: Obj, mood: number, headNum: number, backgroundID: number) {
-            log('start_gdialog', arguments)
-            info('DIALOGUE START', 'dialogue')
-            if (!this.self_obj) throw 'no self_obj for start_gdialog'
-            // CE ref: game_dialog.cc:1070-1075 _gdialogStart resets the review
-            // log once per conversation. start_gdialog() fires on every
-            // talk_p_proc run, including Scripting.reenterDialogue()'s
-            // re-entry after Barter/Trade/Combat-Control — only reset on a
-            // genuinely fresh Talk (uiMode isn't already dialogue yet; on a
-            // reenter, reenterDialogue() already set it before calling talk()).
-            if (globalState.uiMode !== UIMode.dialogue) {
-                dialogueReviewLog = []
-            }
-            currentDialogueObject = this.self_obj as Critter
-            uiStartDialogue(false, this.self_obj as Critter)
-            // CE ref: interpreter_extra.cc:1892 opStartGameDialog — with a head, the
-            // starting fidget comes from the speaker's reaction (LVAR 0 →
-            // reactionTranslateValue: > 10 good, > -10 neutral, else bad); otherwise mood.
-            if (!globalState.inCombat) {
-                let fidget = mood
-                if (headNum !== -1) {
-                    const lv0 = (this.self_obj as any)._script?.lvars?.[0]
-                    const value = typeof lv0 === 'number' ? lv0 : -1
-                    fidget = value > 10 ? FIDGET_GOOD : value > -10 ? FIDGET_NEUTRAL : FIDGET_BAD
-                }
-                startTalkingHead(headNum, fidget, backgroundID)
-            }
-        }
-
-        // ── Opcodes that were never bridged (found 2026-10-06 by diffing CE's
-        //    interpreterRegisterOpcode table against vm.ts/vm_bridge.ts). An unbridged
-        //    opcode makes vm.step() return false, silently ending the procedure.
-
-        // CE interpreter_extra.cc opScrReturn (0x80A2) — value handed back to the engine.
-        scr_return(value: number) {
-            this.returnValue = value
-        }
-        // CE opSfxBuildOpenName (0x80A5) — game_sound.cc sfxBuildOpenName
-        sfx_build_open_name(obj: Obj, action: number): string | null {
-            if (!isGameObject(obj)) return null
-            return sfxBuildOpenName(obj, action)
-        }
-        // CE opSkillContest (0x80AD) — "not implemented" in CE too; returns 0.
-        skill_contest(_a: number, _b: number, _c: number) {
-            dbgWarn('script', 'skill_contest: not implemented in CE either (returns 0)')
-            return 0
-        }
-        // CE opHowMuch (0x80B1) — script->howMuch
-        how_much(_data: number) {
-            return this.howMuch ?? 0
-        }
-        // CE opReactionInfluence (0x80B3) — reaction.cc _reaction_influence_ returns 0.
-        reaction_influence(_a: number, _b: number, _c: number) {
-            return 0
-        }
-        // CE opGetObjectBeingUsed (0x80C0) — script->target: the item used on this object
-        // in use_obj_on_p_proc (DH2 keeps it in target_obj).
-        obj_being_used_with(): Obj | 0 {
-            return this.target_obj ?? 0
-        }
-        // CE opGetScriptAction (0x80C7) — script->action
-        script_action() {
-            return this.action ?? 0
-        }
-        // CE opAnimateStandReverse (0x80CD) — ANIM_STAND reversed, outside combat only.
-        animate_stand_reverse_obj(obj: Obj) {
-            const target = isGameObject(obj) ? obj : (this.self_obj as Obj)
-            if (!target || globalState.inCombat || target.type !== 'critter') return
-            ;(target as Critter).staticAnimation('idle', () => (target as Critter).clearAnim(), true, true)
-        }
-        // CE opMakeDayTime (0x80D1) — an empty function in CE.
-        make_daytime() {}
-        // CE opPickup (0x80D6) — actionPickUp(script->target, obj)
-        pickup_obj(obj: Obj) {
-            if (!isGameObject(obj)) return
-            // sfall set_self: this one call runs as that object (CE opPickup)
-            const who = (this.overriddenSelf ?? this.target_obj ?? this.self_obj) as Critter
-            this.overriddenSelf = null
-            if (!who || who.type !== 'critter') return
-            obj.pickup?.(who)
-        }
-        // CE opDrop (0x80D7) — _obj_drop(script->target, obj)
-        drop_obj(obj: Obj) {
-            if (!isGameObject(obj)) return
-            const who = (this.target_obj ?? this.self_obj) as Critter
-            if (!who) return
-            obj.drop?.(who)
-        }
-        // CE opGetGameDifficulty (0x812A) — settings.preferences.game_difficulty (0/1/2)
-        game_difficulty() {
-            const d = Config.combat.gameDifficultyModifier
-            return d === 75 ? 0 : d === 125 ? 2 : 1
-        }
-        // CE opGetRunningBurningGuy (0x812B)
-        running_burning_guy() {
-            return Config.combat.runningBurningGuy === false ? 0 : 1
-        }
-        // CE _op_inven_unwield (0x812C) — self puts its weapon away (dude: current hand).
-        // CE _op_inven_unwield → _invenUnwieldFunc(self, the dude's active hand / an NPC's right)
-        inven_unwield() {
-            const self = this.self_obj as Critter
-            if (!self || self.type !== 'critter') return
-            invenUnwield(self, scriptHand(self))
-        }
-        // CE opGameUiIsDisabled (0x8135)
-        game_ui_is_disabled() {
-            return globalState.gameUIDisabled ? 1 : 0
-        }
-        // CE _op_anim_action_frame (0x813A) — artGetActionFrame of obj's FRM for `anim`.
-        anim_action_frame(obj: Obj, anim: number) {
-            if (!isGameObject(obj) || !obj.pro) return 0
-            try {
-                const fid = ((obj.pro.frmType ?? 1) << 24) | ((anim & 0xff) << 16) | (obj.pro.frmPID & 0xfff)
-                const info = globalState.imageInfo[lookupArt(fid)]
-                const af = info?.actionFrame
-                return Array.isArray(af) ? (af[obj.orientation ?? 0] ?? af[0] ?? 0) : (af ?? 0)
-            } catch {
-                return 0
-            }
-        }
-        // CE opRegAnimPlaySfx (0x813B) — sound step inside the current reg_anim sequence.
-        reg_anim_play_sfx(obj: Obj, sfx: string, delay: number) {
-            if (!isGameObject(obj) || typeof sfx !== 'string') return
-            // CE animationRegisterPlaySoundEffect: a step of the current reg_anim batch;
-            // outside one (_check_registry) nothing plays.
-            const play = () => globalState.audioEngine?.playSfxByName?.(sfx.toLowerCase())
-            if (animBatch !== null) animBatch.push({ kind: 'func', obj, fn: () => setTimeout(play, Math.max(0, delay) * 100) } as any)
-        }
-        // CE opSfxBuildCharName (0x813D) — game_sound.cc sfxBuildCharName
-        sfx_build_char_name(obj: Obj, anim: number, extra: number): string | null {
-            if (!isGameObject(obj) || !obj.pro) return null
-            const base = getLstJson('art/critters/critters', obj.pro.frmPID & 0xfff)?.frm
-            if (!base) return null
-            const weapon = anim === 38 /* ANIM_TAKE_OUT */ ? extra : (((obj as any).frmPID ?? obj.pro.frmPID) & 0xf000) >> 12
-            const code = artGetCodeForSfx(anim, weapon)
-            if (!code) return null
-            let [w, a] = code
-            if (anim === 21 || anim === 20) { // ANIM_FALL_FRONT / ANIM_FALL_BACK
-                if (extra === 2) w = 'Y'      // CHARACTER_SOUND_EFFECT_PASS_OUT
-                else if (extra === 3) w = 'Z' // CHARACTER_SOUND_EFFECT_DIE
-            } else if ((anim === 16 || anim === 17) && extra === 4) { // punch/kick + CONTACT
-                w = 'Z'
-            }
-            return `${base}${w}${a}`.toUpperCase()
-        }
-        // CE opSfxBuildAmbientName (0x813E)
-        sfx_build_ambient_name(name: string) {
-            return `A${String(name).padStart(6).slice(0, 6)}1`.toUpperCase()
-        }
-        // CE opSfxBuildInterfaceName (0x813F) / opSfxBuildItemName (0x8140) — both use
-        // gameSoundBuildInterfaceName in CE.
-        sfx_build_interface_name(name: string) {
-            return `N${String(name).padStart(6).slice(0, 6)}1`.toUpperCase()
-        }
-        sfx_build_item_name(name: string) {
-            return `N${String(name).padStart(6).slice(0, 6)}1`.toUpperCase()
-        }
-        // CE opSfxBuildWeaponName (0x8141) — game_sound.cc sfxBuildWeaponName
-        sfx_build_weapon_name(effectType: number, weapon: Obj, hitMode: number, target: Obj) {
-            const typeCode = 'RAOFH'[effectType] ?? 'A'
-            const sid = weapon?.pro?.extra?.soundID
-            const weaponCode = typeof sid === 'number' ? String.fromCharCode(sid) : 'A'
-            const variant = (effectType !== 0 && effectType !== 2 && hitMode !== 0 && hitMode !== 2 && hitMode !== 4) ? 2 : 1
-            const dmg = weapon?.pro?.extra?.dmgType
-            let material = 'X'
-            if (typeCode === 'H' && isGameObject(target) && dmg !== 3 /* plasma */ && dmg !== 5 /* EMP */ && dmg !== 6 /* explosion */) {
-                const m = target.type === 'wall' ? target.pro?.extra?.material : (target.type === 'item' || target.type === 'scenery') ? target.pro?.extra?.materialID : -1
-                material = (m === 0 || m === 1 || m === 2) ? 'M' : m === 3 ? 'W' : (m === 4 || m === 5 || m === 6) ? 'S' : 'F'
-            }
-            return `W${typeCode}${weaponCode}${variant}${material}XX1`.toUpperCase()
-        }
-        // CE opSfxBuildSceneryName (0x8142)
-        sfx_build_scenery_name(name: string, action: number, actionType: number) {
-            const typeCode = actionType === 1 /* SOUND_EFFECT_ACTION_TYPE_PASSIVE */ ? 'P' : 'A'
-            return `S${typeCode}${SND_SCENERY_ACTION[action] ?? 'O'}${String(name).padStart(4).slice(0, 4)}1`.toUpperCase()
-        }
-        // CE opAttackSetup (0x8143) — attacker engages defender (starts combat if needed).
-        attack_setup(attacker: Obj, defender: Obj) {
-            if (!isGameObject(attacker) || !isGameObject(defender)) return
-            const a = attacker as Critter, d = defender as Critter
-            if (a.dead || a.visible === false) return
-            if (d.dead || d.visible === false) return
-            if ((d as any).isFleeing) return // CRITTER_MANUEVER_FLEEING
-            if (globalState.inCombat) {
-                // in combat: ENGAGING with the defender as who hit it (unless already engaging)
-                if (!(a as any).engaging) {
-                    ;(a as any).engaging = true
-                    ;(a as any).whoHitMe = d
-                }
-                if (!a.isPlayer) a.hostile = true
-            } else if (Config.engine.doCombat) {
-                // scriptsRequestCombat with neutral start data
-                if (!a.isPlayer) a.hostile = true
-                Combat.start(a.isPlayer ? undefined : a, {
-                    attacker: a, defender: d, actionPointsBonus: 0, accuracyBonus: 0, damageBonus: 0,
-                    minDamage: 0, maxDamage: 0x7fffffff, overrideAttackResults: false, attackerResults: 0, targetResults: 0,
-                })
-            }
-        }
-        // CE opDestroyMultipleObjects (0x8144) — remove `quantity` of an item from its
-        // owner (returns how many), or destroy the object outright when it has no owner.
-        destroy_mult_objs(obj: Obj, quantity: number) {
-            if (!isGameObject(obj)) return 0
-            const owner = findItemHolder(obj, allCarriers())
-            if (owner) {
-                if (owner.type === 'critter') unequipForRemoval(owner as Critter, obj)
-                const have = obj.amount ?? 1
-                const n = Math.min(have, quantity)
-                if (n >= have) arrayRemove(owner.inventory, obj)
-                else { obj.amount = have - n; ammoSplitOff(obj, obj.clone()) } // the boxes left are full
-                if (owner === globalState.player) uiDrawWeapon()
-                return n
-            }
-            globalState.gMap.destroyObject(obj)
-            return 0
-        }
-        // CE opGetCombatDifficulty (0x814F) — settings.preferences.combat_difficulty (0/1/2)
-        combat_difficulty() {
-            const d = Config.combat.difficultyModifier
-            return d === 75 ? 0 : d === 125 ? 2 : 1
-        }
-        // CE opCritterStopAttacking (0x8155) — CRITTER_MANEUVER_DISENGAGING, forget target.
-        critter_stop_attacking(obj: Obj) {
-            if (!isGameObject(obj)) return
-            const c = obj as Critter
-            ;(c as any).disengaging = true
-            ;(c as any).whoHitMe = null
-            c.hostile = false
-        }
-        // CE opSetMapMusic (0x80E2) — worldmap.cc wmSetMapMusic: override maps.txt music.
-        set_map_music(mapIndex: number, music: string) {
-            setMapMusicOverride(mapIndex, String(music))
-        }
-        // CE opWorldmap (0x8108) — scriptsRequestWorldMap
-        world_map() {
-            uiWorldMap()
-        }
-        // CE opRegAnimObjectRunToTile (0x8114) — as move_to_tile, running.
-        reg_anim_obj_run_to_tile(obj: Obj, tileNum: number, delay: number) {
-            if (isNaN(tileNum) || tileNum < 0) return
-            this.regAnimPush('reg_anim_obj_run_to_tile', obj, { kind: 'move', obj, to: fromTileNum(tileNum), run: true, delay })
-        }
-        // CE opKillCritterType (0x80EE) — kill (or with deathFrame 0, destroy) every live,
-        // visible critter of `pid` on the map. deathFrame 1 cycles CE's ftList.
-        kill_critter_type(pid: number, deathFrame: number) {
-            // CE opKillCritterType: refused while a game loads
-            if (loadingGame) return
-            // interpreter_extra.cc:2367 ftList (single-frame deaths)
-            const FT_LIST = [62, 51, 52, 53, 63, 62, 54, 56, 59, 62, 63]
-            let ft = 0
-            let count = 0
-            for (const obj of globalState.gMap.getObjects().slice()) {
-                if (obj.type !== 'critter' || obj.pid !== pid || (obj as Critter).dead || obj.visible === false) continue
-                if (++count > 200) { warn('kill_critter_type: infinite loop destroying critters!'); return }
-                const c = obj as Critter
-                if (deathFrame === 0) {
-                    globalState.gMap.destroyObject(c)
-                } else {
-                    // CE _combat_delete_critter: critterKill below drops it from combat via its dead flag.
-                    let frame: number
-                    if (deathFrame === 1) {
-                        frame = correctDeath(c, FT_LIST[ft])
-                        ft = (ft + 1) % FT_LIST.length
-                    } else {
-                        frame = deathFrame >= ANIM_FALL_BACK_SF && deathFrame <= ANIM_FALL_FRONT_BLOOD_SF ? deathFrame : ANIM_FALL_BACK_SF
-                    }
-                    critterKill(c, undefined, true, { deathFrame: frame })
-                }
-            }
-        }
-        // CE opCritterRemoveTrait (0x8103) — TRAIT_PERK only: remove every rank.
-        critter_rm_trait(obj: Obj, kind: number, param: number, _value: number) {
-            if (!isGameObject(obj) || obj.type !== 'critter') return -1
-            if (kind !== 0) {
-                warn('critter_rm_trait: trait out of range')
-                return -1
-            }
-            const name = perkNameById(param)
-            const perks: string[] = (perkRankOwner(obj as Critter) as any).perks ?? [] // perkGetRankData
-            if (name) for (let i = perks.length - 1; i >= 0; i--) {
-                if (perks[i] !== name) continue
-                perks.splice(i, 1)
-                perkApplyEffect(obj as Critter, param, -1) // CE perkRemove → perkRemoveEffect
-            }
-            return -1
-        }
-        // CE ref: interpreter_extra.cc:4937 op_dialogue_reaction (0x80E0)
-        dialogue_reaction(value: number) {
-            talkToCritterReacts(value)
-        }
-        // CE ref: interpreter_extra.cc _op_gsay_option (0x811F) — option without an IQ test.
-        gsay_option(msgList: number, msgID: string | number, target: any, reaction: number) {
-            const msg = getScriptMessage(msgList, msgID)
-            if (msg === null) {
-                dbgWarn('script', 'gsay_option: msg is null')
-                return
-            }
-            dialogueOptionProcs.push(target.bind(this))
-            dialogueOptionTexts.push(msg)
-            dialogueOptionReactions.push(reaction)
-            uiAddDialogueOption(msg, dialogueOptionProcs.length - 1, reaction)
-        }
-        gsay_start() {
-            log('gsay_start', arguments)
-            dialogueOptionProcs = []
-            dialogueOptionTexts = []
-        dialogueOptionReactions = []
-            // ensure dialogue UI is open (may already be open from start_gdialog)
-            if (globalState.uiMode !== UIMode.dialogue && this.self_obj) {
-                uiStartDialogue(false, this.self_obj as Critter)
-            }
-        }
-        //gSay_Option(msgList, msgID, target, reaction) { stub("gSay_Option", arguments) },
-        gsay_reply(msgList: number, msgID: string | number) {
-            log('gSay_Reply', arguments)
-            var msg = getScriptMessage(msgList, msgID)
-            if (msg === null) throw Error('gsay_reply: msg is null')
-            info('REPLY: ' + msg, 'dialogue')
-            uiSetDialogueReply(msg)
-            // CE scripts.cc:2726 _scr_get_msg_str_speech(…, 1) — speak it if there's a head.
-            speakScriptMessage(msgList, msgID)
-            // CE ref: game_dialog.cc:1134-1146 gameDialogSetMessageReply ->
-            // gameDialogAddReviewMessage.
-            dialogueReviewLog.push({ reply: msg, option: null })
-        }
-        gsay_message(msgList: number, msgID: string | number, reaction: number) {
-            // ref: fallout2-ce dialog.cc gDialogSayMessage
-            log('gsay_message', arguments)
-            const msg = getScriptMessage(msgList, msgID)
-            if (msg === null) {
-                warn('gsay_message: msg is null')
-                return
-            }
-            uiSetDialogueReply(msg)
-            speakScriptMessage(msgList, msgID)
-            // CE ref: game_dialog.cc:1148-1160 gameDialogSetTextReply ->
-            // gameDialogAddReviewText.
-            dialogueReviewLog.push({ reply: msg, option: null })
-            // single synthesised [Done] option; dialogueReply will call dialogueExit
-            // because dialogueOptionProcs will be empty after the no-op proc fires
-            dialogueOptionProcs.push(() => { /* no-op: dialogueReply checks length after */ })
-            dialogueOptionTexts.push('[Done]')
-            uiAddDialogueOption('[Done]', dialogueOptionProcs.length - 1)
-            // save resume address and halt VM, mirroring the gsay_end convention
-            if (this._vm) {
-                this._vm.retStack.push(this._vm.script.offset)
-                this._vm.halted = true
-            }
-        }
-        gsay_end() {
-            // Halt the VM so the player can interact with dialogue options.
-            // dialogueExit() resumes it (ScriptVM.resume).
-            //
-            // CE ref: game_dialog.cc:3662 _gdCanBarter / :4357-4388 — Barter
-            // and (for party members) Combat Control are persistent buttons
-            // on the dialogue window itself, not tied to any one node's
-            // option list. Previously synthesized as dialogue-list options
-            // here; moved to real always-present buttons wired in
-            // uiStartDialogue() (ui_dialogue.ts) to match CE — see
-            // wiki/known_bugs.md P9.
-            info('[gsay_end: halting VM for dialogue]', 'dialogue')
-            if (this._vm) this._vm.halted = true
-        }
-        end_dialogue() {
-            info('[end_dialogue]', 'dialogue')
-            dialogueExit()
-        }
-        giq_option(iqTest: number, msgList: number, msgID: string | number, target: any, reaction: number) {
-            log('giQ_Option', arguments)
-            var msg = getScriptMessage(msgList, msgID)
-            if (msg === null) {
-                dbgWarn('script', 'giq_option: msg is null')
-                return
-            }
-            info(
-                'DIALOGUE OPTION: ' + msg + ' [INT ' + (iqTest >= 0 ? '>=' + iqTest : '<=' + -iqTest) + ']',
-                'dialogue'
-            )
-
-            // CE _op_giq_option: INT + Smooth Talker rank.
-            const INT = globalState.player.getStat('INT') + globalState.player.perks.filter((p: string) => p === 'Smooth Talker').length
-            if ((iqTest > 0 && INT < iqTest) || (iqTest < 0 && INT > -iqTest)) return // not enough intelligence for this option
-
-            dialogueOptionProcs.push(target.bind(this))
-            dialogueOptionTexts.push(msg)
-            dialogueOptionReactions.push(reaction)
-            uiAddDialogueOption(msg, dialogueOptionProcs.length - 1, reaction)
-        }
-        dialogue_system_enter() {
-            log('dialogue_system_enter', arguments)
-            if (!this.self_obj) {
-                warn('dialogue_system_enter: no self_obj')
-                return
-            }
-            // CE opGameDialogSystemEnter: an inactive critter (dead / knocked out)
-            // or combat refuses; otherwise it only requests the dialogue (game
-            // state 4), which the main loop opens after this script returns —
-            // not a dialogue nested in the running one (processDialogueRequest)
-            const self = this.self_obj as any
-            if (self.type === 'critter' && (self.dead || ((self.injuryFlags ?? 0) & 0x01) !== 0)) return
-            if (globalState.inCombat) return
-            requestedDialogue = this.self_obj as Obj
-        }
-        float_msg(obj: Obj, msg: string, type: number) {
-            log('float_msg', arguments)
-            //info("FLOAT MSG: " + msg, "floatMessage")
-            if (!isGameObject(obj)) {
-                warn('float_msg: not game object: ' + obj)
-                return
-            }
-            // CE opFloatMessage: COLOR_SEQUENCE (-1) cycles BLACK..LIGHT_GREY; WARNING
-            // (-2) is red in font 103; every type has a black outline.
-            if (type === -1) {
-                floatMsgLastColor = floatMsgLastColor + 1 >= 13 ? 1 : floatMsgLastColor + 1
-                type = floatMsgLastColor
-            }
-            addFloatMessage({
-                msg: msg,
-                obj: obj, // CE opFloatMessage: over the object passed in (was this.self_obj)
-                startTime: window.performance.now(),
-                color: FLOAT_MSG_COLOR[type] ?? FLOAT_MSG_COLOR[0],
-                font: type === -2 ? 103 : 101,
-            })
-        }
-
-        // animation — CE interpreter_extra.cc opRegAnimFunc / opRegAnimAnimate…: nothing in
-        // combat; outside reg_anim_begin … reg_anim_end the animation calls do nothing
-        // (animation.cc _check_registry).
-        reg_anim_func(cmd: number, param: any) {
-            if (globalState.inCombat) return
-            if (cmd === 1) this.reg_anim_begin(param)          // OP_REG_ANIM_FUNC_BEGIN
-            else if (cmd === 2) this.reg_anim_clear(param)     // OP_REG_ANIM_FUNC_CLEAR
-            else if (cmd === 3) this.reg_anim_end()            // OP_REG_ANIM_FUNC_END
-        }
-
-        reg_anim_begin(_flags: number) {
-            animBatch = []
-        }
-
-        // CE animation.cc reg_anim_clear(obj): the object's animations stop.
-        reg_anim_clear(obj?: Obj) {
-            if (obj && isGameObject(obj)) {
-                if (animBatch) animBatch = animBatch.filter((st: any) => st.obj !== obj)
-                if (typeof (obj as any).clearAnim === 'function') (obj as any).clearAnim()
-            }
-        }
-
-        private regAnimPush(name: string, obj: Obj, step: AnimStep | AnimMove | AnimForever): void {
-            if (globalState.inCombat) return
-            if (!isGameObject(obj)) { warn(name + ': object is null', 'animation'); return }
-            if (animBatch === null) { warn(name + ': outside reg_anim_begin', 'animation'); return }
-            animBatch.push(step)
-        }
-
-        reg_anim_animate(obj: Obj, anim: number, delay: number) {
-            // CE opRegAnimAnimate: PID 0x100002F's fall (anim 20) only at violence ≥ 2
-            if (anim === 20 && obj?.pid === 0x100002f && Config.combat.violenceLevel < 2) return
-            this.regAnimPush('reg_anim_animate', obj, { kind: 'animate', obj, anim, delay })
-        }
-
-        reg_anim_animate_reverse(obj: Obj, anim: number, delay: number) {
-            this.regAnimPush('reg_anim_animate_reverse', obj, { kind: 'animate', obj, anim, delay, reversed: true })
-        }
-
-        reg_anim_obj_move_to_obj(obj: Obj, dest: Obj, delay: number) {
-            if (!isGameObject(dest)) return
-            this.regAnimPush('reg_anim_obj_move_to_obj', obj, { kind: 'move', obj, to: dest, run: false, delay })
-        }
-
-        reg_anim_obj_run_to_obj(obj: Obj, dest: Obj, delay: number) {
-            if (!isGameObject(dest)) return
-            this.regAnimPush('reg_anim_obj_run_to_obj', obj, { kind: 'move', obj, to: dest, run: true, delay })
-        }
-
-        reg_anim_end() {
-            if (animBatch === null) {
-                warn('reg_anim_end: no active batch', 'animation')
-                return
-            }
-            const batch = animBatch
-            animBatch = null
-
-            // CE ref: animation.cc::animationRegAnimFunc — callbacks are fired in
-            // registration order, interleaved between animate steps (not batched at end).
-            function doStep(i: number) {
-                // Fire all consecutive func entries at this position before the next animate
-                while (i < batch.length && batch[i].kind === 'func') {
-                    const fn = (batch[i] as AnimFunc).fn
-                    if (fn !== null) fn()
-                    i++
-                }
-                if (i >= batch.length) return
-
-                if ((batch[i] as any).kind === 'move') {
-                    const mv = batch[i] as unknown as AnimMove
-                    const go = () => {
-                        const dest = (mv.to as any).position ?? mv.to
-                        const c = mv.obj as Critter
-                        const done = () => { c.clearAnim?.(); doStep(i + 1) }
-                        if (typeof c.walkTo !== 'function') { mv.obj.position = { ...dest }; return doStep(i + 1) }
-                        // CE animationRegisterMoveToObject: to the tile next to the object
-                        const target = (mv.to as any).position ? hexNearestNeighbor(c.position, dest)?.hex ?? dest : dest
-                        if (!c.walkTo(target, mv.run, done)) done()
-                    }
-                    if (mv.delay > 0) setTimeout(go, mv.delay * 100)
-                    else go()
-                    return
-                }
-                if ((batch[i] as any).kind === 'forever') {
-                    const fv = batch[i] as unknown as AnimForever
-                    const loop = (): void => {
-                        if (fv.obj.type === 'critter') (fv.obj as Critter).staticAnimation('anim:' + fv.anim, loop, true)
-                        else fv.obj.singleAnimation(false, loop)
-                    }
-                    loop()
-                    return // never ends: the rest of the batch waits, as in CE
-                }
-                const step = batch[i] as AnimStep
-                const obj = step.obj
-                const next = () => { obj.clearAnim(); doStep(i + 1) }
-                // anim=0 is ANIM_STAND — snap to idle rather than playing a cycle
-                if (step.anim === 0) {
-                    if (step.delay > 0) setTimeout(next, step.delay * 100)
-                    else next()
-                } else {
-                    const play = () => playAnimId(obj, step.anim, step.reversed === true, next)
-                    if (step.delay > 0) setTimeout(play, step.delay * 100)
-                    else play()
-                }
-            }
-            doStep(0)
-        }
-
-        // CE opRegAnimAnimateForever: outside combat, animationRegisterAnimateForever —
-        // a step of the current batch that loops `anim` for good.
-        reg_anim_animate_forever(obj: Obj, anim: number) {
-            if (globalState.inCombat) return
-            this.regAnimPush('reg_anim_animate_forever', obj, { kind: 'forever', obj, anim } as any)
-        }
-        animate_move_obj_to_tile(obj: Critter, tileNum: any, isRun: number) {
-            log('animate_move_obj_to_tile', arguments, 'movement')
-            if (!isGameObject(obj)) {
-                warn('animate_move_obj_to_tile: not a game object', 'movement', this)
-                return
-            }
-            // XXX: is this correct? FCMALPNK passes a procedure name
-            // but is it a call (wouldn't make sense for NOption) or
-            // a procedure reference that this should call?
-            if (typeof tileNum === 'function') tileNum = tileNum.call(this)
-            if (isNaN(tileNum)) {
-                warn('animate_move_obj_to_tile: invalid tile num', 'movement', this)
-                return
-            }
-
-            var tile = fromTileNum(tileNum)
-            if (tile.x < 0 || tile.x >= 200 || tile.y < 0 || tile.y >= 200) {
-                warn(
-                    'animate_move_obj_to_tile: invalid tile: ' + tile.x + ', ' + tile.y + ' (' + tileNum + ')',
-                    'movement',
-                    this
-                )
-                return
-            }
-            if (!obj.walkTo(tile, !!isRun)) {
-                warn('animate_move_obj_to_tile: no path', 'movement', this)
-                return
-            }
-        }
-        reg_anim_obj_move_to_tile(obj: Obj, tileNum: number, delay: number) {
-            if (isNaN(tileNum) || tileNum < 0) return
-            this.regAnimPush('reg_anim_obj_move_to_tile', obj, { kind: 'move', obj, to: fromTileNum(tileNum), run: false, delay })
-        }
-
-        animate_stand_obj(obj: Critter) {
-            if (!isGameObject(obj)) return
-            if (typeof obj.clearAnim === 'function') obj.clearAnim()
-        }
-
-        explosion(tile: number, elevation: number, damage: number) {
-            log('explosion', arguments)
-            // CE interpreter_extra.cc opExplosion → scriptsRequestExplosion → actionExplode:
-            // d(1, damage) (0 when damage is 0) with no source object.
-            const explosives = createObjectWithPID(makePID(0 /* items */, 85 /* Plastic Explosives */), -1)
-            explosives.position = fromTileNum(tile)
-            globalState.gMap.addObject(explosives)
-            explosives.explode(null, damage === 0 ? 0 : 1, damage)
-            globalState.gMap.removeObject(explosives)
-        }
-
-        gfade_out(time: number) {
-            log('gfade_out', arguments)
-            if (!fadeOverlay) {
-                fadeOverlay = document.createElement('div')
-                Object.assign(fadeOverlay.style, {
-                    position: 'fixed', top: '0', left: '0',
-                    width: '100%', height: '100%',
-                    background: 'black', opacity: '0',
-                    pointerEvents: 'none', zIndex: '8000',
-                    transition: `opacity ${time}ms linear`,
-                })
-                document.body.appendChild(fadeOverlay)
-            }
-            // Force reflow so the transition fires from 0
-            void fadeOverlay.offsetWidth
-            fadeOverlay.style.opacity = '1'
-        }
-        gfade_in(time: number) {
-            log('gfade_in', arguments)
-            if (!fadeOverlay) return
-            fadeOverlay.style.transition = `opacity ${time}ms linear`
-            fadeOverlay.style.opacity = '0'
-            fadeOverlay.addEventListener('transitionend', () => {
-                if (fadeOverlay) {
-                    fadeOverlay.remove()
-                    fadeOverlay = null
-                }
-            }, { once: true })
-        }
-
-        // timing
-        add_timer_event(obj: Obj, ticks: number, userdata: any) {
-            log('add_timer_event', arguments)
-            if (!obj || !obj._script) {
-                warn('add_timer_event: not a scriptable object: ' + obj)
-                return
-            }
-            info('timer event added in ' + ticks + ' ticks (userdata ' + userdata + ')', 'timer')
-            // trigger timedEvent in `ticks` game ticks
-            timeEventList.push({
-                ticks: ticks,
-                obj: obj,
-                userdata: userdata,
-                fn: function () {
-                    timedEvent(obj._script!, userdata)
-                }.bind(this),
-            })
-        }
-        // CE interpreter_extra.cc opRemoveTimerEvent → queue.cc queueRemoveEvents(object):
-        // every queued event this object owns goes, whatever its type.
-        rm_timer_event(obj: Obj) {
-            log('rm_timer_event', arguments)
-            if (!obj) { warn('rm_timer_event: pobj is NULL'); return }
-            for (let i = timeEventList.length - 1; i >= 0; i--) {
-                if (timeEventList[i].obj === obj) timeEventList.splice(i, 1)
-            }
-        }
-        game_ticks(seconds: number) {
-            return seconds * 10
-        }
-        days_since_visited() {
-            // CE ref: interpreter_extra.cc:3734 opGetDaysSinceLastVisit
-            // Returns floor((currentTick - lastVisitTime) / TICKS_PER_DAY), or -1 if never visited.
-            const lastVisit = globalState.gMap?.lastVisitTime ?? 0
-            if (lastVisit === 0) return -1
-            return Math.floor((GameTime.getTime() - lastVisit) / GameTime.TICKS_PER_DAY)
-        }
-        game_time_advance(ticks: number) {
-            log('game_time_advance', arguments)
-            info('advancing time ' + ticks + ' ticks (' + ticks / 10 + ' seconds)')
-            // CE ref: interpreter_extra.cc:2761 opGameTimeAdvance — advance, then
-            // queueProcessEvents(); GameTime's time-jump hook (gameTick.ts) runs every
-            // crossed midnight and fires the expired timed events in due order.
-            GameTime.advanceTicks(ticks)
-        }
-
-        // game
-        load_map(map: number | string, startLocation: number) {
-            log('load_map', arguments)
-            info('load_map: ' + map)
-            // CE interpreter_extra.cc opLoadMap: the entrance goes to GVAR_LOAD_MAP_INDEX (27),
-            // which the new map's map_enter_p_proc reads to place the player; a negative
-            // map index does nothing.
-            // The load is a map transition (mapSetTransition → mapHandleTransition), which
-            // puts the worldmap party on the new map's area (wmTeleportToArea).
-            // CE mapSetTransition only records it: the main loop changes maps after the
-            // script returns and any dialogue has closed (processMapTransition), not
-            // in the middle of the running script
-            if (typeof map === 'string') {
-                setGlobalVar(27, startLocation)
-                pendingMapTransition = map.split('.')[0].toLowerCase()
-            } else if (map >= 0) {
-                setGlobalVar(27, startLocation)
-                pendingMapTransition = map
-            }
-        }
-        play_gmovie(movieID: number) {
-            // CE: interpreter_extra.cc:3581 opPlayGameMovie — per-movie flags table,
-            // map updates and dialogue disabled while it plays (DH2: the movie sets a
-            // modal uiMode, which pauses tickGame). CE blocks the script until the movie
-            // ends; DH2's VM can't block, so the script continues behind the modal overlay.
-            info('play_gmovie: movie ' + movieID)
-            void gameMoviePlay(movieID, SCRIPT_MOVIE_FLAGS[movieID] ?? 0)
-        }
-        endgame_slideshow() {
-            // CE: interpreter_extra.cc:opEndgameSlideshow (0x8146)
-            // CE defers via scriptsRequestEndgame() flag; DH2 fires async directly.
-            info('endgame_slideshow: starting')
-            Endgame.playSlideshow().catch((e: unknown) => {
-                info('endgame_slideshow error: ' + String(e))
-            })
-        }
-        endgame_movie() {
-            // CE: interpreter_extra.cc:opEndgameMovie (0x8148)
-            info('endgame_movie: starting')
-            Endgame.playMovie().catch((e: unknown) => {
-                info('endgame_movie error: ' + String(e))
-            })
-        }
-        // CE ref: interpreter_extra.cc opMarkAreaKnown — type 0 (town): state
-        // CITY_STATE_INVISIBLE (-66) hides it, anything else shows it
-        // (wmAreaSetVisibleState force) and sets the visited state (1 known, 2 visited);
-        // type 1: wmMapMarkVisited(mapIdx) marks the area containing that map visited.
-        mark_area_known(areaType: number, areaID: number, state: number) {
-            log('mark_area_known', arguments)
-            if (areaType === 0) {
-                if (state === -66) {
-                    Worldmap.setAreaVisible(areaID, false)
-                } else {
-                    Worldmap.setAreaVisible(areaID, true)
-                    Worldmap.setAreaVisitedState(areaID, state)
-                }
-            } else if (areaType === 1) {
-                // CE wmMapMarkVisited(mapIdx): saved maps mark their area visited
-                const name = lookupMapName(areaID)
-                if (name) Worldmap.markMapVisited(name)
-            }
-        }
-        wm_area_set_pos(area: number, x: number, y: number) {
-            // CE ref: worldmap.cc wmAreaSetPos() — updates world-map marker position
-            if (!globalState.mapAreas) { warn('wm_area_set_pos: mapAreas not loaded'); return }
-            const areaKey = String(area)
-            if (!globalState.mapAreas[areaKey]) { warn('wm_area_set_pos: unknown area ' + area); return }
-            globalState.mapAreas[areaKey].worldPosition = { x, y }
-            Worldmap.updateAreaMarkerPos(areaKey, x, y)
-        }
-        game_ui_disable() {
-            // CE ref: interface.cc gameUiDisable() — blocks in-world player input
-            // AND hides the bottom HUD bar (interface windows are torn down).
-            globalState.gameUIDisabled = true
-            const $bar = document.getElementById('bar')
-            if ($bar) $bar.style.visibility = 'hidden'
-        }
-        game_ui_enable() {
-            globalState.gameUIDisabled = false
-            const $bar = document.getElementById('bar')
-            if ($bar) $bar.style.visibility = 'visible'
-        }
-
-        // sound
-        play_sfx(sfx: string) {
-            if (!globalState.audioEngine) return
-            globalState.audioEngine.playSfx(sfx.toLowerCase())
-        }
-
-        // party
-        party_member_obj(pid: number) {
-            log('party_member_obj', arguments, 'party')
-            return globalState.gParty.getPartyMemberByPID(pid) || 0
-        }
-        party_add(obj: Critter) {
-            log('party_add', arguments)
-            globalState.gParty.addPartyMember(obj)
-            if (currentDialogueObject) SfallHooks.gameModeSpecial(true) // sfall: joins in dialogue
-        }
-        party_remove(obj: Critter) {
-            // CE ref: interpreter_extra.cc:3956 — silently no-ops when obj isn't a
-            // party member (dismissal dialogue hook).
-            log('party_remove', arguments)
-            globalState.gParty.dismissPartyMember(obj)
-            if (currentDialogueObject) SfallHooks.gameModeSpecial(true) // sfall: leaves in dialogue
-        }
-
-        _serialize(): SerializedScript {
-            return { name: this.scriptName, lvars: Object.assign({}, this.lvars) }
-        }
-    }
-
-    export function deserializeScript(obj: SerializedScript): Script {
-        var script = loadScript(obj.name)
-        script.lvars = obj.lvars
-        // TODO: do some kind of logic like enterMap/updateMap
-        return script
-    }
-
-    function loadMessageFile(name: string) {
-        name = name.toLowerCase()
-        info('loading message file: ' + name, 'load')
-        var msg = getFileText('data/text/english/dialog/' + name + '.msg')
-        if (scriptMessages[name] === undefined) scriptMessages[name] = {}
-
-        for (const e of parseMsgFile(msg, name)) {
-            scriptMessages[name][e.num] = e.text
-            // CE message.cc: the middle field is the speech file for talking heads.
-            if (e.audio.trim() !== '') {
-                if (scriptMessageAudio[name] === undefined) scriptMessageAudio[name] = {}
-                scriptMessageAudio[name][e.num] = e.audio.trim()
-            }
-        }
-    }
-
-    export function setMapScript(script: Script) {
-        currentMapObject = script
-    }
-
-    // --- Stub script registry ---
-    // When a .int file is absent, JS-defined stubs let the engine preserve
-    // expected spatial/destroy behaviour. Keyed by lowercase script name and,
-    // independently, by proto SID number (avoids depending on scripts.lst
-    // resolution to find the canonical name).
-    const _stubRegistry = new Map<string, Partial<Script>>()
-    const _stubBySid = new Map<number, Partial<Script>>()
-
-    export function registerStub(name: string, procs: Partial<Script>): void {
-        _stubRegistry.set(name.toLowerCase(), procs)
-    }
-
-    export function registerStubBySid(sid: number, name: string, procs: Partial<Script>): void {
-        _stubBySid.set(sid, procs)
-        _stubRegistry.set(name.toLowerCase(), procs)
-    }
-
-    function _buildStub(name: string, procs: Partial<Script>): Script {
-        const stub = Object.create(Script.prototype) as Script
-        stub.scriptName = name
-        stub.lvars = {}
-        stub._mapScript = currentMapObject ?? stub
-        Object.assign(stub, procs)
-        return stub
-    }
-
-    /** CE sfall_gl_scr_exec_start_proc after a save is loaded (loadsave.cc) */
-    export function startSfallGlobalScripts(): void {
-        GlobalScripts.startGlobalScripts((name) => loadScript(name))
-    }
-
-    export function loadScriptBySid(sid: number): Script | null {
-        const procs = _stubBySid.get(sid)
-        if (!procs) return null
-        info('loading stub script for sid=' + sid, 'load')
-        return _buildStub(`stub:sid${sid}`, procs)
-    }
-
-    export function loadScript(name: string): Script {
-        const key = name.toLowerCase()
-
-        // Return a stub if one is registered and the .int file is absent.
-        // The stub is an instance of Script so it has all the engine API methods.
-        const stubProcs = _stubRegistry.get(key)
-        if (stubProcs) {
-            info('loading stub script ' + key, 'load')
-            return _buildStub(key, stubProcs)
-        }
-
-        info('loading script ' + name, 'load')
-
-        if (Config.scripting.backend === 'lua') {
-            const luaScript = loadLuaScript(name)
-            if (luaScript) return luaScript
-        }
-
-        var path = 'data/scripts/' + name.toLowerCase() + '.int'
-        var data: DataView = getFileBinarySync(path)
-        var reader = new BinaryReader(data)
-        //console.log("[%s] loaded %d bytes", name, reader.length)
-        var intfile = parseIntFile(reader, name.toLowerCase())
-
-        //console.log("%s int file: %o", name, intfile)
-
-        if (!currentMapObject)
-            dbg('load', 'note: using current script (%s) as map script for this object', intfile.name)
-
-        reader.seek(0)
-        var vm = new ScriptVMBridge.GameScriptVM(reader, intfile)
-        vm.scriptObj.scriptName = name
-        vm.scriptObj.lvars = {}
-        vm.scriptObj._mapScript = currentMapObject || vm.scriptObj // map scripts are their own map scripts
-        vm.scriptObj._vm = vm
-        vm.run()
-
-        // return the scriptObj, which is a clone of ScriptProto
-        // which will be patched by the GameScriptVM to allow
-        // transparent procedure calls
-        return vm.scriptObj
-    }
-
-    // Lua backend (src/lua/): data/scripts/<name>.lua from tools/int2lua.py, or a
-    // mod's mods/<mod>/scripts/<name>.lua (Config.scripting.mods, the last listed
-    // mod that has the script wins). Null when there is no .lua file or it does
-    // not load, so the .int runs instead. data/scripts/ paths go through the mod
-    // asset overlay (modAssets.ts): a mod whose .int did not decompile has no .lua,
-    // and the .lua of a lower layer (the vanilla script) must not run in its place.
-    function loadLuaScript(name: string): Script | null {
-        if (!isLuaReady()) return null
-        const key = name.toLowerCase()
-        // hand-written Lua mods (no manifest) first; a pipeline-built mod folder's scripts
-        // come through the asset overlay as data/scripts/<name>.lua, unless that layer has
-        // only the .int
-        const assetMods = activeAssetMods()
-        const paths = Config.scripting.mods.filter((m) => !assetMods.includes(m)).reverse().map((m) => `mods/${m}/scripts/${key}.lua`)
-        if (assetLayer(`data/scripts/${key}.int`) <= assetLayer(`data/scripts/${key}.lua`)) paths.push('data/scripts/' + key + '.lua')
-        else dbg('lua', `${key}: the mod's ${key}.int has no .lua`)
-        let source: string | null = null
-        for (const path of paths) {
-            try {
-                source = getFileText(path)
-            } catch (e) {
-                continue
-            }
-            if (path.startsWith('mods/')) dbg('lua', `${key}: using ${path}`)
-            break
-        }
-        if (source === null) {
-            dbg('lua', `no ${key}.lua, using ${key}.int`)
-            return null
-        }
-        const script = new Script()
-        script.scriptName = name
-        script.lvars = {}
-        script._mapScript = currentMapObject || script // map scripts are their own map scripts
-        try {
-            attachLuaScript(script, key, source)
-        } catch (e) {
-            dbgWarn('lua', `${key}.lua failed to load (${e}), using ${key}.int`)
-            return null
-        }
-        return script
-    }
-
-    export function initScript(script: Script, obj: Obj) {
-        script.self_obj = obj as ScriptableObj
-        script.cur_map_index = currentMapID!
-        if (script.start !== undefined) script.start()
-    }
-
-    export function timedEvent(script: Script, userdata: any): boolean {
-        info('timedEvent: ' + script.scriptName + ': ' + userdata, 'timer')
-        if (script.timed_event_p_proc === undefined) {
-            warn(
-                `timedEvent called on script without a timed_event_p_proc! script: ${script.scriptName} userdata: ${userdata}`
-            )
-            return false
-        }
-
-        script.fixed_param = userdata
-        script._didOverride = false
-        script.timed_event_p_proc()
-        return script._didOverride
-    }
-
-    // CE proto_instance.cc _obj_look_at_func / _obj_examine_func — SCRIPT_PROC_LOOK_AT /
-    // SCRIPT_PROC_DESCRIPTION with source = the viewer; true if the script overrode the
-    // engine's text (script_overrides).
-    function runViewProc(obj: Obj, source: Obj, proc: 'look_at_p_proc' | 'description_p_proc'): boolean {
-        const script: any = obj._script
-        if (!script || script[proc] === undefined) return false
-        script.source_obj = source
-        script.self_obj = obj as ScriptableObj
-        script.cur_map_index = currentMapID
-        script._didOverride = false
-        script[proc]()
-        return script._didOverride
-    }
-    export function lookAt(obj: Obj, source: Obj): boolean { return runViewProc(obj, source, 'look_at_p_proc') }
-    export function description(obj: Obj, source: Obj): boolean { return runViewProc(obj, source, 'description_p_proc') }
-
-    export function use(obj: Obj, source: Obj): boolean | null {
-        if (!obj._script || obj._script.use_p_proc === undefined) return null
-
-        obj._script.source_obj = source
-        obj._script.self_obj = obj as ScriptableObj
-        obj._script._didOverride = false
-        obj._script.use_p_proc()
-        return obj._script._didOverride
-    }
-
-    // CE actions.cc actionPush: the target's push_p_proc with the pusher as source;
-    // true when the script overrode the engine's push.
-    export function push(obj: Obj, source: Obj): boolean {
-        const script = obj._script
-        if (!script || !script.push_p_proc) return false
-        script.self_obj = obj as ScriptableObj
-        script.source_obj = source
-        script.cur_map_index = currentMapID
-        script._didOverride = false
-        script.push_p_proc()
-        return script._didOverride
-    }
-
-    // dialogue_system_enter's request (CE gGameDialogSpeaker + game state 4)
-    let requestedDialogue: Obj | null = null
-    // load_map's transition (CE mapSetTransition): a map name or index
-    let pendingMapTransition: string | number | null = null
-
-    /** Change to the map a script's load_map asked for, once no dialogue runs and
-     *  no map is loading (CE game loop → mapHandleTransition). True if it did. */
-    export function processMapTransition(): boolean {
-        if (pendingMapTransition === null || globalState.uiMode !== UIMode.none || globalState.isLoading) return false
-        const map = pendingMapTransition
-        pendingMapTransition = null
-        if (typeof map === 'string') {
-            globalState.gMap.loadMap(map)
-            Events.emit('mapTransition', mapIndexOf(map))
-        } else {
-            globalState.gMap.loadMapByID(map)
-            Events.emit('mapTransition', map)
-        }
-        return true
-    }
-
-    /** Open the dialogue a script requested with dialogue_system_enter, once no
-     *  dialogue or combat is running. Called by the game tick (and the story
-     *  crawler, which ticks by hand). True if one was opened. */
-    export function processDialogueRequest(): boolean {
-        if (!requestedDialogue || globalState.uiMode !== UIMode.none || globalState.inCombat) return false
-        const obj = requestedDialogue
-        requestedDialogue = null
-        if (!obj._script || (obj as any).dead) return false
-        talk(obj._script, obj)
-        return true
-    }
-
-    export function talk(script: Script, obj: Obj): boolean {
-        script.self_obj = obj as ScriptableObj
-        script.cur_map_index = currentMapID
-        script._didOverride = false
-        script.talk_p_proc()
-        return script._didOverride
-    }
-
-    export function updateCritter(script: Script, obj: Critter): boolean {
-        // critter heartbeat (critter_p_proc)
-        if (!script.critter_p_proc) return false // TODO: Should we override or not if it doesn't exist? Probably not.
-
-        script.cur_map_index = currentMapID
-        script._didOverride = false
-        script.self_obj = obj as ScriptableObj
-        script.self_tile = toTileNum(obj.position)
-        script.critter_p_proc()
-        return script._didOverride
-    }
-
-    export function spatial(spatialObj: Obj, source: Obj) {
-        // TODO: Spatial type
-        const script = spatialObj._script
-        // CE scriptExecProc: a script without the proc just does nothing
-        if (!script || !script.spatial_p_proc) return
-
-        script.cur_map_index = currentMapID
-        script.source_obj = source
-        script.self_obj = spatialObj as ScriptableObj
-        script.spatial_p_proc()
-    }
-
-    export function destroy(obj: Obj, source?: Obj) {
-        if (!obj._script || !obj._script.destroy_p_proc) return null
-
-        obj._script.self_obj = obj as ScriptableObj
-        obj._script.source_obj = source || 0
-        obj._script.cur_map_index = currentMapID
-        obj._script._didOverride = false
-        obj._script.destroy_p_proc()
-        return obj._script._didOverride
-    }
-
-    export function damage(obj: Obj, target: Obj, source: Obj, damage: number) {
-        if (!obj._script || obj._script.damage_p_proc === undefined) return null
-
-        obj._script.self_obj = obj as ScriptableObj
-        obj._script.target_obj = target
-        obj._script.source_obj = source
-        obj._script.cur_map_index = currentMapID
-        obj._script._didOverride = false
-        obj._script.fixed_param = damage // CE _damage_object: scriptSetFixedParam(sid, damage)
-        obj._script.damage_p_proc()
-        return obj._script._didOverride
-    }
-
-    export function useSkillOn(who: Critter, skillId: number, obj: Obj): boolean {
-        if (!obj._script) throw Error('useSkillOn: Object has no script')
-        const skillName = SKILL_NAMES[skillId] ?? `Unknown(${skillId})`
-        dbg('script', `useSkillOn: ${who.name ?? 'unknown'} uses ${skillName} (id=${skillId}) on ${obj.name ?? obj.type ?? 'unknown'}`)
-        obj._script.self_obj = obj as ScriptableObj
-        obj._script.source_obj = who
-        obj._script.cur_map_index = currentMapID
-        obj._script._didOverride = false
-        obj._script.action_being_used = skillId
-        if (!obj._script.use_skill_on_p_proc) return false
-        obj._script.use_skill_on_p_proc()
-        dbg('script', `useSkillOn result: _didOverride=${obj._script._didOverride}`)
-        return obj._script._didOverride
-    }
-
-    export function pickup(obj: Obj, source: Critter): boolean {
-        if (!obj._script) throw Error('pickup: Object has no script')
-        obj._script.self_obj = obj as ScriptableObj
-        obj._script.source_obj = source
-        obj._script.cur_map_index = currentMapID
-        obj._script._didOverride = false
-        obj._script.pickup_p_proc()
-        return obj._script._didOverride
-    }
-
-    // CE proto_instance.cc _obj_drop: the owner's is_dropping_p_proc, source_obj = the
-    // item about to be dropped. True when the script overrides (keeps the item).
-    export function isDropping(owner: Obj, item: Obj): boolean {
-        if (!owner._script || owner._script.is_dropping_p_proc === undefined) return false
-        owner._script.self_obj = owner as ScriptableObj
-        owner._script.source_obj = item
-        owner._script.cur_map_index = currentMapID
-        owner._script._didOverride = false
-        owner._script.is_dropping_p_proc()
-        return owner._script._didOverride
-    }
-
-    export function drop(obj: Obj, source: Obj): boolean {
-        if (!obj._script || obj._script.drop_p_proc === undefined) return false
-        obj._script.self_obj = obj as ScriptableObj
-        obj._script.source_obj = source
-        obj._script.cur_map_index = currentMapID
-        obj._script._didOverride = false
-        obj._script.drop_p_proc()
-        return obj._script._didOverride
-    }
-
-    // CE ref: proto_instance.cc:1293 — the item's own use_obj_on_p_proc, with
-    // scriptSetObjects(item->sid, critter, targetObj). True when the script overrides.
-    export function useObjOnItem(item: Obj, source: Obj, target: Obj): boolean {
-        if (!item._script || item._script.use_obj_on_p_proc === undefined) return false
-        item._script.self_obj = item as ScriptableObj
-        item._script.source_obj = source
-        item._script.target_obj = target
-        item._script.cur_map_index = currentMapID
-        item._script._didOverride = false
-        item._script.use_obj_on_p_proc()
-        return item._script._didOverride
-    }
-
-    export function useObjOnMe(obj: Obj, item: Obj, source: Obj): boolean {
-        if (!obj._script || obj._script.use_obj_on_p_proc === undefined) return false
-        // CE ref: proto_instance.cc:1286 scriptSetObjects(targetObj->sid, critter, item)
-        obj._script.self_obj = obj as ScriptableObj
-        obj._script.source_obj = source
-        obj._script.target_obj = item
-        obj._script.cur_map_index = currentMapID
-        obj._script._didOverride = false
-        obj._script.use_obj_on_p_proc()
-        return obj._script._didOverride
-    }
-
-    export function combatEvent(obj: Obj, event: 'turnBegin' | 'damage' | 'hit' | 'wantToJoin', target?: Obj): boolean {
-        if (!obj._script) throw Error('combatEvent: Object has no script')
-
-        let fixed_param: number | null = null
-        switch (event) {
-            case 'turnBegin':
-                fixed_param = 4
-                break // COMBAT_SUBTYPE_TURN
-            case 'damage':
-            case 'hit':
-                fixed_param = 2
-                break // COMBAT_SUBTYPE_HIT_SUCCEEDED (CE _apply_damage: the attacker's proc)
-            case 'wantToJoin':
-                fixed_param = 5
-                break // CE _combatai_want_to_join
-            default:
-                throw 'combatEvent: unknown event ' + event
-        }
-
-        if (!obj._script.combat_p_proc) return false
-
-        info('[COMBAT EVENT ' + event + ']')
-
-        obj._script.fixed_param = fixed_param
-        if (target !== undefined) obj._script.target_obj = target
-        obj._script.self_obj = obj as ScriptableObj
-        obj._script.cur_map_index = currentMapID
-        obj._script._didOverride = false
-
-        // TODO: script_overrides
-
-        // hack so that the procedure is allowed to finish before
-        // we actually terminate combat
-        var doTerminate: any = false // did combat_p_proc terminate combat?
-        obj._script.terminate_combat = function () {
-            doTerminate = true
-        }
-        obj._script.combat_p_proc()
-
-        if (doTerminate) {
-            dbg('script', 'terminate_combat invoked from combat_p_proc')
-            Script.prototype.terminate_combat.call(obj._script) // call original
-        }
-
-        return doTerminate
-    }
-
-    export function updateMap(mapScript: Script, objects: Obj[], elevation: number) {
-        gameObjects = objects
-        mapFirstRun = false
-
-        if (mapScript) {
-            if (mapScript.map_update_p_proc !== undefined) {
-                mapScript.self_obj = { _script: mapScript }
-                mapScript.map_update_p_proc()
-            }
-        }
-
-        var updated = 0
-        for (var i = 0; i < gameObjects.length; i++) {
-            var script = gameObjects[i]._script
-            if (script !== undefined && script.map_update_p_proc !== undefined) {
-                script.self_obj = gameObjects[i] as ScriptableObj
-                // Fallout 2 style HHMM: "8:24 AM" => 824, "3:00 PM" => 1500
-                script.game_time_hour = GameTime.getHourMilitary()
-                script.cur_map_index = currentMapID
-                script.map_update_p_proc()
-                updated++
-            }
-        }
-        GlobalScripts.globalScriptsMapProc('map_update_p_proc') // CE scriptsExecMapUpdateScripts
-
-        // info("updated " + updated + " objects")
-    }
-
-    export function enterMap(
-        mapScript: Script,
-        objects: Obj[],
-        elevation: number,
-        mapID: number,
-        isFirstRun: boolean
-    ): StartPos | null {
-        gameObjects = objects
-        currentMapID = mapID
-        mapFirstRun = isFirstRun
-
-        // Fallout 2 resets ambient light to max on every map load; any
-        // script darkness is reapplied by the new map's map_enter_p_proc.
-        GameTime.clearLightLevelOverride()
-
-        if (mapScript && mapScript.map_enter_p_proc !== undefined) {
-            info('calling map enter')
-            mapScript.self_obj = { _script: mapScript }
-            mapScript.map_enter_p_proc()
-        }
-        GlobalScripts.globalScriptsMapProc('map_enter_p_proc') // CE scriptsExecMapUpdateScripts
-        // a new game: its global scripts start once its map is loaded (CE main.cc)
-        GlobalScripts.startGlobalScriptsIfRequested((name) => loadScript(name))
-
-        if (overrideStartPos) {
-            const r = overrideStartPos
-            overrideStartPos = null
-            return r
-        }
-
-        // XXX: caller should do this for all objects, which is better?
-        /*for(var i = 0; i < gameObjects.length; i++) {
-            objectEnterMap(gameObjects[i], elevation, mapID)			
-        }*/
-
+    script.source_obj = source
+    script.self_obj = obj as ScriptableObj
+    script.cur_map_index = currentMapID
+    script._didOverride = false
+    script[proc]()
+    return script._didOverride
+}
+export function lookAt(obj: Obj, source: Obj): boolean {
+    return runViewProc(obj, source, 'look_at_p_proc')
+}
+export function description(obj: Obj, source: Obj): boolean {
+    return runViewProc(obj, source, 'description_p_proc')
+}
+
+export function use(obj: Obj, source: Obj): boolean | null {
+    if (!obj._script || obj._script.use_p_proc === undefined) {
+        noteMissingProc(obj._script!, 'use_p_proc')
         return null
     }
 
-    // Runs a no-argument proc on an object's script with the per-call context
-    // objectEnterMap sets up (used for map_exit_p_proc).
-    export function objectRunProc(obj: Obj, proc: 'map_exit_p_proc'): void {
-        const script: any = obj._script
-        if (script === undefined || script[proc] === undefined) return
-        script.self_obj = obj as ScriptableObj
-        script.game_time_hour = GameTime.getHourMilitary()
-        script.cur_map_index = currentMapID
-        script[proc]()
-    }
+    obj._script.source_obj = source
+    obj._script.self_obj = obj as ScriptableObj
+    obj._script._didOverride = false
+    obj._script.use_p_proc()
+    return obj._script._didOverride
+}
 
-    export function objectEnterMap(obj: Obj, elevation: number, mapID: number) {
-        var script = obj._script
-        if (script !== undefined && script.map_enter_p_proc !== undefined) {
-            script.self_obj = obj as ScriptableObj
-            script.game_time_hour = GameTime.getHourMilitary()
-            script.cur_map_index = currentMapID
-            script.map_enter_p_proc()
+// CE actions.cc actionPush: the target's push_p_proc with the pusher as source;
+// true when the script overrode the engine's push.
+export function push(obj: Obj, source: Obj): boolean {
+    const script = obj._script
+    if (!script || !script.push_p_proc) return false
+    script.self_obj = obj as ScriptableObj
+    script.source_obj = source
+    script.cur_map_index = currentMapID
+    script._didOverride = false
+    script.push_p_proc()
+    return script._didOverride
+}
+
+// the new map's files, fetched while the transition waits (map/prefetch.ts); null = none pending
+let transitionPrefetchDone: boolean | null = null
+export function startTransitionPrefetch(mapName: string | null): void {
+    if (!mapName) {
+        return
+    }
+    transitionPrefetchDone = false
+    void prefetchMap(mapName).finally(() => {
+        transitionPrefetchDone = true
+    })
+}
+
+/** Change to the map a script's load_map asked for, once no dialogue runs and
+ *  no map is loading (CE game loop → mapHandleTransition). True if it did.
+ *  `waitForPrefetch`: also wait until the new map's files are fetched (the game loop does;
+ *  the story crawler does not, its traces must not depend on download timing). */
+export function processMapTransition(waitForPrefetch = false): boolean {
+    if (scriptingState.pendingMapTransition === null || uiState.uiMode !== UIMode.none || globalState.isLoading)
+        return false
+    if (waitForPrefetch && transitionPrefetchDone === false) {
+        return false
+    }
+    transitionPrefetchDone = null
+    const map = scriptingState.pendingMapTransition
+    scriptingState.pendingMapTransition = null
+    if (typeof map === 'string') {
+        world.gMap!.loadMap(map)
+        Events.emit('mapTransition', mapIndexOf(map))
+    } else {
+        world.gMap!.loadMapByID(map)
+        Events.emit('mapTransition', map)
+    }
+    return true
+}
+
+/** Open the dialogue a script requested with dialogue_system_enter, once no
+ *  dialogue or combat is running. Called by the game tick (and the story
+ *  crawler, which ticks by hand). True if one was opened. */
+// CE scripts.cc gScriptsRequests / scriptsHandleRequests: what a script asks for — a
+// fight, the world map, an explosion, the endgame — happens from the game loop after the
+// script returned (with the dialogue over), in CE's order; the dialogue request between.
+type ScriptRequestKind = 'combat' | 'worldMap' | 'explosion' | 'endgame'
+const scriptRequests = new Map<ScriptRequestKind, () => void>()
+export function requestScript(kind: ScriptRequestKind, run: () => void): void {
+    scriptRequests.set(kind, run) // CE keeps one of each (the last request's data)
+}
+function runScriptRequest(kind: ScriptRequestKind): void {
+    const run = scriptRequests.get(kind)
+    if (!run) return
+    scriptRequests.delete(kind)
+    try {
+        run()
+    } catch (e) {
+        warn(`script request ${kind}: ${e}`)
+    }
+}
+// CE _updatePrograms → _doEvents: call_at / call_when procedures of the .int programs
+export function doProgramEvents(): void {
+    vmDoEvents()
+}
+setChildProgramLoader((name) => {
+    try {
+        return loadIntScript(name)._vm ?? null
+    } catch (e) {
+        return null
+    }
+})
+
+export function processScriptRequests(): void {
+    if (scriptRequests.size === 0 || uiState.uiMode !== UIMode.none) return
+    if (scriptRequests.has('combat') && !world.inCombat) runScriptRequest('combat')
+    else scriptRequests.delete('combat') // in combat attack_setup / attack_complex only engage
+    runScriptRequest('worldMap')
+    runScriptRequest('explosion')
+}
+export function processEndgameRequest(): void {
+    if (uiState.uiMode !== UIMode.none) return
+    runScriptRequest('endgame')
+}
+// gameReset / map change: pending requests go
+export function clearScriptRequests(): void {
+    scriptRequests.clear()
+}
+
+export function processDialogueRequest(): boolean {
+    if (!scriptingState.requestedDialogue || uiState.uiMode !== UIMode.none || world.inCombat) return false
+    const obj = scriptingState.requestedDialogue
+    scriptingState.requestedDialogue = null
+    if (!obj._script || (obj as any).dead) return false
+    talk(obj._script, obj)
+    return true
+}
+
+export function updateMap(mapScript: Script, objects: Obj[], elevation: number) {
+    withSpatialsOff(() => updateMapScripts(mapScript, objects))
+}
+
+function updateMapScripts(mapScript: Script, objects: Obj[]) {
+    gameObjects = objects
+    mapFirstRun = false
+
+    if (mapScript) {
+        if (mapScript.map_update_p_proc !== undefined) {
+            mapScript.self_obj = { _script: mapScript }
+            mapScript.map_update_p_proc()
         }
     }
 
-    export function reset(mapName: string, mapID?: number) {
-        // The event queue is not emptied here: leaving the old map already cleared what CE
-        // clears (queueLeavingMap, _queue_leaving_map); poison, radiation and the party's
-        // drug events carry over. A new game / load empties it (resetGameState).
-        dialogueOptionProcs.length = 0
-        dialogueOptionTexts.length = 0
-        dialogueReviewLog.length = 0
-        gameObjects = null
-        currentMapObject = null
-        currentMapID = mapID !== undefined ? mapID : null
-        // MVARs belong to their map and persist with it (CE saves them with the map);
-        // only a map never seen before gets its defaults (loadMapVars fills missing ones).
-        if (mapVars === null) mapVars = {}
-        loadMapVars(mapName)
+    for (let i = 0; i < gameObjects.length; i++) {
+        const script = gameObjects[i]._script
+        if (script !== undefined && script!.map_update_p_proc === undefined)
+            noteMissingProc(script!, 'map_update_p_proc')
+        if (script !== undefined && script!.map_update_p_proc !== undefined) {
+            script!.self_obj = gameObjects[i] as ScriptableObj
+            // Fallout 2 style HHMM: "8:24 AM" => 824, "3:00 PM" => 1500
+            script!.game_time_hour = GameTime.getHourMilitary()
+            script!.cur_map_index = currentMapID
+            script!.map_update_p_proc()
+        }
     }
-
-    export function init(mapName: string, mapID?: number) {
-        Worldmap.setWorldmapGlobalVarHooks((g) => globalVars[g] ?? 0, setGlobalVar) // car GVARs
-        // No randomInit here: CE seeds the RNG once per launch (game.cc gameInitWithOptions →
-        // random.cc randomInit; DH2: random.ts on module load), not on every map load.
-        loadGlobalVars()
-        reset(mapName, mapID)
-    }
-
-    export function give_exp_points(xp: number) {
-        if (!globalState.player) return
-        globalState.player.addExperience(xp)
-    }
-
-    // --- Built-in stubs for scripts whose .int files are not shipped ---
-
-    // ACTemDor: Temple of Trials wall/floor scenery script (proto SID 203).
-    // spatial_p_proc fires when an explosion blast hits the object's tile,
-    // and the vanilla implementation calls obj_destroy(self_obj) to remove
-    // the wall tile and open the passage. Registered by both name and SID
-    // so it works even when scripts.lst is missing or resolves to a name
-    // other than 'ACTemDor.int'.
-    registerStubBySid(203, 'actemdor', {
-        spatial_p_proc(this: Script) {
-            const self = this.self_obj as unknown as Obj
-            if (!self) return
-            dbg('script', `actemdor stub: destroying ${self.type} pid=${self.pid}`)
-            globalState.gMap?.destroyObject(self)
-        },
-    })
-
-    // AIBkDor: cave door script on acavedr2 (pid=33555364) in the Temple of
-    // Trials. Vanilla spatial_p_proc removes the intact door and places the
-    // destroyed rubble variant (acavedr3, pid=33555365) at the same tile with
-    // NoBlock flags so pathfinding allows movement through it.
-    // AIBkDor.int does not export spatial_p_proc, so we stub it here.
-    registerStub('aibkdor', {
-        spatial_p_proc(this: Script) {
-            const self = this.self_obj as unknown as Obj
-            if (!self) return
-            const pos = { ...self.position }
-            dbg('script', `AIBkDor stub: removing acavedr2 pid=${self.pid} @ (${pos.x},${pos.y})`)
-            globalState.gMap?.destroyObject(self)
-
-            // Spawn acavedr3 (destroyed rubble) at the same tile.
-            // pid 33555365 = (2 << 24) | 933 = scenery, pidID 933.
-            // flags 0xA0008010 = 2684387344, includes NoBlock (bit 4).
-            const rubble = createObjectWithPID(33555365, -1)
-            if (rubble && globalState.gMap) {
-                rubble.position = pos
-                rubble.flags = 2684387344
-                if (rubble.pro) rubble.pro.flags = 2684387344
-                globalState.gMap.addObject(rubble)
-                globalState.gMap.updateMap()
-            }
-        },
-    })
+    GlobalScripts.globalScriptsMapProc('map_update_p_proc') // CE scriptsExecMapUpdateScripts
 }
+
+export function enterMap(
+    mapScript: Script,
+    objects: Obj[],
+    elevation: number,
+    mapID: number,
+    isFirstRun: boolean,
+): StartPos | null {
+    return withSpatialsOff(() => enterMapScripts(mapScript, objects, mapID, isFirstRun))
+}
+
+function enterMapScripts(mapScript: Script, objects: Obj[], mapID: number, isFirstRun: boolean): StartPos | null {
+    gameObjects = objects
+    currentMapID = mapID
+    mapFirstRun = isFirstRun
+    ensureDudeScript()
+
+    // Fallout 2 resets ambient light to max on every map load; any
+    // script darkness is reapplied by the new map's map_enter_p_proc.
+    GameTime.clearLightLevelOverride()
+
+    if (mapScript && mapScript.map_enter_p_proc !== undefined) {
+        info('calling map enter')
+        mapScript.self_obj = { _script: mapScript }
+        // CE map.cc mapLoad: scriptSetFixedParam(gMapSid, (gMapHeader.flags & 1) == 0) — 1 on
+        // the first visit (the map not saved yet)
+        mapScript.fixed_param = isFirstRun ? 1 : 0
+        inMapEnter = true
+        try {
+            mapScript.map_enter_p_proc()
+        } finally {
+            inMapEnter = false
+        }
+    }
+    GlobalScripts.globalScriptsMapProc('map_enter_p_proc') // CE scriptsExecMapUpdateScripts
+    // a new game: its global scripts start once its map is loaded (CE main.cc)
+    GlobalScripts.startGlobalScriptsIfRequested((name) => loadScript(name))
+
+    if (scriptingState.overrideStartPos) {
+        const r = scriptingState.overrideStartPos
+        scriptingState.overrideStartPos = null
+        return r
+    }
+
+    // XXX: caller should do this for all objects, which is better?
+    return null
+}
+
+// Runs a no-argument proc on an object's script with the per-call context
+// objectEnterMap sets up (used for map_exit_p_proc).
+export function objectRunProc(obj: Obj, proc: 'map_exit_p_proc'): void {
+    const script: any = obj._script
+    if (script === undefined || script[proc] === undefined) {
+        noteMissingProc(script, proc)
+        return
+    }
+    script.self_obj = obj as ScriptableObj
+    script.game_time_hour = GameTime.getHourMilitary()
+    script.cur_map_index = currentMapID
+    script[proc]()
+}
+
+export function objectEnterMap(obj: Obj, elevation: number, mapID: number) {
+    const script = obj._script
+    if (script !== undefined && script!.map_enter_p_proc !== undefined) {
+        script!.self_obj = obj as ScriptableObj
+        // CE scripts.cc scriptsExecMapUpdateScripts(MAP_ENTER): fixed_param = first visit
+        script!.fixed_param = mapFirstRun ? 1 : 0
+        script!.game_time_hour = GameTime.getHourMilitary()
+        script!.cur_map_index = currentMapID
+        script!.map_enter_p_proc()
+    } else noteMissingProc(script!, 'map_enter_p_proc')
+}
+
+export function reset(mapName: string, mapID?: number) {
+    // CE: the old map's programs are freed, and with them their exported procedures and
+    // pending call_at / call_when; the dude's and the global scripts stay
+    const dudeScript = world.player?._script
+    vmClearPrograms((vm: any) => vm.scriptObj === dudeScript || GlobalScripts.globalScriptIsLoaded(vm.scriptObj))
+    // The event queue is not emptied here: leaving the old map already cleared what CE
+    // clears (queueLeavingMap, _queue_leaving_map); poison, radiation and the party's
+    // drug events carry over. A new game / load empties it (resetGameState).
+    scriptingState.dialogueOptionProcs.length = 0
+    scriptingState.dialogueOptionTexts.length = 0
+    scriptingState.dialogueReviewLog.length = 0
+    gameObjects = null
+    currentMapObject = null
+    currentMapID = mapID !== undefined ? mapID : null
+    // MVARs belong to their map and persist with it (CE saves them with the map);
+    // only a map never seen before gets its defaults (loadMapVars fills missing ones).
+    if (mapVars === null) mapVars = {}
+    loadMapVars(mapName)
+}
+
+export function init(mapName: string, mapID?: number) {
+    Worldmap.setWorldmapGlobalVarHooks(getGlobalVar, setGlobalVar) // car GVARs
+    // No randomInit here: CE seeds the RNG once per launch (game.cc gameInitWithOptions →
+    // random.cc randomInit; DH2: random.ts on module load), not on every map load.
+    loadGlobalVars()
+    reset(mapName, mapID)
+}
+
+export function give_exp_points(xp: number) {
+    if (!world.player) return
+    world.player.addExperience(xp)
+}
+
+// --- Built-in stubs for scripts whose .int files are not shipped ---
+
+// ACTemDor: Temple of Trials wall/floor scenery script (proto SID 203).
+// spatial_p_proc fires when an explosion blast hits the object's tile,
+// and the vanilla implementation calls obj_destroy(self_obj) to remove
+// the wall tile and open the passage. Registered by both name and SID
+// so it works even when scripts.lst is missing or resolves to a name
+// other than 'ACTemDor.int'.
+registerStubBySid(203, 'actemdor', {
+    spatial_p_proc(this: Script) {
+        const self = this.self_obj as unknown as Obj
+        if (!self) return
+        dbg('script', `actemdor stub: destroying ${self.type} pid=${self.pid}`)
+        world.gMap?.destroyObject(self)
+    },
+})
+
+// AIBkDor: cave door script on acavedr2 (pid=33555364) in the Temple of
+// Trials. Vanilla spatial_p_proc removes the intact door and places the
+// destroyed rubble variant (acavedr3, pid=33555365) at the same tile with
+// NoBlock flags so pathfinding allows movement through it.
+// AIBkDor.int does not export spatial_p_proc, so we stub it here.
+registerStub('aibkdor', {
+    spatial_p_proc(this: Script) {
+        const self = this.self_obj as unknown as Obj
+        if (!self) return
+        const pos = { ...self.position }
+        dbg('script', `AIBkDor stub: removing acavedr2 pid=${self.pid} @ (${pos.x},${pos.y})`)
+        world.gMap?.destroyObject(self)
+
+        // Spawn acavedr3 (destroyed rubble) at the same tile.
+        // pid 33555365 = (2 << 24) | 933 = scenery, pidID 933.
+        // flags 0xA0008010 = 2684387344, includes NoBlock (bit 4).
+        const rubble = createObjectWithPID(33555365, -1)
+        if (rubble && world.gMap) {
+            rubble.position = pos
+            rubble.flags = 2684387344
+            if (rubble.pro) rubble.pro.flags = 2684387344
+            world.gMap.addObject(rubble)
+            world.gMap.updateMap()
+        }
+    },
+})
 
 if (typeof window !== 'undefined') {
-    ;(window as any).Scripting = Scripting
+    // the module's own namespace object, for DevTools and the test pages (was the TS namespace)
+    window.Scripting = ScriptingModule
 }
+
+// Script's methods kept in other files by topic (wiki/code_quality.md Q16): installed on the prototype
+// by classParts.ts (so this module does not import them: they import half the engine), typed through
+// the interface merge below.
+type ScriptMethods = typeof coreOpcodes &
+    typeof metaruleOpcodes &
+    typeof critterOpcodes &
+    typeof inventoryOpcodes &
+    typeof objectsOpcodes &
+    typeof mapOpcodes &
+    typeof animOpcodes &
+    typeof dialogueOpcodes &
+    typeof combatOpcodes &
+    typeof sfallOpcodes
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type, @typescript-eslint/no-unsafe-declaration-merging
+export interface Script extends ScriptMethods {}

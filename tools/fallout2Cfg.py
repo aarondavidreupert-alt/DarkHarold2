@@ -15,7 +15,7 @@ limitations under the License.
 """
 
 # fallout2.cfg for a fresh install - CE game_config.cc gameConfigInit defaults
-# plus DarkHarold2's [dh2] section (read by src/ui_options/fallout2Cfg.ts).
+# plus DarkHarold2's [dh2] section (read by src/uiOptions/fallout2Cfg.ts).
 # CE writes the file itself on exit (gameConfigSave); a browser can't, so the
 # pipeline creates it once. An existing file is never overwritten - it may hold
 # the user's own settings.
@@ -25,7 +25,7 @@ import os
 DEFAULT_CFG = r"""; fallout2.cfg - DarkHarold2
 ;
 ; Default values of CE game_config.cc gameConfigInit. DarkHarold2 reads this file at
-; startup (src/ui_options/fallout2Cfg.ts). A browser can't write it back, so changes
+; startup (src/uiOptions/fallout2Cfg.ts). A browser can't write it back, so changes
 ; made in the Options screen are kept in localStorage and override this file. Clear
 ; the site data to fall back to these values.
 ;
@@ -113,6 +113,38 @@ walk_model=ce
 anim_offset_model=ce
 ; object draw order: ce (CE: by tile), ce-dh2 (CE + walls first on a tile), dh2 (old screen-space test)
 object_sort=ce-dh2
+; mouse clicks: dh2 = a move-cursor click uses / attacks what is under it, an arrow-cursor
+; click opens the action menu; ce = CE: a move click always walks, an arrow click does the
+; primary action (talk, pick up, use, look), holding the button opens the action menu
+mouse_mode=dh2
+; damage formula (sfall's DamageFormula; wiki/damage_formula.md): vanilla = Fallout 2's own,
+; glovz = Glovz's (DR before multipliers, armour matters more), glovz_tweak = Glovz with the
+; critical multiplier as +25 % steps, yaam = YAAM (ammo DR modifier lowers DT instead)
+damage_formula=vanilla
+; Talk: dh2 = the player walks up to the critter first, ce = CE: talks from where they
+; stand when the critter is under 9 hexes away and in line of sight (outside combat)
+talk_mode=dh2
+; offering a running item in barter (a burning flare, an armed explosive, a switched-on Geiger
+; counter or Stealth Boy): dh2 = the merchant says what is wrong with it, ce = CE's
+; "No, your offer is not good enough."
+barter_running_item=dh2
+; map scrolling at the screen edge and with the arrow keys: dh2 = smooth, ce = CE's
+; 32 x 24 px steps
+scroll_mode=dh2
+; mouse wheel: zoom = zooms the map (DH2), ce = scrolls the map as in CE
+mouse_wheel=zoom
+; 1 = a short fade from black when the elevation changes (DH2), 0 = CE's instant switch
+elevation_fade=1
+; combat outlines: dh2 = red hostile, green team, blue for neutrals (seen through walls);
+; ce = CE: red / green by team for critters in the line of fire, a dim outline for those
+; out of sight within Perception x 5 hexes, none farther
+combat_outline=dh2
+; save / load slots: dh2 = any number, always a free one, DELETE removes a save;
+; ce = CE's ten slots and no deleting (with more saves, only the first ten are listed)
+save_slots=dh2
+; walls in front of the player: dh2-egg = CE's egg mask with DH2's occlusion test,
+; ce-egg = CE's egg with CE's exact test, alpha = flat transparency, bbox = bounding boxes
+egg_mode=dh2-egg
 ; game scripts: lua = the decompiled data/scripts/*.lua (tools/int2lua.py; a script
 ; without one runs its .int), vm = the .int bytecode
 script_backend=lua
@@ -122,6 +154,11 @@ mods=
 script_fixes=1
 ; 1 = the Pip-Boy opens before the Vault Suit movie (sfall option), 0 = CE
 pipboy_available_at_game_start=0
+; main menu button labels: white = DH2, ce = CE's yellow (like the menu's footer text)
+menu_text=white
+; 1 = the developer console commands (skipTemple(), revealWorldmap(), giveCar(), ...) in the
+; browser console on every start; 0 = only with play.html#dev
+dev_console=0
 ; dragging windows by their background (DH2 addition; CE windows are fixed)
 ; drag_windows=0 turns it off everywhere; drag_<window>=0/1 per window
 drag_windows=1

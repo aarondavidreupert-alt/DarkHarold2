@@ -50,7 +50,7 @@ Also ported:
 - **`give_car_to_party`** (`wmCarGiveToParty`): refuses an empty tank (msg 1502). It no
   longer refills the tank or sets `GVAR_PLAYER_GOT_CAR`; that's the scripts' job.
 
-`window.giveCar()` remains as a test helper: it sets `GVAR_PLAYER_GOT_CAR` and the car
+`giveCar()` (console, `play.html#dev`) remains as a test helper: it sets `GVAR_PLAYER_GOT_CAR` and the car
 area, and the town script does the rest.
 
 Verified in the browser on Den: park, revisit, drive off (the car is removed and the
@@ -119,7 +119,7 @@ files under `data/scripts/*.int`.
 were not citable with file/line because DH2 has no decompiler for them. That
 was wrong** — DH2 already ships everything needed to statically disassemble
 them: `src/intfile.ts` (header/procedure-table parser) and `src/vm.ts` +
-`src/vm_bridge.ts` (the full opcode table, since DH2's own scripting engine
+`src/vmBridge.ts` (the full opcode table, since DH2's own scripting engine
 executes this exact bytecode format for gameplay). A standalone static
 disassembler built from those references successfully extracted real,
 verified car-placement tiles for 10 towns — see §7. This is a correction to
@@ -146,7 +146,7 @@ surfacing source/wiki discrepancies rather than silently editing over them.
 | `src/worldmap/Worldmap.ts` — `getIsInCar` / `setIsInCar` / `getCarFuel` / `setCarFuel` / `addCarFuel` / `fillCarFuel` / `getCarMapName` / `setCarMapName` / `updateCarUI` | Accessor/mutator set for the module-level state; `setIsInCar`/`setCarFuel`/`addCarFuel`/`fillCarFuel` also push the value onto the live `worldmapPlayer` object when one exists, so the worldmap UI and the travel-loop read consistent state. | `Worldmap.ts:192–228` |
 | `src/worldmap/Worldmap.ts` — `updateWorldmapPlayer()` speed/fuel block | `inCar = worldmapPlayer.isInCar && worldmapPlayer.carFuel > 0`; `carMult = inCar ? 4 : 1` (flat, no upgrade tiers); fuel consumed at a flat **100 units per tick** while `inCar`, with a `dbg`/`console.warn` when it hits 0. Comment at this call site (`"Base: 400/tick. Here we consume 100/tick"`) mischaracterizes CE's actual rate — see §4. | `Worldmap.ts:520–568` |
 | `src/worldmap/Worldmap.ts` — fuel bar UI ratio | `ratio = Math.floor((70 * carFuel) / CAR_FUEL_MAX)` — matches CE's `(WM_WINDOW_CAR_FUEL_BAR_HEIGHT * carFuel) / CAR_FUEL_MAX` proportional formula (CE's bar height constant is 70px). | `Worldmap.ts:229–230` |
-| `src/main.ts` — `window.giveCar([fuel])` console helper | Test-only command: sets `carFuel`, `GVAR_PLAYER_GOT_CAR`, and either parks the car at the player's current area/map (`isInCar=false`, `carMapName` set) or puts the party directly into travel mode (`isInCar=true`), depending on whether the player is currently on the worldmap or a local map. | `Worldmap.ts:81–113` |
+| `src/worldmap/Worldmap.ts` `giveCar([fuel])` — console helper (`play.html#dev`, `src/devConsole/register.ts`) | Test-only command: sets `carFuel`, `GVAR_PLAYER_GOT_CAR`, and either parks the car at the player's current area/map (`isInCar=false`, `carMapName` set) or puts the party directly into travel mode (`isInCar=true`), depending on whether the player is currently on the worldmap or a local map. | `Worldmap.ts:81–113` |
 | `src/scripting.ts` — `metarule()` car cases | `case 30`: returns `Worldmap.getCarAreaId()`. `case 31`: sets `isInCar=true`, calls `fillCarFuel()`, sets `GVAR_PLAYER_GOT_CAR=1`, opens the worldmap UI. `case 32`: adds gas via `target` amount. `case 52`/`case 53` (`SET_CAR_CARRY_AMOUNT`/`GET_CAR_CARRY_AMOUNT`): **hardcoded no-ops** — `return 0` with a comment "no car system"; does not touch the trunk proto's `maxSize` field the way CE does. | `scripting.ts:717–741` |
 | `src/object/Obj.ts` — `isContainer` getter | `return this.type === 'item' && this.pro.extra.subType === 1` (SUBTYPE_CONTAINER). Works for the trunk because `Obj.fromPID_()` sets `obj.type = getPROTypeName(pidType)` **generically from the PID's high byte**, regardless of which subclass constructed the instance — so even a bare `Obj.fromPID(455)` ends up with `type: 'item'`, `subtype: 'container'`. | `Obj.ts:377–399`, getter at `:803–805` |
 | `src/object/factories.ts` — normal PID dispatch convention | `objFromMapObject`/`createObjectWithPID` branch on `pidType`: `pidType === 0` (items) dispatches to `WeaponObj.fromPID` or `Item.fromPID` depending on subtype, producing a proper `Item`-typed instance. `mapLoader.ts`'s trunk injection bypasses this and calls the generic `Obj.fromPID(PROTO_ID_CAR_TRUNK)` directly instead of `Item.fromPID` — functionally equivalent today (nothing currently narrows on `instanceof Item` for container logic) but stylistically inconsistent with the codebase's own dispatch convention. | `factories.ts:27–48` |
@@ -321,9 +321,9 @@ scratch tool) was built from three DH2 source files:
 - `src/vm.ts` — the core opcode table, confirming `0xc001` (`op_push_d`) is
   the literal 32-bit integer push and `0x9001` are the only two opcodes that
   consume inline operand bytes; every other opcode (including all game
-  intrinsics from `vm_bridge.ts`) is a bare 2-byte opcode whose arguments are
+  intrinsics from `vmBridge.ts`) is a bare 2-byte opcode whose arguments are
   already on the VM's data stack from prior pushes.
-- `src/vm_bridge.ts` — confirms `0x80B7` is `create_object_sid`
+- `src/vmBridge.ts` — confirms `0x80B7` is `create_object_sid`
   (`pid, tile, elev, sid`, argc=4), and that `bridged()` pops args in reverse
   then un-reverses them, so push order matches declaration order.
 

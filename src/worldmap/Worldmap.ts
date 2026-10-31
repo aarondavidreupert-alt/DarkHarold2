@@ -18,20 +18,27 @@ limitations under the License.
 // carved out of worldmap.ts. See wiki/ts-split-refactor.md §10.
 
 import { scriptsCheckGameEvents } from '../gameTick.js'
-import { Events } from '../events.js'
+import * as Events from '../events.js'
 import { areaContainingMap, loadAreas, lookupMapName, mapIsSaved, type Area } from '../data.js'
 import * as GameTime from '../gametime.js'
-import { Point, pointIntersectsCircle } from '../geometry.js'
-import globalState from '../globalState.js'
-import { hidev, makeEl, showv, uiCloseWorldMap, uiWorldMapShowArea } from '../ui.js'
-import { showConfirm } from '../ui_dialog.js'
+import { Point } from '../geometry.js'
+import { world } from '../state/world.js'
+import { hidev, makeEl, showv } from '../uiDom.js'
+import { uiPort } from '../uiPort.js'
+import { showConfirm } from '../uiDialog.js'
 import { clamp, getFileBinarySync, getFileText, getMessage } from '../util.js'
 import { Config } from '../config.js'
 import { dbg } from '../logger.js'
 import { Worldmap as WorldmapData, WorldmapPlayer } from './types.js'
 import { parseWorldmap } from './parser.js'
-import { cancelEncounter, EncounterRoll, resetEncounterTimer, rndEncounterOccurred, setupRandomEncounter } from './encounters.js'
-import { drawHP } from '../ui_hud.js'
+import {
+    cancelEncounter,
+    EncounterRoll,
+    resetEncounterTimer,
+    rndEncounterOccurred,
+    setupRandomEncounter,
+} from './encounters.js'
+import { drawHP } from '../hudRefresh.js'
 import { assetUrl } from '../modAssets.js'
 
 export const WORLDMAP_UNDISCOVERED = 0
@@ -82,8 +89,9 @@ function loadWalkMask(name: string): Uint8Array | null {
 // authored against this exact layout. (Restored 2026-10-06; lost in b282cca.)
 export function worldPosInvalid(x: number, y: number): boolean {
     if (!worldmap) return false
-    const tileIdx = Math.floor(y / WM_TILE_HEIGHT) * WM_NUM_HORIZONTAL_TILES
-        + (Math.floor(x / WM_TILE_WIDTH) % WM_NUM_HORIZONTAL_TILES)
+    const tileIdx =
+        Math.floor(y / WM_TILE_HEIGHT) * WM_NUM_HORIZONTAL_TILES +
+        (Math.floor(x / WM_TILE_WIDTH) % WM_NUM_HORIZONTAL_TILES)
     const name = worldmap.walkMaskNames[tileIdx]
     if (!name) return false
     const mask = loadWalkMask(name)
@@ -98,8 +106,8 @@ export function worldPosInvalid(x: number, y: number): boolean {
 
 // Module-private mutable state. Exposed to sibling modules via the accessor
 // helpers below.
-let worldmap: WorldmapData = null
-let worldmapPlayer: WorldmapPlayer = null
+let worldmap: WorldmapData | null = null
+let worldmapPlayer: WorldmapPlayer | null = null
 // CE ref: worldmap.h wmGenData.isInCar / wmGenData.carFuel — persisted across
 // worldmap open/close cycles (init() recreates worldmapPlayer from these).
 let _isInCar = false
@@ -113,11 +121,21 @@ let $worldmap: HTMLElement | null = null
 let $worldmapPlayer: HTMLElement | null = null
 let $worldmapTarget: HTMLElement | null = null
 let worldmapTimer: number = -1
+// the world map is open (start → stop): an encounter answered after it closed does not
+// restart the frame loop — it then ran on in the town map, walking and advancing the clock
+let running = false
 // CE wmGenData walking state — wmPartyInitWalking sets up a Bresenham line,
 // wmPartyWalkingStep advances it one pixel.
 const walk = {
-    isWalking: false, distance: 0, lineDelta: 0, mainAxisStep: 0, crossAxisStep: 0,
-    mainX: 0, mainY: 0, crossX: 0, crossY: 0,
+    isWalking: false,
+    distance: 0,
+    lineDelta: 0,
+    mainAxisStep: 0,
+    crossAxisStep: 0,
+    mainX: 0,
+    mainY: 0,
+    crossX: 0,
+    crossY: 0,
 }
 let terrainCounter = 1 // CE _terrainCounter
 // CE wmGenData.currentAreaId: the area the party is at (-1 out in the wastes) —
@@ -133,37 +151,37 @@ let _panY = 0
 // Keyboard/mouse-edge scroll state
 const _heldKeys = new Set<string>()
 let _mouseEdge = { left: false, right: false, top: false, bottom: false }
-const PAN_SPEED = 2   // px per frame for manual scroll
-const VIEW_W = 445    // #worldMapWorld viewport width  (CE WM_VIEW_WIDTH)
-const VIEW_H = 438    // #worldMapWorld viewport height (CE WM_VIEW_HEIGHT)
-const MAP_W = NUM_SQUARES_X * SQUARE_SIZE   // 1400
-const MAP_H = NUM_SQUARES_Y * SQUARE_SIZE   // 1500
-const EDGE_THRESHOLD = 20  // px from edge that triggers mouse-edge scroll
+const PAN_SPEED = 2 // px per frame for manual scroll
+const VIEW_W = 445 // #worldMapWorld viewport width  (CE WM_VIEW_WIDTH)
+const VIEW_H = 438 // #worldMapWorld viewport height (CE WM_VIEW_HEIGHT)
+const MAP_W = NUM_SQUARES_X * SQUARE_SIZE // 1400
+const MAP_H = NUM_SQUARES_Y * SQUARE_SIZE // 1500
+const EDGE_THRESHOLD = 20 // px from edge that triggers mouse-edge scroll
 
-// Console command: window.giveCar([fuel]) — test helper standing in for the quest
+// Console command giveCar([fuel]) (play.html#dev, src/devConsole) — test helper standing in for the quest
 // that hands over the Highwayman: sets GVAR_PLAYER_GOT_CAR (which the town map
 // scripts check before placing the car) and parks the car in the current area
 // (CE wmCarSetCurrentArea), or puts the party in it when outside any area.
-if (typeof window !== 'undefined') {
-    ;(window as any).giveCar = (fuel: number = CAR_FUEL_MAX) => {
-        _carFuel = Math.min(CAR_FUEL_MAX, Math.max(0, fuel))
-        if (worldmapPlayer) worldmapPlayer.carFuel = _carFuel
-        setGlobalVarHook?.(GVAR_PLAYER_GOT_CAR, 1)
-        const mapName = (globalState.gMap as any)?.name as string | undefined
-        if (!globalState.mapAreas) {
-            try { globalState.mapAreas = loadAreas() } catch (_) {}
-        }
-        const area = mapName && globalState.mapAreas ? areaContainingMap(mapName) : null
-        if (area) {
-            setIsInCar(false)
-            _currentCarAreaId = area.id
-            console.log(`Car parked in "${area.name}" — its map script places it on the next map load.`)
-        } else {
-            setIsInCar(true)
-            console.log(`Car enabled (travel mode). Fuel: ${_carFuel} / ${CAR_FUEL_MAX}`)
-        }
-        updateCarUI()
+export function giveCar(fuel: number = CAR_FUEL_MAX): void {
+    _carFuel = Math.min(CAR_FUEL_MAX, Math.max(0, fuel))
+    if (worldmapPlayer) worldmapPlayer.carFuel = _carFuel
+    setGlobalVarHook?.(GVAR_PLAYER_GOT_CAR, 1)
+    const mapName = world.gMap?.name as string | undefined
+    if (!world.mapAreas) {
+        try {
+            world.mapAreas = loadAreas()
+        } catch (_) {}
     }
+    const area = mapName && world.mapAreas ? areaContainingMap(mapName) : null
+    if (area) {
+        setIsInCar(false)
+        _currentCarAreaId = area.id
+        console.log(`Car parked in "${area.name}" — its map script places it on the next map load.`)
+    } else {
+        setIsInCar(true)
+        console.log(`Car enabled (travel mode). Fuel: ${_carFuel} / ${CAR_FUEL_MAX}`)
+    }
+    updateCarUI()
 }
 
 // game_vars.h car GVARs. Scripting registers the accessors (avoids a worldmap →
@@ -176,7 +194,10 @@ const GVAR_NEW_RENO_SUPER_CAR = 456
 const CITY_CAR_OUT_OF_GAS = 21 // worldmap.h City enum
 let setGlobalVarHook: ((gvar: number, value: number) => void) | null = null
 let getGlobalVarHook: ((gvar: number) => number) | null = null
-export function setWorldmapGlobalVarHooks(get: (gvar: number) => number, set: (gvar: number, value: number) => void): void {
+export function setWorldmapGlobalVarHooks(
+    get: (gvar: number) => number,
+    set: (gvar: number, value: number) => void,
+): void {
     getGlobalVarHook = get
     setGlobalVarHook = set
 }
@@ -195,25 +216,25 @@ function carStepsPerTick(): number {
 // CE worldmap.cc wmCarUseGas — once per loop regardless of the step count; the
 // upgrades cut the cost (super car -90%, New Reno upgrade -10%, fuel cell regulator /2).
 function carUseGas(amount: number): void {
-    if (gvar(GVAR_NEW_RENO_SUPER_CAR) !== 0) amount -= Math.trunc(amount * 90 / 100)
-    if (gvar(GVAR_NEW_RENO_CAR_UPGRADE) !== 0) amount -= Math.trunc(amount * 10 / 100)
+    if (gvar(GVAR_NEW_RENO_SUPER_CAR) !== 0) amount -= Math.trunc((amount * 90) / 100)
+    if (gvar(GVAR_NEW_RENO_CAR_UPGRADE) !== 0) amount -= Math.trunc((amount * 10) / 100)
     if (gvar(GVAR_CAR_UPGRADE_FUEL_CELL_REGULATOR) !== 0) amount = Math.trunc(amount / 2)
     _carFuel = Math.max(0, _carFuel - amount)
-    worldmapPlayer.carFuel = _carFuel
+    worldmapPlayer!.carFuel = _carFuel
 }
 
 function applyPan(px: number, py: number): void {
     _panX = clamp(0, MAP_W - VIEW_W, px)
     _panY = clamp(0, MAP_H - VIEW_H, py)
-    $worldmap.style.transform = `translate(${-_panX}px, ${-_panY}px)`
+    $worldmap!.style.transform = `translate(${-_panX}px, ${-_panY}px)`
 }
 
 // CE ref: worldmap.cc WM_WINDOW_DIAL_X=532/Y=48; wmInterfaceDialSyncTime.
 // wmdial.png: 1392×29 — frmpixels.py writes ALL frames horizontally with maxW stride.
 // wmdial.frm has 24 frames, each 58×29 (maxW=58). 24 × 58 = 1392px.
 // CE artGetFrameCount = 24.  Frame formula: (gameHour/100 + 12) % 24.
-const DIAL_FRAMES   = 24  // CE artGetFrameCount
-const DIAL_FRAME_W  = 58  // each frame is 58px wide in the PNG (frmpixels maxW)
+const DIAL_FRAMES = 24 // CE artGetFrameCount
+const DIAL_FRAME_W = 58 // each frame is 58px wide in the PNG (frmpixels maxW)
 
 function updateDial(): void {
     if (!$worldMapDial) return
@@ -231,8 +252,8 @@ function updateDial(): void {
 // numbers.png: 360×17, frames packed at 9px stride (same as pipboy shell.ts DIGIT_W=9).
 // Frames 0-9 = digits 0-9 (green). CE worldmap: offset = 9*digit in raw FRM data.
 // months.png: 29×179, 12 entries × 15px stride, 14px visible. Month N (0-indexed) → backgroundPositionY = -(N*15)px.
-const NUM_FRAME_W = 9    // matches pipboy DIGIT_W
-const MON_FRAME_H = 15   // row stride in months.png
+const NUM_FRAME_W = 9 // matches pipboy DIGIT_W
+const MON_FRAME_H = 15 // row stride in months.png
 
 function setDigit(id: string, digit: number): void {
     const el = document.getElementById(id)
@@ -247,8 +268,8 @@ function updateDate(): void {
     if (key === _lastDateKey) return
     _lastDateKey = key
 
-    setDigit('wmDay1',  Math.floor(d.day / 10))
-    setDigit('wmDay2',  d.day % 10)
+    setDigit('wmDay1', Math.floor(d.day / 10))
+    setDigit('wmDay2', d.day % 10)
 
     const monthEl = document.getElementById('wmMonth')
     if (monthEl) monthEl.style.backgroundPositionY = -(d.month * MON_FRAME_H) + 'px'
@@ -259,7 +280,8 @@ function updateDate(): void {
     setDigit('wmYear3', Math.floor(y / 10) % 10)
     setDigit('wmYear4', y % 10)
 
-    const h = d.hours, m = d.minutes
+    const h = d.hours,
+        m = d.minutes
     setDigit('wmTime1', Math.floor(h / 10))
     setDigit('wmTime2', h % 10)
     setDigit('wmTime3', Math.floor(m / 10))
@@ -268,36 +290,52 @@ function updateDate(): void {
 
 // Sibling-module accessors (used by encounters.ts).
 export function getWorldmap(): WorldmapData {
-    return worldmap
+    return worldmap!
 }
 export function getWorldmapPlayer(): WorldmapPlayer {
-    return worldmapPlayer
+    return worldmapPlayer!
 }
 
 // CE ref: worldmap.cc wmCarGiveToParty / wmCarUseGas / wmCarFillGas / wmCarIsOutOfGas.
 // The backing vars (_isInCar, _carFuel) survive worldmap open/close cycles;
 // worldmapPlayer shadows them while the worldmap is open.
-export function getIsInCar(): boolean { return _isInCar }
+export function getIsInCar(): boolean {
+    return _isInCar
+}
 export function setIsInCar(val: boolean): void {
     _isInCar = val
     if (worldmapPlayer) worldmapPlayer.isInCar = val
 }
-export function getCarFuel(): number { return _carFuel }
+export function getCarFuel(): number {
+    return _carFuel
+}
 export function setCarFuel(amount: number): void {
     _carFuel = Math.min(CAR_FUEL_MAX, Math.max(0, amount))
     if (worldmapPlayer) worldmapPlayer.carFuel = _carFuel
 }
-export function addCarFuel(amount: number): void {
-    _carFuel = Math.min(CAR_FUEL_MAX, _carFuel + Math.max(0, amount))
+// CE worldmap.cc wmCarFillGas: the fuel goes up by `amount` (a negative one takes some away);
+// past CAR_FUEL_MAX the tank is full and the result is the room there was, else 0.
+export function addCarFuel(amount: number): number {
+    let result = 0
+    if (amount + _carFuel <= CAR_FUEL_MAX) _carFuel += amount
+    else {
+        result = CAR_FUEL_MAX - _carFuel
+        _carFuel = CAR_FUEL_MAX
+    }
     if (worldmapPlayer) worldmapPlayer.carFuel = _carFuel
+    return result
 }
 export function fillCarFuel(): void {
     _carFuel = CAR_FUEL_MAX
     if (worldmapPlayer) worldmapPlayer.carFuel = CAR_FUEL_MAX
 }
 // CE ref: worldmap.cc wmGenData.currentCarAreaId / wmCarCurrentArea().
-export function getCarAreaId(): number { return _currentCarAreaId }
-export function setCarAreaId(areaId: number): void { _currentCarAreaId = areaId }
+export function getCarAreaId(): number {
+    return _currentCarAreaId
+}
+export function setCarAreaId(areaId: number): void {
+    _currentCarAreaId = areaId
+}
 
 // wmcarmve.png: 1302×73 — 14 frames × 93px (art/imageMap.json), the same
 // frmpixels.py horizontal-strip packing as wmdial.png. Cycled once per
@@ -366,21 +404,23 @@ export function positionToSquare(pos: Point): Point {
 }
 
 const SQUARE_STATE_CLASS: { [state: number]: string } = {
-    [WORLDMAP_UNDISCOVERED]: 'undiscovered', [WORLDMAP_DISCOVERED]: 'discovered', [WORLDMAP_SEEN]: 'seen',
+    [WORLDMAP_UNDISCOVERED]: 'undiscovered',
+    [WORLDMAP_DISCOVERED]: 'discovered',
+    [WORLDMAP_SEEN]: 'seen',
 }
 
 // CE wmMarkSubTileOffsetVisitedFunc: a subtile becomes known (SEEN) only while still
 // unknown; visited (DISCOVERED) always.
-function markSquare(x: number, y: number, state: number): void {
+function markSquare(x: number, y: number, state: number, force = false): void {
     if (x < 0 || x >= NUM_SQUARES_X || y < 0 || y >= NUM_SQUARES_Y) return
-    const square = worldmap.squares[x][y]
-    if (state === WORLDMAP_SEEN && square.state !== WORLDMAP_UNDISCOVERED) return
+    const square = worldmap!.squares[x][y]
+    if (!force && state === WORLDMAP_SEEN && square.state !== WORLDMAP_UNDISCOVERED) return
     if (square.state === state) return
     const old = square.state
     square.state = state
     const $square = $worldmap?.querySelector(`div.worldmapSquare[square-x='${x}'][square-y='${y}']`)
     if ($square) {
-        $square.classList.remove('worldmapSquare-' + SQUARE_STATE_CLASS[old])
+        $square.classList.remove('worldmapSquare-' + SQUARE_STATE_CLASS[old!])
         $square.classList.add('worldmapSquare-' + SQUARE_STATE_CLASS[state])
     }
 }
@@ -392,7 +432,7 @@ function markSquare(x: number, y: number, state: number): void {
 export function markSubTileRadiusVisited(px: number, py: number, radiusOverride?: number): void {
     if (!worldmap) return
     // metarule3 101 (CE wmSubTileMarkRadiusVisited) passes the radius; travel uses Scout's
-    const radius = radiusOverride ?? (globalState.player?.perks.includes('Scout') ? 2 : 1)
+    const radius = radiusOverride ?? (world.player?.perks.includes('Scout') ? 2 : 1)
     const sx = Math.floor(px / SQUARE_SIZE)
     const sy = Math.floor(py / SQUARE_SIZE)
     for (let dy = -radius; dy <= radius; dy++) {
@@ -416,7 +456,8 @@ export function markSubTileRadiusVisited(px: number, py: number, radiusOverride?
 // visited).
 export function subTileVisitedState(px: number, py: number): number {
     if (!worldmap) return 0
-    const sx = Math.floor(px / SQUARE_SIZE), sy = Math.floor(py / SQUARE_SIZE)
+    const sx = Math.floor(px / SQUARE_SIZE),
+        sy = Math.floor(py / SQUARE_SIZE)
     if (sx < 0 || sx >= NUM_SQUARES_X || sy < 0 || sy >= NUM_SQUARES_Y) return 0
     const state = worldmap.squares[sx][sy].state
     return state === WORLDMAP_DISCOVERED ? 2 : state === WORLDMAP_SEEN ? 1 : 0
@@ -426,7 +467,8 @@ export function subTileVisitedState(px: number, py: number): number {
 export function serializeSquareStates(): number[] | null {
     if (!worldmap) return null
     const out: number[] = []
-    for (let y = 0; y < NUM_SQUARES_Y; y++) for (let x = 0; x < NUM_SQUARES_X; x++) out.push(worldmap.squares[x][y].state)
+    for (let y = 0; y < NUM_SQUARES_Y; y++)
+        for (let x = 0; x < NUM_SQUARES_X; x++) out.push(worldmap.squares[x][y].state!)
     return out
 }
 export function deserializeSquareStates(states: number[] | null | undefined): void {
@@ -462,20 +504,28 @@ const HOTSPOT_H = 13
 // party and the town tabs walk to (city.x + w / 2 − WM_VIEW_X).
 export function areaCenter(area: { worldPosition: Point; size: string }): Point {
     const s = AREA_CIRCLE_SIZE[area.size] ?? 0
-    return { x: area.worldPosition.x + Math.trunc(s / 2) - WM_VIEW_X, y: area.worldPosition.y + Math.trunc(s / 2) - WM_VIEW_Y }
+    return {
+        x: area.worldPosition.x + Math.trunc(s / 2) - WM_VIEW_X,
+        y: area.worldPosition.y + Math.trunc(s / 2) - WM_VIEW_Y,
+    }
 }
 
 // CE: a special encounter's / the out-of-gas area is put so the party stands at
 // worldPos + hotspot / 2 + sphere / 2 (city coordinates)
 export function areaPosAtParty(area: { size: string }, px: number, py: number): Point {
     const s = AREA_CIRCLE_SIZE[area.size] ?? 0
-    return { x: px + Math.trunc(HOTSPOT_W / 2) + Math.trunc(s / 2), y: py + Math.trunc(HOTSPOT_H / 2) + Math.trunc(s / 2) }
+    return {
+        x: px + Math.trunc(HOTSPOT_W / 2) + Math.trunc(s / 2),
+        y: py + Math.trunc(HOTSPOT_H / 2) + Math.trunc(s / 2),
+    }
 }
 
 // CE wmInterfaceDrawCircleOverlay: the name of a known area (map.msg 1500 + id), else
 // "Unknown" (worldmap.msg 1004)
 function areaLabelText(area: any): string {
-    return areaIsKnown(area.id) ? (getMessage('map', 1500 + area.id) ?? area.name) : (getMessage('worldmap', 1004) ?? 'Unknown')
+    return areaIsKnown(area.id)
+        ? (getMessage('map', 1500 + area.id) ?? area.name)
+        : (getMessage('worldmap', 1004) ?? 'Unknown')
 }
 
 // CE ref: worldmap.cc wmAreaSetPos() — moves a town-marker DOM element to match
@@ -483,9 +533,9 @@ function areaLabelText(area: any): string {
 // One marker per area whose state isn't CITY_STATE_UNKNOWN (CE worldmap.cc:5225
 // wmInterfaceRefresh draws exactly those). Re-run whenever an area's state changes.
 export function refreshAreaMarkers(): void {
-    if (!$worldmap || !globalState.mapAreas) return
-    for (const key in globalState.mapAreas) {
-        const area = globalState.mapAreas[key]
+    if (!$worldmap || !world.mapAreas) return
+    for (const key in world.mapAreas) {
+        const area = world.mapAreas[key]
         const $existing = $worldmap.querySelector<HTMLElement>(`[data-area-key="${key}"]`)
         if (area.state !== true) {
             $existing?.remove()
@@ -508,8 +558,8 @@ export function refreshAreaMarkers(): void {
         // offsetHeight — this can run while the worldmap panel is still
         // display:none (first open), where both would read 0.
         const circleSize = AREA_CIRCLE_SIZE[area.size] ?? 0
-        $area.style.left = (area.worldPosition.x - WM_VIEW_X) + 'px'
-        $area.style.top = (area.worldPosition.y - WM_VIEW_Y) + 'px'
+        $area.style.left = area.worldPosition.x - WM_VIEW_X + 'px'
+        $area.style.top = area.worldPosition.y - WM_VIEW_Y + 'px'
 
         const $label = makeEl('div', {
             classes: ['areaLabel'],
@@ -523,30 +573,40 @@ export function refreshAreaMarkers(): void {
 // CE worldmap.cc wmAreaSetVisibleState (+ force) — known/unknown on the worldmap.
 // globalState.knownAreas mirrors it for the scripting/endgame checks that read it.
 export function setAreaVisible(areaId: number, visible: boolean): void {
-    const area = globalState.mapAreas?.[areaId]
+    const area = world.mapAreas?.[areaId]
     if (area) area.state = visible
-    if (visible) globalState.knownAreas.add(areaId)
-    else globalState.knownAreas.delete(areaId)
+    if (visible) world.knownAreas.add(areaId)
+    else world.knownAreas.delete(areaId)
     refreshAreaMarkers()
 }
 
 // CE worldmap.cc wmAreaMarkVisitedState — 1 known, 2 visited (a first visit lands on 1).
 export function setAreaVisitedState(areaId: number, state: number): void {
-    const area: any = globalState.mapAreas?.[areaId]
+    const area: any = world.mapAreas?.[areaId]
     if (!area) return
     const old = area.visitedState ?? 0
+    // CE worldmap.cc wmAreaMarkVisitedState: a known area clears the fog around itself;
+    // state 1 makes its own subtile known
+    const pos = area.worldPosition
+    if (area.state === true && state !== 0 && pos) markSubTileRadiusVisited(pos.x, pos.y)
     area.visitedState = state
-    if (state === 2 && old === 0) area.visitedState = 1
+    if (state === 1 && pos && worldmap) {
+        markSquare(Math.floor(pos.x / SQUARE_SIZE), Math.floor(pos.y / SQUARE_SIZE), WORLDMAP_SEEN, true)
+    } else if (state === 2 && old === 0) area.visitedState = 1
     refreshAreaMarkers()
 }
 
 // CE wmGetPartyCurArea / the saved currentAreaId
-export function getCurrentAreaId(): number { return currentAreaId }
-export function setCurrentAreaId(areaId: number): void { currentAreaId = areaId }
+export function getCurrentAreaId(): number {
+    return currentAreaId
+}
+export function setCurrentAreaId(areaId: number): void {
+    currentAreaId = areaId
+}
 
 // CE wmAreaVisitedState: the visited state of a known area, else 0 (METARULE_AREA_KNOWN)
 export function areaVisitedState(areaId: number): number {
-    const area: any = globalState.mapAreas?.[areaId]
+    const area: any = world.mapAreas?.[areaId]
     if (!area || area.state !== true) return 0
     return area.visitedState ?? 0
 }
@@ -554,7 +614,7 @@ export function areaVisitedState(areaId: number): number {
 // CE wmTeleportToArea (map.cc mapHandleTransition after a map change): the party is
 // put on the area, the walk dropped.
 export function teleportToArea(areaId: number): void {
-    const area = globalState.mapAreas?.[areaId]
+    const area = world.mapAreas?.[areaId]
     if (!area) return
     currentAreaId = areaId
     if (!worldmapPlayer) return
@@ -573,21 +633,21 @@ export function teleportToArea(areaId: number): void {
 
 // CE worldmap.cc wmAreaIsKnown: known (state on) and visited at least once.
 export function areaIsKnown(areaId: number): boolean {
-    const area: any = globalState.mapAreas?.[areaId]
+    const area: any = world.mapAreas?.[areaId]
     return !!area && area.state === true && (area.visitedState ?? 0) !== 0
 }
 
 // CE worldmap.cc map.cc:1028 wmMapMarkVisited — entering a saved map marks its area visited.
 export function markMapVisited(mapName: string): void {
     if (!mapIsSaved(mapName)) return
-    const area = globalState.mapAreas ? areaContainingMap(mapName) : null
+    const area = world.mapAreas ? areaContainingMap(mapName) : null
     if (area) setAreaVisitedState(area.id, 2)
 }
 
 // CE worldmap.cc quick destinations (the town tabs, Ctrl+F1..F7): the party walks to
 // the area — wmPartyInitWalking to the centre of its circle.
 export function travelToArea(areaId: number): void {
-    const area = globalState.mapAreas?.[areaId]
+    const area = world.mapAreas?.[areaId]
     if (!area || !areaIsKnown(areaId) || !worldmapPlayer || !$worldmapPlayer) return
     const here = withinArea(worldmapPlayer)
     if (here && here.id === areaId) return
@@ -600,24 +660,30 @@ export function travelToArea(areaId: number): void {
 type SavedArea = { state: boolean; visitedState: number; x: number; y: number; entrances?: boolean[] }
 export function serializeAreaStates(): { [id: string]: SavedArea } {
     const out: { [id: string]: SavedArea } = {}
-    for (const key in globalState.mapAreas ?? {}) {
-        const area: any = globalState.mapAreas[key]
+    for (const key in world.mapAreas ?? {}) {
+        const area: any = world.mapAreas![key]
         out[key] = {
-            state: area.state === true, visitedState: area.visitedState ?? 0, x: area.worldPosition.x, y: area.worldPosition.y,
+            state: area.state === true,
+            visitedState: area.visitedState ?? 0,
+            x: area.worldPosition.x,
+            y: area.worldPosition.y,
             entrances: area.entrances.map((e: any) => e.state === true),
         }
     }
     return out
 }
 export function deserializeAreaStates(data: { [id: string]: SavedArea } | undefined): void {
-    if (!data || !globalState.mapAreas) return
+    if (!data || !world.mapAreas) return
     for (const key in data) {
-        const area: any = globalState.mapAreas[key]
+        const area: any = world.mapAreas[key]
         if (!area) continue
         area.state = data[key].state
         area.visitedState = data[key].visitedState
         const ent = data[key].entrances
-        if (Array.isArray(ent)) area.entrances.forEach((e: any, i: number) => { if (i < ent.length) e.state = ent[i] })
+        if (Array.isArray(ent))
+            area.entrances.forEach((e: any, i: number) => {
+                if (i < ent.length) e.state = ent[i]
+            })
         area.worldPosition = { x: data[key].x, y: data[key].y }
         updateAreaMarkerPos(key, area.worldPosition.x, area.worldPosition.y)
     }
@@ -628,13 +694,18 @@ export function deserializeAreaStates(data: { [id: string]: SavedArea } | undefi
 // area states back to city.txt, party back at Arroyo, no car (fuel CAR_FUEL_MAX, no
 // parking area) and the subtile fog of worldmap.txt.
 export function resetWorldmap(): void {
+    gameTimeIncRemainder = 0 // CE wmWorldMap_reset: gGameTimeIncRemainder = 0
     _isInCar = false
     _carFuel = CAR_FUEL_MAX
     _currentCarAreaId = -1
     currentAreaId = -1
-    globalState.knownAreas = new Set()
-    try { globalState.mapAreas = loadAreas() } catch (_) { globalState.mapAreas = null }
-    if (!$worldmap || !worldmap || !globalState.mapAreas) return
+    world.knownAreas = new Set()
+    try {
+        world.mapAreas = loadAreas()
+    } catch (_) {
+        world.mapAreas = null
+    }
+    if (!$worldmap || !worldmap || !world.mapAreas) return
 
     $worldmap.querySelectorAll('[data-area-key]').forEach((el) => el.remove())
     refreshAreaMarkers()
@@ -643,8 +714,8 @@ export function resetWorldmap(): void {
     $worldmap.querySelectorAll<HTMLElement>('div.worldmapSquare').forEach(($sq) => {
         const x = Number($sq.getAttribute('square-x'))
         const y = Number($sq.getAttribute('square-y'))
-        const state = worldmap.squares[x][y].state
-        $sq.className = 'worldmapSquare worldmapSquare-' + (SQUARE_STATE_CLASS[state] ?? state)
+        const state = worldmap!.squares[x][y].state
+        $sq.className = 'worldmapSquare worldmapSquare-' + (SQUARE_STATE_CLASS[state!] ?? state)
     })
     walk.isWalking = false
     walk.distance = 0
@@ -667,8 +738,8 @@ export function updateAreaMarkerPos(areaKey: string, x: number, y: number): void
     if (!$worldmap) return
     const $area = $worldmap.querySelector<HTMLElement>(`[data-area-key="${areaKey}"]`)
     if (!$area) return
-    $area.style.left = (x - WM_VIEW_X) + 'px'
-    $area.style.top  = (y - WM_VIEW_Y) + 'px'
+    $area.style.left = x - WM_VIEW_X + 'px'
+    $area.style.top = y - WM_VIEW_Y + 'px'
 }
 
 // #worldmapTarget's CSS box (ui.css) is fixed at 25x13 to fit the
@@ -689,13 +760,13 @@ const WORLDMAP_CROSSHAIR_W = 11
 const WORLDMAP_CROSSHAIR_H = 11
 
 function centerWorldmapTarget(x: number, y: number): void {
-    $worldmapTarget.style.left = ((x - WORLDMAP_TARGET_W / 2) | 0) + 'px'
-    $worldmapTarget.style.top = ((y - WORLDMAP_TARGET_H / 2) | 0) + 'px'
+    $worldmapTarget!.style.left = ((x - WORLDMAP_TARGET_W / 2) | 0) + 'px'
+    $worldmapTarget!.style.top = ((y - WORLDMAP_TARGET_H / 2) | 0) + 'px'
 }
 
 function centerWorldmapCrosshair(x: number, y: number): void {
-    $worldmapTarget.style.left = ((x - WORLDMAP_CROSSHAIR_W / 2) | 0) + 'px'
-    $worldmapTarget.style.top = ((y - WORLDMAP_CROSSHAIR_H / 2) | 0) + 'px'
+    $worldmapTarget!.style.left = ((x - WORLDMAP_CROSSHAIR_W / 2) | 0) + 'px'
+    $worldmapTarget!.style.top = ((y - WORLDMAP_CROSSHAIR_H / 2) | 0) + 'px'
 }
 
 // The hotspot1.png/hotspot2.png triangle shares one silhouette clipped via
@@ -704,8 +775,8 @@ function centerWorldmapCrosshair(x: number, y: number): void {
 // not be clipped the same way — toggle the class alongside the image so
 // the clickable area always matches whichever graphic is actually showing.
 function setTargetImage(url: string, isHotspot: boolean): void {
-    $worldmapTarget.style.backgroundImage = `url('${assetUrl(url)}')`
-    $worldmapTarget.classList.toggle('wmHotspotShape', isHotspot)
+    $worldmapTarget!.style.backgroundImage = `url('${assetUrl(url)}')`
+    $worldmapTarget!.classList.toggle('wmHotspotShape', isHotspot)
 }
 
 // CE worldmap.cc wmWorldMapFunc, hotspot release: the town map only for an area already
@@ -714,7 +785,7 @@ function setTargetImage(url: string, isHotspot: boolean): void {
 // map header's start (mapLoadById), and the area becomes visited.
 function enterArea(area: Area): void {
     if ((area.visitedState ?? 0) === 2 && area.mapArt) {
-        uiWorldMapShowArea(area)
+        uiPort.uiWorldMapShowArea(area)
         return
     }
     if (area.entrances.length === 0) return
@@ -729,8 +800,8 @@ function enterArea(area: Area): void {
         setCarAreaId(area.id)
     }
     dbg('worldmap', `[Worldmap] entering ${area.name} → ${entrance.mapName} (no town map)`)
-    globalState.gMap.loadMap(entrance.mapName)
-    uiCloseWorldMap()
+    world.gMap!.loadMap(entrance.mapName)
+    uiPort.uiCloseWorldMap()
 }
 
 // CE worldmap.cc wmMapMarkMapEntranceState(mapIdx, elevation, state): only a saved map
@@ -738,13 +809,15 @@ function enterArea(area: Area): void {
 // it the first entrance to the map whose elevation matches, -1 on either side matching
 // any (wmMatchEntranceElevFromMap). False when nothing matched (CE -1).
 export function markMapEntranceState(mapName: string, elevation: number, state: boolean): boolean {
-    if (!globalState.mapAreas || !mapIsSaved(mapName)) return false
+    if (!world.mapAreas || !mapIsSaved(mapName)) return false
     const name = mapName.toLowerCase()
     const sameMap = (e: any) => (e.mapName ?? '').toLowerCase() === name
-    for (const key of Object.keys(globalState.mapAreas)) {
-        const area = globalState.mapAreas[key]
+    for (const key of Object.keys(world.mapAreas)) {
+        const area = world.mapAreas[key]
         if (!area.entrances.some(sameMap)) continue
-        const entrance = area.entrances.find((e) => sameMap(e) && (elevation === -1 || e.elevation === -1 || e.elevation === elevation))
+        const entrance = area.entrances.find(
+            (e) => sameMap(e) && (elevation === -1 || e.elevation === -1 || e.elevation === elevation),
+        )
         if (!entrance) return false
         entrance.state = state
         return true
@@ -757,13 +830,20 @@ export function init(): void {
     // wmMapMarkMapEntranceState(gMapHeader.index, gElevation, 1): the town-map entrance
     // of the map the party reaches opens (exit grids and ladders land here too)
     Events.on('loadMapPost', () => {
-        if (!globalState.gMap?.name) return
-        markMapVisited(globalState.gMap.name)
-        markMapEntranceState(globalState.gMap.name, globalState.gMap.currentElevation, true)
+        if (!world.gMap?.name) return
+        markMapVisited(world.gMap.name)
+        markMapEntranceState(world.gMap.name, world.gMap.currentElevation, true)
+        // CE wmCheckGameAreaEvents: at CITY_FAKE_VAULT_13_A (45) the real Vault 13 entry swaps
+        // in — A unknown, B (46) known and visited
+        if (currentAreaId === 45) {
+            setAreaVisible(45, false)
+            setAreaVisible(46, true)
+            setAreaVisitedState(46, 2)
+        }
     })
     // map.cc mapSetElevation → wmMapMarkMapEntranceState(gMapHeader.index, elevation, 1)
     Events.on('elevationChanged', (e: { elevation: number; isMapLoading?: boolean }) => {
-        if (globalState.gMap?.name && !e.isMapLoading) markMapEntranceState(globalState.gMap.name, e.elevation, true)
+        if (world.gMap?.name && !e.isMapLoading) markMapEntranceState(world.gMap.name, e.elevation, true)
     })
     // map.cc mapHandleTransition: a map change by exit grid / load_map puts the party on
     // the new map's area (wmMatchAreaContainingMapIdx → wmTeleportToArea)
@@ -771,21 +851,6 @@ export function init(): void {
         const name = mapID >= 0 ? lookupMapName(mapID) : null
         if (name) teleportToArea(areaIdContainingMap(name))
     })
-    /*$("#worldmap").mousemove(function(e) {
-        var offset = $(this).offset()
-        var x = e.pageX - parseInt(offset.left)
-        var y = e.pageY - parseInt(offset.top)
-
-        var scrollLeft = $(this).scrollLeft()
-        var scrollTop = $(this).scrollTop()
-
-        console.log(scrollLeft + " | " +  $(this).width())
-
-        if(x <= 15) $(this).scrollLeft(scrollLeft - 15)
-        if(x >= $(this).width() - 15) { console.log("y"); $(this).scrollLeft(scrollLeft + 15) }
-
-        console.log(x + ", " + y)
-    })*/
 
     $worldmapPlayer = document.getElementById('worldmapPlayer')
     $worldmapTarget = document.getElementById('worldmapTarget')
@@ -798,11 +863,12 @@ export function init(): void {
 
     worldmap = parseWorldmap(getFileText('data/data/worldmap.txt'))
 
-    if (!globalState.mapAreas) globalState.mapAreas = loadAreas()
+    if (!world.mapAreas) world.mapAreas = loadAreas()
 
-    $worldmap.onclick = function (this: HTMLElement, e: MouseEvent) {
+    const worldmapEl = $worldmap!
+    worldmapEl.onclick = function (e: MouseEvent) {
         // Calculate viewport-relative offset
-        const box = this.getBoundingClientRect()
+        const box = worldmapEl.getBoundingClientRect()
         const offsetLeft = box.left | (0 + window.pageXOffset)
         const offsetTop = box.top | (0 + window.pageYOffset)
 
@@ -821,35 +887,35 @@ export function init(): void {
 
     // CE ref: worldmap.cc:3124-3157 — hotspot shows pressed image while mouse held,
     // clicking a known area hotspot opens the area map.
-    $worldmapTarget.onmousedown = function () {
-        const area = withinArea(worldmapPlayer)
-        if (area !== null || worldmapPlayer.target === null) {
+    $worldmapTarget!.onmousedown = function () {
+        const area = withinArea(worldmapPlayer!)
+        if (area !== null || worldmapPlayer!.target === null) {
             setTargetImage('art/intrface/hotspot2.png', true)
         }
     }
-    $worldmapTarget.onmouseup = function (e: MouseEvent) {
-        const area = withinArea(worldmapPlayer)
+    $worldmapTarget!.onmouseup = function (e: MouseEvent) {
+        const area = withinArea(worldmapPlayer!)
         if (area !== null) {
             setTargetImage('art/intrface/hotspot1.png', true)
             e.stopPropagation()
             enterArea(area)
-        } else if (worldmapPlayer.target === null) {
+        } else if (worldmapPlayer!.target === null) {
             setTargetImage('art/intrface/hotspot1.png', true)
             e.stopPropagation()
             markerClickHandled = true
             enterWilderness()
         }
     }
-    $worldmapTarget.onmouseleave = function () {
+    $worldmapTarget!.onmouseleave = function () {
         // revert to normal if mouse leaves without releasing
-        if ($worldmapTarget.style.backgroundImage.includes('hotspot2')) {
+        if ($worldmapTarget!.style.backgroundImage.includes('hotspot2')) {
             setTargetImage('art/intrface/hotspot1.png', true)
         }
     }
     // Handled by mouseup above; swallow the click that follows a wilderness entry so
     // the worldmap's walk-to-click handler doesn't set a new destination.
     let markerClickHandled = false
-    $worldmapTarget.onclick = function (e: MouseEvent) {
+    $worldmapTarget!.onclick = function (e: MouseEvent) {
         if (markerClickHandled) e.stopPropagation()
         markerClickHandled = false
     }
@@ -858,7 +924,7 @@ export function init(): void {
 
     for (let x = 0; x < NUM_SQUARES_X; x++) {
         for (let y = 0; y < NUM_SQUARES_Y; y++) {
-            let state: string | number = worldmap.squares[x][y].state
+            let state: string | number | null = worldmap.squares[x][y].state
             if (state === WORLDMAP_UNDISCOVERED) state = 'undiscovered'
             else if (state === WORLDMAP_DISCOVERED) state = 'discovered'
             else if (state === WORLDMAP_SEEN) state = 'seen'
@@ -874,7 +940,7 @@ export function init(): void {
                     'square-y': y + '',
                 },
             })
-            $worldmap.appendChild($el)
+            $worldmap!.appendChild($el)
         }
     }
 
@@ -898,13 +964,13 @@ export function init(): void {
     markSubTileRadiusVisited(worldmapPlayer.x, worldmapPlayer.y)
 
     if (withinArea(worldmapPlayer) !== null) {
-        hidev($worldmapPlayer)
+        hidev($worldmapPlayer!)
         setTargetImage('art/intrface/hotspot1.png', true)
     }
 
     // Keyboard scroll
     document.addEventListener('keydown', _onWMKeyDown)
-    document.addEventListener('keyup',   _onWMKeyUp)
+    document.addEventListener('keyup', _onWMKeyUp)
 
     // Mouse-edge scroll — track cursor position relative to #worldMapWorld
     const $worldMapWorld = document.getElementById('worldMapWorld')
@@ -920,16 +986,20 @@ export function init(): void {
     updateCarUI()
 }
 
-function _onWMKeyDown(e: KeyboardEvent): void { _heldKeys.add(e.key) }
-function _onWMKeyUp(e: KeyboardEvent): void   { _heldKeys.delete(e.key) }
+function _onWMKeyDown(e: KeyboardEvent): void {
+    _heldKeys.add(e.key)
+}
+function _onWMKeyUp(e: KeyboardEvent): void {
+    _heldKeys.delete(e.key)
+}
 function _onWMMouseMove(e: MouseEvent): void {
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
     const mx = e.clientX - r.left
     const my = e.clientY - r.top
     _mouseEdge = {
-        left:   mx < EDGE_THRESHOLD,
-        right:  mx > VIEW_W - EDGE_THRESHOLD,
-        top:    my < EDGE_THRESHOLD,
+        left: mx < EDGE_THRESHOLD,
+        right: mx > VIEW_W - EDGE_THRESHOLD,
+        top: my < EDGE_THRESHOLD,
         bottom: my > VIEW_H - EDGE_THRESHOLD,
     }
 }
@@ -938,6 +1008,12 @@ function _onWMMouseLeave(): void {
 }
 
 export function start() {
+    // one frame loop: opening the world map again while it runs (an exit grid and a script
+    // both asking, a second exit-grid hex) started a second loop — travel at double speed —
+    // and stop() then ended only one, so the other went on walking after a town was entered
+    // (the clock racing 30 minutes a frame until that walk ran out)
+    clearTimeout(worldmapTimer)
+    running = true
     resetEncounterTimer() // CE wmInterfaceInit: wmLastRndTime = getTicks()
     partyHealTime = 0
     updateWorldmapPlayer()
@@ -945,10 +1021,11 @@ export function start() {
 
 export function stop() {
     clearTimeout(worldmapTimer)
+    running = false
     _heldKeys.clear()
     _mouseEdge = { left: false, right: false, top: false, bottom: false }
     document.removeEventListener('keydown', _onWMKeyDown)
-    document.removeEventListener('keyup',   _onWMKeyUp)
+    document.removeEventListener('keyup', _onWMKeyUp)
     const $worldMapWorld = document.getElementById('worldMapWorld')
     if ($worldMapWorld) {
         $worldMapWorld.removeEventListener('mousemove', _onWMMouseMove)
@@ -962,12 +1039,17 @@ export function withinArea(position: Point) {
     // position (window space: position + WM_VIEW_X/Y against city.txt world_pos)
     const vx = position.x + WM_VIEW_X
     const vy = position.y + WM_VIEW_Y
-    for (const areaNum in globalState.mapAreas) {
-        const area = globalState.mapAreas[areaNum]
+    for (const areaNum in world.mapAreas) {
+        const area = world.mapAreas[areaNum]
         if (area.state !== true) continue
         const s = AREA_CIRCLE_SIZE[area.size] ?? 0
-        if (vx >= area.worldPosition.x && vy >= area.worldPosition.y
-            && vx <= area.worldPosition.x + s && vy <= area.worldPosition.y + s) return area
+        if (
+            vx >= area.worldPosition.x &&
+            vy >= area.worldPosition.y &&
+            vx <= area.worldPosition.x + s &&
+            vy <= area.worldPosition.y + s
+        )
+            return area
     }
 
     return null
@@ -976,8 +1058,12 @@ export function withinArea(position: Point) {
 // CE ref: worldmap.cc:6541 wmMatchAreaContainingMapIdx — the area with an entrance
 // to `mapName`; CE leaves area 0 when none matches.
 export function areaIdContainingMap(mapName: string): number {
-    if (!globalState.mapAreas) {
-        try { globalState.mapAreas = loadAreas() } catch (_) { return 0 }
+    if (!world.mapAreas) {
+        try {
+            world.mapAreas = loadAreas()
+        } catch (_) {
+            return 0
+        }
     }
     return areaContainingMap(mapName)?.id ?? 0
 }
@@ -995,8 +1081,8 @@ function enterWilderness(): void {
         _currentCarAreaId = areaIdContainingMap(mapName)
         dbg('worldmap', `car parked at area ${_currentCarAreaId}`)
     }
-    globalState.gMap.loadMap(mapName)
-    uiCloseWorldMap()
+    world.gMap!.loadMap(mapName)
+    uiPort.uiCloseWorldMap()
 }
 
 // CE ref: worldmap.cc:3052-3082 — out of gas: travel stops, the party leaves the car,
@@ -1004,21 +1090,21 @@ function enterWilderness(): void {
 // (its map script then places the car there).
 function carRanOutOfGas(): void {
     dbg('worldmap', 'Ran outta gas!')
-    worldmapPlayer.target = null
+    worldmapPlayer!.target = null
     walk.isWalking = false
     walk.distance = 0
     setIsInCar(false)
-    const area = withinArea(worldmapPlayer)
+    const area = withinArea(worldmapPlayer!)
     currentAreaId = area?.id ?? -1
     if (area) {
         _currentCarAreaId = area.id
     } else {
         _currentCarAreaId = CITY_CAR_OUT_OF_GAS
         currentAreaId = CITY_CAR_OUT_OF_GAS
-        const outOfGas = globalState.mapAreas?.[CITY_CAR_OUT_OF_GAS]
+        const outOfGas = world.mapAreas?.[CITY_CAR_OUT_OF_GAS]
         if (outOfGas) {
-            outOfGas.worldPosition = areaPosAtParty(outOfGas, worldmapPlayer.x, worldmapPlayer.y)
-            ;(outOfGas as any).visitedState = 1
+            outOfGas.worldPosition = areaPosAtParty(outOfGas, worldmapPlayer!.x, worldmapPlayer!.y)
+            outOfGas.visitedState = 1
             setAreaVisible(CITY_CAR_OUT_OF_GAS, true) // CITY_STATE_KNOWN
             updateAreaMarkerPos(String(CITY_CAR_OUT_OF_GAS), outOfGas.worldPosition.x, outOfGas.worldPosition.y)
         }
@@ -1028,28 +1114,31 @@ function carRanOutOfGas(): void {
 // CE wmDrawCursorStopped: the location / encounter marker centred on the party (the
 // 17×17 #worldmapPlayer box centres its image)
 function placePartyMarker(): void {
-    $worldmapPlayer.style.left = (worldmapPlayer.x - 8) + 'px'
-    $worldmapPlayer.style.top = (worldmapPlayer.y - 8) + 'px'
+    $worldmapPlayer!.style.left = worldmapPlayer!.x - 8 + 'px'
+    $worldmapPlayer!.style.top = worldmapPlayer!.y - 8 + 'px'
 }
 
 // CE wmPartyInitWalking: a Bresenham line from the party to (x, y)
 // DH2 debug (console revealWorldmap / setInstantTravel, not in CE): a click on the
 // worldmap moves the party there at once — no game time, no encounters.
 let instantTravel = false
-export function setInstantTravel(on: boolean): void { instantTravel = on }
+export function setInstantTravel(on: boolean): void {
+    instantTravel = on
+}
 
 // DH2 debug (console revealWorldmap, not in CE): every subtile visited, every area
 // known and visited with all its entrances.
 export function revealAll(): void {
     if (worldmap) {
-        for (let x = 0; x < NUM_SQUARES_X; x++) for (let y = 0; y < NUM_SQUARES_Y; y++) markSquare(x, y, WORLDMAP_DISCOVERED)
+        for (let x = 0; x < NUM_SQUARES_X; x++)
+            for (let y = 0; y < NUM_SQUARES_Y; y++) markSquare(x, y, WORLDMAP_DISCOVERED)
     }
-    for (const key in globalState.mapAreas ?? {}) {
-        const area: any = globalState.mapAreas[key]
+    for (const key in world.mapAreas ?? {}) {
+        const area: any = world.mapAreas![key]
         area.state = true
         area.visitedState = 2
         for (const e of area.entrances ?? []) e.state = true
-        globalState.knownAreas.add(area.id)
+        world.knownAreas.add(area.id)
     }
     refreshAreaMarkers()
 }
@@ -1064,11 +1153,11 @@ function partyInitWalking(x: number, y: number): void {
         placePartyMarker()
         return
     }
-    worldmapPlayer.target = { x, y }
+    worldmapPlayer!.target = { x, y }
     walk.isWalking = true
     currentAreaId = -1
-    const px = worldmapPlayer.x
-    const py = worldmapPlayer.y
+    const px = worldmapPlayer!.x
+    const py = worldmapPlayer!.y
     const dx = Math.abs(x - px)
     const dy = Math.abs(y - py)
     if (dx < dy) {
@@ -1090,9 +1179,15 @@ function partyInitWalking(x: number, y: number): void {
         walk.crossX = 1
         walk.crossY = 1
     }
-    if (x < px) { walk.crossX = -walk.crossX; walk.mainX = -walk.mainX }
-    if (y < py) { walk.crossY = -walk.crossY; walk.mainY = -walk.mainY }
-    showv($worldmapPlayer)
+    if (x < px) {
+        walk.crossX = -walk.crossX
+        walk.mainX = -walk.mainX
+    }
+    if (y < py) {
+        walk.crossY = -walk.crossY
+        walk.mainY = -walk.mainY
+    }
+    showv($worldmapPlayer!)
     setTargetImage('art/intrface/wmaptarg.png', false)
     centerWorldmapCrosshair(x, y)
 }
@@ -1101,16 +1196,16 @@ function partyInitWalking(x: number, y: number): void {
 function stopWalking(): void {
     walk.isWalking = false
     walk.distance = 0
-    worldmapPlayer.target = null
-    currentAreaId = withinArea(worldmapPlayer)?.id ?? -1 // wmMatchWorldPosToArea
-    hidev($worldmapPlayer)
+    worldmapPlayer!.target = null
+    currentAreaId = withinArea(worldmapPlayer!)?.id ?? -1 // wmMatchWorldPosToArea
+    hidev($worldmapPlayer!)
     setTargetImage('art/intrface/hotspot1.png', true)
-    centerWorldmapTarget(worldmapPlayer.x, worldmapPlayer.y)
+    centerWorldmapTarget(worldmapPlayer!.x, worldmapPlayer!.y)
 }
 
 function squareAt(x: number, y: number) {
     const p = positionToSquare({ x, y })
-    return worldmap.squares[p.x]?.[p.y] ?? null
+    return worldmap!.squares[p.x]?.[p.y] ?? null
 }
 
 // CE wmPartyWalkingStep: the terrain counter cycles 1..4; a step is taken when
@@ -1120,28 +1215,28 @@ function partyWalkingStep(): void {
     if (walk.distance <= 0) return
     terrainCounter++
     if (terrainCounter > 4) terrainCounter = 1
-    const square = squareAt(worldmapPlayer.x, worldmapPlayer.y)
-    let difficulty = Number(worldmap.terrainSpeed[square?.terrainType ?? '']) || 1
+    const square = squareAt(worldmapPlayer!.x, worldmapPlayer!.y)
+    let difficulty = Number(worldmap!.terrainSpeed[square?.terrainType ?? '']) || 1
     if (difficulty < 1) difficulty = 1
     if (Math.trunc(terrainCounter / difficulty) < 1) return
 
     const cross = walk.lineDelta >= 0
-    const nx = worldmapPlayer.x + (cross ? walk.crossX : walk.mainX)
-    const ny = worldmapPlayer.y + (cross ? walk.crossY : walk.mainY)
+    const nx = worldmapPlayer!.x + (cross ? walk.crossX : walk.mainX)
+    const ny = worldmapPlayer!.y + (cross ? walk.crossY : walk.mainY)
     if (worldPosInvalid(nx, ny)) {
         stopWalking()
         return
     }
     walk.lineDelta += cross ? walk.crossAxisStep : walk.mainAxisStep
-    worldmapPlayer.x = nx
-    worldmapPlayer.y = ny
+    worldmapPlayer!.x = nx
+    worldmapPlayer!.y = ny
     walk.distance -= 1
 }
 
 // CE wmGameTimeIncrement: the Pathfinder perk takes 25 % per rank off (the remainder
 // carried, sfall fix); the queued events fire as the time passes.
 function gameTimeIncrement(ticks: number): void {
-    const rank = globalState.player?.perks.filter((p: string) => p === 'Pathfinder').length ?? 0
+    const rank = world.player?.perks.filter((p: string) => p === 'Pathfinder').length ?? 0
     const bonus = ticks * rank * 0.25 + gameTimeIncRemainder
     const whole = Math.trunc(bonus)
     gameTimeIncRemainder = bonus - whole
@@ -1153,24 +1248,24 @@ function gameTimeIncrement(ticks: number): void {
 // CE party_member.cc _partyMemberRestingHeal(3): once a second of travel every party
 // member (the dude too) heals its Healing Rate.
 function partyRestingHeal(): void {
-    for (const c of globalState.gParty?.getPartyMembersAndPlayer() ?? [globalState.player]) {
+    for (const c of world.gParty?.getPartyMembersAndPlayer() ?? [world.player]) {
         if (!c || c.type !== 'critter' || c.dead) continue
         const max = c.getStat('Max HP')
         c.stats.setBase('HP', Math.min(max, c.getStat('HP') + c.getStat('Healing Rate')))
     }
-    if (globalState.player) drawHP(globalState.player.getStat('HP'))
+    if (world.player) drawHP(world.player.getStat('HP'))
 }
 
 // CE wmBlinkRndEncounterIcon: 7 frames of 200 ms, dark and bright in turn
 async function blinkEncounterIcon(special: boolean): Promise<void> {
     const dark = special ? 'art/intrface/wmrnden3.png' : 'art/intrface/wmapfgt1.png'
     const bright = special ? 'art/intrface/wmrnden2.png' : 'art/intrface/wmapfgt0.png'
-    showv($worldmapPlayer)
+    showv($worldmapPlayer!)
     for (let i = 0; i < 7; i++) {
-        $worldmapPlayer.style.backgroundImage = `url('${assetUrl(i % 2 === 0 ? dark : bright)}')`
+        $worldmapPlayer!.style.backgroundImage = `url('${assetUrl(i % 2 === 0 ? dark : bright)}')`
         await new Promise<void>((r) => setTimeout(r, 200))
     }
-    $worldmapPlayer.style.backgroundImage = "url('" + assetUrl('art/intrface/wmaploc.png') + "')"
+    $worldmapPlayer!.style.backgroundImage = "url('" + assetUrl('art/intrface/wmaploc.png') + "')"
 }
 
 // CE wmWorldMapFunc after wmRndEncounterOccurred returned 1: a spotted encounter asks
@@ -1179,24 +1274,31 @@ async function blinkEncounterIcon(special: boolean): Promise<void> {
 async function runEncounter(roll: EncounterRoll): Promise<void> {
     if (roll.blink) await blinkEncounterIcon(roll.blink === 'special')
     if (roll.ask) {
-        const yes = await showConfirm(`${roll.ask.title}\n${roll.ask.body}`)
-        if (!yes) {
+        // on the world map's own stage: #worldMapContainer paints over #uiStage, where the
+        // question was hidden — the map stood still until a town tab restarted it
+        const stage = document.querySelector<HTMLElement>('#worldMapContainer .ui-stage') ?? undefined
+        const yes = await showConfirm(`${roll.ask.title}\n${roll.ask.body}`, stage)
+        if (!yes || !running) {
             cancelEncounter()
-            worldmapTimer = window.setTimeout(updateWorldmapPlayer, FRAME_MS)
+            if (running) {
+                worldmapTimer = window.setTimeout(updateWorldmapPlayer, FRAME_MS)
+            }
             return
         }
     }
     const mapName = lookupMapName(roll.mapId)
     if (!mapName) {
-        worldmapTimer = window.setTimeout(updateWorldmapPlayer, FRAME_MS)
+        if (running) {
+            worldmapTimer = window.setTimeout(updateWorldmapPlayer, FRAME_MS)
+        }
         return
     }
     if (_isInCar) _currentCarAreaId = areaIdContainingMap(mapName)
     walk.isWalking = false
     walk.distance = 0
-    worldmapPlayer.target = null
-    globalState.gMap.loadMap(mapName, undefined, undefined, () => setupRandomEncounter())
-    uiCloseWorldMap()
+    worldmapPlayer!.target = null
+    world.gMap!.loadMap(mapName, undefined, undefined, roll.forced ? undefined : () => setupRandomEncounter())
+    uiPort.uiCloseWorldMap()
 }
 
 // One frame of CE wmWorldMapFunc.
@@ -1221,19 +1323,24 @@ export function updateWorldmapPlayer() {
             partyHealTime = now
         }
 
-        markSubTileRadiusVisited(worldmapPlayer.x, worldmapPlayer.y)
+        markSubTileRadiusVisited(worldmapPlayer!.x, worldmapPlayer!.y)
 
         if (walk.distance <= 0 && walk.isWalking) stopWalking()
 
         gameTimeIncrement(WALK_FRAME_TICKS)
 
         // CE wmInterfaceScrollPixel — the view follows the party
-        applyPan(Math.floor(worldmapPlayer.x - VIEW_W / 2), Math.floor(worldmapPlayer.y - VIEW_H / 2))
+        applyPan(Math.floor(worldmapPlayer!.x - VIEW_W / 2), Math.floor(worldmapPlayer!.y - VIEW_H / 2))
 
         if (walk.isWalking && Config.engine.doEncounters === true) {
-            const square = squareAt(worldmapPlayer.x, worldmapPlayer.y)
+            const square = squareAt(worldmapPlayer!.x, worldmapPlayer!.y)
             const roll = square
-                ? rndEncounterOccurred({ x: worldmapPlayer.x, y: worldmapPlayer.y }, withinArea(worldmapPlayer) !== null, square, _isInCar)
+                ? rndEncounterOccurred(
+                      { x: worldmapPlayer!.x, y: worldmapPlayer!.y },
+                      withinArea(worldmapPlayer!) !== null,
+                      square,
+                      _isInCar,
+                  )
                 : null
             if (roll) {
                 placePartyMarker()
@@ -1250,10 +1357,10 @@ export function updateWorldmapPlayer() {
     if (!walk.isWalking) {
         let dx = 0
         let dy = 0
-        if (_heldKeys.has('ArrowLeft')  || _heldKeys.has('a') || _heldKeys.has('A') || _mouseEdge.left)   dx -= PAN_SPEED
-        if (_heldKeys.has('ArrowRight') || _heldKeys.has('d') || _heldKeys.has('D') || _mouseEdge.right)  dx += PAN_SPEED
-        if (_heldKeys.has('ArrowUp')    || _heldKeys.has('w') || _heldKeys.has('W') || _mouseEdge.top)    dy -= PAN_SPEED
-        if (_heldKeys.has('ArrowDown')  || _heldKeys.has('s') || _heldKeys.has('S') || _mouseEdge.bottom) dy += PAN_SPEED
+        if (_heldKeys.has('ArrowLeft') || _heldKeys.has('a') || _heldKeys.has('A') || _mouseEdge.left) dx -= PAN_SPEED
+        if (_heldKeys.has('ArrowRight') || _heldKeys.has('d') || _heldKeys.has('D') || _mouseEdge.right) dx += PAN_SPEED
+        if (_heldKeys.has('ArrowUp') || _heldKeys.has('w') || _heldKeys.has('W') || _mouseEdge.top) dy -= PAN_SPEED
+        if (_heldKeys.has('ArrowDown') || _heldKeys.has('s') || _heldKeys.has('S') || _mouseEdge.bottom) dy += PAN_SPEED
         if (dx !== 0 || dy !== 0) applyPan(_panX + dx, _panY + dy)
     }
 

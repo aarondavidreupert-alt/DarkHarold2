@@ -15,17 +15,28 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { Critter } from './object.js'
 import { loadMessage } from './data.js'
-import globalState from './globalState.js'
+import { world } from './state/world.js'
+import { assets } from './state/assets.js'
 import { dbgWarn } from './logger.js'
 import { randomBetween } from './random.js'
 import { assetUrl } from './modAssets.js'
+import { prefetched, prefetchedText, prefetchFiles } from './fileCache.js'
 
 // Utility functions
 
-/** Whether a file the page could load exists (a synchronous HEAD request). */
+/** Fetch files ahead of time for the synchronous loaders below (fileCache.ts), each as
+ *  assetUrl resolves it (an active mod's copy first). */
+export function prefetchAssets(paths: string[]): Promise<void> {
+    return prefetchFiles(paths, assetUrl)
+}
+
+/** Whether a file the page could load exists (prefetched, else a synchronous HEAD request). */
 export function fileExistsSync(path: string): boolean {
+    const file = prefetched(path)
+    if (file) {
+        return file.status >= 200 && file.status < 300
+    }
     try {
         const xhr = new XMLHttpRequest()
         xhr.open('HEAD', assetUrl(path), false)
@@ -39,11 +50,11 @@ export function fileExistsSync(path: string): boolean {
 export function parseIni(text: string) {
     // Parse a .ini-style categorized key-value format
     const ini: { [category: string]: any } = {}
-    const lines = text.split('\n').map(l => l.replace(/\r$/, ''))
+    const lines = text.split('\n').map((l) => l.replace(/\r$/, ''))
     let category = null
 
-    for (var i = 0; i < lines.length; i++) {
-        var line = lines[i].replace(/\s*;.*/, '') // replace comments
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].replace(/\s*;.*/, '') // replace comments
         if (line.trim() === '') {
         } else if (line[0] === '[') category = line.trim().slice(1, -1)
         else {
@@ -54,7 +65,7 @@ export function parseIni(text: string) {
                 dbgWarn('script', `warning: parseIni: not a key=value line: ${line}`)
                 continue
             }
-            if (category === null) throw 'parseIni: key=value not in category: ' + line
+            if (category === null) throw new Error('parseIni: key=value not in category: ' + line)
 
             const key = line.slice(0, eqIdx).trim()
             const val = line.slice(eqIdx + 1).trim() // may be empty string — that's valid
@@ -67,6 +78,13 @@ export function parseIni(text: string) {
 }
 
 export function getFileText(path: string, err?: () => void): string {
+    const file = prefetched(path)
+    if (file) {
+        if (file.status !== 200) {
+            throw Error(`getFileText: got status ${file.status} when requesting '${path}'`)
+        }
+        return prefetchedText(file)
+    }
     const xhr = new XMLHttpRequest()
     xhr.open('GET', assetUrl(path), false) // an active mod's copy first (modAssets.ts)
     xhr.send(null)
@@ -79,18 +97,15 @@ export function getFileJSON(path: string, err?: () => void): any {
     return JSON.parse(getFileText(path, err))
 }
 
-// GET binary data into a DataView
-function getFileBinaryAsync(path: string, callback: (data: DataView) => void) {
-    const xhr = new XMLHttpRequest()
-    xhr.open('GET', assetUrl(path), true)
-    xhr.responseType = 'arraybuffer'
-    xhr.onload = (evt) => {
-        callback(new DataView(xhr.response))
-    }
-    xhr.send(null)
-}
-
 export function getFileBinarySync(path: string) {
+    const file = prefetched(path)
+    if (file) {
+        if (file.status !== 200) {
+            throw Error(`getFileBinarySync: got status ${file.status} when requesting '${path}'`)
+        }
+        return new DataView(file.bytes.slice().buffer) // a copy, as each request gave
+    }
+
     // Synchronous requests aren't allowed by browsers to define response types
     // in a misguided attempt to force developers to switch to asynchronous requests,
     // so we transfer as a user-defined charset and then decode it manually.
@@ -140,11 +155,11 @@ export enum RollResult {
 // criticalSuccessModifier = critter's Critical Chance stat
 // Returns: { roll: RollResult, delta: number }
 //   delta = difficulty - d100 (positive = success margin, negative = failure margin)
-export function randomRoll(difficulty: number, criticalSuccessModifier: number): { roll: RollResult, delta: number } {
+export function randomRoll(difficulty: number, criticalSuccessModifier: number): { roll: RollResult; delta: number } {
     const delta = difficulty - getRandomInt(1, 100)
     // CE random.cc:58 randomTranslateRoll — criticals are only possible once the game
     // clock has passed its first full day (gameTimeGetTime() / TICKS_PER_DAY >= 1).
-    const criticalsAllowed = Math.floor((globalState.gameTickTime ?? 0) / 864000) >= 1
+    const criticalsAllowed = Math.floor((world.gameTickTime ?? 0) / 864000) >= 1
 
     let roll: RollResult
     if (delta < 0) {
@@ -162,15 +177,6 @@ export function randomRoll(difficulty: number, criticalSuccessModifier: number):
     }
 
     return { roll, delta }
-}
-
-// FO2-CE ref: skill.cc skillRoll() — full skill check with stat lookup
-// Takes a Critter, resolves skill value, applies modifier, and rolls.
-// Returns { roll: RollResult, delta: number }
-export function skillRoll(who: Critter, skill: string, modifier: number = 0): { roll: RollResult, delta: number } {
-    const skillValue = who.getSkill(skill)
-    const critChance = who.getStat('Critical Chance')
-    return randomRoll(skillValue + modifier, critChance)
 }
 
 export function rollIsSuccess(roll: RollResult): boolean {
@@ -203,12 +209,12 @@ export function clamp(min: number, max: number, value: number) {
 }
 
 export function getMessage(name: string, id: number): string | null {
-    if (globalState.messageFiles[name] !== undefined && globalState.messageFiles[name][id] !== undefined)
-        return globalState.messageFiles[name][id]
+    if (assets.messageFiles[name] !== undefined && assets.messageFiles[name][id] !== undefined)
+        return assets.messageFiles[name][id]
     else {
         loadMessage(name)
-        if (globalState.messageFiles[name] !== undefined && globalState.messageFiles[name][id] !== undefined)
-            return globalState.messageFiles[name][id]
+        if (assets.messageFiles[name] !== undefined && assets.messageFiles[name][id] !== undefined)
+            return assets.messageFiles[name][id]
         else return null
     }
 }
@@ -240,12 +246,12 @@ export class BinaryReader {
         return this.data.getUint8(this.offset++)
     }
     read16(): number {
-        var r = this.data.getUint16(this.offset)
+        const r = this.data.getUint16(this.offset)
         this.offset += 2
         return r
     }
     read32(): number {
-        var r = this.data.getUint32(this.offset)
+        const r = this.data.getUint32(this.offset)
         this.offset += 4
         return r
     }
@@ -262,11 +268,12 @@ export class BinaryReader {
 }
 
 export function assert(value: boolean, message: string) {
-    if (!value) throw 'AssertionError: ' + message
+    if (!value) throw new Error('AssertionError: ' + message)
 }
 
 export function assertEq<T>(value: T, expected: T, message: string) {
-    if (value !== expected) throw `AssertionError: value (${value}) does not match expected (${expected}): ${message}`
+    if (value !== expected)
+        throw new Error(`AssertionError: value (${value}) does not match expected (${expected}): ${message}`)
 }
 
 declare function structuredClone(value: any, options?: StructuredSerializeOptions): any

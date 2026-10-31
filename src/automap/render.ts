@@ -17,13 +17,8 @@ limitations under the License.
 // Automap canvas renderer split out of automapData.ts.
 // See wiki/ts-split-refactor.md → "Per-file split proposals" §18.
 
-import globalState from '../globalState.js'
-import {
-    getSeenTiles,
-    markSeenAt,
-    getObjectSnapshot,
-    ObjType,
-} from './tracking.js'
+import { world } from '../state/world.js'
+import { getSeenTiles, markSeenAt, getObjectSnapshot, ObjType } from './tracking.js'
 
 export interface RenderOptions {
     zoom?: number
@@ -32,6 +27,10 @@ export interface RenderOptions {
     // Pan offset in canvas pixels, applied after auto-centering
     panX?: number
     panY?: number
+    // CE AUTOMAP_WITH_SCANNER: living, visible critters drawn on any tile
+    scanner?: boolean
+    // CE AUTOMAP_WTH_HIGH_DETAILS: scenery drawn too
+    highDetail?: boolean
 }
 
 export function renderAutomapCanvas(width: number, height: number, opts: RenderOptions = {}): HTMLCanvasElement {
@@ -54,8 +53,8 @@ export function drawAutomapInto(canvas: HTMLCanvasElement, opts: RenderOptions =
     // automap.png) show through.
     ctx.clearRect(0, 0, width, height)
 
-    const map = globalState.gMap
-    const player = globalState.player
+    const map = world.gMap
+    const player = world.player
     const mapName = opts.forMap ?? (map ? map.name : '')
     const elevation = opts.forElevation ?? (map ? map.currentElevation : 0)
     const isCurrentMap = !opts.forMap && map && map.name
@@ -131,28 +130,35 @@ export function drawAutomapInto(canvas: HTMLCanvasElement, opts: RenderOptions =
     // visited — not just the one currently loaded.
     const objSize = Math.max(2, Math.ceil(scale * 1.6))
 
-    interface RenderObj { x: number; y: number; color: string }
+    interface RenderObj {
+        x: number
+        y: number
+        color: string
+        anyTile?: boolean
+    }
     const renderObjects: RenderObj[] = []
 
+    // CE automap.cc automapRenderInMapWindow (in game): walls green (colour 992), the dude red
+    // (31744), scenery only in High detail (480; not PROTO_ID_0x2000158), PROTO_ID_0x2000031 in
+    // 32328, living critters red with the scanner; items and the rest aren't drawn (colour 0)
+    const WALL = '#00f800',
+        SCENERY = '#007800',
+        DUDE = '#f80000',
+        SPECIAL = '#f89040'
     const colorForLive = (obj: any): string | null => {
-        if (obj.type === 'wall') return '#888888'
-        if (obj.type === 'scenery') {
-            return (obj.pro && obj.pro.extra && obj.pro.extra.subType === 0)
-                ? '#FF8800' // door
-                : '#3388FF' // other scenery
-        }
-        if (obj.type === 'item') return '#FFCC00'
         if (obj.type === 'critter') {
-            if ((obj as any).isPlayer) return null
-            return '#FF3333'
+            if (obj.isPlayer) return null // the marker below
+            return opts.scanner && !obj.dead && obj.visible !== false ? DUDE : null
         }
+        if (obj.pid === 0x2000031) return SPECIAL
+        if (obj.type === 'wall') return WALL
+        if (obj.type === 'scenery') return opts.highDetail && obj.pid !== 0x2000158 ? SCENERY : null
         return null
     }
-    const colorForSnapshot = (t: ObjType): string => {
-        if (t === 'w') return '#888888'
-        if (t === 'd') return '#FF8800'
-        if (t === 's') return '#3388FF'
-        return '#FFCC00' // 'i'
+    const colorForSnapshot = (t: ObjType): string | null => {
+        if (t === 'w') return WALL
+        if (t === 'd' || t === 's') return opts.highDetail ? SCENERY : null
+        return null // 'i'
     }
 
     if (isCurrentMap && map) {
@@ -160,17 +166,18 @@ export function drawAutomapInto(canvas: HTMLCanvasElement, opts: RenderOptions =
             if (!obj || !obj.position) continue
             const c = colorForLive(obj)
             if (!c) continue
-            renderObjects.push({ x: obj.position.x, y: obj.position.y, color: c })
+            renderObjects.push({ x: obj.position.x, y: obj.position.y, color: c, anyTile: obj.type === 'critter' })
         }
     } else {
         for (const e of getObjectSnapshot(mapName, elevation)) {
-            renderObjects.push({ x: e.x, y: e.y, color: colorForSnapshot(e.t) })
+            const c = colorForSnapshot(e.t)
+            if (c) renderObjects.push({ x: e.x, y: e.y, color: c })
         }
     }
 
     for (const o of renderObjects) {
         const tileKey = `${o.x},${o.y}`
-        if (!seen.has(tileKey)) continue
+        if (!o.anyTile && !seen.has(tileKey)) continue
         ctx.fillStyle = o.color
         ctx.fillRect(ox + o.x * scale - 1, oy + o.y * scale - 1, objSize, objSize)
     }
@@ -180,11 +187,11 @@ export function drawAutomapInto(canvas: HTMLCanvasElement, opts: RenderOptions =
     ctx.lineWidth = 1
     ctx.strokeRect(ox - 2, oy - 2, HEX_RANGE * scale + 4, HEX_RANGE * scale + 4)
 
-    // Player marker (yellow cross) — only when rendering the current map
+    // Player marker (CE: the dude in red, 31744) — only when rendering the current map
     if (isCurrentMap && player) {
         const px = ox + player.position.x * scale
         const py = oy + player.position.y * scale
-        ctx.fillStyle = '#FFFF00'
+        ctx.fillStyle = DUDE
         ctx.fillRect(px - 3, py - 1, 7, 3)
         ctx.fillRect(px - 1, py - 3, 3, 7)
     }

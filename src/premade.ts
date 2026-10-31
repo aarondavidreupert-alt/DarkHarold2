@@ -18,13 +18,13 @@ limitations under the License.
 // critter.cc gcdLoad (the .gcd character file: critter proto data, name, tagged
 // skills, traits, unspent character points; big-endian like every FO2 file).
 
-import { SKILLS, STATS, TRAITS_BY_ID } from './ui_character.js'
+import { SKILLS, STATS, TRAITS_BY_ID } from './uiCharacter.js'
 import { getFileBinarySync, getFileText } from './util.js'
 
 // CE character_selector.cc:97 — file stem and face FRM (intrface.lst index).
 export const PREMADE_CHARACTERS: ReadonlyArray<{ file: string; face: string }> = [
-    { file: 'premade/combat', face: 'art/intrface/combat.png' },     // Narg, FID 201
-    { file: 'premade/stealth', face: 'art/intrface/stealth.png' },   // Mingan, FID 202
+    { file: 'premade/combat', face: 'art/intrface/combat.png' }, // Narg, FID 201
+    { file: 'premade/stealth', face: 'art/intrface/stealth.png' }, // Mingan, FID 202
     { file: 'premade/diplomat', face: 'art/intrface/diplomat.png' }, // Chitsa, FID 203
 ]
 
@@ -49,14 +49,18 @@ export interface PremadeCharacter {
 // CE critter.cc:1022 gcdLoad → protoCritterDataRead, name, skillsLoad, traitsLoad.
 export function parseGcd(view: DataView): PremadeCharacter {
     let o = 0
-    const i32 = (): number => { const v = view.getInt32(o, false); o += 4; return v }
+    const i32 = (): number => {
+        const v = view.getInt32(o, false)
+        o += 4
+        return v
+    }
 
     i32() // flags
     const baseStats: number[] = []
     for (let i = 0; i < SAVEABLE_STAT_COUNT; i++) baseStats.push(i32())
     o += SAVEABLE_STAT_COUNT * 4 // bonusStats
-    o += SKILL_COUNT * 4         // skills (no invested points in premades)
-    o += 4 * 4                   // bodyType, experience, killType, damageType
+    o += SKILL_COUNT * 4 // skills (no invested points in premades)
+    o += 4 * 4 // bodyType, experience, killType, damageType
 
     let name = ''
     for (let i = 0; i < DUDE_NAME_MAX_LENGTH; i++) {
@@ -79,7 +83,9 @@ export function parseGcd(view: DataView): PremadeCharacter {
     const characterPoints = i32()
 
     const special: { [stat: string]: number } = {}
-    STATS.forEach((s, i) => { special[s] = baseStats[i] })
+    STATS.forEach((s, i) => {
+        special[s] = baseStats[i]
+    })
     return {
         name,
         special,

@@ -8,8 +8,8 @@ export type DialogueStatus =
     | 'no-talk-proc'
     | 'no-adjacent-tile'
     | 'exception-on-talk'
-    | 'no-dialogue'          // talk proc ran; UIMode confirmed none within polling window
-    | 'stuck-no-dialogue'    // hit 5 s cap with UIMode never reaching none or dialogue
+    | 'no-dialogue' // talk proc ran; UIMode confirmed none within polling window
+    | 'stuck-no-dialogue' // hit 5 s cap with UIMode never reaching none or dialogue
     | 'combat-triggered'
     | 'stuck-no-options'
     | 'exception-on-click'

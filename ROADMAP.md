@@ -66,16 +66,16 @@ game features, but prerequisites for reliable iteration.
 
 | Opcode | Status | Notes |
 |---|---|---|
-| `obj_art_fid` | ✅ Done | `vm_bridge.ts:130`, `scripting.ts:1201` |
-| `art_anim` | ✅ Done | `vm_bridge.ts:118`, `scripting.ts:1209` |
-| `obj_item_subtype` | ✅ Done | `vm_bridge.ts:123`, `scripting.ts:1180` |
-| `tile_contains_pid_obj` | ✅ Done | `vm_bridge.ts:115`, `scripting.ts:1337` |
-| `tile_is_visible` | ✅ Done | `vm_bridge.ts 0x80f8`, `scripting.ts:1347` |
-| `set_exit_grids` | ✅ Done | `vm_bridge.ts:0x80E6`, `scripting.ts:1306` |
-| `game_ui_disable` / `game_ui_enable` | ✅ Done | `vm_bridge.ts:160–161`, `scripting.ts:1789–1793` |
-| `wm_area_set_pos` | ✅ Done | `vm_bridge.ts:96`, `scripting.ts:1782` |
-| `critter_attempt_placement` | ✅ Done | `vm_bridge.ts:101`, `scripting.ts:851` |
-| `proto_data` critter fields | ✅ Done | Wired `vm_bridge.ts`; all item and critter `data_member` IDs handled; name/description cases added 2026-06-02. Ref: `interpreter_extra.cc opGetProtoData` |
+| `obj_art_fid` | ✅ Done | `vmBridge.ts:130`, `scripting.ts:1201` |
+| `art_anim` | ✅ Done | `vmBridge.ts:118`, `scripting.ts:1209` |
+| `obj_item_subtype` | ✅ Done | `vmBridge.ts:123`, `scripting.ts:1180` |
+| `tile_contains_pid_obj` | ✅ Done | `vmBridge.ts:115`, `scripting.ts:1337` |
+| `tile_is_visible` | ✅ Done | `vmBridge.ts 0x80f8`, `scripting.ts:1347` |
+| `set_exit_grids` | ✅ Done | `vmBridge.ts:0x80E6`, `scripting.ts:1306` |
+| `game_ui_disable` / `game_ui_enable` | ✅ Done | `vmBridge.ts:160–161`, `scripting.ts:1789–1793` |
+| `wm_area_set_pos` | ✅ Done | `vmBridge.ts:96`, `scripting.ts:1782` |
+| `critter_attempt_placement` | ✅ Done | `vmBridge.ts:101`, `scripting.ts:851` |
+| `proto_data` critter fields | ✅ Done | Wired `vmBridge.ts`; all item and critter `data_member` IDs handled; name/description cases added 2026-06-02. Ref: `interpreter_extra.cc opGetProtoData` |
 | `has_trait` | ✅ Done | TRAIT_OBJECT all cases (5,6,10,666,669=weight) handled 2026-06-02. Ref: `interpreter_extra.cc opHasTrait` |
 | `do_check` | ✅ Done | CE `stat.cc statRoll()` — d10 roll, SPECIAL stat + modifier — `scripting.ts:839` |
 | `using_skill` | ✅ Done | SKILL_SNEAK (8) on player returns `isSneaking`; others return 0 — `scripting.ts:836` |
@@ -154,11 +154,11 @@ a believable playthrough.
 - ✅ `Obj.serialize()` equipment round-trips correctly.
 - ✅ Spatial trigger LVARs serialized/restored.
 - ✅ `get_month`/`get_day` save round-trip.
-- ✅ **Preferences screen** — `ui_options.ts` (434 lines): difficulty, running, audio,
+- ✅ **Preferences screen** — `uiOptions.ts` (434 lines): difficulty, running, audio,
   volume sliders, `localStorage` persist/restore.
 - ✅ **Healer perk** — `skillUse.ts:227–230` (+4/+10 HP per rank for First Aid/Doctor).
 - ✅ Encounter difficulty roll adjustments (W2 FIXED 2026-06-02).
-- ✅ Karma title computation — `ui_character.ts:581–624`.
+- ✅ Karma title computation — `uiCharacter.ts:581–624`.
 - ✅ `Melee Weapons` skill name remapped on deserialize.
 - ✅ Encounter formations (straight_line/double_line/wedge/cone) — W6 FIXED 2026-06-02.
 - ✅ Encounter-spawned critters carry items/equipment (W3 FIXED 2026-06-03).
@@ -173,7 +173,7 @@ a believable playthrough.
 - ✅ Dead `tile_coord()` function removed (TS4 FIXED 2026-06-03).
 - 🟡 **Town faction deltas** — per-town rep GVARs synced + displayed with CE tier labels (R2 FIXED 2026-07-28).
   VERIFIED 2026-10-07: CE has no engine-side reaction modifier (`reaction.cc _reaction_influence_` returns 0; reaction is LVAR 0, which scripts manage). The one engine write is `_critter_set_who_hit_me` setting the victim's reaction to −3 when the player hits it, now ported (C19).
-- ✅ **Type annotations** (2026-10-07): `Obj.type` is an `ObjType` union, `Obj.pro` is `Proto`, `Obj.anim` is `string | null`, `Obj.extra` is a keyed map, `globalState.proMap` is typed, and `Weapon.weapon` is `WeaponObj | UnarmedWeaponStub`. `Proto.extra` stays deliberately `any` (see `proto_types.ts`). The pass caught a stale `pro.lightRadius` fallback and a dead `weapon === 'punch'` check.
+- ✅ **Type annotations** (2026-10-07): `Obj.type` is an `ObjType` union, `Obj.pro` is `Proto`, `Obj.anim` is `string | null`, `Obj.extra` is a keyed map, `globalState.proMap` is typed, and `Weapon.weapon` is `WeaponObj | UnarmedWeaponStub`. `Proto.extra` stays deliberately `any` (see `protoTypes.ts`). The pass caught a stale `pro.lightRadius` fallback and a dead `weapon === 'punch'` check.
 
 ---
 
@@ -292,7 +292,7 @@ covered by Phases 1–8.
 | CI4 | ✅ FIXED 2026-06-04 — `doAlwaysRun` default = false, matching CE. | `settings.h:38` | low |
 | CI5 | **Preferences in localStorage, not fallout2.cfg.** Lost in private browsing. | `settings.cc:118` | minor |
 | CI6 | ✅ FIXED 2026-06-11 — `speechVolume` added to `HTMLAudioEngine`, persisted in `SavedPreferences`, slider in prefs panel. | `settings.cc:93` | low |
-| CI7 | ✅ FIXED (prior sprint) — `Config.ui.itemHighlight` wired to prefs panel toggle in `ui_options.ts`; `input.ts` gates hover-highlight on this flag; persisted in `SavedPreferences`. | `game_config.h:37` | low |
+| CI7 | ✅ FIXED (prior sprint) — `Config.ui.itemHighlight` wired to prefs panel toggle in `uiOptions.ts`; `input.ts` gates hover-highlight on this flag; persisted in `SavedPreferences`. | `game_config.h:37` | low |
 | CI8 | ✅ FIXED 2026-06-11 — `target_highlight` is now full 3-state enum `'off'|'targeting-only'|'on'` matching CE 0/1/2; prefs cycle order corrected; legacy boolean load migration preserved. | `game_config.h:111` | low |
 | CI9 | ✅ FIXED 2026-07-28 — `textBaseDelay` preference now drives float message expiry via CE formula: `(baseDelay + (baseDelay-1)×0.4 × lineCount) × 1000 ms`. Removed stale `floatMessageDuration` constant. Also see AF16 below (now fixed). | `settings.h:42` | low |
 | CI10 | ✅ FIXED 2026-06-11 — `player_speedup` checkbox added to `Config.engine.playerSpeedup`; prefs panel checkbox wired; `critterAnimation.ts` skips player FPS boost when disabled. | `preferences.cc player_speedup` | low |
@@ -366,7 +366,7 @@ These are real FO2 systems but not on the critical path to a playable main quest
 
 - **Subtitles / speech audio playback** — immersion, not correctness
 - **Full NPC day-night schedules** — minimal wander (Phase 5d) is enough
-- **Perk selection screen** — ✅ already implemented (`ui_character.ts:1866 showPerkModal`)
+- **Perk selection screen** — ✅ already implemented (`uiCharacter.ts:1866 showPerkModal`)
 - **Full companion level-up UI** — companions work without it
 - ~~**Engine-side town reaction modifiers**~~ — CE has none (C19, 2026-10-07)
 - **Color cycling / water animation** — visual only
@@ -392,7 +392,7 @@ Phase 9 (remaining tractable gaps) 🟡/🔴
 ---
 
 ## AUDIT FINDINGS
-*Forensic comparison of CE `src/interface.cc` + `src/preferences.cc` vs DH2 `src/ui_hud.ts` / `src/ui_options.ts`. Audited 2026-06-11.*
+*Forensic comparison of CE `src/interface.cc` + `src/preferences.cc` vs DH2 `src/uiHud.ts` / `src/uiOptions.ts`. Audited 2026-06-11.*
 
 ### AF-HUD — interface.cc gaps
 
@@ -411,21 +411,21 @@ Phase 9 (remaining tractable gaps) 🟡/🔴
 
 | ID | What | CE Ref | Sev |
 |----|------|--------|-----|
-| AF9 | ✅ FIXED (prior sprint) — `brightness` slider implemented in `ui_options.ts`; CSS filter applied to canvas. | `preferences.cc PREF_BRIGHTNESS` | minor |
-| AF10 | ✅ FIXED (prior sprint) — `mouseSensitivity` slider implemented in `ui_options.ts`; applied to mouse delta. | `preferences.cc PREF_MOUSE_SENSITIVITY` | low |
+| AF9 | ✅ FIXED (prior sprint) — `brightness` slider implemented in `uiOptions.ts`; CSS filter applied to canvas. | `preferences.cc PREF_BRIGHTNESS` | minor |
+| AF10 | ✅ FIXED (prior sprint) — `mouseSensitivity` slider implemented in `uiOptions.ts`; applied to mouse delta. | `preferences.cc PREF_MOUSE_SENSITIVITY` | low |
 | AF11 | ✅ VERIFIED 2026-10-07 — `prflknbs.png` 2-way knob. **`running` toggle cycles boolean; CE uses a 2-way toggle knob FRM (prflknbs.frm).** DH2 uses a cycle button; cosmetic. | `preferences.cc` | low |
 | AF12 | ✅ VERIFIED 2026-10-07 — `prfbknbs.png` knob. **`game_difficulty` uses CE 3-way knob (prfbknbs.frm); DH2 uses a cycle button.** The 4-way rotary knob FRM is not loaded. | `preferences.cc PREF_GAME_DIFFICULTY` | low |
 | AF13 | ✅ VERIFIED 2026-10-07 — panel is laid out over `prefscrn.png`. **Preferences background (`prefscrn.frm`) not loaded.** DH2 prefs panel uses a raw `<div>` with inline styles; the 640×480 background FRM is never rendered. | `preferences.cc` | low |
 | AF14 | ✅ VERIFIED 2026-10-07 — `prflknbs.png` 2-way knob. **`combat_messages` uses cycle button; CE uses 2-way toggle knob (prflknbs.frm).** | `preferences.cc PREF_COMBAT_MESSAGES` | low |
-| AF15 | ✅ FIXED (prior sprint) — DEFAULT button in `ui_options.ts` resets all sliders to CE defaults via `preferencesSetDefaults()` equivalent. | `preferences.cc preferencesSave()` | low |
+| AF15 | ✅ FIXED (prior sprint) — DEFAULT button in `uiOptions.ts` resets all sliders to CE defaults via `preferencesSetDefaults()` equivalent. | `preferences.cc preferencesSave()` | low |
 | AF16 | ~~**`text_line_delay` absent.**~~ FIXED 2026-07-28 — line delay derived and applied in `gameTick.ts` float-message expiry; see CI9. | `settings.h:43` | low |
-| AF17 | ~~**`language_filter` checkbox absent.**~~ FIXED (prior sprint) — `Config.ui.languageFilter` toggle wired to preferences panel secondary-knob at (299,207) in `ui_options.ts:312`. | `preferences.cc PREF_LANGUAGE_FILTER` | low |
+| AF17 | ~~**`language_filter` checkbox absent.**~~ FIXED (prior sprint) — `Config.ui.languageFilter` toggle wired to preferences panel secondary-knob at (299,207) in `uiOptions.ts:312`. | `preferences.cc PREF_LANGUAGE_FILTER` | low |
 
 ---
 
 ## AUDIT FINDINGS — interface.cc (2026-06-13)
 
-Audit scope: `fallout2-ce/src/interface.cc` vs `src/ui_hud.ts`, `src/ui.ts`, `src/ui_options.ts`.
+Audit scope: `fallout2-ce/src/interface.cc` vs `src/uiHud.ts`, `src/ui.ts`, `src/uiOptions.ts`.
 Items already implemented (indicator bar, AP lights, sneaking/addiction/level flags, radiation/poison thresholds) are omitted.
 
 | ID | Gap | CE reference | severity |

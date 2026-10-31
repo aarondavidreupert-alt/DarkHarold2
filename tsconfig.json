@@ -3,15 +3,16 @@
         "removeComments": true,
         "preserveConstEnums": true,
         "noImplicitReturns": true,
-        "alwaysStrict": true, // emit "use strict"
+        // all strict checks (wiki/code_quality.md Q10); a value the code knows is set is marked `!`
+        "strict": true,
         "skipLibCheck": true,
-        "noImplicitAny": true,
-        "noImplicitThis": true,
         "outDir": "js",
         "rootDir": "src",
         "target": "es2021",
         "lib": ["es2021", "dom"],
-        "allowJs": true
+        "allowJs": true,
+        // js/**/*.js.map (gitignored, *.map): browser stack traces and breakpoints show the .ts
+        "sourceMap": true
     },
 
     "include": ["src/**/*"],

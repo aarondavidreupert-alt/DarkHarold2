@@ -44,9 +44,24 @@ export const SKILL_MAX_VALUE = 300
 
 // Ordered skill names matching the Skills enum (index 0 = SmallGuns = Skills.SmallGuns - 1)
 export const SKILL_NAMES: string[] = [
-    'Small Guns', 'Big Guns', 'Energy Weapons', 'Unarmed', 'Melee Weapons',
-    'Throwing', 'First Aid', 'Doctor', 'Sneak', 'Lockpick', 'Steal', 'Traps',
-    'Science', 'Repair', 'Speech', 'Barter', 'Gambling', 'Outdoorsman',
+    'Small Guns',
+    'Big Guns',
+    'Energy Weapons',
+    'Unarmed',
+    'Melee Weapons',
+    'Throwing',
+    'First Aid',
+    'Doctor',
+    'Sneak',
+    'Lockpick',
+    'Steal',
+    'Traps',
+    'Science',
+    'Repair',
+    'Speech',
+    'Barter',
+    'Gambling',
+    'Outdoorsman',
 ]
 
 // Skill Dependencies system
@@ -63,13 +78,20 @@ export enum StatType {
 }
 
 class Skill {
-    constructor(public startValue: number, public dependencies: Dependency[]) {}
+    constructor(
+        public startValue: number,
+        public dependencies: Dependency[],
+    ) {}
 }
 
 class Dependency {
     // baseOnly: read the stat's base (traits included, no bonus layer) — CE
     // critterGetBaseStatWithTraitModifier, which only Max HP uses.
-    constructor(public statType: string, public multiplier: number, public baseOnly = false) {}
+    constructor(
+        public statType: string,
+        public multiplier: number,
+        public baseOnly = false,
+    ) {}
 }
 
 class Stat {
@@ -77,7 +99,10 @@ class Stat {
         public min: number,
         public max: number,
         public defaultValue: number,
-        public dependencies: Dependency[]
+        public dependencies: Dependency[],
+        // CE critterUpdateDerivedStats floors the derived part alone (max(ST − 5, 1),
+        // max(EN / 3, 1)); the bonus (perks, radiation) is added after
+        public derivedMin?: number,
     ) {}
 }
 
@@ -119,13 +144,19 @@ export const statDependencies: { [name: string]: Stat } = {
 
     // FO2-CE ref: stat.cc critterUpdateDerivedStats — Max HP = 15 + 2 × END + STR, from the
     // base values with traits (drugs, radiation, armor and Gain-SPECIAL perks don't count).
-    'Max HP': new Stat(0, 999, 0, [new Dependency('One', 15), new Dependency('END', 2, true), new Dependency('STR', 1, true)]),
+    'Max HP': new Stat(0, 999, 0, [
+        new Dependency('One', 15),
+        new Dependency('END', 2, true),
+        new Dependency('STR', 1, true),
+    ]),
     AP: new Stat(1, 99, 0, [new Dependency('One', 5), new Dependency('AGI', 0.5)]),
     AC: new Stat(0, 999, 0, [new Dependency('AGI', 1)]),
-    Melee: new Stat(1, 500, 0, [new Dependency('One', -5), new Dependency('STR', 1)]),
+    // CE stat.cc: Melee Damage 0..500, base max(ST − 5, 1)
+    Melee: new Stat(0, 500, 0, [new Dependency('One', -5), new Dependency('STR', 1)], 1),
     Carry: new Stat(0, 999, 0, [new Dependency('One', 25), new Dependency('STR', 25)]),
     Sequence: new Stat(0, 60, 0, [new Dependency('PER', 2)]),
-    'Healing Rate': new Stat(1, 30, 0, [new Dependency('END', 1 / 3)]),
+    // CE stat.cc: Healing Rate 0..30, base max(EN / 3, 1)
+    'Healing Rate': new Stat(0, 30, 0, [new Dependency('END', 1 / 3)], 1),
     'Critical Chance': new Stat(0, 100, 0, [new Dependency('LUK', 1)]),
     'Better Criticals': new Stat(-60, 100, 0, []),
     'DT EMP': new Stat(0, 100, 0, []),
@@ -160,7 +191,7 @@ export const statDependencies: { [name: string]: Stat } = {
     // GVARs with no engine-enforced clamp. Registered so StatSet.getBase() doesn't
     // throw when the karma panel reads back a value written by
     // Script.set_global_var()'s TOWN_REP_GVARS sync. Names must match TOWN_NAMES in
-    // ui_character/viewer.ts and TOWN_REP_GVARS in scripting.ts exactly.
+    // uiCharacter/viewer.ts and TOWN_REP_GVARS in scripting.ts exactly.
     // (Restored 2026-10-06 — lost in the 2026-07-07 revert commit b282cca.)
     Rep_Arroyo: new Stat(-99999999, 99999999, 0, []),
     Rep_Klamath: new Stat(-99999999, 99999999, 0, []),
@@ -207,9 +238,18 @@ export function skillImprovementCost(effectiveSkillValue: number): number {
 // CE ref: skill.cc skillGetGameDifficultyModifier() — 12 non-combat skills affected.
 // Speech, Barter, Gambling were previously omitted from this list; CE includes them.
 const DIFFICULTY_AFFECTED_SKILLS: Set<string> = new Set([
-    'First Aid', 'Doctor', 'Sneak', 'Lockpick', 'Steal',
-    'Traps', 'Science', 'Repair', 'Outdoorsman',
-    'Speech', 'Barter', 'Gambling',
+    'First Aid',
+    'Doctor',
+    'Sneak',
+    'Lockpick',
+    'Steal',
+    'Traps',
+    'Science',
+    'Repair',
+    'Outdoorsman',
+    'Speech',
+    'Barter',
+    'Gambling',
 ])
 
 export function skillGetGameDifficultyModifier(skill: string): number {
@@ -224,20 +264,20 @@ export function skillGetGameDifficultyModifier(skill: string): number {
 // FO2-CE ref: perk.cc:628 perkGetSkillModifier — perkHasRank checks (a perk counts
 // once, regardless of rank).
 const PERK_SKILL_MODIFIERS: { [perk: string]: { [skill: string]: number } } = {
-    'Medic':                     { 'First Aid': 10, 'Doctor': 10 },
-    'Vault City Training':       { 'First Aid': 5, 'Doctor': 5 },
-    'Living Anatomy':            { 'Doctor': 10 },
-    'Thief':                     { 'Sneak': 10, 'Lockpick': 10, 'Steal': 10, 'Traps': 10 },
-    'Master Thief':              { 'Lockpick': 15, 'Steal': 15 },
-    'Harmless':                  { 'Steal': 20 },
-    'Mr. Fixit':                 { 'Science': 10, 'Repair': 10 },
-    'Speaker':                   { 'Speech': 20 },
-    'Expert Excrement Expeditor': { 'Speech': 5 },
-    'Negotiator':                { 'Speech': 10, 'Barter': 10 },
-    'Salesman':                  { 'Barter': 20 },
-    'Gambler':                   { 'Gambling': 20 },
-    'Ranger':                    { 'Outdoorsman': 15 },
-    'Survivalist':               { 'Outdoorsman': 25 },
+    Medic: { 'First Aid': 10, Doctor: 10 },
+    'Vault City Training': { 'First Aid': 5, Doctor: 5 },
+    'Living Anatomy': { Doctor: 10 },
+    Thief: { Sneak: 10, Lockpick: 10, Steal: 10, Traps: 10 },
+    'Master Thief': { Lockpick: 15, Steal: 15 },
+    Harmless: { Steal: 20 },
+    'Mr. Fixit': { Science: 10, Repair: 10 },
+    Speaker: { Speech: 20 },
+    'Expert Excrement Expeditor': { Speech: 5 },
+    Negotiator: { Speech: 10, Barter: 10 },
+    Salesman: { Barter: 20 },
+    Gambler: { Gambling: 20 },
+    Ranger: { Outdoorsman: 15 },
+    Survivalist: { Outdoorsman: 25 },
 }
 
 export function perkGetSkillModifier(perks: string[], skill: string, lightIntensity?: number): number {
@@ -254,18 +294,37 @@ export function perkGetSkillModifier(perks: string[], skill: string, lightIntens
 // FO2-CE ref: skill.cc skillGetValue() → traitGetSkillModifier()
 // Trait modifiers applied to skill values.
 const TRAIT_SKILL_MODIFIERS: { [trait: string]: { [skill: string]: number } } = {
-    'Gifted': {
-        'Small Guns': -10, 'Big Guns': -10, 'Energy Weapons': -10,
-        'Unarmed': -10, 'Melee Weapons': -10, 'Throwing': -10,
-        'First Aid': -10, 'Doctor': -10, 'Sneak': -10,
-        'Lockpick': -10, 'Steal': -10, 'Traps': -10,
-        'Science': -10, 'Repair': -10, 'Speech': -10,
-        'Barter': -10, 'Gambling': -10, 'Outdoorsman': -10,
+    Gifted: {
+        'Small Guns': -10,
+        'Big Guns': -10,
+        'Energy Weapons': -10,
+        Unarmed: -10,
+        'Melee Weapons': -10,
+        Throwing: -10,
+        'First Aid': -10,
+        Doctor: -10,
+        Sneak: -10,
+        Lockpick: -10,
+        Steal: -10,
+        Traps: -10,
+        Science: -10,
+        Repair: -10,
+        Speech: -10,
+        Barter: -10,
+        Gambling: -10,
+        Outdoorsman: -10,
     },
     'Good Natured': {
-        'First Aid': 15, 'Doctor': 15, 'Speech': 15, 'Barter': 15,
-        'Small Guns': -10, 'Big Guns': -10, 'Energy Weapons': -10,
-        'Unarmed': -10, 'Melee Weapons': -10, 'Throwing': -10,
+        'First Aid': 15,
+        Doctor: 15,
+        Speech: 15,
+        Barter: 15,
+        'Small Guns': -10,
+        'Big Guns': -10,
+        'Energy Weapons': -10,
+        Unarmed: -10,
+        'Melee Weapons': -10,
+        Throwing: -10,
     },
 }
 

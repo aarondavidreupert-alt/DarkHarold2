@@ -11,7 +11,7 @@
 // updates that image's entry in globalState.imageInfo (fps, actionFrame). Other files are
 // read as they are (data/<path>).
 
-import globalState from './globalState.js'
+import { assets } from './state/assets.js'
 import { getFileBinarySync } from './util.js'
 import { dbg } from './logger.js'
 
@@ -26,7 +26,10 @@ const files: VFile[] = []
 const FRM_HEADER_SIZE = 0x3e // version, fps, action frame, frames/dir, 6 shiftX, 6 shiftY, 6 offsets, size
 
 function normalize(path: string): string {
-    return String(path ?? '').replace(/\\/g, '/').replace(/^\/+/, '').toLowerCase()
+    return String(path ?? '')
+        .replace(/\\/g, '/')
+        .replace(/^\/+/, '')
+        .toLowerCase()
 }
 
 /** "art/critters/marobeag.frm" -> the imageInfo key "art/critters/marobeag" */
@@ -38,13 +41,13 @@ function artKey(path: string): string | null {
 function load(path: string): Uint8Array | null {
     const key = artKey(path)
     if (key) {
-        const info = globalState.imageInfo?.[key]
+        const info = assets.imageInfo?.[key]
         if (!info) return null
         const data = new Uint8Array(FRM_HEADER_SIZE)
         const dv = new DataView(data.buffer)
         dv.setUint32(0, 4) // FRM version
         dv.setUint16(4, info.fps ?? 10)
-        dv.setUint16(6, info.actionFrame ?? 0)
+        dv.setUint16(6, (info.actionFrame as number) ?? 0) // a per-direction list writes 0 (known_bugs CA46)
         dv.setUint16(8, info.numFrames ?? 1)
         return data
     }
@@ -59,7 +62,7 @@ function load(path: string): Uint8Array | null {
 /** an edited art FRM header -> the image's fps / action frame */
 function apply(f: VFile): void {
     const key = artKey(f.path)
-    const info = key ? globalState.imageInfo?.[key] : null
+    const info = key ? assets.imageInfo?.[key] : null
     if (!f.data || !info || f.data.length < 10) return
     const dv = new DataView(f.data.buffer, f.data.byteOffset, f.data.byteLength)
     const fps = dv.getUint16(4)

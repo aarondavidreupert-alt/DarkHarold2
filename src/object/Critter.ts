@@ -27,15 +27,19 @@ import { Weapon } from '../critter.js'
 import { directionOfDelta, hexDistance, HEX_GRID_SIZE, Point } from '../geometry.js'
 import { toTileNum } from '../tile.js'
 import { canUseDoor } from '../map/pathfinder.js'
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
+import { assets } from '../state/assets.js'
 import { dbg, dbgWarn } from '../logger.js'
-import { Scripting } from '../scripting.js'
+import * as Scripting from '../scripting.js'
 import { getMessage, getProtoMsg } from '../util.js'
-import { drawAP, uiLog } from '../ui_hud.js'
+import { scriptNumberOf } from '../data.js'
+import { drawAP } from '../hudRefresh.js'
+import { uiLog } from '../messageLog.js'
 import { getAiPacket, AiPacket } from '../aiPackets.js'
 import { getObjectLightIntensity } from '../combat/hitChance.js'
 import { hitSpatialTrigger, Obj, ObjType, objectIsWeapon, SerializedObj, setObjectOpen } from './Obj.js'
 import { WeaponObj } from './items.js'
+import { fixCorpseArt } from '../critter/deathAnim.js'
 
 // CE scripts.cc _scr_SpatialsEnabled — off while a spatial_p_proc runs
 let spatialsBusy = false
@@ -64,9 +68,24 @@ export interface SerializedCritter extends SerializedObj {
 }
 
 export const SERIALIZED_CRITTER_PROPS = [
-    'stats', 'skills', 'aiNum', 'teamNum', 'hostile', 'isPlayer', 'dead',
-    'anim', 'crippledLeftArm', 'crippledRightArm', 'crippledLeftLeg', 'crippledRightLeg',
-    'poisonLevel', 'radiationLevel', 'radiated', 'addictions', 'addictedState', 'customAiOverrides',
+    'stats',
+    'skills',
+    'aiNum',
+    'teamNum',
+    'hostile',
+    'isPlayer',
+    'dead',
+    'anim',
+    'crippledLeftArm',
+    'crippledRightArm',
+    'crippledLeftLeg',
+    'crippledRightLeg',
+    'poisonLevel',
+    'radiationLevel',
+    'radiated',
+    'addictions',
+    'addictedState',
+    'customAiOverrides',
 ]
 
 export class Critter extends Obj {
@@ -75,6 +94,24 @@ export class Critter extends Obj {
 
     leftHand?: WeaponObj // Left-hand object slot
     rightHand?: WeaponObj // Right-hand object slot
+
+    // State the combat AI, skills and the player add at run time. Declared without initialisers,
+    // so the compiled class is unchanged; only the type knows them.
+    whoHitMe?: Critter | null // CE critter.combat.whoHitMe (combat/whoHitMe.ts)
+    aiLastTarget?: Critter | null
+    aiLastItem?: Obj | null
+    aiFriendlyDead?: Critter | null
+    fleeing?: boolean // CE CRITTER_MANUEVER_FLEEING
+    engaging?: boolean // CE CRITTER_MANUEVER_ENGAGING
+    disengaging?: boolean // CE CRITTER_MANUEVER_DISENGAGING
+    damageLastTurn?: number // CE critter.combat.damageLastTurn
+    _aiTurn?: any
+    isSneaking?: boolean // the player's Sneak (skillUse.ts)
+    sneakWorking?: boolean
+    gender?: string // the player's (Player sets it)
+    armor?: Obj | null // the player's armour slot (Player sets it)
+    activeHand?: 'leftHand' | 'rightHand' // the player's (Player sets it)
+    traits?: string[] // the player's (Player sets it)
 
     type: ObjType = 'critter'
     anim = 'idle'
@@ -85,7 +122,7 @@ export class Critter extends Obj {
     teamNum = -1 // AI team number (TODO: implement this)
     ai: AI | null = null // AI packet
     // Per-field overrides on top of the resolved AI packet, set via the
-    // companion "Custom" behavior screen (ui_companion.ts /
+    // companion "Custom" behavior screen (uiCompanion.ts /
     // setCompanionCustomSetting). Only meaningful when aiNum currently
     // points at a disposition='custom' packet — cleared when switching to a
     // named preset (Berserk/Aggressive/Defensive/Coward). See AI.ts
@@ -109,22 +146,46 @@ export class Critter extends Obj {
     // The cripple / blind / prone accessors below read and write them.
     injuryFlags = 0
 
-    private resultBit(bit: number): boolean { return (this.injuryFlags & bit) !== 0 }
-    private setResultBit(bit: number, on: boolean): void {
-        this.injuryFlags = (on ? (this.injuryFlags | bit) : (this.injuryFlags & ~bit)) >>> 0
+    private resultBit(bit: number): boolean {
+        return (this.injuryFlags & bit) !== 0
     }
-    get crippledLeftLeg(): boolean { return this.resultBit(0x04) }   // DAM_CRIP_LEG_LEFT
-    set crippledLeftLeg(v: boolean) { this.setResultBit(0x04, !!v) }
-    get crippledRightLeg(): boolean { return this.resultBit(0x08) }  // DAM_CRIP_LEG_RIGHT
-    set crippledRightLeg(v: boolean) { this.setResultBit(0x08, !!v) }
-    get crippledLeftArm(): boolean { return this.resultBit(0x10) }   // DAM_CRIP_ARM_LEFT
-    set crippledLeftArm(v: boolean) { this.setResultBit(0x10, !!v) }
-    get crippledRightArm(): boolean { return this.resultBit(0x20) }  // DAM_CRIP_ARM_RIGHT
-    set crippledRightArm(v: boolean) { this.setResultBit(0x20, !!v) }
-    get isBlinded(): boolean { return this.resultBit(0x40) }         // DAM_BLIND
-    set isBlinded(v: boolean) { this.setResultBit(0x40, !!v) }
+    private setResultBit(bit: number, on: boolean): void {
+        this.injuryFlags = (on ? this.injuryFlags | bit : this.injuryFlags & ~bit) >>> 0
+    }
+    get crippledLeftLeg(): boolean {
+        return this.resultBit(0x04)
+    } // DAM_CRIP_LEG_LEFT
+    set crippledLeftLeg(v: boolean) {
+        this.setResultBit(0x04, !!v)
+    }
+    get crippledRightLeg(): boolean {
+        return this.resultBit(0x08)
+    } // DAM_CRIP_LEG_RIGHT
+    set crippledRightLeg(v: boolean) {
+        this.setResultBit(0x08, !!v)
+    }
+    get crippledLeftArm(): boolean {
+        return this.resultBit(0x10)
+    } // DAM_CRIP_ARM_LEFT
+    set crippledLeftArm(v: boolean) {
+        this.setResultBit(0x10, !!v)
+    }
+    get crippledRightArm(): boolean {
+        return this.resultBit(0x20)
+    } // DAM_CRIP_ARM_RIGHT
+    set crippledRightArm(v: boolean) {
+        this.setResultBit(0x20, !!v)
+    }
+    get isBlinded(): boolean {
+        return this.resultBit(0x40)
+    } // DAM_BLIND
+    set isBlinded(v: boolean) {
+        this.setResultBit(0x40, !!v)
+    }
     // CE _critter_is_prone: DAM_KNOCKED_OUT | DAM_KNOCKED_DOWN
-    get isKnockedDown(): boolean { return this.resultBit(0x03) }
+    get isKnockedDown(): boolean {
+        return this.resultBit(0x03)
+    }
 
     // Poison / radiation / addiction (FO2-CE ref: critter.cc, radiation.cc)
     poisonLevel: number = 0
@@ -132,7 +193,7 @@ export class Critter extends Obj {
     // CE CRITTER_RADIATED (proto data flag): set when a dose is taken, consumed by the
     // nightly radiation check (src/radiation.ts checkRads).
     radiated: boolean = false
-    addictions: string[] = []   // legacy (pre-2026-10-06 saves); addiction state now lives in the CE GVARs
+    addictions: string[] = [] // legacy (pre-2026-10-06 saves); addiction state now lives in the CE GVARs
     // CE DUDE_STATE_ADDICTED (critter.cc dudeEnableState) — drives the ADDICT indicator.
     addictedState: boolean = false
 
@@ -167,7 +228,8 @@ export class Critter extends Obj {
             if (mobj.skills) {
                 const sk = mobj.skills
                 const proto = sk.protoDefaults || !mobj.isPlayer
-                const base = proto && !sk.protoDefaults ? SkillSet.withProtoDefaults(sk.baseSkills ?? {}) : sk.baseSkills
+                const base =
+                    proto && !sk.protoDefaults ? SkillSet.withProtoDefaults(sk.baseSkills ?? {}) : sk.baseSkills
                 obj.skills = new SkillSet(base, sk.tagged, sk.skillPoints)
                 obj.skills.hasTagPerk = !!sk.hasTagPerk
                 obj.skills.protoDefaults = proto
@@ -179,12 +241,13 @@ export class Critter extends Obj {
             // CE ref: inventory.cc critterGetItem1/critterGetItem2 — use hand-slot
             // flags (OBJECT_IN_LEFT_HAND=0x1000000, OBJECT_IN_RIGHT_HAND=0x2000000).
             // Any item can be in a hand (a flare, a Stealth Boy), not only weapons.
-            obj.leftHand  = Critter.makeFist()
+            obj.leftHand = Critter.makeFist()
             obj.rightHand = Critter.makeFist()
             for (const inv of obj.inventory) {
                 const w = inv as WeaponObj
-                if (inv.flags & 0x1000000) obj.leftHand  = w       // OBJECT_IN_LEFT_HAND
-                else if (inv.flags & 0x2000000) obj.rightHand = w  // OBJECT_IN_RIGHT_HAND
+                if (inv.flags & 0x1000000)
+                    obj.leftHand = w // OBJECT_IN_LEFT_HAND
+                else if (inv.flags & 0x2000000) obj.rightHand = w // OBJECT_IN_RIGHT_HAND
             }
         } else if (typeof mobj.extra?.hp === 'number') {
             // CE: the map file stores each critter's current HP (data.critter.hp), and
@@ -195,7 +258,7 @@ export class Critter extends Obj {
                 obj.stats.setBase('HP', 0)
                 obj.dead = true
                 obj.injuryFlags = (obj.injuryFlags | 0x80) >>> 0 // DAM_DEAD
-                obj.art = mobj.art // the map's death frame art (initialised to idle by init())
+                obj.art = fixCorpseArt(mobj.art) // the map's death frame (init() set idle); violence level
                 obj.frame = 0
                 obj.anim = 'dead'
             } else {
@@ -206,18 +269,32 @@ export class Critter extends Obj {
         return obj
     }
 
+    // CE critter.cc critterGetName: scrname.msg 101 + the script's scripts.lst index wins over
+    // the proto name when it is non-empty (the dude keeps his own name).
+    protected override scriptAttached(): void {
+        if (this.isPlayer || !this.script) return
+        const number = scriptNumberOf(this.script) // scripts.lst index + 1
+        if (number === 0) return
+        const name = getMessage('scrname', 100 + number)
+        if (name) this.name = name
+    }
+
+    // CE object.cc objectGetName → critterGetName
+    override getName(): string {
+        return this.name || super.getName()
+    }
+
     init() {
         super.init()
 
         this.stats = StatSet.fromPro(this.pro)
-        this.skills = SkillSet.fromPro(this.pro.extra.skills)
-        // console.log("Loaded stats/skills from PRO: HP=%d Speech=%d", this.stats.get("HP"), this.skills.get("Speech", this.stats))
-        this.name = getMessage('pro_crit', this.pro.textID) || ''
+        this.skills = SkillSet.fromPro(this.pro!.extra.skills)
+        this.name = getMessage('pro_crit', this.pro!.textID) || ''
 
         // initialize AI packet / team number
         // FO2-CE ref: ai.cc — team_num comes from the proto field; fall back to AI packet if absent
-        this.aiNum = this.pro.extra.AI
-        const protoTeam: number | undefined = this.pro.extra.team
+        this.aiNum = this.pro!.extra.AI
+        const protoTeam: number | undefined = this.pro!.extra.team
         if (protoTeam !== undefined && protoTeam !== null && protoTeam >= 0) {
             this.teamNum = protoTeam
         } else {
@@ -228,16 +305,17 @@ export class Critter extends Obj {
         // is encoded as flags on inventory items: OBJECT_IN_LEFT_HAND=0x1000000,
         // OBJECT_IN_RIGHT_HAND=0x2000000.  fomap.py exports these flags, so we
         // can faithfully restore which weapon each NPC had drawn on map load.
-        this.leftHand  = Critter.makeFist()
+        this.leftHand = Critter.makeFist()
         this.rightHand = Critter.makeFist()
         for (const inv of this.inventory) {
             const w = inv as WeaponObj
-            if (inv.flags & 0x1000000) this.leftHand  = w  // OBJECT_IN_LEFT_HAND
+            if (inv.flags & 0x1000000)
+                this.leftHand = w // OBJECT_IN_LEFT_HAND
             else if (inv.flags & 0x2000000) this.rightHand = w // OBJECT_IN_RIGHT_HAND
         }
         // CE: a critter other than the player acts with its right-hand item
         // (critterGetItem2 — the fid's weapon code, HIT_MODE_RIGHT_WEAPON_*).
-        if (!this.isPlayer && (this.rightHand as any)?.pid !== undefined) (this as any).activeHand = 'rightHand'
+        if (!this.isPlayer && this.rightHand?.pid !== undefined) this.activeHand = 'rightHand'
 
         // set them in their proper idle state for the weapon
         this.art = this.getAnimation('idle')
@@ -253,30 +331,46 @@ export class Critter extends Obj {
 
     static makeFist(): WeaponObj {
         const f = new WeaponObj()
-        f.type = 'item'; f.subtype = 'weapon'
+        f.type = 'item'
+        f.subtype = 'weapon'
         f.weapon = new Weapon(null as unknown as WeaponObj)
         return f
     }
 
     /** CE ref: critter.cc critterEquipCurrent — equip first two weapons from inventory. */
     equipFromInventory(): void {
-        this.leftHand  = undefined
+        this.leftHand = undefined
         this.rightHand = undefined
         for (const inv of this.inventory) {
             if (inv.subtype !== 'weapon') continue
             const w = inv as WeaponObj
             if (!w.weapon?.canEquip(this)) continue
             if (this.leftHand === undefined) this.leftHand = w
-            else if (this.rightHand === undefined) { this.rightHand = w; break }
+            else if (this.rightHand === undefined) {
+                this.rightHand = w
+                break
+            }
         }
-        if (!this.leftHand)  this.leftHand  = Critter.makeFist()
+        if (!this.leftHand) this.leftHand = Critter.makeFist()
         if (!this.rightHand) this.rightHand = Critter.makeFist()
+    }
+
+    // CE animation.cc _dude_run: the dude's run command ends Sneak (unless Silent Running)
+    stopSneakToRun(): void {
+        if (!this.isPlayer || !this.isSneaking || this.hasPerk('Silent Running')) return
+        this.isSneaking = false
+        this.sneakWorking = false
+        Scripting.timeEventList.splice(
+            0,
+            Scripting.timeEventList.length,
+            ...Scripting.timeEventList.filter((e) => !(e.obj === this && e.userdata === 'sneak')),
+        )
     }
 
     move(position: Point, curIdx?: number, signalEvents = true): boolean {
         // CE ref: animation.cc _object_move — doors on the way are opened (canUseDoor)
-        if (globalState.gMap) {
-            for (const obj of globalState.gMap.objectsAtPosition(position)) {
+        if (world.gMap) {
+            for (const obj of world.gMap.objectsAtPosition(position)) {
                 // _object_move: a blocking door the critter canUseDoor gets _obj_use_door
                 if (obj.subtype === 'door' && !obj.open && !obj.jammed && canUseDoor(this, obj)) {
                     setObjectOpen(obj, true, false, true)
@@ -289,18 +383,30 @@ export class Critter extends Obj {
         }
 
         // CE scripts.cc scriptsExecSpatialProc: not for hidden or flat objects or tiles below
-        // 10, and not while a spatial_p_proc is already running (_scr_SpatialsEnabled).
-        if (Config.engine.doSpatials !== false && this.visible !== false && ((this.flags ?? 0) & 0x08) === 0 // OBJECT_FLAT
-            && toTileNum(position) >= 10 && !spatialsBusy) {
+        // 10, and not while a spatial_p_proc is already running or map_enter / map_update
+        // scripts run (_scr_SpatialsEnabled).
+        if (
+            Config.engine.doSpatials !== false &&
+            this.visible !== false &&
+            ((this.flags ?? 0) & 0x08) === 0 && // OBJECT_FLAT
+            toTileNum(position) >= 10 &&
+            !spatialsBusy &&
+            Scripting.spatialsEnabled()
+        ) {
             spatialsBusy = true
             try {
-            const hitSpatials = hitSpatialTrigger(position)
-            for (let i = 0; i < hitSpatials.length; i++) {
-                const spatial = hitSpatials[i]
-                dbg('object', `[Object] triggered spatial ${spatial.script} (range=${spatial.range}) @ (${spatial.position.x}, ${spatial.position.y})`)
-                Scripting.spatial(spatial, this)
+                const hitSpatials = hitSpatialTrigger(position, this.elevation ?? world.gMap!.currentElevation)
+                for (let i = 0; i < hitSpatials.length; i++) {
+                    const spatial = hitSpatials[i]
+                    dbg(
+                        'object',
+                        `[Object] triggered spatial ${spatial.script} (range=${spatial.range}) @ (${spatial.position.x}, ${spatial.position.y})`,
+                    )
+                    Scripting.spatial(spatial, this)
+                }
+            } finally {
+                spatialsBusy = false
             }
-            } finally { spatialsBusy = false }
         }
 
         return true
@@ -316,65 +422,51 @@ export class Critter extends Obj {
             isPlayer: this.isPlayer,
             perks: this.perks,
             // CE traitGetSkillModifier — the dude's traits (Gifted, Good Natured) apply always
-            traits: this.isPlayer ? (this as any).traits : undefined,
+            traits: this.isPlayer ? this.traits : undefined,
             // CE perkGetSkillModifier: Ghost reads objectGetLightIntensity(gDude).
-            lightIntensity: skill === 'Sneak' && this.perks.includes('Ghost') && globalState.player
-                ? getObjectLightIntensity(globalState.player as Critter, true) : undefined,
+            lightIntensity:
+                skill === 'Sneak' && this.perks.includes('Ghost') && world.player
+                    ? getObjectLightIntensity(world.player as Critter, true)
+                    : undefined,
         })
     }
 
     // CE stat.cc critterGetStat — the stat plus its context modifiers: blindness −5 PER,
     // overloaded −(excess / 40 + 1) AP, and age growing with the game years.
-    getStat(stat: string) {
+    getStat(stat: string): number {
         const value = this.stats.get(stat)
         switch (stat) {
             case 'PER':
                 return this.isBlinded ? Math.max(1, value - 5) : value // DAM_BLIND
             case 'AP': {
-                const remaining = this.stats.get('Carry') - this.getInventoryWeight()
+                // CE stat.cc:200: critterGetStat(CARRY_WEIGHT) — the traits included (Small Frame)
+                const remaining = this.getStat('Carry') - this.getInventoryWeight()
                 return remaining < 0 ? Math.max(1, value - (Math.trunc(-remaining / 40) + 1)) : value
             }
             case 'Age':
-                return value + Math.floor((globalState.gameTickTime ?? 0) / 315360000) // GAME_TIME_TICKS_PER_YEAR
+                return value + Math.floor((world.gameTickTime ?? 0) / 315360000) // GAME_TIME_TICKS_PER_YEAR
         }
         return value
     }
 
     getEquippedArmor(): Obj | null {
-        // Player stores armor in a dedicated slot; NPCs wear the inventory armor flagged
-        // OBJECT_WORN (CE critterGetArmor), else the first one carried.
-        const self = this as any
+        // Player stores armor in a dedicated slot; NPCs wear only the inventory armor
+        // flagged OBJECT_WORN (CE inventory.cc critterGetArmor) — carried armor gives nothing.
+        const self = this
         if (self.armor !== undefined) return self.armor
-        let first: Obj | null = null
         for (const item of this.inventory) {
-            if (item.subtype !== 'armor') continue
-            if ((((item as any).flags ?? 0) & 0x4000000) !== 0) return item // OBJECT_WORN
-            if (!first) first = item
+            if (((item.flags ?? 0) & 0x4000000) !== 0) return item // OBJECT_WORN
         }
-        return first
+        return null
     }
 
+    // CE stat.cc critterGetStat: the worn armor's DR / DT only
     getArmorDR(damageType: string): number {
-        const armor = this.getEquippedArmor()
-        if (armor?.pro?.extra?.stats) return armor.pro.extra.stats['DR ' + damageType] ?? 0
-        // Secondary scan: find armor item by PRO structure (handles NPCs whose
-        // armor subtype may not be set but whose PRO carries the stats block)
-        for (const item of this.inventory) {
-            if (item.pro?.extra?.stats?.['DR ' + damageType] !== undefined)
-                return item.pro.extra.stats['DR ' + damageType]
-        }
-        return 0
+        return this.getEquippedArmor()?.pro?.extra?.stats?.['DR ' + damageType] ?? 0
     }
 
     getArmorDT(damageType: string): number {
-        const armor = this.getEquippedArmor()
-        if (armor?.pro?.extra?.stats) return armor.pro.extra.stats['DT ' + damageType] ?? 0
-        // Secondary scan: find armor item by PRO structure
-        for (const item of this.inventory) {
-            if (item.pro?.extra?.stats?.['DT ' + damageType] !== undefined)
-                return item.pro.extra.stats['DT ' + damageType]
-        }
-        return 0
+        return this.getEquippedArmor()?.pro?.extra?.stats?.['DT ' + damageType] ?? 0
     }
 
     getArmorAC(): number {
@@ -405,11 +497,11 @@ export class Critter extends Obj {
     }
 
     get directionalOffset(): Point {
-        const info = globalState.imageInfo[this.art]
+        const info = assets.imageInfo![this.art]
         if (info === undefined) {
-            throw 'No image map info for: ' + this.art
+            throw new Error('No image map info for: ' + this.art)
         }
-        return info.directionOffsets[this.orientation]
+        return info.directionOffsets[this.orientation!]
     }
 
     walkTo(target: Point, running?: boolean, callback?: () => void, maxLength?: number, path?: any): boolean {
@@ -424,12 +516,11 @@ export class Critter extends Obj {
                 dbgWarn('movement', '[Pathfinding] walkTo: invalid target tile', target.x, target.y)
                 return false
             }
-            path = globalState.gMap.recalcPath(this.position, target, undefined, this)
+            path = world.gMap!.recalcPath(this.position, target, undefined, this)
         }
 
         if (path.length === 0) {
             // no path
-            //console.log("not a valid path")
             return false
         }
 
@@ -442,20 +533,25 @@ export class Critter extends Obj {
         if (running && !this.canRun()) {
             running = false
         }
-        // CE animation.cc: crippled legs walk (animationRegisterRunTo*); the dude running
-        // while sneaking stops sneaking unless he has Silent Running (_dude_run).
-        if (running && (this.crippledLeftLeg || this.crippledRightLeg)) running = false
-        if (running && this.isPlayer && (this as any).isSneaking && !this.hasPerk('Silent Running')) {
-            ;(this as any).isSneaking = false
-            ;(this as any).sneakWorking = false
-            Scripting.timeEventList.splice(0, Scripting.timeEventList.length,
-                ...Scripting.timeEventList.filter((e) => !(e.obj === this && e.userdata === 'sneak')))
+        // CE animation.cc animationRegisterRunToTile / RunToObject: an encumbered critter walks
+        // (a party member, the dude included, reports it: misc.msg 8000 / 8001); so do crippled legs and the dude
+        // sneaking without Silent Running (Sneak stays on — only _dude_run, the explicit run
+        // command, ends it: stopSneakToRun)
+        if (running && this.getInventoryWeight() > this.getStat('Carry')) {
+            running = false
+            if (this.isPlayer) uiLog(getMessage('misc', 8000) ?? 'You are overloaded.')
+            else if (world.gParty?.isPartyMember(this)) {
+                const fmt = getMessage('misc', 8001) ?? '%s is overloaded.'
+                uiLog(fmt.replace('%s', this.getName()))
+            }
         }
+        if (running && (this.crippledLeftLeg || this.crippledRightLeg)) running = false
+        if (running && this.isPlayer && this.isSneaking && !this.hasPerk('Silent Running')) running = false
 
         // Critters without a walk/run FRM (spore plants, floaters' stand-only art) can't
         // move: CE _object_move does nothing when artLock(sad->fid) fails (animation.cc).
         const moveArt = this.getAnimation(running ? 'run' : 'walk')
-        if (!globalState.imageInfo[moveArt]) {
+        if (!assets.imageInfo![moveArt]) {
             dbgWarn('movement', `[walkTo] ${this.name || this.pid} has no move art ${moveArt} — not moving`)
             return false
         }
@@ -477,16 +573,15 @@ export class Critter extends Obj {
         // CE ref: animation.cc _object_move (field_20 == -2000) — the walk starts on the
         // hex centre (objectSetLocation) and then adds frame 0's FRM delta.
         if (Config.engine.walkModel !== 'dh2') {
-            const d0 = globalState.imageInfo[this.art]?.frameOffsets[dir]?.[0]
+            const d0 = assets.imageInfo![this.art]?.frameOffsets[dir]?.[0]
             if (d0) this.shift = { x: d0.x, y: d0.y }
         }
-        //console.log("start dir: %o", this.orientation)
 
         return true
     }
 
     walkInFrontOf(targetPos: Point, callback?: () => void): boolean {
-        const path = globalState.gMap.recalcPath(this.position, targetPos, false, this)
+        const path = world.gMap!.recalcPath(this.position, targetPos, false, this)
         if (path.length === 0) {
             // invalid path
             return false
@@ -507,7 +602,6 @@ export class Critter extends Obj {
             running = true
         }
 
-        //console.log("path: %o, callback %o", path, callback)
         return this.walkTo(targetPos, running, callback, undefined, path)
     }
 
@@ -517,13 +611,23 @@ export class Critter extends Obj {
     // (animationRegisterMoveToObject(…, combat.ap)), paying the move; then
     // _check_scenery_ap_cost takes `apCost` AP (3; proto.msg 700 when short). CE walks
     // as far as it can and then fails; DH2 refuses a walk the AP can't finish.
-    walkInFrontOfToAct(targetPos: Point, action: () => void, apCost = 3): void {
+    // `exactHex`: walk onto that hex instead of next to the target (CE _action_climb_ladder:
+    // the ladder's SE neighbour)
+    walkInFrontOfToAct(targetPos: Point, action: () => void, apCost = 3, exactHex?: Point): void {
         const ap = this.AP
-        if (!globalState.inCombat || !this.isPlayer || !ap) {
-            this.walkInFrontOf(targetPos, action)
+        const walkThere = (then: () => void): boolean => {
+            if (!exactHex) return this.walkInFrontOf(targetPos, then)
+            if (this.position.x === exactHex.x && this.position.y === exactHex.y) {
+                then()
+                return true
+            }
+            return this.walkTo(exactHex, Config.engine.doAlwaysRun || hexDistance(this.position, exactHex) >= 5, then)
+        }
+        if (!world.inCombat || !this.isPlayer || !ap) {
+            walkThere(action)
             return
         }
-        if (!(globalState.combat?.inPlayerTurn || Config.combat.allowWalkDuringAnyTurn)) return
+        if (!(world.combat?.inPlayerTurn || Config.combat.allowWalkDuringAnyTurn)) return
         const redraw = () => drawAP(ap.getAvailableCombatAP(), ap.getTotalMaxAP(), ap.move)
         const act = () => {
             if (apCost > 0) {
@@ -536,14 +640,16 @@ export class Critter extends Obj {
             }
             action()
         }
-        const path = globalState.gMap.recalcPath(this.position, targetPos, false, this)
-        if (path.length === 0) return
-        const steps = Math.max(0, path.length - 2) // walkInFrontOf stops next to the target
+        const path = exactHex
+            ? world.gMap!.recalcPath(this.position, exactHex, true, this)
+            : world.gMap!.recalcPath(this.position, targetPos, false, this)
+        if (path.length === 0 && !(exactHex && this.position.x === exactHex.x && this.position.y === exactHex.y)) return
+        const steps = exactHex ? Math.max(0, path.length - 1) : Math.max(0, path.length - 2) // walkInFrontOf stops next to the target
         if (steps > ap.getAvailableMoveAP()) {
             uiLog(getProtoMsg(700) ?? "You don't have enough action points.")
             return
         }
-        if (!this.walkInFrontOf(targetPos, act)) return
+        if (!walkThere(act)) return
         if (steps > 0) {
             ap.subtractMoveAP(steps)
             redraw()

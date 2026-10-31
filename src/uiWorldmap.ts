@@ -1,0 +1,221 @@
+/*
+Copyright 2014 darkf
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// World map: travel-screen overlay (worldmap canvas + per-area entrance
+// view), plus the area label list down the right side.
+
+import { getMessage } from './util.js'
+import { world } from './state/world.js'
+import { uiState } from './state/uiState.js'
+import { services } from './state/services.js'
+import { Area, loadAreas, lookupMapNameFromLookup } from './data.js'
+import * as Worldmap from './worldmap.js'
+import { UIMode } from './uiMode.js'
+import { $id, clearEl, show, hide, showv, hidev, appendHTML, makeEl } from './uiDom.js'
+import { dbg } from './logger.js'
+import { fromTileNum } from './tile.js'
+import { assetUrl } from './modAssets.js'
+
+// CE ref: worldmap.cc — label list visible height ~182px, each tab 27px.
+// tabsBackgroundFrmImage.getHeight()=480, max scroll = 480-230=250, but we
+// clamp dynamically to (labelCount*27 - visibleHeight).
+const LABEL_STEP_PX = 27
+const LABEL_VISIBLE_H = 182
+let _labelScrollY = 0
+
+function setLabelScroll(y: number): void {
+    const outer = document.getElementById('worldMapLabels')
+    if (!outer) return
+    const inner = document.getElementById('worldMapLabelsInner')
+    const labelCount = inner ? inner.querySelectorAll('.worldMapLabel').length : 0
+    const maxScroll = Math.max(0, labelCount * LABEL_STEP_PX - LABEL_VISIBLE_H)
+    _labelScrollY = Math.max(0, Math.min(y, maxScroll))
+    outer.scrollTop = _labelScrollY
+    // Sync background so wmtabs.png slot decorations stay aligned with labels.
+    // CE ref: wmRefreshTabs reblits wmtabs.png starting at tabsScrollOffset.
+    outer.style.backgroundPositionY = -27 - _labelScrollY + 'px'
+}
+
+// --- World map -------------------------------------------------------------
+
+export function uiCloseWorldMap() {
+    uiState.uiMode = UIMode.none
+
+    hide($id('worldMapContainer'))
+    hidev($id('areamap'))
+    hidev($id('worldmap'))
+
+    Worldmap.stop()
+}
+
+export function uiWorldMap(onAreaMap = false) {
+    uiState.uiMode = UIMode.worldMap
+    show($id('worldMapContainer'))
+    // CE worldmap.cc wmInterfaceInit: _gsound_background_play_level_music(isInCar ? "20car" : "23world")
+    services.audioEngine.playMusic(Worldmap.getIsInCar() ? '20car' : '23world')
+
+    if (!world.mapAreas) {
+        world.mapAreas = loadAreas()
+    }
+
+    if (onAreaMap) {
+        uiWorldMapAreaView()
+    } else {
+        uiWorldMapWorldView()
+    }
+    uiWorldMapLabels()
+
+    // CE ref: worldmap.cc WM_TOWN_WORLD_SWITCH — toggle area/world view
+    const viewBtn = document.getElementById('worldmapViewButton')
+    if (viewBtn) {
+        viewBtn.onclick = () => {
+            const areaSel = document.getElementById('areamap')
+            const onArea = areaSel && areaSel.style.visibility !== 'hidden' && areaSel.style.display !== 'none'
+            if (onArea) {
+                uiWorldMapWorldView()
+            } else {
+                const pos = Worldmap.getWorldmapPlayer()
+                const area = pos ? Worldmap.withinArea(pos) : null
+                if (area) uiWorldMapShowArea(area)
+            }
+        }
+    }
+
+    // CE ref: worldmap.cc WM_TOWN_LIST_SCROLL_UP/DOWN — scroll label list
+    const upBtn = document.getElementById('wmLabelScrollUp')
+    const dnBtn = document.getElementById('wmLabelScrollDown')
+    if (upBtn) upBtn.onclick = () => setLabelScroll(_labelScrollY - LABEL_STEP_PX)
+    if (dnBtn) dnBtn.onclick = () => setLabelScroll(_labelScrollY + LABEL_STEP_PX)
+
+    // CE ref: worldmap.cc:3261 — the wheel over the town list scrolls it one tab (27 px)
+    // through wmInterfaceScrollTabsStart, like the arrows; the browser's own scroll
+    // would move the labels without the wmtabs background.
+    const labels = document.getElementById('worldMapLabels')
+    if (labels) {
+        labels.onwheel = (e: WheelEvent) => {
+            e.preventDefault()
+            if (e.deltaY !== 0) setLabelScroll(_labelScrollY + (e.deltaY > 0 ? LABEL_STEP_PX : -LABEL_STEP_PX))
+        }
+    }
+}
+
+function uiWorldMapAreaView() {
+    hidev($id('worldmap'))
+    showv($id('areamap'))
+
+    Worldmap.stop()
+}
+
+function uiWorldMapWorldView() {
+    showv($id('worldmap'))
+    hidev($id('areamap'))
+
+    Worldmap.start()
+}
+
+export function uiWorldMapShowArea(area: Area) {
+    uiWorldMapAreaView()
+
+    const $areamap = $id('areamap')
+    $areamap.style.backgroundImage = `url('${assetUrl(area.mapArt + '.png')}')`
+    clearEl($areamap)
+
+    // CE ref: worldmap.cc wmTownMapRefresh / wmTownMapInit — only entrances whose state
+    // is on (city.txt start state, metarule3 104) and that have a position (x, y != -1)
+    // are drawn and clickable.
+    const WM_VIEW_X = 22
+    const WM_VIEW_Y = 21
+    const positioned = area.entrances.filter((e) => e.state && e.x !== -1 && e.y !== -1)
+
+    function makeEntrance(entrance: (typeof area.entrances)[0], left: number, top: number): void {
+        dbg('worldmap', '[Worldmap] area entrance:', entrance.mapLookupName, `@ (${left}, ${top})`)
+        const $entranceEl = makeEl('div', { classes: ['worldmapEntrance'] })
+        const $hotspot = makeEl('div', { classes: ['worldmapEntranceHotspot'] })
+
+        $hotspot.onclick = () => {
+            const mapName = lookupMapNameFromLookup(entrance.mapLookupName)
+            dbg('worldmap', `[Worldmap] hotspot → ${mapName} (via ${entrance.mapLookupName})`)
+            // CE ref: worldmap.cc:3061-3078 — entering a local map while in car:
+            // sets isInCar=false and records currentCarAreaId = currentAreaId.
+            // The town's map script then places the car (create_object_sid) when
+            // car_current_town matches — see wiki/car_system.md.
+            if (Worldmap.getIsInCar()) {
+                Worldmap.setIsInCar(false)
+                Worldmap.setCarAreaId(area.id)
+                dbg('worldmap', `car parked at area ${area.id} (${area.name})`)
+            }
+            // CE worldmap.cc wmTownMapFunc → map.cc mapSetEnteringLocation(entrance elevation,
+            // tile, rotation); -1 (most city.txt entrances) is the map header's start (mapLoad)
+            const own = entrance.elevation >= 0 && entrance.tileNum >= 0
+            world.gMap!.loadMap(
+                mapName!,
+                own ? fromTileNum(entrance.tileNum) : undefined,
+                own ? entrance.elevation : undefined,
+            )
+            if (own && Number.isFinite(entrance.orientation)) world.player!.orientation = entrance.orientation
+            uiCloseWorldMap()
+        }
+
+        $entranceEl.appendChild($hotspot)
+        // CE wmTownMapInit: the label is worldmap.msg 200 + 10 * area + entrance index
+        const label =
+            getMessage('worldmap', 200 + 10 * area.id + area.entrances.indexOf(entrance)) ?? entrance.mapLookupName
+        appendHTML($entranceEl, label)
+        $entranceEl.style.left = left + 'px'
+        $entranceEl.style.top = top + 'px'
+        $areamap.appendChild($entranceEl)
+    }
+
+    for (const entrance of positioned) {
+        // CE ref: worldmap.cc wmTownMapInit() — buttonCreate() places hotspots at
+        // (entrance.x, entrance.y) in the 640×480 window frame, but the town FRM is
+        // blitted at (WM_VIEW_X=22, WM_VIEW_Y=21). Subtract that offset so the hotspot
+        // aligns with its rendered position on the FRM background image.
+        makeEntrance(entrance, entrance.x - WM_VIEW_X, entrance.y - WM_VIEW_Y)
+    }
+}
+
+function uiWorldMapLabels() {
+    _labelScrollY = 0
+    const outer = $id('worldMapLabels')
+    outer.scrollTop = 0
+    outer.style.backgroundPositionY = '-27px'
+    outer.innerHTML = "<div id='worldMapLabelsInner'></div>"
+    const inner = $id('worldMapLabelsInner')
+
+    // CE ref: worldmap.cc wmMakeTabsLabelList — the known areas (wmAreaIsKnown: known
+    // and visited) with a label, sorted by name.
+    const areas = Object.values(world.mapAreas!)
+        .filter((a) => !!a.labelArt && Worldmap.areaIsKnown(a.id))
+        .sort((a, b) => a.name.localeCompare(b.name))
+
+    for (const area of areas) {
+        const label = makeEl('img', { classes: ['worldMapLabelImage'], src: area.labelArt + '.png' })
+        const labelButton = makeEl('div', {
+            classes: ['worldMapLabelButton'],
+            // CE quick destination: the party walks there (from a town map too)
+            click: () => {
+                uiWorldMapWorldView()
+                Worldmap.travelToArea(area.id)
+            },
+        })
+        const areaLabel = makeEl('div', {
+            classes: ['worldMapLabel'],
+            children: [label, labelButton],
+        })
+        inner.appendChild(areaLabel)
+    }
+}

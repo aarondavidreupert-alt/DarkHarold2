@@ -22,21 +22,40 @@ import { restoreRadiationEvent } from './radiation.js'
 import { StatSet, SkillSet } from './char.js'
 import { Point } from './geometry.js'
 import globalState from './globalState.js'
+import { world } from './state/world.js'
+import { uiState } from './state/uiState.js'
+import { services } from './state/services.js'
+import { assets } from './state/assets.js'
 import { heart } from './heart.js'
 import { dbg, dbgWarn } from './logger.js'
 import type { EventLogEntry } from './eventlog.types.js'
 import { SerializedMap } from './map.js'
-import { Critter, deserializeObj, SerializedObj } from './object.js'
-import { refreshStealthState } from './miscItem.js'
-import { Scripting } from './scripting.js'
+import {
+    Critter,
+    deserializeObj,
+    PROTO_ID_LIT_FLARE,
+    scheduleExplosion,
+    scheduleFlareBurnOut,
+    SerializedObj,
+} from './object.js'
+import { refreshStealthState, scheduleTrickle } from './miscItem.js'
+import * as Scripting from './scripting.js'
 import { scheduleSneakEvent, sneakClear, serializeSkillUsage, deserializeSkillUsage } from './skillUse.js'
 import { restoreDrugEvent } from './drugs.js'
-import { drawHP, drawAC, uiDrawWeapon } from './ui_hud.js'
+import { drawHP, drawAC, uiDrawWeapon } from './hudRefresh.js'
 import { getFileJSON } from './util.js'
 import { gameReset } from './gameReset.js'
-import { Worldmap } from './worldmap.js'
+import * as Worldmap from './worldmap.js'
 import { beginMapFade, endMapFade } from './mapFade.js'
 import { deserializeSfallGlobals, serializeSfallGlobals } from './sfallGlobalScripts.js'
+import {
+    applyPreferences,
+    currentPreferences,
+    savePreferences,
+    type SavedPreferences,
+} from './uiOptions/preferences.js'
+import { scheduleKnockoutEvent } from './combat/results.js'
+import { Combat, type SavedCombat } from './combat/Combat.js'
 
 // Saving and loading support
 
@@ -45,6 +64,8 @@ let db: IDBDatabase
 // Save game metadata + maps
 export interface SaveGame {
     sfallGlobals?: [string, number][] // sfall global variables (sfallGlobalScripts.ts); older saves: none
+    preferences?: SavedPreferences // CE loadsave.cc handler 17 preferencesSave; older saves: none
+    combat?: SavedCombat // CE combatSave: a save made in combat; older saves: none
     id?: number
     version: number
     name: string
@@ -71,9 +92,13 @@ export interface SaveGame {
         traits: string[]
         perks: string[]
         pendingPerkPick: boolean
+        levelUpAvailable?: boolean
+        editorLastLevel?: number
+        dudeScriptLvars?: { [lvar: number]: any } // obj_dude's LVARs (CE: the dude's script, saved with the objects)
         name: string
         gender: string
         activeHand: string
+        gameUIDisabled?: boolean // CE interfaceSave: gInterfaceBarEnabled
         isSneaking: boolean
         sneakWorking?: boolean
         leftHand: SerializedObj | null
@@ -133,13 +158,22 @@ export interface SaveGame {
 // (LS_PREVIEW_WIDTH/HEIGHT). The WebGL canvas has no preserveDrawingBuffer, so the
 // frame is rendered and read back in the same task; reading it later gives a blank.
 const PLAYER_CONDITION_PROPS = [
-    'dead', 'crippledLeftArm', 'crippledRightArm', 'crippledLeftLeg', 'crippledRightLeg', 'isBlinded',
-    'poisonLevel', 'radiationLevel', 'radiated', 'addictedState',
+    'dead',
+    'crippledLeftArm',
+    'crippledRightArm',
+    'crippledLeftLeg',
+    'crippledRightLeg',
+    'isBlinded',
+    'poisonLevel',
+    'radiationLevel',
+    'radiated',
+    'addictedState',
 ]
 
 const LS_PREVIEW_WIDTH = 224
 const LS_PREVIEW_HEIGHT = 133
-const ISO_W = 640, ISO_H = 380
+const ISO_W = 640,
+    ISO_H = 380
 const INTERFACE_BAR_HEIGHT = 99
 let pendingSnapshot: string | undefined
 
@@ -147,8 +181,8 @@ export function takeSaveSnapshot(): void {
     pendingSnapshot = undefined
     try {
         const cnv = document.getElementById('cnv') as HTMLCanvasElement | null
-        if (!cnv || !globalState.renderer) return
-        globalState.renderer.render()
+        if (!cnv || !services.renderer) return
+        services.renderer.render()
         const scale = cnv.width / SCREEN_WIDTH
         const isoH = SCREEN_HEIGHT - INTERFACE_BAR_HEIGHT
         const sx = ((SCREEN_WIDTH - ISO_W) / 2) * scale
@@ -166,7 +200,9 @@ export function takeSaveSnapshot(): void {
 }
 
 // The snapshot the open save screen previews for an empty slot.
-export function getSaveSnapshot(): string | undefined { return pendingSnapshot }
+export function getSaveSnapshot(): string | undefined {
+    return pendingSnapshot
+}
 
 function captureScreenshot(): string | undefined {
     if (pendingSnapshot === undefined) takeSaveSnapshot()
@@ -178,47 +214,51 @@ function captureScreenshot(): string | undefined {
 function gatherSaveData(name: string): SaveGame {
     // Saves the game and returns the savegame
 
-    const curMap = globalState.gMap.serialize()
+    const curMap = world.gMap!.serialize()
 
-    const p = globalState.player
+    const p = world.player
     return {
         version: 1,
         name,
         timestamp: Date.now(),
-        currentElevation: globalState.currentElevation,
+        currentElevation: world.currentElevation,
         currentMap: curMap.name,
         screenshot: captureScreenshot(),
-        gameTickTime: globalState.gameTickTime,
+        gameTickTime: world.gameTickTime,
         player: {
-            position: p.position,
-            orientation: p.orientation,
-            inventory: p.inventory.map((obj) => obj.serialize()),
+            position: p!.position,
+            orientation: p!.orientation,
+            inventory: p!.inventory.map((obj) => obj.serialize()),
         },
-        party: globalState.gParty.serialize(),
-        partyLevels: globalState.gParty.serializeLevels(),
-        savedMaps: { [curMap.name]: curMap, ...globalState.dirtyMapCache },
+        party: world.gParty.serialize(),
+        partyLevels: world.gParty.serializeLevels(),
+        savedMaps: { [curMap.name]: curMap, ...world.dirtyMapCache },
         playerState: {
-            stats: p.stats.serialize(),
-            skills: p.skills.serialize(),
-            traits: p.traits.slice(),
-            perks: p.perks.slice(),
-            pendingPerkPick: p.pendingPerkPick,
-            name: p.name,
-            gender: p.gender,
-            activeHand: p.activeHand,
-            isSneaking: p.isSneaking,
+            stats: p!.stats.serialize(),
+            skills: p!.skills.serialize(),
+            traits: p!.traits.slice(),
+            perks: p!.perks.slice(),
+            pendingPerkPick: p!.pendingPerkPick,
+            levelUpAvailable: p!.levelUpAvailable,
+            editorLastLevel: p!.editorLastLevel,
+            dudeScriptLvars: p!._script ? Object.assign({}, p!._script.lvars) : undefined,
+            name: p!.name,
+            gender: p!.gender,
+            activeHand: p!.activeHand,
+            gameUIDisabled: uiState.gameUIDisabled,
+            isSneaking: p!.isSneaking,
             sneakWorking: (p as any).sneakWorking ?? false,
-            leftHand: p.leftHand ? p.leftHand.serialize() : null,
-            rightHand: p.rightHand ? p.rightHand.serialize() : null,
-            armor: p.armor ? p.armor.serialize() : null,
+            leftHand: p!.leftHand ? p!.leftHand.serialize() : null,
+            rightHand: p!.rightHand ? p!.rightHand.serialize() : null,
+            armor: p!.armor ? p!.armor.serialize() : null,
             condition: Object.fromEntries(PLAYER_CONDITION_PROPS.map((k) => [k, (p as any)[k]])),
             gvars: Object.assign({}, Scripting.getGlobalVars()),
         },
         mvars: Scripting.getMapVars(),
         sfallGlobals: serializeSfallGlobals(), // CE loadsave.cc sfall_gl_vars_save
-        knownAreas: [...globalState.knownAreas],
+        knownAreas: [...world.knownAreas],
         areaStates: Worldmap.serializeAreaStates(),
-        seenMovies: [...globalState.seenMovies],
+        seenMovies: [...world.seenMovies],
         automap: serializeAutomap(),
         kills: [...killCounts.entries()],
         skillUsage: serializeSkillUsage(),
@@ -232,6 +272,8 @@ function gatherSaveData(name: string): SaveGame {
         subtiles: Worldmap.serializeSquareStates(),
         currentAreaId: Worldmap.getCurrentAreaId(),
         encounters: Worldmap.serializeEncounters(),
+        preferences: currentPreferences(),
+        combat: world.inCombat && world.combat ? world.combat.serializeState() : undefined,
     }
 }
 
@@ -291,11 +333,12 @@ export function debugSave(): void {
 export function save(name: string, slot = -1, callback?: (id: number) => void): void {
     const save = gatherSaveData(name)
 
-    const dirtyMapNames = Object.keys(globalState.dirtyMapCache)
-    dbg('saveload',
+    const dirtyMapNames = Object.keys(world.dirtyMapCache)
+    dbg(
+        'saveload',
         `[SaveLoad] Saving ${1 + dirtyMapNames.length} maps (current: ${
-            globalState.gMap.name
-        } plus dirty maps: ${dirtyMapNames.join(', ')})`
+            world.gMap!.name
+        } plus dirty maps: ${dirtyMapNames.join(', ')})`,
     )
 
     if (slot !== -1) {
@@ -303,12 +346,17 @@ export function save(name: string, slot = -1, callback?: (id: number) => void): 
     }
 
     let savedId = slot
-    withTransaction((trans) => {
-        const req = trans.objectStore('saves').put(save)
-        req.onsuccess = () => { savedId = Number(req.result) }
+    withTransaction(
+        (trans) => {
+            const req = trans.objectStore('saves').put(save)
+            req.onsuccess = () => {
+                savedId = Number(req.result)
+            }
 
-        dbg('saveload', "[SaveLoad] Saving game data as '%s'", name)
-    }, () => callback?.(savedId))
+            dbg('saveload', "[SaveLoad] Saving game data as '%s'", name)
+        },
+        () => callback?.(savedId),
+    )
 }
 
 // DH2 addition (CE has no delete): remove a saved game from the database.
@@ -336,43 +384,48 @@ export function load(id: number): void {
                 // Loading a save never resumes a live combat from the current session
                 // (CE loadsave.cc tears combat down via gameReset before reading).
                 // (Restored 2026-10-06; lost in b282cca.)
-                if (globalState.inCombat) {
-                    globalState.combat?.forceEnd()
+                if (world.inCombat) {
+                    world.combat?.forceEnd()
                 }
-                globalState.inCombat = false
-                globalState.combat = null
+                world.inCombat = false
+                world.combat = null
                 // CE ref: loadsave.cc _PrepLoad — gameReset() before the save is read, so
                 // nothing the save doesn't carry survives from the current session.
                 gameReset()
 
-                globalState.gMap.deserialize(savedMap)
+                world.gMap!.deserialize(savedMap)
                 dbg('saveload', '[SaveLoad] Finished map deserialization')
 
                 // Restore game clock (older saves omit this field).
                 if (typeof save.gameTickTime === 'number') {
-                    globalState.gameTickTime = save.gameTickTime
+                    world.gameTickTime = save.gameTickTime
                 }
 
-                globalState.player.position = save.player.position
-                globalState.player.orientation = save.player.orientation
-                globalState.player.inventory = save.player.inventory.map((obj) => deserializeObj(obj))
+                world.player!.position = save.player.position
+                world.player!.orientation = save.player.orientation
+                world.player!.inventory = save.player.inventory.map((obj) => deserializeObj(obj))
 
                 if (save.playerState) {
                     const ps = save.playerState
-                    const p = globalState.player
-                    p.stats = StatSet.deserialize(ps.stats)
-                    p.skills = SkillSet.deserialize(ps.skills)
-                    p.traits = ps.traits.slice()
-                    p.perks = ps.perks.slice()
-                    p.pendingPerkPick = ps.pendingPerkPick
-                    p.name = ps.name
-                    p.gender = ps.gender
-                    p.activeHand = ps.activeHand as 'leftHand' | 'rightHand'
-                    p.isSneaking = ps.isSneaking
+                    const p = world.player
+                    p!.stats = StatSet.deserialize(ps.stats)
+                    p!.skills = SkillSet.deserialize(ps.skills)
+                    p!.traits = ps.traits.slice()
+                    p!.perks = ps.perks.slice()
+                    p!.pendingPerkPick = ps.pendingPerkPick
+                    p!.levelUpAvailable = ps.levelUpAvailable ?? false
+                    // (older saves granted the points at the level-up itself)
+                    p!.editorLastLevel = ps.editorLastLevel ?? p!.stats.getBase('Level')
+                    Scripting.setPendingDudeLvars(ps.dudeScriptLvars ?? null) // obj_dude reattaches at map entry
+                    p!.name = ps.name
+                    p!.gender = ps.gender
+                    p!.activeHand = ps.activeHand as 'leftHand' | 'rightHand'
+                    Scripting.setGameUiDisabled(ps.gameUIDisabled ?? false) // CE interfaceLoad
+                    p!.isSneaking = ps.isSneaking
                     ;(p as any).sneakWorking = ps.sneakWorking ?? false
-                    p.leftHand = ps.leftHand ? deserializeObj(ps.leftHand) as any : undefined
-                    p.rightHand = ps.rightHand ? deserializeObj(ps.rightHand) as any : undefined
-                    p.armor = ps.armor ? deserializeObj(ps.armor) : null
+                    p!.leftHand = ps.leftHand ? (deserializeObj(ps.leftHand) as any) : undefined
+                    p!.rightHand = ps.rightHand ? (deserializeObj(ps.rightHand) as any) : undefined
+                    p!.armor = ps.armor ? deserializeObj(ps.armor) : null
                     for (const k of PLAYER_CONDITION_PROPS) {
                         if (ps.condition?.[k] !== undefined) (p as any)[k] = ps.condition[k]
                     }
@@ -382,8 +435,8 @@ export function load(id: number): void {
                     refreshStealthState(p as unknown as Critter)
                 }
 
-                globalState.gParty.deserialize(save.party)
-                globalState.gParty.deserializeLevels(save.partyLevels)
+                world.gParty.deserialize(save.party)
+                world.gParty.deserializeLevels(save.partyLevels)
 
                 // Restore MVARs (map variables). Older saves lack this field; those
                 // will reset to the default .mvars.json values on first script run.
@@ -391,7 +444,7 @@ export function load(id: number): void {
                 deserializeSfallGlobals(save.sfallGlobals) // CE sfall_gl_vars_load
 
                 // Restore discovered worldmap areas.
-                if (Array.isArray(save.knownAreas)) globalState.knownAreas = new Set(save.knownAreas)
+                if (Array.isArray(save.knownAreas)) world.knownAreas = new Set(save.knownAreas)
                 Worldmap.deserializeAreaStates(save.areaStates)
 
                 // Restore car state. CE ref: worldmap.h wmGenData.isInCar / wmGenData.carFuel /
@@ -403,14 +456,20 @@ export function load(id: number): void {
                 Worldmap.deserializeSquareStates(save.subtiles)
                 Worldmap.setCurrentAreaId(save.currentAreaId ?? -1)
                 Worldmap.deserializeEncounters(save.encounters)
+                // CE preferencesLoad: the save's preferences apply (_JustUpdate_) and become
+                // the settings (_SavePrefs(0)); saves from before 2026-10-25 have none
+                if (save.preferences) {
+                    applyPreferences(save.preferences)
+                    savePreferences()
+                }
 
                 // Restore seen-movie set (CE ref: game_movie.cc gameMoviesLoad).
-                if (Array.isArray(save.seenMovies)) globalState.seenMovies = new Set(save.seenMovies)
+                if (Array.isArray(save.seenMovies)) world.seenMovies = new Set(save.seenMovies)
                 restoreAutomap(save.automap) // the save's automap (none in older saves)
                 killCounts.clear()
                 for (const [type, n] of save.kills ?? []) killCounts.set(type, n)
                 deserializeSkillUsage(save.skillUsage)
-                globalState.player?.updateNativeLook() // CE loadsave.cc:1772
+                world.player?.updateNativeLook() // CE loadsave.cc:1772
 
                 // Restore the structured event log. Older saves may have the field
                 // under the old name (combatLog) — accept either; fall back to empty.
@@ -422,90 +481,152 @@ export function load(id: number): void {
                 // CE ref: scripts.cc scriptsSaveProcedureNames / scriptsLoadProcedureNames.
                 // Older saves without this field are silently skipped.
                 if (Array.isArray(save.timedEvents)) {
-                    const mapObjects = globalState.gMap.getObjects()
+                    // CE queueLoad: the owner by object id (objectFindById); old saves by PID
+                    const mapObjects = [...world.gMap!.getObjects(), ...(world.gMap!.getSpatials() ?? [])]
+                    const byUid = new Map<number, any>()
+                    // (items too, in inventories and bags: a lit flare in a hand; uid -1 is only the dude's)
+                    const visited = new Set<any>()
+                    const carrier = new Map<any, any>() // an item's critter (CE objectGetOwner)
+                    const addByUid = (o: any, owner: any = null) => {
+                        if (!o || visited.has(o)) return
+                        visited.add(o)
+                        if (o.uid !== -1) byUid.set(o.uid, o)
+                        if (owner) carrier.set(o, owner)
+                        const own = o.type === 'critter' ? o : owner
+                        for (const it of o.inventory ?? []) addByUid(it, own)
+                        addByUid(o.leftHand, own)
+                        addByUid(o.rightHand, own)
+                    }
+                    for (const o of mapObjects) addByUid(o)
+                    addByUid(world.player)
+                    if (world.player) byUid.set(world.player.uid, world.player)
                     for (const ev of save.timedEvents) {
-                        const obj = ev.objPid !== null
-                            ? mapObjects.find(o => o.pid === ev.objPid) ?? null
-                            : null
+                        const obj =
+                            ev.objUid != null
+                                ? (byUid.get(ev.objUid) ?? null)
+                                : ev.objPid !== null
+                                  ? (mapObjects.find((o) => o.pid === ev.objPid) ?? null)
+                                  : null
                         const { ticks, userdata } = ev
-                        if (typeof userdata === 'string' && (userdata.startsWith('drug:') || userdata.startsWith('withdrawal:'))) {
+                        if (
+                            typeof userdata === 'string' &&
+                            (userdata.startsWith('drug:') || userdata.startsWith('withdrawal:'))
+                        ) {
                             // CE ref: item.cc drugEffectEventRead / withdrawalEventRead. Old-format
                             // drug events (pre-2026-10-06 'drug:<name>') don't parse and are dropped.
-                            const user = (obj ?? globalState.player) as Critter | null
+                            const user = (obj ?? world.player) as Critter | null
                             if (user && user.type === 'critter') restoreDrugEvent(user, ticks, userdata)
                         } else if (userdata === 'sneak') {
                             // CE ref: critter.cc:1194 sneakEventProcess — restore periodic sneak roll timer.
-                            const playerForSneak = globalState.player
-                            if (playerForSneak && (playerForSneak as any).isSneaking) {
-                                Scripting.timeEventList.push({ obj: playerForSneak, ticks, userdata,
-                                    fn: () => { if ((playerForSneak as any).isSneaking) scheduleSneakEvent(playerForSneak) },
-                                    leaveMap: () => sneakClear(playerForSneak) })
+                            const playerForSneak = world.player
+                            if (playerForSneak && playerForSneak.isSneaking) {
+                                Scripting.timeEventList.push({
+                                    obj: playerForSneak,
+                                    ticks,
+                                    userdata,
+                                    fn: () => {
+                                        if (playerForSneak.isSneaking) scheduleSneakEvent(playerForSneak)
+                                    },
+                                    leaveMap: () => sneakClear(playerForSneak),
+                                })
                             }
                         } else if (typeof userdata === 'string' && userdata.startsWith('radiation:')) {
                             // CE ref: critter.cc radiationEventRead — restore sickness / recovery event.
-                            const player = globalState.player as Critter | null
+                            const player = world.player as Critter | null
                             if (player && !player.dead) restoreRadiationEvent(player, ticks, userdata)
                         } else if (userdata === 'poison') {
                             // CE ref: critter.cc poisonEventProcess — restore poison decay timer.
-                            const player = globalState.player as Critter | null
+                            const player = world.player as Critter | null
                             if (player && !player.dead) {
-                                Scripting.timeEventList.push({ obj: player, ticks, userdata,
-                                    fn: () => Scripting.poisonDecayEvent(player), leaveMap: 'keep' })
+                                Scripting.timeEventList.push({
+                                    obj: player,
+                                    ticks,
+                                    userdata,
+                                    fn: () => Scripting.poisonDecayEvent(player),
+                                    leaveMap: 'keep',
+                                })
                             }
+                        } else if (userdata === 'knockout') {
+                            // CE queue.cc knockout event: the critter wakes up when it runs out
+                            if (obj && obj.type === 'critter' && !obj.dead) scheduleKnockoutEvent(obj as Critter, ticks)
+                        } else if (userdata === 'flare') {
+                            // CE queue.cc flare event: the lit flare burns out when it runs out
+                            if (obj && obj.pid === PROTO_ID_LIT_FLARE) scheduleFlareBurnOut(obj, ticks)
+                        } else if (userdata === 'trickle') {
+                            // CE queue.cc EVENT_TYPE_ITEM_TRICKLE: a switched-on Stealth Boy / Geiger
+                            if (obj && obj.miscOn) scheduleTrickle(obj, carrier.get(obj) ?? null, ticks)
+                        } else if (userdata === 'explosion' || userdata === 'explosionFailure') {
+                            // CE queue.cc explosion events: the armed explosive goes off
+                            if (obj) scheduleExplosion(obj, ticks, userdata === 'explosionFailure')
                         } else if (obj?._script) {
                             const script = obj._script
-                            Scripting.timeEventList.push({ obj, ticks, userdata,
-                                fn: () => Scripting.timedEvent(script, userdata)
+                            Scripting.timeEventList.push({
+                                obj,
+                                ticks,
+                                userdata,
+                                script: true,
+                                fn: () => Scripting.timedEvent(script, userdata),
                             })
                         }
                     }
 
                     // CE ref: critter.cc critterAdjustPoison — if player loaded with poisonLevel>0
                     // but no timed poison event (old save format), re-arm the decay event now.
-                    const playerForPoison = globalState.player as Critter | null
+                    const playerForPoison = world.player as Critter | null
                     if (playerForPoison && !playerForPoison.dead && (playerForPoison.poisonLevel ?? 0) > 0) {
                         const hasEvent = Scripting.timeEventList.some(
-                            e => e.obj === playerForPoison && e.userdata === 'poison')
+                            (e) => e.obj === playerForPoison && e.userdata === 'poison',
+                        )
                         if (!hasEvent) {
                             const delay = 10 * (505 - 5 * playerForPoison.poisonLevel)
-                            Scripting.timeEventList.push({ obj: playerForPoison, ticks: delay, userdata: 'poison',
-                                fn: () => Scripting.poisonDecayEvent(playerForPoison), leaveMap: 'keep' })
+                            Scripting.timeEventList.push({
+                                obj: playerForPoison,
+                                ticks: delay,
+                                userdata: 'poison',
+                                fn: () => Scripting.poisonDecayEvent(playerForPoison),
+                                leaveMap: 'keep',
+                            })
                         }
                     }
 
                     // CE ref: critter.cc sneakEventProcess — if player loaded with isSneaking=true
                     // but no sneak timer (old save format), re-arm the sneak event now.
-                    const playerForSneak2 = globalState.player
-                    if (playerForSneak2 && (playerForSneak2 as any).isSneaking) {
+                    const playerForSneak2 = world.player
+                    if (playerForSneak2 && playerForSneak2.isSneaking) {
                         const hasSneakEvent = Scripting.timeEventList.some(
-                            e => e.obj === playerForSneak2 && e.userdata === 'sneak')
+                            (e) => e.obj === playerForSneak2 && e.userdata === 'sneak',
+                        )
                         if (!hasSneakEvent) scheduleSneakEvent(playerForSneak2)
                     }
 
                     dbg('saveload', '[SaveLoad] Restored %d timed events', save.timedEvents.length)
                 }
 
-                globalState.gMap.changeElevation(save.currentElevation, false)
+                world.gMap!.changeElevation(save.currentElevation, false)
 
                 // populate dirty map cache out of non-current saved maps
-                globalState.dirtyMapCache = { ...save.savedMaps }
-                delete globalState.dirtyMapCache[savedMap.name]
+                world.dirtyMapCache = { ...save.savedMaps }
+                delete world.dirtyMapCache[savedMap.name]
 
                 // CE mapLoad during a game load: start / map_enter / map_update with
                 // _loadingGame set (metarule 22), then the map music.
-                globalState.gMap.runLoadGameProcs()
+                Scripting.ensureDudeScript() // obj_dude with its saved LVARs (setPendingDudeLvars)
+                world.gMap!.runLoadGameProcs()
 
-                const p = globalState.player!
+                const p = world.player!
                 drawHP(p.getStat('HP'))
                 drawAC(p.getStat('AC'))
                 uiDrawWeapon()
+
+                // CE loadsave.cc combatLoad: a save made in combat resumes it
+                if (save.combat) Combat.restore(save.combat)
 
                 Scripting.startSfallGlobalScripts() // CE loadsave.cc: sfall_gl_scr_exec_start_proc
                 dbg('saveload', '[SaveLoad] Finished loading map %s', savedMap.name)
                 endMapFade()
             }
 
-            const changingMap = globalState.gMap?.name !== save.currentMap
+            const changingMap = world.gMap?.name !== save.currentMap
             if (!changingMap) {
                 applyState()
                 return
@@ -513,7 +634,7 @@ export function load(id: number): void {
 
             // Cross-location load: clear stale WebGL textures so getTextureFromHack
             // re-uploads from globalState.images instead of serving old map's textures.
-            globalState.renderer.clearTileCache()
+            services.renderer.clearTileCache()
 
             // Load the new map's images into globalState.images before the first
             // render frame, using the same isLoading gate as loadNewMap. This
@@ -525,7 +646,7 @@ export function load(id: number): void {
             } catch {
                 mapImages = []
             }
-            const toLoad = mapImages.filter((img) => globalState.images[img] === undefined)
+            const toLoad = mapImages.filter((img) => assets.images[img] === undefined)
 
             if (toLoad.length === 0) {
                 applyState()
@@ -533,15 +654,15 @@ export function load(id: number): void {
             }
 
             globalState.isLoading = true
-            globalState.loadingAssetsTotal = toLoad.length
-            globalState.loadingAssetsLoaded = 0
-            globalState.loadingLoadedCallback = applyState
+            assets.loadingAssetsTotal = toLoad.length
+            assets.loadingAssetsLoaded = 0
+            assets.loadingLoadedCallback = applyState
 
             for (const img of toLoad) {
                 ensureCycleMask(img)
                 heart.graphics.newImage(img + '.png', (r: HTMLImageElement) => {
-                    globalState.images[img] = r
-                    globalState.loadingAssetsLoaded++
+                    assets.images[img] = r
+                    assets.loadingAssetsLoaded++
                 })
             }
         }
@@ -553,7 +674,7 @@ export function saveLoadInit(): void {
 
     request.onupgradeneeded = function () {
         const db = request.result
-        const store = db.createObjectStore('saves', { keyPath: 'id', autoIncrement: true })
+        db.createObjectStore('saves', { keyPath: 'id', autoIncrement: true })
     }
 
     request.onsuccess = function () {

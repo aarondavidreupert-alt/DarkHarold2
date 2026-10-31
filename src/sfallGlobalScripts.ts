@@ -45,7 +45,12 @@ let startRequested = false
 /** The global scripts' names, sorted (CE sorts the paths). */
 export function globalScriptNames(): string[] {
     return assetFiles(/^data\/scripts\/(gl[^/]*)\.int$/i)
-        .map((p) => p.replace(/^.*\//, '').replace(/\.int$/i, '').toLowerCase())
+        .map((p) =>
+            p
+                .replace(/^.*\//, '')
+                .replace(/\.int$/i, '')
+                .toLowerCase(),
+        )
         .sort()
 }
 
@@ -178,7 +183,7 @@ export function setSfallGlobal(key: any, value: number): void {
 /** get_sfall_global_int (CE sfall_gl_vars_fetch; 0 when unset) */
 export function getSfallGlobal(key: any): number {
     const k = varKey(key)
-    return k === null ? 0 : globalVars.get(k) ?? 0
+    return k === null ? 0 : (globalVars.get(k) ?? 0)
 }
 
 /** for the save game (CE sfall_gl_vars_save / _load) */

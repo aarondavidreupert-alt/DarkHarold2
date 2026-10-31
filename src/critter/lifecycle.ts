@@ -19,25 +19,48 @@ limitations under the License.
 // killCounts. Split out of critter.ts. See wiki/ts-split-refactor.md → §13.
 
 import { Config } from '../config.js'
-import globalState from '../globalState.js'
-import { dbg, dbgWarn } from '../logger.js'
-import { itemIsHidden, Obj } from '../object/Obj.js'
+import { world } from '../state/world.js'
+import { assets } from '../state/assets.js'
+import { dbg } from '../logger.js'
+import { giveNewUid, itemIsHidden, Obj, zsort } from '../object/Obj.js'
 import type { Critter } from '../object/Critter.js'
-import { Scripting } from '../scripting.js'
+import * as Scripting from '../scripting.js'
 import * as Endgame from '../endgame.js'
-import { hexInDirection, HEX_GRID_SIZE, Point } from '../geometry.js'
+import { hexInDirection, hexToScreen, HEX_GRID_SIZE, Point } from '../geometry.js'
 import { randomBetween } from '../random.js'
 import { toTileNum } from '../tile.js'
+import { armorPerkSwap } from '../perks/cePerks.js'
+
+import { uiPort } from '../uiPort.js'
+import { ammoGetCapacity } from '../weaponAmmo.js'
 import {
-    critterIsProne, removeKnockoutEvents, setNewResults,
-    DAM_DEAD, DAM_KNOCKED_DOWN, DAM_KNOCKED_OUT, DAM_ON_FIRE,
+    critterIsProne,
+    removeKnockoutEvents,
+    setNewResults,
+    DAM_DEAD,
+    DAM_KNOCKED_DOWN,
+    DAM_KNOCKED_OUT,
+    DAM_ON_FIRE,
 } from '../combat/results.js'
 import { ANIM, CHARACTER_SOUND_EFFECT, playCharAnimSfx } from '../sfxNames.js'
 import {
-    ANIM_BURNED_TO_NOTHING, ANIM_ELECTRIFIED_TO_NOTHING, ANIM_EXPLODED_TO_NOTHING, ANIM_FALL_BACK, ANIM_FALL_FRONT,
-    ANIM_FIRE_DANCE, MAXIMUM_BLOOD_DEATH_ANIMATIONS,
-    animName, attackerAnimation, bloodAnim, checkDeath, corpseFrame, critterHasAnim, damageTypeIndex,
-    isDeathFall, pickDeath, pickFall,
+    ANIM_BURNED_TO_NOTHING,
+    ANIM_ELECTRIFIED_TO_NOTHING,
+    ANIM_EXPLODED_TO_NOTHING,
+    ANIM_FALL_BACK,
+    ANIM_FALL_FRONT,
+    ANIM_FIRE_DANCE,
+    MAXIMUM_BLOOD_DEATH_ANIMATIONS,
+    animName,
+    attackerAnimation,
+    bloodAnim,
+    checkDeath,
+    corpseFrame,
+    critterHasAnim,
+    damageTypeIndex,
+    isDeathFall,
+    pickDeath,
+    pickFall,
 } from './deathAnim.js'
 
 // CE ref: kills.cc killsGetByType() — per-type kill counters, persisted in save
@@ -60,6 +83,9 @@ export interface KillOptions {
     weapon?: Obj | null
     attackerAnim?: number
     scriptDamage?: boolean // critter_dmg → actionDamage's max-blood anim (actions.cc:1933)
+    // CE combat.cc _damage_object's a4: no damage_p_proc (a self-hit from a critical
+    // failure, an accidental victim, burst / blast bystanders of a normal attack)
+    noDamageProc?: boolean
     deathFrame?: number
     // The hit's DAM_* results and knockback (CE _show_damage_to_object arguments)
     flags?: number
@@ -74,7 +100,7 @@ export function critterKill(
     useScript?: boolean,
     options: KillOptions = {},
     damageType?: string,
-    callback?: () => void
+    callback?: () => void,
 ) {
     // Prevent re-triggering the death sequence on an already-dying critter.
     // critterDamage (e.g. burst fire overkill) or scripts can call this twice.
@@ -82,16 +108,25 @@ export function critterKill(
     obj.dead = true
     // CE critter.cc critterKill (and combat.cc's kill path): partyMemberRemove first —
     // a dead companion leaves the party.
-    globalState.gParty?.dismissPartyMember(obj)
+    world.gParty?.dismissPartyMember(obj)
     // CE critter.cc critterKill: itemDestroyAllHidden — natural weapons go with the critter
     const hidden = obj.inventory.filter((it) => itemIsHidden(it))
     if (hidden.length) {
         obj.inventory = obj.inventory.filter((it) => !itemIsHidden(it))
         const a = obj as any
-        for (const hand of ['leftHand', 'rightHand']) if (hidden.includes(a[hand])) a[hand] = (obj.constructor as any).makeFist?.()
+        for (const hand of ['leftHand', 'rightHand'])
+            if (hidden.includes(a[hand])) a[hand] = (obj.constructor as any).makeFist?.()
     }
     obj.outline = null
     obj.critDeath = false
+    // CE critter.cc critterKill: unless the proto has CRITTER_FLAT, the body stops blocking
+    // (OBJECT_NO_BLOCK) and _obj_toggle_flat makes it OBJECT_FLAT — drawn first on its tile
+    if (((obj.pro?.extra?.flags ?? 0) & 0x800) === 0) {
+        obj.flags = ((obj.flags ?? 0) | 0x10 | 0x08) >>> 0
+        const gm = world.gMap
+        const level = gm?.objects?.[obj.elevation ?? gm.currentElevation]
+        if (level && Config.engine.objectSort !== 'dh2') zsort(level)
+    }
     // CE critter.cc:894 — critter->data.critter.hp = 0; DAM_DEAD replaces the other results
     if (obj.stats.getBase('HP') > 0) obj.stats.setBase('HP', 0)
     removeKnockoutEvents(obj)
@@ -99,7 +134,7 @@ export function critterKill(
 
     // CE combat.cc _damage_object — killsIncByType only for kills by the player or the
     // player's team. (Karma for kills is handled by the critters' scripts, as in CE.)
-    const player = globalState.player
+    const player = world.player
     if (!obj.isPlayer && source && player && (source.isPlayer || source.teamNum === player.teamNum)) {
         const kt = obj.killType ?? 0
         killCounts.set(kt, (killCounts.get(kt) ?? 0) + 1)
@@ -117,9 +152,11 @@ export function critterKill(
         obj.anim = 'dead'
         // CE actions.cc _show_death: electrified / exploded to nothing drops everything
         // carried (unless CRITTER_SPECIAL_DEATH or CRITTER_NO_DROP).
-        const protoFlags = (obj.pro as any)?.extra?.flags ?? 0
-        if ((deathAnim === ANIM_ELECTRIFIED_TO_NOTHING || deathAnim === ANIM_EXPLODED_TO_NOTHING)
-            && (protoFlags & (CRITTER_SPECIAL_DEATH | CRITTER_NO_DROP)) === 0) {
+        const protoFlags = obj.pro?.extra?.flags ?? 0
+        if (
+            (deathAnim === ANIM_ELECTRIFIED_TO_NOTHING || deathAnim === ANIM_EXPLODED_TO_NOTHING) &&
+            (protoFlags & (CRITTER_SPECIAL_DEATH | CRITTER_NO_DROP)) === 0
+        ) {
             itemDropAll(obj)
         }
         if (callback) callback()
@@ -130,24 +167,28 @@ export function critterKill(
 
         // Corpse auto-cleanup: remove empty corpses after a configurable timeout.
         // Corpses with loot are left on the map so the player can still loot them.
-        const timeout = (Config.engine as any).corpseTimeout as number | undefined
-        if (timeout && timeout > 0 && globalState.gMap) {
-            const map = globalState.gMap
+        const timeout = Config.engine.corpseTimeout as number | undefined
+        if (timeout && timeout > 0 && world.gMap) {
+            const map = world.gMap
             setTimeout(() => {
-                if (obj.inventory.length === 0 && globalState.gMap === map) {
-                    globalState.gMap.destroyObject(obj)
+                if (obj.inventory.length === 0 && world.gMap === map) {
+                    world.gMap.destroyObject(obj)
                 }
             }, timeout * 1000)
         }
     }
 
     // A critter lying on the ground from a knockdown (CE _critter_is_prone).
-    const fallAnim = obj.anim === 'knockdownFront' || obj.anim === animName(ANIM_FALL_BACK) ? ANIM_FALL_BACK
-        : obj.anim === 'knockdownBack' || obj.anim === animName(ANIM_FALL_FRONT) ? ANIM_FALL_FRONT : null
+    const fallAnim =
+        obj.anim === 'knockdownFront' || obj.anim === animName(ANIM_FALL_BACK)
+            ? ANIM_FALL_BACK
+            : obj.anim === 'knockdownBack' || obj.anim === animName(ANIM_FALL_FRONT)
+              ? ANIM_FALL_FRONT
+              : null
     // Let a running knockdown finish first. (Its callback stays set after the last
     // frame, so inAnim() can't tell; compare against the frame count.)
     const whenReady = (fn: () => void) => {
-        const frames = globalState.imageInfo[obj.art]?.numFrames ?? 0
+        const frames = assets.imageInfo![obj.art]?.numFrames ?? 0
         if (fallAnim !== null && obj.frame < frames - 1) obj.animCallback = fn
         else fn()
     }
@@ -168,18 +209,21 @@ export function critterKill(
         return
     }
 
-    const hitFromFront = options.hitFromFront ?? isHitFromFront(obj, source)
+    const hitFromFront = options.hitFromFront ?? isHitFromFrontOf(obj, source)
     let anim = options.scriptDamage
         ? checkDeath(obj, MAXIMUM_BLOOD_DEATH_ANIMATIONS[damageTypeIndex(damageType)], 3, hitFromFront)
         : pickDeath(obj, {
-            attacker: source,
-            weapon: options.weapon !== undefined ? options.weapon : source?.equippedWeapon ?? null,
-            damage: options.damage ?? 0,
-            damageType,
-            attackerAnim: options.attackerAnim ?? attackerAnimation(source),
-            hitFromFront,
-        })
-    dbg('combat', `[death] ${obj.name}: anim ${anim} (${damageType ?? 'Normal'}, violence ${Config.combat.violenceLevel})`)
+              attacker: source,
+              weapon: options.weapon !== undefined ? options.weapon : (source?.equippedWeapon ?? null),
+              damage: options.damage ?? 0,
+              damageType,
+              attackerAnim: options.attackerAnim ?? attackerAnimation(source),
+              hitFromFront,
+          })
+    dbg(
+        'combat',
+        `[death] ${obj.name}: anim ${anim} (${damageType ?? 'Normal'}, violence ${Config.combat.violenceLevel})`,
+    )
 
     if (anim !== ANIM_FIRE_DANCE) {
         const knockback = options.knockback ?? 0
@@ -199,7 +243,7 @@ export function critterKill(
         anim = pickFall(obj, anim)
         deathAnim = anim
         const blood = isDeathFall(anim) ? bloodAnim(obj, anim) : null
-        play(anim, () => blood !== null ? play(blood, finalizeCallback) : finalizeCallback())
+        play(anim, () => (blood !== null ? play(blood, finalizeCallback) : finalizeCallback()))
         return
     }
 
@@ -235,8 +279,10 @@ function fireDanceTarget(obj: Critter): { path: Point[] } | null {
         const end = path[path.length - 1] ?? obj.position
         if (!isExitGridAt(end) && path.every((t) => !blockedTile(obj, t))) return path.length ? { path } : null
         if (distance > 0) distance--
-        else if (rotation < 6) { rotation++; distance = randomDistance }
-        else return null
+        else if (rotation < 6) {
+            rotation++
+            distance = randomDistance
+        } else return null
     }
 }
 
@@ -253,29 +299,73 @@ function straightHexes(from: Point, dir: number, distance: number): Point[] {
 }
 
 function blockedTile(obj: Critter, t: Point): boolean {
-    return !!globalState.gMap?.blockingObjectAt(toTileNum(t), obj.elevation, 0, obj)
+    return !!world.gMap?.blockingObjectAt(toTileNum(t), obj.elevation, 0, obj)
 }
 
+// CE object.cc isExitGridAt: an exit grid pid (0x5000010-0x5000017) that isn't hidden
 function isExitGridAt(t: Point): boolean {
-    const objs = globalState.gMap?.objectsAtPosition(t) ?? []
-    return objs.some((o: Obj) => o.type === 'misc' && (o as any).extra?.exitMapID !== undefined)
+    const objs = world.gMap?.objectsAtPosition(t) ?? []
+    return objs.some((o: Obj) => {
+        const pid = (o.pid ?? 0) >>> 0
+        return pid >= 0x5000010 && pid <= 0x5000017 && ((o.flags ?? 0) & 0x01) === 0 && o.visible !== false
+    })
 }
 
 // CE animation.cc animationRegisterMoveToTileStraight — the critter slides along `path`
-// while `anim` plays (one hex per frame at the FRM's fps), keeping its last frame if
-// the slide outlasts it.
+// while `anim` plays, keeping its last frame if the slide outlasts it. _make_straight_path
+// puts a node every 4 screen pixels for a critter and _object_straight_move takes one node a
+// frame (a hex: its screen length / 4 frames, 8 sideways, 5 on a diagonal), setting the tile
+// the node is on and the pixel offset from it — the sprite glides (`slideOffset`, drawn by the
+// renderer) and changes tile half-way.
+const STRAIGHT_NODE_PIXELS = 4
 function moveStraight(obj: Critter, anim: string, path: Point[], then: () => void): void {
     let index = 0
     let animDone = false
     let slideDone = path.length === 0
-    const finish = () => { if (animDone && slideDone) then() }
-    obj.staticAnimation(anim, () => { animDone = true; finish() }, true)
+    const finish = () => {
+        if (animDone && slideDone) then()
+    }
+    obj.staticAnimation(
+        anim,
+        () => {
+            animDone = true
+            finish()
+        },
+        true,
+    )
     if (slideDone) return
-    const fps = globalState.imageInfo[obj.art]?.fps || 10
+    const fps = assets.imageInfo![obj.art]?.fps || 10
+    let from = { ...obj.position }
+    let frame = 0
+    let moved = false
     const step = () => {
-        if (obj.dead && index === 0 && !globalState.gMap) return
-        obj.move({ ...path[index++] }, undefined, false)
-        if (index >= path.length) { slideDone = true; finish(); return }
+        if (obj.dead && index === 0 && !world.gMap) return
+        const to = path[index]
+        const a = hexToScreen(from.x, from.y),
+            b = hexToScreen(to.x, to.y)
+        const frames = Math.max(1, Math.round(Math.hypot(b.x - a.x, b.y - a.y) / STRAIGHT_NODE_PIXELS))
+        frame++
+        const t = frame / frames
+        if (!moved && t >= 0.5) {
+            obj.move({ ...to }, undefined, false)
+            moved = true
+        }
+        const at = moved ? b : a
+        ;(obj as any).slideOffset =
+            t >= 1
+                ? undefined
+                : { x: Math.round(a.x + (b.x - a.x) * t - at.x), y: Math.round(a.y + (b.y - a.y) * t - at.y) }
+        if (t >= 1) {
+            from = { ...to }
+            frame = 0
+            moved = false
+            index++
+            if (index >= path.length) {
+                slideDone = true
+                finish()
+                return
+            }
+        }
         setTimeout(step, 1000 / fps)
     }
     setTimeout(step, 1000 / fps)
@@ -296,8 +386,14 @@ function actionKnockdown(obj: Critter, anim: number, maxDistance: number, rotati
     for (distance = 1; distance <= maxDistance; distance++) {
         const tile = straightHexes(obj.position, rotation, distance)
         const t = tile[tile.length - 1]
-        if (!t || tile.length < distance || blockedTile(obj, t)) { distance--; break }
-        if (isExitGridAt(t)) { distance--; break }
+        if (!t || tile.length < distance || blockedTile(obj, t)) {
+            distance--
+            break
+        }
+        if (isExitGridAt(t)) {
+            distance--
+            break
+        }
     }
     playCharAnimSfx(obj, anim, CHARACTER_SOUND_EFFECT.knockdown)
     distance--
@@ -307,33 +403,68 @@ function actionKnockdown(obj: Critter, anim: number, maxDistance: number, rotati
 }
 
 // CE critter.cc itemDropAll — everything carried lands on the critter's tile.
+// CE item.cc itemDropAll: everything goes to the critter's tile — money as one pile, every
+// other unit as its own object (an ammo stack's first box keeps the partial count, the rest
+// are full); worn armour off puts the critter back on its proto art (_adjust_ac), and with
+// the hands empty the art is the unarmed one.
 export function itemDropAll(obj: Critter): void {
-    const gMap = globalState.gMap
+    const gMap = world.gMap
     if (!gMap) return
     const self = obj as any
     const items: Obj[] = [...obj.inventory]
     obj.inventory.length = 0
+    let hadEquipped = false
     for (const slot of ['leftHand', 'rightHand', 'armor']) {
         const item = self[slot]
         if (item && item.pid !== undefined && !items.includes(item)) items.push(item)
-        if (slot === 'armor') { if (self.armor) self.armor = null }
-        else if (item && item.pid !== undefined) self[slot] = undefined
+        if (item && item.pid !== undefined) hadEquipped = true
+        if (slot === 'armor') {
+            if (self.armor) {
+                const worn = self.armor
+                self.armor = null
+                if (obj.isPlayer) {
+                    armorPerkSwap(obj, worn, null)
+                    uiPort.applyArmorArt(null)
+                }
+            }
+        } else if (item && item.pid !== undefined) self[slot] = undefined
+    }
+    const pieces: Obj[] = []
+    for (const item of items) {
+        const n = item.amount ?? 1
+        if (item.pid === 41 || n <= 1) {
+            pieces.push(item)
+            continue
+        } // PROTO_ID_MONEY: one pile
+        item.amount = 1
+        pieces.push(item)
+        for (let k = 1; k < n; k++) {
+            const piece = giveNewUid(item.clone())
+            piece.amount = 1
+            if (item.subtype === 'ammo') piece.ammoQuantity = ammoGetCapacity(item)
+            pieces.push(piece)
+        }
     }
     const level = obj.elevation ?? gMap.currentElevation
-    for (const item of items) {
+    for (const item of pieces) {
         item.elevation = level
         gMap.addObject(item, level)
         if (level === gMap.currentElevation) item.move({ ...obj.position }, gMap.getObjects().length - 1, false)
         else item.position = { ...obj.position }
     }
+    if (hadEquipped) obj.setIdleArt?.()
 }
 
 // CE ref: actions.cc:1512 _is_hit_from_front(attacker, defender) — compares the two
 // facings: the hit is from behind when they face the same way (difference 0, 1 or 5).
-function isHitFromFront(obj: Critter, source?: Critter): boolean {
-    if (!source || source === obj) return true
-    const diff = Math.abs((source.orientation ?? 0) - (obj.orientation ?? 0))
+export function isHitFromFront(a: Critter, b: Critter): boolean {
+    const diff = Math.abs((a.orientation ?? 0) - (b.orientation ?? 0))
     return diff !== 0 && diff !== 1 && diff !== 5
+}
+
+// no source (a script's damage) or self-inflicted: shown as from the front
+function isHitFromFrontOf(obj: Critter, source?: Critter): boolean {
+    return !source || source === obj || isHitFromFront(source, obj)
 }
 
 // CE combat.cc _apply_damage → _set_new_results + _damage_object, and actions.cc
@@ -347,7 +478,7 @@ export function critterDamage(
     useAnim: boolean = true,
     damageType?: string,
     callback?: () => void,
-    killOptions: KillOptions = {}
+    killOptions: KillOptions = {},
 ) {
     const flags = killOptions.flags ?? 0
     // _show_damage_to_object looks at the critter before this hit's results apply.
@@ -355,12 +486,17 @@ export function critterDamage(
     setNewResults(obj, flags)
     if ((flags & DAM_DEAD) !== 0) obj.critDeath = true
 
-    if (damage > 0) {
+    // CE combat.cc _damage_object: an invulnerable critter (CRITTER_INVULNERABLE) takes nothing
+    const invulnerable = (((obj.pro?.extra?.flags ?? 0) >>> 0) & 0x400) !== 0
+    if (damage > 0 && !invulnerable) {
         obj.stats.modifyBase('HP', -damage)
         // CE combat.cc _damage_object: combat.damageLastTurn += damage
-        ;(obj as any).damageLastTurn = ((obj as any).damageLastTurn ?? 0) + damage
-        // CE _damage_object: damage_p_proc only for damage that landed
-        if (useScript && obj._script) Scripting.damage(obj, obj, source, damage)
+        obj.damageLastTurn = (obj.damageLastTurn ?? 0) + damage
+        // CE _damage_object: damage_p_proc only for damage that landed, not with a4 set, and
+        // not when the victim and the attacker are both in the party (the dude included)
+        const inParty = (c: Critter | undefined) => !!c && (c.isPlayer || !!world.gParty?.isPartyMember(c))
+        if (useScript && obj._script && !killOptions.noDamageProc && !(inParty(obj) && inParty(source)))
+            Scripting.damage(obj, obj, source, damage)
     }
     // A critical with DAM_DEAD kills whatever the HP (CE combat.cc _apply_damage).
     if (obj.getStat('HP') <= 0 || obj.critDeath) {
@@ -368,10 +504,12 @@ export function critterDamage(
     }
     if (!useAnim || wasProne) return
 
-    const knockback = (((obj.pro as any)?.extra?.flags ?? 0) & CRITTER_NO_KNOCKBACK) !== 0 ? 0 : (killOptions.knockback ?? 0)
+    const knockback = ((obj.pro?.extra?.flags ?? 0) & CRITTER_NO_KNOCKBACK) !== 0 ? 0 : (killOptions.knockback ?? 0)
     const rotation = killOptions.knockbackRotation ?? 0
-    const hitFromFront = killOptions.hitFromFront ?? isHitFromFront(obj, source)
-    const done = () => { if (callback) callback() }
+    const hitFromFront = killOptions.hitFromFront ?? isHitFromFrontOf(obj, source)
+    const done = () => {
+        if (callback) callback()
+    }
 
     if ((flags & (DAM_KNOCKED_OUT | DAM_KNOCKED_DOWN)) !== 0) {
         // Knocked out / down: the fall (hit from the front → on the back), its sound,
@@ -389,15 +527,29 @@ export function critterDamage(
     }
     if ((flags & DAM_ON_FIRE) !== 0 && critterHasAnim(obj, ANIM_FIRE_DANCE)) {
         // Set on fire but alive: the fire dance, then standing again.
-        obj.staticAnimation(animName(ANIM_FIRE_DANCE), () => { obj.clearAnim(); done() }, true)
+        obj.staticAnimation(
+            animName(ANIM_FIRE_DANCE),
+            () => {
+                obj.clearAnim()
+                done()
+            },
+            true,
+        )
         return
     }
     if (knockback !== 0) {
         // Knocked back without falling over: slide with the fall, then get up.
         const fall = actionKnockdown(obj, hitFromFront ? ANIM_FALL_BACK : ANIM_FALL_FRONT, knockback, rotation, () => {
             const getUp = fall === ANIM_FALL_BACK ? 'getUpFront' : 'getUpBack'
-            if (obj.hasAnimation(getUp)) obj.staticAnimation(getUp, () => { obj.clearAnim(); done() })
-            else { obj.clearAnim(); done() }
+            if (obj.hasAnimation(getUp))
+                obj.staticAnimation(getUp, () => {
+                    obj.clearAnim()
+                    done()
+                })
+            else {
+                obj.clearAnim()
+                done()
+            }
         })
         return
     }

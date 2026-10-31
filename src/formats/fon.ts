@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { assert } from '../util.js'
 import struct from './struct.js'
 import { assetUrl } from '../modAssets.js'
 
@@ -55,7 +54,7 @@ export async function fonUnpack(filepath: string): Promise<Font> {
         const [width, offset] = fonSymbolInfo.unpack_from(buffer, headerSize + i * 8)
         const length = fontDataSize(width, height)
 
-        if (length == 0) {
+        if (length === 0) {
             symbols.push({ width, offset })
             continue
         }
@@ -76,7 +75,7 @@ export async function fonUnpack(filepath: string): Promise<Font> {
         for (let h = 0; h < height; ++h) {
             for (let w = 0; w < symbol.width; ++w) {
                 const bitmapPixelIndex = dataOffset + symbol.offset + h * widthInBytes + Math.floor(w / 8)
-                const pixelIsEmpty = (bitmapView.getUint8(bitmapPixelIndex) & (1 << (7 - (w % 8)))) == 0
+                const pixelIsEmpty = (bitmapView.getUint8(bitmapPixelIndex) & (1 << (7 - (w % 8)))) === 0
 
                 const texturePixelIndex = currentSymbolOffset + w + h * totalWidth
                 if (!pixelIsEmpty) {

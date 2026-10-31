@@ -1,5 +1,7 @@
 # Wall/Scenery `extendedFlags` Orientation Semantics
 
+> Console commands named here (`setXyz()`, `...Debug()`) are registered only for `play.html#dev` (`src/devConsole/`).
+
 Reference doc for the proto-level `extendedFlags` ("flags_ext") field on walls and
 scenery, and the two CE systems that branch on its upper bits: egg/occlusion
 transparency and light blocking. Written to settle a set of suspected bit-mask

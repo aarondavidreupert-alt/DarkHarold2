@@ -17,18 +17,22 @@ limitations under the License.
 import { perkNameById } from './perks.js'
 import { SkillSet, StatSet } from './char.js'
 import { dbg } from './logger.js'
-import { clamp, getMessage } from './util.js'
-import { Events } from './events.js'
+import { getMessage } from './util.js'
+import * as Events from './events.js'
 import { Point } from './geometry.js'
-import globalState from './globalState.js'
+import { world } from './state/world.js'
+import { services } from './state/services.js'
 import { Critter, createObjectWithPID, Obj, WeaponObj } from './object.js'
 import { centerCamera } from './renderer.js'
 import { fromTileNum } from './tile.js'
-import { uiLog, uiWorldMap } from './ui.js'
+import { drawHP } from './hudRefresh.js'
+import { uiWorldMap } from './ui.js'
+import { uiLog } from './messageLog.js'
 
 // Contains the Player class and relevant initialization logic
 
-const newPlayerStats = () => new StatSet({ AGI: 8, INT: 8, STR: 8, CHA: 8, HP: 100 })
+// CE proto.cc _proto_dude_init: the dude proto has DR EMP 100
+const newPlayerStats = () => new StatSet({ AGI: 8, INT: 8, STR: 8, CHA: 8, HP: 100, 'DR EMP': 100 })
 const newPlayerSkills = () => new SkillSet(undefined, undefined, 10) // Start off with 10 skill points
 
 export class Player extends Critter {
@@ -46,6 +50,8 @@ export class Player extends Critter {
         this.perks = []
         this.traits = []
         this.pendingPerkPick = false
+        this.levelUpAvailable = false
+        this._script = undefined // a new obj_dude at the next map entry (Scripting.ensureDudeScript)
         if (this.dead) {
             this.anim = 'idle'
             this.frame = 0
@@ -98,9 +104,7 @@ export class Player extends Critter {
     updateNativeLook(): void {
         const MOVIE_VSUIT = 3 // gameMovie.ts
         const female = this.gender === 'female'
-        const look = globalState.seenMovies?.has(MOVIE_VSUIT)
-            ? (female ? 'hfjmps' : 'hmjmps')
-            : (female ? 'hfprim' : 'hmwarr')
+        const look = world.seenMovies?.has(MOVIE_VSUIT) ? (female ? 'hfjmps' : 'hmjmps') : female ? 'hfprim' : 'hmwarr'
         const art = 'art/critters/' + look + 'aa'
         const self = this as any
         if (this.armor) {
@@ -118,17 +122,21 @@ export class Player extends Critter {
     getStat(stat: string): number {
         let value = super.getStat(stat)
         const t = this.traits ?? []
-        const perk = (id: number) => { const n = perkNameById(id); return !!n && this.perks.includes(n) }
+        const perk = (id: number) => {
+            const n = perkNameById(id)
+            return !!n && this.perks.includes(n)
+        }
         // CE critterGetStat (critter == gDude): the live perk modifiers. (Gain <SPECIAL>
         // raises the base when taken — perkApplyEffect — so the derived stats follow.)
         switch (stat) {
             case 'STR':
                 // PERK_ADRENALINE_RUSH: +1 below half HP
-                if (perk(79) && this.getStat('HP') < Math.trunc(this.getStat('Max HP') / 2)) value = Math.min(10, value + 1)
+                if (perk(79) && this.getStat('HP') < Math.trunc(this.getStat('Max HP') / 2))
+                    value = Math.min(10, value + 1)
                 break
             case 'CHA': {
                 // PROTO_ID_MIRRORED_SHADES in either hand: +1
-                const shades = (this.leftHand as any)?.pid === 433 || (this.rightHand as any)?.pid === 433
+                const shades = this.leftHand?.pid === 433 || this.rightHand?.pid === 433
                 if (shades) value = Math.min(10, value + 1)
                 break
             }
@@ -142,28 +150,56 @@ export class Player extends Critter {
                 if (perk(114)) value -= 2 // PERK_AUTODOC_LOWERED_HIT_POINTS
                 if (perk(115)) value -= 4 // _II
                 break
-            case 'DR Normal': case 'DR Explosive':
-                if (perk(74)) value += 5 // PERK_DERMAL_IMPACT_ARMOR
+            case 'DR Normal':
+            case 'DR Explosive':
+                if (perk(74))
+                    value += 5 // PERK_DERMAL_IMPACT_ARMOR
                 else if (perk(75)) value += 10 // PERK_DERMAL_IMPACT_ASSAULT_ENHANCEMENT
                 break
-            case 'DR Laser': case 'DR Fire': case 'DR Plasma':
-                if (perk(76)) value += 5 // PERK_PHOENIX_ARMOR_IMPLANTS
+            case 'DR Laser':
+            case 'DR Fire':
+            case 'DR Plasma':
+                if (perk(76))
+                    value += 5 // PERK_PHOENIX_ARMOR_IMPLANTS
                 else if (perk(77)) value += 10 // PERK_PHOENIX_ASSAULT_ENHANCEMENT
                 break
-            case 'DR Radiation': case 'DR Poison':
+            case 'DR Radiation':
+            case 'DR Poison':
                 if (perk(78)) value += 10 // PERK_VAULT_CITY_INOCULATIONS
                 break
         }
         switch (stat) {
-            case 'AP': return Math.max(1, t.includes('Bruiser') ? value - 2 : value) // clamped like CE critterGetStat
-            case 'AC': return t.includes('Kamikaze') ? 0 : value // -critterGetBaseStat(AC)
-            case 'Melee': return t.includes('Heavy Handed') ? value + 4 : value
-            case 'Carry': return t.includes('Small Frame') ? value - 10 * this.stats.getBase('STR') : value
-            case 'Sequence': return t.includes('Kamikaze') ? value + 5 : value
-            case 'Healing Rate': return t.includes('Fast Metabolism') ? value + 2 : value
-            case 'Critical Chance': return t.includes('Finesse') ? value + 10 : value
-            case 'Better Criticals': return t.includes('Heavy Handed') ? value - 30 : value
-            case 'DR Radiation': case 'DR Poison': return t.includes('Fast Metabolism') ? 0 : value
+            case 'AP':
+                return Math.max(1, t.includes('Bruiser') ? value - 2 : value) // clamped like CE critterGetStat
+            case 'AC':
+                return t.includes('Kamikaze') ? 0 : value // -critterGetBaseStat(AC)
+            case 'Melee':
+                return t.includes('Heavy Handed') ? value + 4 : value
+            // CE trait.cc: Small Frame −10 × critterGetBaseStat(ST) — the raw base, without the
+            // traits' own +ST (Bruiser +2, Gifted +1) or any bonus
+            case 'Carry':
+                return t.includes('Small Frame')
+                    ? value -
+                          10 *
+                              (this.stats.getBase('STR') -
+                                  (t.includes('Bruiser') ? 2 : 0) -
+                                  (t.includes('Gifted') ? 1 : 0))
+                    : value
+            case 'Sequence':
+                return t.includes('Kamikaze') ? value + 5 : value
+            case 'Healing Rate':
+                return t.includes('Fast Metabolism') ? value + 2 : value
+            case 'Critical Chance':
+                return t.includes('Finesse') ? value + 10 : value
+            case 'Better Criticals':
+                return t.includes('Heavy Handed') ? value - 30 : value
+            // CE trait.cc: Fast Metabolism −critterGetBaseStat (the 2·EN / 5·EN part only); Rad-X's
+            // bonus and the Inoculations stay
+            case 'DR Radiation':
+            case 'DR Poison':
+                return t.includes('Fast Metabolism')
+                    ? Math.max(0, value - (this.stats.get(stat) - this.stats.getBonus(stat)))
+                    : value
         }
         return value
     }
@@ -183,7 +219,7 @@ export class Player extends Critter {
     position = { x: 94, y: 109 }
     orientation = 3
     gender = 'male'
-    leftHand = <WeaponObj>createObjectWithPID(9) // 10mm SMG
+    leftHand?: WeaponObj = <WeaponObj>createObjectWithPID(9) // 10mm SMG
     armor: Obj | null = null
     activeHand: 'leftHand' | 'rightHand' = 'leftHand'
 
@@ -192,33 +228,41 @@ export class Player extends Critter {
         createObjectWithPID(41).setAmount(5000),
 
         // Armor
-        createObjectWithPID(2),   // Leather Jacket
-        createObjectWithPID(3),   // Leather Armor
-        createObjectWithPID(28),  // Combat Armor
+        createObjectWithPID(2), // Leather Jacket
+        createObjectWithPID(3), // Leather Armor
+        createObjectWithPID(28), // Combat Armor
 
         // Weapons
-        createObjectWithPID(9),   // 10mm SMG       (ammo: 10mm JHP/AP)
-        createObjectWithPID(15),  // Hunting Rifle  (ammo: .223 FMJ)
-        createObjectWithPID(23),  // Laser Rifle    (ammo: Micro Fusion Cell)
+        createObjectWithPID(9), // 10mm SMG       (ammo: 10mm JHP/AP)
+        createObjectWithPID(15), // Hunting Rifle  (ammo: .223 FMJ)
+        createObjectWithPID(23), // Laser Rifle    (ammo: Micro Fusion Cell)
 
         // Ammo
-        createObjectWithPID(29).setAmount(10),   // 10mm JHP (boxes)
-        createObjectWithPID(34).setAmount(10),   // .223 FMJ (boxes)
-        createObjectWithPID(39).setAmount(10),   // Micro Fusion Cell (PROTO_ID_MICRO_FUSION_CELL, boxes)
+        createObjectWithPID(29).setAmount(10), // 10mm JHP (boxes)
+        createObjectWithPID(34).setAmount(10), // .223 FMJ (boxes)
+        createObjectWithPID(39).setAmount(10), // Micro Fusion Cell (PROTO_ID_MICRO_FUSION_CELL, boxes)
 
         // Drugs & chems
-        createObjectWithPID(40).setAmount(5),    // Stimpak
-        createObjectWithPID(144).setAmount(2),   // Super Stimpak
-        createObjectWithPID(110).setAmount(3),   // Psycho
-        createObjectWithPID(87).setAmount(3),    // Buffout
-        createObjectWithPID(53).setAmount(3),    // Mentats
-        createObjectWithPID(259).setAmount(3),   // Jet
-        createObjectWithPID(48).setAmount(3),    // Rad-Away
-        createObjectWithPID(260),                // Jet Antidote
+        createObjectWithPID(40).setAmount(5), // Stimpak
+        createObjectWithPID(144).setAmount(2), // Super Stimpak
+        createObjectWithPID(110).setAmount(3), // Psycho
+        createObjectWithPID(87).setAmount(3), // Buffout
+        createObjectWithPID(53).setAmount(3), // Mentats
+        createObjectWithPID(259).setAmount(3), // Jet
+        createObjectWithPID(48).setAmount(3), // Rad-Away
+        createObjectWithPID(260), // Jet Antidote
 
         // Misc items
-        (() => { const o = createObjectWithPID(52); o.miscCharges = 200; return o })(),  // Geiger Counter I
-        (() => { const o = createObjectWithPID(54); o.miscCharges = 50;  return o })(),  // Stealth Boy I
+        (() => {
+            const o = createObjectWithPID(52)
+            o.miscCharges = 200
+            return o
+        })(), // Geiger Counter I
+        (() => {
+            const o = createObjectWithPID(54)
+            o.miscCharges = 50
+            return o
+        })(), // Stealth Boy I
     ]
 
     lightRadius = 4
@@ -233,13 +277,34 @@ export class Player extends Critter {
     // FO2-CE ref: stat.cc pcGetExperienceForLevel()
     // XP required to *reach* a given level: level * (level - 1) / 2 * 1000
     static xpForLevel(level: number): number {
-        return Math.floor(level * (level - 1) / 2) * 1000
+        return Math.floor((level * (level - 1)) / 2) * 1000
+    }
+
+    // CE stat.cc pcSetExperience (pcSetStat with less XP): the level follows the XP down, no
+    // level-up pending, and the HP the lost levels gave come off (END / 2 + 2, + 4 per
+    // Lifegiver rank, a level) — from the current and the maximum HP.
+    setExperienceLower(xp: number): void {
+        const oldLevel = this.stats.get('Level')
+        this.stats.setBase('Experience', xp)
+        let level = 1
+        do {
+            level += 1
+        } while (xp >= Player.xpForLevel(level) && level < 99)
+        const newLevel = level - 1
+        this.stats.setBase('Level', newLevel)
+        this.levelUpAvailable = false
+        const hpPerLevel =
+            Math.trunc(this.stats.getBase('END') / 2) + 2 + 4 * this.perks.filter((p) => p === 'Lifegiver').length
+        const deltaHp = (oldLevel - newLevel) * hpPerLevel
+        this.stats.modifyBase('HP', -deltaHp)
+        this.stats.modifyBase('Max HP', -deltaHp)
+        drawHP(this.getStat('HP'))
     }
 
     addExperience(xp: number) {
         // CE ref: stat.cc:735 pcAddExperienceWithOptions — Swift Learner: +5% per rank.
         const swiftRanks = this.perks.filter((p) => p === 'Swift Learner').length
-        xp += Math.trunc(swiftRanks * 5 * xp / 100)
+        xp += Math.trunc((swiftRanks * 5 * xp) / 100)
         this.stats.modifyBase('Experience', xp)
 
         // FO2-CE ref: stat.cc — loop handles gaining multiple levels at once
@@ -252,23 +317,15 @@ export class Player extends Critter {
 
             this.stats.modifyBase('Level', 1)
             currentLevel++
+            this.levelUpAvailable = true // CE stat.cc:764 DUDE_STATE_LEVEL_UP_AVAILABLE
 
-            globalState.audioEngine.playSfxByName('levelup')
+            services.audioEngine.playSfxByName('levelup')
             // CE stat.cc:757 — stat.msg 600 "You have gone up a level."
             const lvlMsg = getMessage('stat', 600)
             if (lvlMsg) uiLog(lvlMsg)
 
-            // CE character_editor.cc characterEditorUpdateLevel: 5 + 2 × base INT (with
-            // traits, not drugs) + 2 per Educated rank + 5 with Skilled, − 5 with Gifted;
-            // the unspent total stays within 0..99.
-            const before = this.skills.skillPoints
-            let sp = before + 5 + 2 * this.stats.getBase('INT')
-            sp += 2 * this.perks.filter((p) => p === 'Educated').length
-            if (this.traits.includes('Skilled')) sp += 5
-            if (this.traits.includes('Gifted')) sp = Math.max(0, sp - 5)
-            sp = Math.min(99, sp)
-            this.skills.skillPoints = sp
-            const skillPointGain = sp - before
+            // (the skill points and the free perk come when the character screen opens:
+            // editorUpdateLevel)
 
             // CE stat.cc pcAddExperienceWithOptions — HP per level: base END (with traits,
             // not drugs) / 2 + 2, + 4 per Lifegiver rank
@@ -277,23 +334,44 @@ export class Player extends Critter {
             this.stats.modifyBase('Max HP', hpGain)
             this.stats.modifyBase('HP', hpGain)
 
-            // FO2-CE ref: editor.cc — perk every 3 levels (Skilled trait: every 4)
-            const perkRate = this.traits.includes('Skilled') ? 4 : 3
-            if (currentLevel % perkRate === 0) {
-                this.pendingPerkPick = true
-                // Do NOT open the selector here — editorRun() checks the flag
-                // when the character screen is opened (FO2-CE ref: editor.cc).
-            }
-
-            dbg('object', `Level up! Now level ${currentLevel}. Gained ${skillPointGain} skill points, ${hpGain} HP.`)
+            dbg('object', `Level up! Now level ${currentLevel}. Gained ${hpGain} HP.`)
 
             // CE ref: stat.cc:789 — party members may level with the player.
-            globalState.gParty?.incLevels()
+            world.gParty?.incLevels()
         }
+    }
+
+    // CE character_editor.cc gCharacterEditorLastLevel: the level the character screen last
+    // saw (saved with the game)
+    editorLastLevel = 1
+
+    // CE characterEditorUpdateLevel, when the character screen opens (not in creation): for
+    // each level since the last opening, 5 + 2 × base INT (with traits, not drugs) + 2 per
+    // Educated rank + 5 with Skilled, − 5 with Gifted, the unspent total within 0..99; and
+    // a free perk every 3rd level (4th with Skilled) while fewer than 37 perks are taken.
+    // True when the level changed.
+    editorUpdateLevel(): boolean {
+        const level = this.stats.getBase('Level')
+        if (level === this.editorLastLevel || level > 99) return false
+        for (let next = this.editorLastLevel + 1; next <= level; next++) {
+            let sp = this.skills.skillPoints + 5 + 2 * this.stats.getBase('INT')
+            sp += 2 * this.perks.filter((p) => p === 'Educated').length
+            if (this.traits.includes('Skilled')) sp += 5
+            if (this.traits.includes('Gifted')) sp = Math.max(0, sp - 5)
+            this.skills.skillPoints = Math.min(99, sp)
+            if (new Set(this.perks).size < 37 && next % (this.traits.includes('Skilled') ? 4 : 3) === 0) {
+                this.pendingPerkPick = true
+            }
+        }
+        this.editorLastLevel = level
+        return true
     }
 
     // Set to true when a perk pick is available (at character screen)
     pendingPerkPick = false
+    // CE DUDE_STATE_LEVEL_UP_AVAILABLE: the LEVEL indicator, set on a level-up and cleared
+    // when the character screen opens
+    levelUpAvailable = false
 
     // FO2-CE ref: editor.cc editorRun() — apply character-creation choices to player.
     // Called by showCharacterCreator() DONE handler after validation passes.
@@ -303,7 +381,7 @@ export class Player extends Critter {
         name: string,
         age: number,
         sex: 'Male' | 'Female',
-        traits: string[]
+        traits: string[],
     ): void {
         const SPECIALS = ['STR', 'PER', 'END', 'CHA', 'INT', 'AGI', 'LUK']
 
@@ -324,10 +402,8 @@ export class Player extends Critter {
             this.stats.modifyBase('AGI', 1)
         }
 
-        // Clamp all SPECIAL to [1, 10] after trait modifications
-        for (const s of SPECIALS) {
-            this.stats.setBase(s, clamp(1, 10, this.stats.getBase(s)))
-        }
+        // No clamp here: CE keeps the base and the trait part apart, and only the total is
+        // capped at 10 (StatSet.get) — so a 10 + Gifted is still 10 after Mutate! drops Gifted
 
         // Max HP is derived (skills.ts: 15 + 2×END + STR on a base of 0); a fresh
         // character starts at full HP (CE _proto_dude_init: critterAdjustHitPoints).
@@ -340,10 +416,10 @@ export class Player extends Critter {
         skills.skillPoints = 0
 
         // Apply skills and tags
-        this.skills.baseSkills  = Object.assign({}, skills.baseSkills)
-        this.skills.tagged      = skills.tagged.slice()
+        this.skills.baseSkills = Object.assign({}, skills.baseSkills)
+        this.skills.tagged = skills.tagged.slice()
         this.skills.skillPoints = skills.skillPoints
-        this.skills.hasTagPerk  = skills.hasTagPerk
+        this.skills.hasTagPerk = skills.hasTagPerk
 
         // Identity
         this.name = name
@@ -351,18 +427,11 @@ export class Player extends Critter {
         this.gender = sex.toLowerCase()
 
         this.updateNativeLook() // CE _proto_dude_init → _proto_dude_update_gender
-        dbg('object', `[CharCreator] Applied: ${name}, ${sex}, age ${age}, traits [${traits.join(', ')}], HP ${maxHp}, SP ${skills.skillPoints}`)
+        dbg(
+            'object',
+            `[CharCreator] Applied: ${name}, ${sex}, age ${age}, traits [${traits.join(', ')}], HP ${maxHp}, SP ${skills.skillPoints}`,
+        )
     }
-
-    /*
-    var obj = {position: {x: 94, y: 109}, orientation: 2, frame: 0, type: "critter",
-                   art: "art/critters/hmjmpsaa", isPlayer: true, anim: "idle", lastFrameTime: 0,
-                   path: null, animCallback: null,
-                   leftHand: playerWeapon, rightHand: null, weapon: null, armor: null,
-                   dead: false, name: "Player", gender: "male", inventory: [
-                   {type: "misc", name: "Money", pid: 41, pidID: 41, amount: 1337, pro: {textID: 4100, extra: {cost: 1}, invFRM: 117440552}, invArt: 'art/inven/cap2'}
-                   ], stats: null, skills: null, tempChanges: null}
-    */
 
     move(position: Point, curIdx?: number, signalEvents: boolean = true): boolean {
         if (!super.move(position, curIdx, signalEvents)) return false
@@ -370,31 +439,60 @@ export class Player extends Critter {
         if (signalEvents) Events.emit('playerMoved', position)
 
         // check if the player has entered an exit grid
-        var objs = globalState.gMap.objectsAtPosition(this.position)
-        for (var i = 0; i < objs.length; i++) {
+        const objs = world.gMap!.objectsAtPosition(this.position)
+        for (let i = 0; i < objs.length; i++) {
             if (objs[i].type === 'misc' && objs[i].extra && objs[i].extra.exitMapID !== undefined) {
                 // walking on an exit grid
                 // todo: exit grids are likely multi-hex (maybe have a set?)
-                var exitMapID = Number(objs[i].extra.exitMapID) || -1
-                var startingPosition = fromTileNum(Number(objs[i].extra.startingPosition) || 0)
-                var startingElevation = Number(objs[i].extra.startingElevation) || 0
+                // CE object.cc (dude on an exit grid) → map.cc mapSetTransition / mapHandleTransition:
+                // map 0 → -2; -1 the town map, -2 the world map; another map — or this one at the
+                // current elevation — is (re)loaded; then a tile other than -1 / 0 places the dude
+                // there with the grid's elevation and rotation (not on the Modoc B&B / Squat A maps:
+                // the header start).
+                const ex = objs[i].extra
+                let exitMapID = Number(ex.exitMapID)
+                if (!Number.isFinite(exitMapID) || exitMapID === 0) exitMapID = -2
+                const tile = Number(ex.startingPosition ?? -1)
+                const startingElevation = Number(ex.startingElevation) || 0
+                const rotation = Number(ex.startingOrientation) || 0
                 this.clearAnim()
+                // CE mapSetTransition in combat: _game_user_wants_to_quit ends the fight first
+                if (world.inCombat && exitMapID < 0) {
+                    world.combat?.forceEnd()
+                    world.inCombat = false
+                }
 
-                if (startingPosition.x === -1 || startingPosition.y === -1 || exitMapID < 0) {
-                    // world map
+                if (exitMapID === -1) {
+                    dbg('map', 'exit grid -> town map')
+                    uiWorldMap(true)
+                } else if (exitMapID < 0) {
                     dbg('map', 'exit grid -> worldmap')
                     uiWorldMap()
                 } else {
-                    // another map
-                    dbg('map', `exit grid -> map ${exitMapID} elevation ${startingElevation} @ ${startingPosition.x}, ${startingPosition.y}`)
-                    if (exitMapID === globalState.gMap.mapID) {
-                        // same map, different elevation
-                        globalState.gMap.changeElevation(Number(startingElevation) || 0, true)
-                        globalState.player.move(startingPosition)
-                        centerCamera(globalState.player.position)
-                    } else {
-                        globalState.gMap.loadMapByID(exitMapID, startingPosition, startingElevation)
+                    const gMap = world.gMap
+                    const placeOnTile =
+                        tile !== -1 &&
+                        tile !== 0 &&
+                        exitMapID !== 19 /* MAP_MODOC_BEDNBREAKFAST */ &&
+                        exitMapID !== 37 /* MAP_THE_SQUAT_A */ &&
+                        startingElevation >= 0 &&
+                        startingElevation <= 2
+                    const position = placeOnTile ? fromTileNum(tile) : undefined
+                    dbg('map', `exit grid -> map ${exitMapID} elevation ${startingElevation} @ ${tile}`)
+                    if (exitMapID !== gMap!.mapID || gMap!.currentElevation === startingElevation) {
+                        gMap!.loadMapByID(
+                            exitMapID,
+                            position,
+                            placeOnTile ? startingElevation : undefined,
+                            placeOnTile ? rotation : undefined,
+                        )
                         Events.emit('mapTransition', exitMapID) // CE mapHandleTransition → wmTeleportToArea
+                    } else if (position) {
+                        // same map, another elevation: no reload
+                        gMap!.changeElevation(startingElevation, true)
+                        world.player!.move(position)
+                        world.player!.orientation = rotation
+                        centerCamera(world.player!.position)
                     }
                 }
 

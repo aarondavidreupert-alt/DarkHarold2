@@ -26,32 +26,59 @@ limitations under the License.
 // Critters other than the player always use the plain punch (CE _ai_pick_hit_mode
 // returns HIT_MODE_PUNCH without a weapon; the move tables read gDude's stats only).
 
-import globalState from './globalState.js'
+import { uiState } from './state/uiState.js'
 import type { Critter } from './object.js'
 
 export interface UnarmedMode {
-    hitMode: number            // CE HIT_MODE_*
+    hitMode: number // CE HIT_MODE_*
     name: string
-    family: 'punch' | 'kick'   // ANIM_THROW_PUNCH / ANIM_KICK_LEG
-    icon: string               // art/intrface/<icon>.png — interfaceBarRefreshMainAction
+    family: 'punch' | 'kick' // ANIM_THROW_PUNCH / ANIM_KICK_LEG
+    icon: string // art/intrface/<icon>.png — interfaceBarRefreshMainAction
     requiredLevel: number
     requiredSkill: number
     requiredST: number
     requiredAG: number
     minDmg: number
     maxDmg: number
-    bonusDamage: number        // added to both ends of the damage range (unarmedGetDamage)
-    critBonus: number          // own d100 for a critical on a hit (unarmedGetBonusCriticalChance)
+    bonusDamage: number // added to both ends of the damage range (unarmedGetDamage)
+    critBonus: number // own d100 for a critical on a hit (unarmedGetBonusCriticalChance)
     apCost: number
-    penetrate: boolean         // DT to 20% (unarmedIsPenetrating)
+    penetrate: boolean // DT to 20% (unarmedIsPenetrating)
     secondary: boolean
 }
 
-function hit(hitMode: number, name: string, family: 'punch' | 'kick', icon: string,
-    requiredLevel: number, requiredSkill: number, requiredST: number, requiredAG: number,
-    bonusDamage: number, critBonus: number, apCost: number, penetrate: boolean, secondary: boolean): UnarmedMode {
-    return { hitMode, name, family, icon, requiredLevel, requiredSkill, requiredST, requiredAG,
-        minDmg: 1, maxDmg: 2, bonusDamage, critBonus, apCost, penetrate, secondary }
+function hit(
+    hitMode: number,
+    name: string,
+    family: 'punch' | 'kick',
+    icon: string,
+    requiredLevel: number,
+    requiredSkill: number,
+    requiredST: number,
+    requiredAG: number,
+    bonusDamage: number,
+    critBonus: number,
+    apCost: number,
+    penetrate: boolean,
+    secondary: boolean,
+): UnarmedMode {
+    return {
+        hitMode,
+        name,
+        family,
+        icon,
+        requiredLevel,
+        requiredSkill,
+        requiredST,
+        requiredAG,
+        minDmg: 1,
+        maxDmg: 2,
+        bonusDamage,
+        critBonus,
+        apCost,
+        penetrate,
+        secondary,
+    }
 }
 
 // CE combat.cc unarmedInitVanilla, in HIT_MODE order (the last qualifying mode of a
@@ -104,27 +131,31 @@ function handFamily(hand: 'leftHand' | 'rightHand'): 'punch' | 'kick' {
 }
 
 function playerHand(critter: Critter): 'leftHand' | 'rightHand' {
-    return (critter as any).activeHand ?? 'leftHand'
+    return critter.activeHand ?? 'leftHand'
 }
 
 function getAction(hand: 'leftHand' | 'rightHand'): UnarmedAction {
-    const idx = hand === 'rightHand' ? globalState.kickModeIdx : globalState.punchModeIdx
+    const idx = hand === 'rightHand' ? uiState.kickModeIdx : uiState.punchModeIdx
     return ACTIONS[idx] ?? 'primary'
 }
 
 // CE item.cc critterCanAim for an unarmed hit mode: only Fast Shot forbids it.
 function canAim(critter: Critter): boolean {
-    return !(critter.isPlayer && ((critter as any).traits ?? []).includes('Fast Shot'))
+    return !(critter.isPlayer && (critter.traits ?? []).includes('Fast Shot'))
 }
 
 function actionValid(critter: Critter, hand: 'leftHand' | 'rightHand', action: UnarmedAction): boolean {
     const family = handFamily(hand)
     const basic = family === 'punch' ? PUNCH : KICK
     switch (action) {
-        case 'primary': return true
-        case 'primaryAim': return canAim(critter)
-        case 'secondary': return unarmedHitMode(critter, family, true) !== basic
-        case 'secondaryAim': return unarmedHitMode(critter, family, true) !== basic && canAim(critter)
+        case 'primary':
+            return true
+        case 'primaryAim':
+            return canAim(critter)
+        case 'secondary':
+            return unarmedHitMode(critter, family, true) !== basic
+        case 'secondaryAim':
+            return unarmedHitMode(critter, family, true) !== basic && canAim(critter)
     }
 }
 
@@ -156,8 +187,8 @@ export function cycleUnarmedAction(critter: Critter): { mode: UnarmedMode; aimin
         idx = (idx + 1) % ACTIONS.length
         if (actionValid(critter, hand, ACTIONS[idx])) break
     }
-    if (hand === 'rightHand') globalState.kickModeIdx = idx
-    else globalState.punchModeIdx = idx
+    if (hand === 'rightHand') uiState.kickModeIdx = idx
+    else uiState.punchModeIdx = idx
     return currentUnarmed(critter)
 }
 

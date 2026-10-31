@@ -7,7 +7,7 @@
 //  - 2000 open / 2000 closed nodes at most (else no path), 800 steps returned at most,
 //  - a closed door only lets through a critter that canUseDoor.
 
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
 import { hexInDirection, hexToScreen, HEX_GRID_SIZE, Point } from '../geometry.js'
 import type { Obj } from '../object.js'
 import { Config } from '../config.js'
@@ -25,12 +25,12 @@ const BODY_TYPE_ROBOTIC = 2
 // scenery data & 0x04 — no F2 door has it, the player opens doors himself); other
 // critters through any unlocked door if biped or robotic and not a gecko.
 export function canUseDoor(critter: Obj, door: Obj): boolean {
-    if (critter === globalState.player) {
-        if ((((door as any).pro?.extra?.walkthroughFlag ?? 0) & 0x04) === 0) return false
+    if (critter === world.player) {
+        if (((door.pro?.extra?.walkthroughFlag ?? 0) & 0x04) === 0) return false
     }
     if (critter.type !== 'critter') return false
     if (door.type !== 'scenery' || door.subtype !== 'door') return false
-    const bodyType = (critter as any).pro?.extra?.bodyType ?? 0
+    const bodyType = critter.pro?.extra?.bodyType ?? 0
     if (bodyType !== BODY_TYPE_BIPED && bodyType !== BODY_TYPE_ROBOTIC) return false
     if (door.locked) return false // objectIsLocked
     if (((critter as any).killType ?? 0) === KILL_TYPE_GECKO) return false
@@ -45,39 +45,68 @@ function idist(x1: number, y1: number, x2: number, y2: number): number {
     return dx + dy - Math.trunc(dm / 2)
 }
 
-interface PathNode { tile: number; from: number; rotation: number; estimate: number; cost: number }
+interface PathNode {
+    tile: number
+    from: number
+    rotation: number
+    estimate: number
+    cost: number
+}
 
 // The blocking object per tile (CE _obj_blocking_at: OBJECT_MULTIHEX objects also
 // block the six hexes around them), and the goo tiles. `shoot`: CE
 // _obj_shoot_blocking_at instead — living critters, scenery and walls that aren't
-// both NO_BLOCK and SHOOT_THRU (multihex neighbours: not NO_BLOCK).
-function blockingMap(mover: Obj | null, elevation: number, shoot = false): { block: Map<number, Obj>; goo: Set<number> } {
+// both NO_BLOCK and SHOOT_THRU (multihex neighbours: not NO_BLOCK). 'sight': CE
+// _obj_sight_blocking_at — visible scenery and walls without OBJECT_LIGHT_THRU. 'ai': the
+// walking test without critters (CE _obj_ai_blocking_at lets the first critter through
+// and remembers it as _moveBlockObj; the caller finds it on the path).
+export type PathBlockMode = boolean | 'sight' | 'ai'
+function blockingMap(
+    mover: Obj | null,
+    elevation: number,
+    shoot: PathBlockMode = false,
+): { block: Map<number, Obj>; goo: Set<number> } {
     const block = new Map<number, Obj>()
     const goo = new Set<number>()
     const W = HEX_GRID_SIZE
-    for (const o of globalState.gMap?.getObjects(elevation) ?? []) {
+    for (const o of world.gMap?.getObjects(elevation) ?? []) {
         if (!o.position || o === mover) continue
         const { x, y } = o.position
         if (x < 0 || x >= W || y < 0 || y >= W) continue
-        const pid = (o as any).pid as number | undefined
+        const pid = o.pid as number | undefined
         if (pid !== undefined && pid >= FIRST_RADIOACTIVE_GOO_PID && pid <= LAST_RADIOACTIVE_GOO_PID) goo.add(y * W + x)
-        if (shoot) {
-            const flags = ((o as any).flags ?? 0) >>> 0
+        if (shoot === 'sight') {
+            const flags = (o.flags ?? 0) >>> 0
+            if (
+                (o.type === 'scenery' || o.type === 'wall') &&
+                (flags & 0x01) === 0 &&
+                o.visible !== false &&
+                (flags & 0x20000000) === 0 &&
+                !block.has(y * W + x)
+            )
+                block.set(y * W + x, o)
+            continue
+        }
+        if (shoot === 'ai' && o.type === 'critter') continue
+        if (shoot && shoot !== 'ai') {
+            const flags = (o.flags ?? 0) >>> 0
             const kind = o.type === 'scenery' || o.type === 'wall' || (o.type === 'critter' && !(o as any).dead)
-            if (!kind || (flags & 0x01) !== 0 || (o as any).visible === false) continue // OBJECT_HIDDEN
+            if (!kind || (flags & 0x01) !== 0 || o.visible === false) continue // OBJECT_HIDDEN
             const noBlock = (flags & 0x10) !== 0
             if (!(noBlock && (flags & 0x80000000) !== 0) && !block.has(y * W + x)) block.set(y * W + x, o)
             if (!noBlock && (flags & 0x800) !== 0) {
                 for (let r = 0; r < 6; r++) {
                     const n = hexInDirection(o.position, r)
-                    if (n.x >= 0 && n.x < W && n.y >= 0 && n.y < W && !block.has(n.y * W + n.x)) block.set(n.y * W + n.x, o)
+                    if (n.x >= 0 && n.x < W && n.y >= 0 && n.y < W && !block.has(n.y * W + n.x))
+                        block.set(n.y * W + n.x, o)
                 }
             }
             continue
         }
         if (!o.blocks()) continue
         if (!block.has(y * W + x)) block.set(y * W + x, o)
-        if ((((o as any).flags ?? 0) & 0x800) !== 0) { // OBJECT_MULTIHEX
+        if (((o.flags ?? 0) & 0x800) !== 0) {
+            // OBJECT_MULTIHEX
             for (let r = 0; r < 6; r++) {
                 const n = hexInDirection(o.position, r)
                 if (n.x >= 0 && n.x < W && n.y >= 0 && n.y < W && !block.has(n.y * W + n.x)) block.set(n.y * W + n.x, o)
@@ -89,12 +118,18 @@ function blockingMap(mover: Obj | null, elevation: number, shoot = false): { blo
 
 // Returns the rotations from `from` to `to` (empty: no path). `goalMustBeFree` is CE's
 // a5: the goal tile itself must not be blocked; `shoot` checks with
-// _obj_shoot_blocking_at (CE's blocking-function argument).
-export function pathfinderFindPath(mover: Obj | null, from: Point, to: Point, goalMustBeFree: boolean, shoot = false): number[] {
+// _obj_shoot_blocking_at (CE's blocking-function argument), 'sight' _obj_sight_blocking_at.
+export function pathfinderFindPath(
+    mover: Obj | null,
+    from: Point,
+    to: Point,
+    goalMustBeFree: boolean,
+    shoot: PathBlockMode = false,
+): number[] {
     const W = HEX_GRID_SIZE
     const fromTile = from.y * W + from.x
     const toTile = to.y * W + to.x
-    const elevation = (mover as any)?.elevation ?? globalState.gMap?.currentElevation ?? 0
+    const elevation = mover?.elevation ?? world.gMap?.currentElevation ?? 0
     const { block, goo } = blockingMap(mover, elevation, shoot)
 
     if (goalMustBeFree && block.has(toTile)) return []
@@ -103,8 +138,10 @@ export function pathfinderFindPath(mover: Obj | null, from: Point, to: Point, go
     // inside the black map border to a hex outside it (walkBorderBounds), so
     // neither the player nor an NPC walks into the black. A mover already outside can
     // still walk; scripts' move_to doesn't path.
-    const border = !shoot && Config.ui.walkLimitToBorder && elevation === globalState.gMap?.currentElevation
-        ? walkBorderBounds() : null
+    const border =
+        (!shoot || shoot === 'ai') && Config.ui.walkLimitToBorder && elevation === world.gMap?.currentElevation
+            ? walkBorderBounds()
+            : null
     const inside = (x: number, y: number): boolean => {
         if (!border) return true
         const s = hexToScreen(x, y)
@@ -114,7 +151,7 @@ export function pathfinderFindPath(mover: Obj | null, from: Point, to: Point, go
 
     const isCritter = mover?.type === 'critter'
     const isGecko = isCritter && ((mover as any).killType ?? 0) === KILL_TYPE_GECKO
-    const notInCombat = !globalState.inCombat
+    const notInCombat = !world.inCombat
 
     const processed = new Uint8Array(W * W)
     processed[fromTile] = 1
@@ -123,7 +160,13 @@ export function pathfinderFindPath(mover: Obj | null, from: Point, to: Point, go
     const fromScreen = hexToScreen(from.x, from.y)
     const open: PathNode[] = []
     for (let i = 0; i < MAX_NODES; i++) open.push({ tile: -1, from: -1, rotation: 0, estimate: 0, cost: 0 })
-    open[0] = { tile: fromTile, from: -1, rotation: 0, estimate: idist(fromScreen.x, fromScreen.y, toScreen.x, toScreen.y), cost: 0 }
+    open[0] = {
+        tile: fromTile,
+        from: -1,
+        rotation: 0,
+        estimate: idist(fromScreen.x, fromScreen.y, toScreen.x, toScreen.y),
+        cost: 0,
+    }
     const closed: PathNode[] = []
     let openCount = 1
     let temp: PathNode = open[0]
@@ -192,9 +235,15 @@ export function pathfinderFindPath(mover: Obj | null, from: Point, to: Point, go
 }
 
 // The path as hexes, start included (DH2's path format).
-export function pathfinderFindPathPoints(mover: Obj | null, from: Point, to: Point, goalMustBeFree: boolean): number[][] {
+export function pathfinderFindPathPoints(
+    mover: Obj | null,
+    from: Point,
+    to: Point,
+    goalMustBeFree: boolean,
+    mode: PathBlockMode = false,
+): number[][] {
     if (from.x === to.x && from.y === to.y) return [[from.x, from.y]]
-    const rotations = pathfinderFindPath(mover, from, to, goalMustBeFree)
+    const rotations = pathfinderFindPath(mover, from, to, goalMustBeFree, mode)
     if (rotations.length === 0) return []
     const out: number[][] = [[from.x, from.y]]
     let p = from

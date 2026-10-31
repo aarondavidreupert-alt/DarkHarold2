@@ -125,7 +125,197 @@ endgame (END-01).
 arrow-mode click opens menu, no Shift run toggle (MOUSE-01, MOUSE-02, PREF-01); hover icon, repeated "You see",
 no AP / X on hex cursor (MOUSE-03…05); language filter does nothing (MSG-01, PREF-02).
 
-LOW findings are listed in each report only.
+LOW findings are listed in each report only. The 16 LOW findings with a section of their own were worked
+through on 2026-10-25 (each header marked FIXED / PARTLY FIXED): 14 fixed (ANIM-04, ANIM-05, COMBAT-15, AI-09,
+AI-10, PTY-06, DLG-07, INV-16, ITEM-04, the ITEM-05 / 10 / 11 / 14 / 16 / 20 group, SCR-14, OP-13, OP-15; CHAR-06
+earlier), 2 in part — SCR-13 (the 32-bit int semantics need int2lua changes) and "Smaller ones" (the queue's stop
+flag and the fatal error for a missing external variable are left as they are). SCR-11 stays checked, not ported.
+
+### MED findings fixed (2026-10-25, branch `small-autits`)
+
+| Batch | IDs | What changed |
+|---|---|---|
+| Map load / script lifecycle | MAP-01, SCR-04 | one `map_update_p_proc` per map load; map updates also run in combat and every 30 s of real time (CE `_script_chk_timed_events`) |
+| | SCR-03 | the clock no longer advances in combat (combat time = 5 s per round, as CE) |
+| | SCR-05 | on a map load (fresh or revisited) `start` runs after the map script's `map_enter_p_proc` and the party's placement, for the map script, the spatials, items and scenery, then critters; a script's startup code waits for its first proc; `fixed_param` = first visit for the map script and every object's `map_enter_p_proc` |
+| | SCR-08 | a script that hits a fatal error runs no further procs (both backends), as CE's PROGRAM_FLAG_EXITED |
+| | SCR-06 | VM: intrinsic results and built-ins are typed as CE (null object → 0, truth values 0 / 1, like the Lua backend); comparisons and `!` push 0 / 1 |
+| | SCR-07 | `attack_setup` / `attack_complex` (out of combat), `world_map`, `explosion` and `endgame_slideshow` are requests the game loop runs after the script returns and the dialogue is over, in CE's order |
+| | SCR-09 | the dude runs `obj_dude` (critter / map-update / timer / drop / use-on procs: GECK experience and drop block, mutation messages, `add_timer_event(dude_obj, …)`); its LVARs are saved |
+| | SCR-12 | VM: an unknown opcode is a fatal error that ends the procedure (it was read as a dialogue suspension); all 83 CE sfall opcodes now have a handler — strings (`substr`, `strlen`, `atoi`, `atof`, `typeof`), math (`sqrt`, `^`, `round`, `div`, typed as CE in `vm.ts`), lists, `sfall_func3-6`, version, mouse / key / screen, hit-location modifiers, `message_str_game`, `art_exists`, `force_encounter(_with_flags)` (`src/sfallInput.ts` for keys and buttons). A mod script that uses one of the 34 new ones has no `.lua` (tools/int2lua.py doesn't know them) and runs on the VM |
+| Dialogue | DLG-02, DLG-03 | CE's pending-reply model: `gsay_end` runs the dialogue only while a reply is pending and adds CE's implicit option (proto.msg 655 / empty) when the reply has none; a `gsay_message` [Done] returns into its procedure with the dialogue open, which closes only if no options follow |
+| Save / load | SAVE-01 | preferences saved with the game and applied on load |
+| | SAVE-02, COMBAT-14 | a save made in combat resumes the fight (order, turn, round, XP, player AP) |
+| | SAVE-03, SCR-10 | timed events keyed by object uid (uids stay unique after a load; items in inventories and hands found too); knockout, lit-flare and armed-explosive events rebuilt |
+| Script opcodes | OP-07, WM-05 | metarule 13 returns to the main menu after the script; 15 requests the elevator from the stub around the script's object (no throw); 18 checks the critter passed in for drug events; 19 reads the map's entrance state |
+| | OP-08 | `critter_inven_obj`: the dude's hand slot counts only while it is the active hand |
+| | OP-09 | `animate_move_obj_to_tile`: 0x10 clears the current animation; nothing in combat or for an inactive critter |
+| | OP-10, OBJ-05 | `tile_is_visible` (CE centre-tile test), `tile_in_tile_rect` (inclusive, ul / lr), `tile_contains_obj_pid` (any elevation), `obj_can_see_obj` (elevation, perception, first obstacle of the straight path), `tile_distance_objs` (9999 across elevations) |
+| | OP-11, OP-12 | `override_map_start` moves the player at once outside map_enter; `move_to` uses the object's own elevation, moves it between elevation lists, takes a critter out of combat, returns the tile |
+| | OP-14 | metarule3 100 clears every matching script timer; 104 returns 0 / −1; 106 walks the critters after `previous`, dude included |
+| | OP-16, AI-02 | `critter_add_trait` AI packet rebuilds the cached packet; TEAM skips party members / unchanged teams and clears who-hit-me and the last target |
+| | OP-17 | `obj_open` / `obj_close` toggle without the use animation, loot window or lock message (a locked object stays, as CE) |
+| | OP-18 | `use_obj_on_obj` by a critter runs the engine's default use (drugs, healing) after the scripts |
+| Items (misc use) | ITEM-08 | Ramirez's box, the Raiders map, Cat's Paw #5, the Pip-Boy enhancers and the survey map run use_p_proc and are used up |
+| | ITEM-09 | a scripted item's use_obj_on_p_proc decides by its `scr_return` value (0 → the target's proc and the default; 1 uses the item up), an unscripted item's target override returns the target's value |
+| Combat | COMBAT-05 | `script_overrides` in a turn-start `combat_p_proc` takes the turn over |
+| | COMBAT-06 | invulnerable critters (CRITTER_INVULNERABLE) take no damage |
+| | COMBAT-07 | `damage_p_proc` skipped where CE's `_damage_object` a4 says so (self-hit from a critical failure, accidental victim, bystanders of a normal attack) and between party members |
+| | COMBAT-08 | a miss still makes the intended target consider retaliating and notifies onlookers |
+| | COMBAT-09, COMBAT-11 | who-hit-me cleared at combat start and end; the player's attack records the player's who-hit-me and every attacker's last target |
+| | COMBAT-12 | a destroyed critter, or one moved to another elevation, leaves the turn order |
+| | COMBAT-10 | critters that join at a round's end (party members included, via notify-friends) get their full AP and an immediate turn; party members no longer act before they join; joined companions keep the green outline |
+| | COMBAT-16, COMBAT-17 | Super Cattle Prod / Mega Power Fist use 2 charges a hit; punches and kicks work with both arms crippled |
+| AI | AI-01 | the held weapon gets CE's team-safety check (switching weapons if unsafe), the attacker steps out of its own blast, a failed approach makes it flee |
+| | AI-03, AI-04 | a dead team-mate's killer is a target; "strongest" / "weakest" sorted as CE (the vanilla inversion) |
+| | AI-05, AI-06 | the secondary attack checks its own attack type against the preference, a throw needs a fall-back weapon or a failed INT roll; only an unset `best_weapon` lets average damage override the order |
+| | AI-07 | a hurt critter flees from CE's `a2` (the attack_complex defender, else the player) |
+| | AI-08 | an out-of-range AI keeps engaged near a friend without closing in on it (CE _ai_find_friend never moves); the idle regroup follows a combatant team-mate someone hit (_ai_find_nearest_team_in_combat) |
+| Actions | ACT-04 | explosions give the player the XP of new kills, survivors remember the bomber and start a fight (CE `_report_explosion`), victims die exploded to nothing |
+| | ACT-05 | ranged (non-throw) attacks aim first (ANIM_POINT) and lower the weapon after the shot (ANIM_UNPOINT, not when knocked down or dead) |
+| | ACT-07 | a ladder up is climbed from its SE neighbour, facing it: a drawn weapon put away (when the art exists), the climb animation and sound, the transition, the weapon taken out; a ladder down uses the magic-hands animation; map transitions wait for the animation (checked: gecktunl ⇄ geckjunk) |
+| | ACT-06 | pickup walks first, then plays the pickup animation; the sound, pickup_p_proc and the carry check (proto.msg 905) happen on its action frame |
+| | ANIM-01 | reg_anim sequences follow CE's cursor: delay 0 runs with the previous step, N > 0 starts N ticks after it began, −1 waits for every started step (one animation at a time per object); sound steps take their delay and source |
+| | ANIM-02 | a critter that steps into a walking critter's path makes it re-path to the goal within the hexes it set out to walk, or the walk ends there (usable doors still open); a walk that ends early gets the AP of the hexes it didn't walk back |
+| | ANIM-03 | run → walk for an encumbered critter (misc.msg 8000 / 8001 for the party), crippled legs and the dude sneaking without Silent Running (Sneak stays); only the dude's run command ends Sneak |
+| Stats / critters | STAT-02, RAD-01 | Melee Damage and Healing Rate have CE's minimum of 1 before perk / trait deltas; radiation HP changes go through current HP (capped at max), not a bonus |
+| | TRAIT-01, TRAIT-02 | Fast Metabolism zeroes only the base Radiation / Poison resistance (Rad-X etc. still count); Small Frame uses base STR without Bruiser / Gifted |
+| | CRIT-01 | `kill_critter`, `kill_critter_type`, `critter_heal`, poison and radiation deaths no longer run `destroy_p_proc` (an NPC's chem death still does, as CE `_combatKillCritterOutsideCombat`) |
+| | CRIT-03 | critters take their scrname.msg name (101 + script index) over the proto name |
+| Items | ITEM-18 | the dude has DR EMP 100 |
+| Inventory | INV-03, INV-04 | the barterer's worn armor and right-hand item (a vendor's first weapon if the hand is empty) stay out of barter / companion trade; hand items and worn armor are not in the steal view; hand references relinked after a deal |
+| | INV-05, INV-06 | looting: CRITTER_NO_STEAL → inventry.msg 50, the target's pickup_p_proc runs and can override; a knocked-out target opens the loot window, not stealing |
+| | INV-07, INV-10 | inventory in combat without enough AP → inventry.msg 19, no window; equipping runs no pickup_p_proc; the armor slot takes only armor from any source |
+| | INV-12 | CE's action sets (`src/uiInventory/itemMenu.ts`): the inventory window's list and hand / armor slots alike (Drop on equipped items, Unload only for a weapon with rounds); right-click menus in the loot, steal, barter and companion-trade windows (Look to the message window, Unload, Drop for the dude's items, USE on a bag in every window). Money drops through the quantity window (CE's itemSetMoney gives the same) |
+| | INV-13 | bags in the inventory window (USE opens, up to 9 levels; the body view shows the bag and a click closes it; equip / unload / drop / move items in; drop on a bag icon) and in the loot window (each side's bags open with USE, the CE body-view spot at 44 / 422 shows the open bag; moving into the dude's bag checks its room and his carry weight), the steal window the same, and the barter and companion-trade windows (either side's list, in the working copies; the open bag replaces the portrait) |
+| | INV-15 | NPCs get armor stats only from the OBJECT_WORN item (no carried-armor fallback) |
+| | INV-08 | the merchant's table shows what the merchant wants for it; a deal says inventry.msg 27; T talks, M offers |
+| | INV-09 | the inventory summary shows CE's fields: HP, the AC stat, DT/DR% per damage type from the critter's stats (Explosion, not Electrical), CE's weapon lines (active mode, melee bonus, range rule, ammo), "(Not worn)" for held armor, Total Wt red when encumbered |
+| | INV-11 | inventory Look runs the examine pipeline (description_p_proc, weapon / ammo lines) and adds the weight line (proto.msg 540 / 541) |
+| Items | ITEM-02, ITEM-03 | the Solar Scorcher recharges in daylight (item.msg 500 otherwise); the Motion Sensor uses a charge and opens the automap in scanner mode (critters shown only then; the SCANNER button needs a sensor in hand, misc.msg 17 / 18) |
+| | ITEM-06 | an armed explosive is put down at the user's feet; non-team critters nearby that pass a PE roll suspect the player and start a fight |
+| | INV-14, ITEM-19 | an armed explosive dropped from the inventory runs the same watcher check when it closes; non-biped critters without CRITTER_BARTER take no items |
+| World | WM-06, WM-08 | town-map entrances at −1/−1 are not shown, labels are worldmap.msg 200 + 10 × area + index; a known area marked visited clears the fog around it (state 1 makes its subtile known) |
+| | OBJ-03 | objects created at runtime take their proto's light (and relight the map) |
+| | OBJ-04, AUTO-01 | the automap marks CE's seen band (32 rows × 40 tiles around the dude's 8-tile block); CE colours (walls green, scenery only in High detail, the dude red), the LOW / HIGH switch and H / L, Tab / Esc / A close, S scanner |
+| | OBJ-06, MOUSE-06 | object picking: the bottom object can be picked, hidden objects are skipped, a wall's egg-transparent part and dead / knocked-out critters lose to what lies under them (falling back to them); nothing is picked over a visible roof outside the egg, except with the crosshair (CE's critter pick) |
+| | TILE-02 | hex → roof square is CE's `(x >> 1, y >> 1)` (odd hex rows were one square south) |
+| | MAP-02 | exit grids follow CE's mapHandleTransition: map 0 / −2 world map, −1 town map; another map (or this one at the current elevation) reloads; the dude lands on the grid's tile, elevation and rotation after the map's scripts ran (header start on the Modoc B&B / Squat A maps); in combat the fight ends first |
+| Input | PREF-01 | Shift inverts the running preference on a move click |
+| UI | CHAR-03, OPT-01 | the character screen, Options and the Skilldex are modal (the map pauses, game keys don't reach it); character screen keys Return / D done, Esc / C cancel |
+| | CHAR-04, HUD-01 | CANCEL on the character screen restores perks, traits, the free perk, SPECIAL / HP and skills; the LEVEL light follows CE's level-up flag (on at a level-up, off when the screen opens; saved) |
+| | PIP-01 | Pip-Boy AUTOMAPS lists as CE: cities by map.msg name (1500 + area), CE's hidden-map table, sorted; a city's maps by elevation name (map.msg 200 + 3 × map + elevation), the chosen map first; pipboy.msg 205 / 201. The map view keeps DH2's zoom and pan |
+| | HUD-02 | the HUD reload spends AP only when something loaded, plays the weapon's ready sound, prints nothing when short of AP |
+| | MENU-01, MENU-02 | main-menu OPTIONS opens Preferences over the menu; cancelling its LOAD GAME returns to the menu |
+| | END-01 | the endgame slideshow goes on to akiss, the credits and the continue dialog |
+| | CHAR-06 | PRINT (character screen button and P key; creation OPTIONS → PRINT TO FILE) writes CE's characterPrintToFile sheet as a `.TXT` download (`printSheet.ts`); the creation OPTIONS window (`creatorOptions.ts`: SAVE / LOAD / PRINT TO FILE / ERASE / DONE, keys S L P E D) keeps premades in localStorage in place of `.GCD` files. AC / resistances in the sheet and the inventory summary include the worn armor (CE critterGetStat) |
+| | CHAR-05 | the creation screen's derived stats and skills include the traits (SPECIAL bonus and trait effects); "+" stops at base + trait bonus = 10 |
+| Party | PTY-03 | party.txt's disposition and Custom-value lists are read: dispositions it doesn't list are disabled, Custom values it doesn't list are greyed and refused |
+| | PTY-05 | the control screen shows CE's eight fields at CE's positions: right-hand item and worn armor (proto.msg 10 for none), the standing SW sprite, HP, best skill, weight (red when encumbered), melee damage, AP |
+| | DLG-04 | dialogue keys 1–9 pick an option, B barters; a long reply pages with Up / Down / Space and on its own every 10 s; the control screen's W (best weapon), A (best armor), D (trade), Esc (talk); the customise screen's Return like Esc |
+| Input | MOUSE-03, MOUSE-04 | the arrow cursor shows the pointed object's primary-action icon after 250 ms (use / talk / look / rotate; nothing over empty ground); "You see" only when the pointed object changes |
+| | MOUSE-05 | the hex cursor shows the move's AP cost in combat (white) or a red X (too far / no path) after 250 ms |
+| Sound | SND-02 | sounds of items, critters and scenery (weapon fire and hits, character and door sounds, explosions) play at full volume on screen; off screen full up to PE hexes, falling to ⅓ at 2 × PE (`src/soundVolume.ts`) |
+| | SND-05 | combat attack / hit sounds use CE's `sfxBuildWeaponName` (variant 2 for burst / secondary modes, the target's material, X for plasma / EMP / explosion); a missing file is silent (no invented fallbacks) |
+| | MSG-01, PREF-02 | the language filter masks the badwords.txt words in script dialogue and AI combat lines (`src/badwords.ts`, CE's rule including its start-of-message quirk) |
+
+Fixed earlier with the HIGH groups: INV-02 (PA8), ITEM-15 (PA9), CRIT-02 (PA12), ITEM-17 (PA18), WM-04 / WM-09 (PA21), WM-07 (PA23). Already in the code when audited: TILE-03 (`camera.ts playerLimitRefuses`, on by default).
+
+Status of the 120 MED findings with their own section in `ce_audit/` (each header there is marked FIXED /
+PARTLY FIXED): 119 fixed, 1 checked and not ported:
+
+- **Fixed 2026-10-25 as options:** COMBAT-13 (`[dh2] damage_formula=vanilla|glovz|glovz_tweak|yaam`: Glovz
+  ported literally, YAAM as intended — CE's adds no damage; wiki/damage_formula.md), MOUSE-01 / MOUSE-02
+  (`[dh2] mouse_mode=dh2|ce`, default dh2: `ce` walks on a move click, does the primary action on an arrow
+  click, opens the action menu after a 250 ms hold and keeps the arrow).
+- **Checked, not ported:** SCR-11 — a scan of the 1443 shipped `.int` files shows procedure index 1 is the pure
+  `checkPartyMembersNearDoor` helper in 1212 of them (CE's fallback has no effect there) and `start` in about 210;
+  CE would re-run `start` when an unguarded proc (`critter_p_proc`, `look_at_p_proc`, …) is missing. Left as DH2's
+  "no proc, nothing runs"; since 2026-10-26 the console warns, once per script and procedure, when CE would
+  have run a procedure #1 other than that helper (`[script] … has no …: CE … would run its procedure #1 …`).
+
+### LOW table rows — sweep of 2026-10-26
+
+The reports hold 369 table rows rated LOW. 71 are now marked **✅ FIXED (2026-10-25)**: those whose
+cited finding was fixed, and those fixed under another ID (Glovz rounding, the body-part modifiers, the
+control-screen keys, the special message pairs, case-insensitive procedures …). 21 were already MATCH.
+The rest — about 275 — still differ; they were not re-tested one by one against today's code, so a few
+may be stale. Sorted by what they are:
+
+**Worth fixing — done 2026-10-26** (44 rows, each marked in its report): misc.msg 2000 for reach failures;
+the character editor's refusal dialogs; the dialogue Barter refusals in the reply window and the control
+screen's CRITTER_BARTER check; the radiation death dialog; `[sound] sounds / music / speech=0`; newest-first
+item lists, ammo counted in rounds and `x<n>` only above 1, ammo refused by a weapon that can't load it, CE's
+quantity typing, used-up hand items refilled (`refillHand`), caps in bags; the called-shot window (crippled
+limbs, "00", sound), the hover's " X " for every bad shot, the no-range distance term, all events of the dead
+dropped, swap hands leaving the crosshair, a new hand item on its primary action, the crosshair targeting
+critters, the item outline after the arrow hover; quitting / the endgame's No / death to the main menu without
+the opening movies, subtitles per the preference, CE's starting defaults, the elevator's Esc and floor keys, the
+save description pre-filled and capped; night crickets, the Fake Vault 13 swap, `wmCarFillGas`,
+`wmSetMapMusic`, the 24-hour time, the map-update timer after a load, `pcSetStat` levelling down, a recruit's
+script timers dropped; `wield_obj_critter`'s take-out animation.
+
+**Done since (2026-10-26):** doors can be attacked (the crosshair → `_combat_attack_this`); the put-away
+animations (an NPC's weapon switch, `inven_unwield`); the party status refresh in the middle of a dialogue;
+an NPC holding the Shiv punches; the death screen shows the whole subtitle text as CE does.
+
+**Second batch (2026-10-26, 16 rows marked):** `drop_obj` drops one item of a stack; "That does nothing."
+(582) for an item with no use; item.msg 600 when an NPC dies of chems; the examine line uses the loaded ammo
+type's caliber; barter refuses an offer holding a queued item (`itemIsQueued`); Ctrl+move in combat keeps the
+AP for one attack; a second walk click on the same tile runs; `_check_ranged_miss` only on ROLL_FAILURE; a
+dead last target is stored as none; an animated explosion refuses a second one, and the timed explosive
+re-queues. Found on the way: a combat walk click fell through to an unlimited walk after the AP-limited
+one (the player could cross the map on 8 AP) — fixed.
+
+**Third batch — every open row resolved (2026-10-26, 219 rows):** each remaining LOW row now reads ✅ FIXED,
+🟡 PARTLY FIXED or 🚫 N/A with a dated note saying why (134 / 6 / 79). Fixed in this batch, among others:
+`set_obj_visibility` keeps OBJECT_HIDDEN in step; a dying critter becomes flat and no-block; destroying a
+light source, wall or scenery rebuilds the lightmap; corpses placed in the map file follow the violence
+setting; exit grids are only pids 0x5000010–17; `tileGetTileInDirection` / `tileGetRotationTo` as CE
+(TILE-01); the dialogue camera walks toward the speaker (`_tile_scroll_to`); `world_map` in combat ends the
+fight; no spatial scripts during map_enter / map_update / script explosions; sfall ini keys may hold `|`;
+SPECIAL bases keep the trait part above 10 (Mutate! dropping Gifted) and `get_pc_base_stat` leaves it out;
+the explosive timer rolls Traps through the party-aware `skillRoll`; unarmed attacks use the critter proto's
+damage type; music plays at × 0.94, stops at volume 0 and restarts when raised, and pauses under the save /
+load window; the MALIEU / MAMTN2 → MAMTNT sound fallback (SND-04); the hmwarr alias fallback and the
+critters.lst run column for the AI (ART-01 / 02); CE's word wrap for float text (WRAP-01); the world-map
+time remainder reset, `wm_area_set_pos` bounds and `wmCarIsOutOfGas`. The N/A rows are opcodes and sfall
+extras no shipped script uses, CE leniency the scripts never reach (checked with luadiff), cosmetic timing,
+and browser limits.
+
+**Follow-up (2026-10-26, 28 rows re-marked ✅):** every core interpreter opcode CE registers now runs in
+`vm.ts` — noop, the untyped push, dump, swap, pop_address, fetch_proc_address, stop_program, pop_exit and
+the pop_flags family, the alternate critical slots; `call_at` / `call_when` (run from the game loop by
+`vmDoEvents`, CE `_doEvents`), `wait` (blocks like CE, capped at 10 s), `cancel` / `cancel_all`;
+exported / imported procedures; child programs (`callstart` / `spawn` / `fork` / `exec`: the child is loaded
+and its startup code run at once, `exit` ends a program for good). No shipped script uses them; a script
+that does has no `.lua` (int2lua refuses the opcode) and runs on the VM. The arithmetic follows CE too: int +
+int overflow gives a float, `-` / `*` wrap to 32 bits, a string or pointer on the left pushes nothing, MOD
+with a float is fatal (luadiff unchanged: 0 differing). `tools/fomap.py` keeps the roof flag bits
+(`tiles.roofFlags`; none of the 155 shipped maps sets one) and masks tile ids to 12 bits, and the roof fill
+honours them. Also: CE's elevator travel sounds, the movie volume (music × 0.94), and stale rows confirmed
+(interrupt_walk, the mid-dialogue party refresh, the companion-trade weight, egg click-through). The 72
+rows still N/A or partly fixed are "same result" notes, cosmetic timing, sfall extras and browser limits.
+
+**Report tables tidied (2026-10-26):** 189 HIGH / MED rows in `ce_audit/*.md` still showed their original
+status though their finding (cited by ID, or named in the row) was fixed; they now read ✅ FIXED / 🟡 PARTLY
+FIXED with the finding IDs. One MED row is open: `critterSetBonusStat` (HP / poison / radiation routing for
+stats 35–37 in `set_*_extra_stat`).
+
+**Presentation only (left as DH2's):** fonts and text widths, scroll and tab speeds, number and gauge
+animations, cursor hotspots, palette fades, splash and credits styling, colour-cycling pauses.
+
+**Unused by shipped scripts or sfall extras:** opcodes no script uses (opNoop, opDump, delayed / conditional
+calls, external procedures, child programs), sfall's critical-table and burst-mod options, 16 of the 18 sfall
+metarules, the type checks behind CE's fatal "integer expected" errors.
+
+**Deliberate DH2 choices, each with a CE switch in `fallout2.cfg [dh2]` (default DH2's):** unlimited save
+slots (`save_slots=ce`: ten, no DELETE), the egg occlusion mode (`egg_mode=ce-egg`), smooth scrolling
+(`scroll_mode=ce`: 32 × 24 px steps), the wheel zoom (`mouse_wheel=ce`), the walk-next-to-talk rule
+(`talk_mode=ce`: talk within 9 hexes in line of sight), DH2's clicks (`mouse_mode=ce`), the merchant's reply
+to a running item (`barter_running_item=ce`), DH2's combat outlines (`combat_outline=ce`), the fade on
+elevation changes (`elevation_fade=0`). Without a switch: the
+browser screenshot and desktop-only input (browser limits).
 
 ## 4. Conflicts with the wiki / known_bugs (flagged, not resolved)
 

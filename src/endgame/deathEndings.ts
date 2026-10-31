@@ -7,21 +7,21 @@
 //   endgameDeathEndingValidate    (0x440CF4)
 //   endgameDeathEndingGetFileName (0x440D8C)
 
-import { Scripting } from '../scripting.js'
-import globalState from '../globalState.js'
+import { getGlobalVar } from '../globalVars.js'
+import { world } from '../state/world.js'
 import { getFileJSON, getRandomInt } from '../util.js'
 import { dbg, dbgWarn } from '../logger.js'
 
 // CE: endgame.h EndgameDeathEnding struct
 export interface EndgameDeathEnding {
-    gvar: number           // -1 = no check
+    gvar: number // -1 = no check
     value: number
-    worldAreaKnown: number  // -1 = no check
+    worldAreaKnown: number // -1 = no check
     worldAreaNotKnown: number
     minLevel: number
     percentage: number
     voiceOverBaseName: string
-    enabled?: boolean      // runtime only, not in JSON
+    enabled?: boolean // runtime only, not in JSON
 }
 
 // CE: ENDGAME_DEATH_ENDING_REASON_DEATH / _TIMEOUT (endgame.h)
@@ -62,10 +62,10 @@ function validateDeathEndings(entries: EndgameDeathEnding[]): number {
     let total = 0
     for (const e of entries) {
         e.enabled = false
-        if (e.gvar !== -1 && Scripting.getGlobalVar(e.gvar) >= e.value) continue
-        if (e.worldAreaKnown !== -1 && !globalState.knownAreas.has(e.worldAreaKnown)) continue
-        if (e.worldAreaNotKnown !== -1 && globalState.knownAreas.has(e.worldAreaNotKnown)) continue
-        const lvl = globalState.player?.getStat('Level') ?? 1
+        if (e.gvar !== -1 && getGlobalVar(e.gvar) >= e.value) continue
+        if (e.worldAreaKnown !== -1 && !world.knownAreas.has(e.worldAreaKnown)) continue
+        if (e.worldAreaNotKnown !== -1 && world.knownAreas.has(e.worldAreaNotKnown)) continue
+        const lvl = world.player?.getStat('Level') ?? 1
         if (lvl < e.minLevel) continue
         e.enabled = true
         total += e.percentage
@@ -83,7 +83,7 @@ export function setupDeathEnding(reason: number): void {
     }
 
     // CE: special-case GVAR_MODOC_SHITTY_DEATH → forced index 12 (endgame.cc:1136)
-    if (reason === DEATH_REASON_DEATH && Scripting.getGlobalVar(GVAR_MODOC_SHITTY_DEATH) !== 0) {
+    if (reason === DEATH_REASON_DEATH && getGlobalVar(GVAR_MODOC_SHITTY_DEATH) !== 0) {
         const special = entries[12]
         if (special) {
             selectedDeathFile = 'narrator/' + special.voiceOverBaseName

@@ -17,33 +17,44 @@ limitations under the License.
 // Obj base class + top-of-file helpers + SerializedObj interface.
 // Split out of object.ts per wiki/ts-split-refactor.md §2.
 
-import { addFloatMessage } from '../floatText.js'
 import * as GameTime from '../gametime.js'
-import { playCharSfx, playOpenSfx, sfxBuildCharName, SCENERY_SOUND_EFFECT } from '../sfxNames.js'
-import { ammoFromRounds, ammoGetCapacity, ammoGetQuantity, ammoMergeInto, ammoSplitOff, initWeaponAmmo } from '../weaponAmmo.js'
-import type { Proto } from '../proto_types.js'
+import { playOpenSfx, SCENERY_SOUND_EFFECT } from '../sfxNames.js'
+import { ammoFromRounds, ammoGetCapacity, ammoGetQuantity, ammoMergeInto, initWeaponAmmo } from '../weaponAmmo.js'
+import type { Proto } from '../protoTypes.js'
 
 // Object kinds as getPROTypeName() names them (plus map-object kinds that carry no proto).
 export type ObjType = 'item' | 'critter' | 'scenery' | 'wall' | 'tile' | 'misc' | 'spatial'
-import { ANIM_STAND, critterDamage } from '../critter.js'
 import { getLstId, lookupScriptName } from '../data.js'
-import { Events } from '../events.js'
-import { hexDirectionTo, hexDistance, hexIsInFrontOf, hexNeighbors, Point } from '../geometry.js'
-import { computeExplosionDamage, explosionRingCritters, scriptsExplodeScenery } from '../combat/explosion.js'
-import globalState from '../globalState.js'
-import { lazyLoadImage } from '../images.js'
-import { Lightmap } from '../lightmap.js'
+import * as Events from '../events.js'
+import { hexDistance, hexIsInFrontOf, Point } from '../geometry.js'
+import { explosionRingCritters } from '../combat/explosion.js'
+import { Combat } from '../combat/Combat.js'
+import { world } from '../state/world.js'
+import { assets } from '../state/assets.js'
+import * as Lightmap from '../lightmap.js'
 import { dbg, dbgWarn } from '../logger.js'
 import { getPROSubTypeName, getPROTypeName, loadPRO, lookupArt, makePID } from '../pro.js'
-import { Scripting } from '../scripting.js'
-import { fromTileNum, toTileNum } from '../tile.js'
-import { uiDrawWeapon, uiLoot, uiLog } from '../ui.js'
-import { getMessage, getRandomInt, skillRoll, RollResult } from '../util.js'
-import { uiGetTimer } from '../ui_barter/swap.js'
+import * as Scripting from '../scripting.js'
+
+import { uiPort } from '../uiPort.js'
+import { uiDrawWeapon } from '../hudRefresh.js'
+import { uiLog } from '../messageLog.js'
+import { getMessage, getRandomInt, RollResult } from '../util.js'
+import { skillRoll } from '../skillUse.js'
+import { uiGetTimer } from '../uiBarter/swap.js'
 import { Config } from '../config.js'
-import { isChargedMiscItem, useChargedMiscItem } from '../miscItem.js'
-import { drawHP } from '../ui_hud.js'
 import type { Critter } from './Critter.js'
+import { sfallIniGetString } from '../sfallIni.js'
+import type { objUseMethods } from './objUse.js'
+
+// Module state the Obj methods share (an object, so the methods kept in object/objUse.ts can
+// assign it too; wiki/code_quality.md Q16).
+export const objState = {
+    // CE actions.cc _action_in_explode: an animated explosion is on screen (a stale flag — a
+    // map change cut the animation short — runs out after 5 s)
+    explosionStarted: -1,
+}
+
 // Late-bound factory hooks — set by factories.ts at module-init time.
 // Direct static import would create a cycle: Obj.ts → factories.ts → items.ts
 // → (extends Obj at module init) → TDZ on Obj. See wiki/ts-split-refactor.md
@@ -62,7 +73,7 @@ export function _registerObjectFactories(fns: {
     _objFromMapObject = fns.objFromMapObject
     _deserializeObj = fns.deserializeObj
 }
-const createObjectWithPID = (pid: number, sid?: number): Obj => _createObjectWithPID!(pid, sid)
+export const createObjectWithPID = (pid: number, sid?: number): Obj => _createObjectWithPID!(pid, sid)
 const objFromMapObject = (mobj: any, deserializing?: boolean): Obj => _objFromMapObject!(mobj, deserializing)
 const deserializeObj = (mobj: SerializedObj): Obj => _deserializeObj!(mobj)
 
@@ -78,13 +89,11 @@ export function objectIsWeapon(obj: any): boolean {
     return obj.weapon !== undefined
 }
 
-function objectFindItemIndex(obj: Obj, item: Obj): number {
-    for (let i = 0; i < obj.inventory.length; i++) {
-        if (obj.inventory[i] === item) {
-            return i
-        }
-    }
-    return -1
+// A new object made by splitting a stack gets its own uid (cloneItem keeps it: barter's
+// working copies are matched to their originals by it). Saved timers are keyed by uid.
+export function giveNewUid(obj: Obj): Obj {
+    obj.uid = _lastObjectUID++
+    return obj
 }
 
 export function cloneItem(item: Obj): Obj {
@@ -96,35 +105,12 @@ export function cloneItem(item: Obj): Obj {
     return clone
 }
 
-function objectSwapItem(a: Obj, item: Obj, b: Obj, amount: number) {
-    // swap item from a -> b
-    if (amount === 0) {
-        return
-    }
-
-    const idx = objectFindItemIndex(a, item)
-    if (idx === -1) {
-        throw 'item (' + item + ') does not exist in a'
-    }
-    if (amount !== undefined && amount < item.amount) {
-        // just deduct amount from a and give amount to b
-        item.amount -= amount
-        const moved = cloneItem(item)
-        ammoSplitOff(item, moved) // CE itemRemove: the top ammo box goes with the moved boxes
-        b.addInventoryItem(moved, amount)
-    } else {
-        // just swap them
-        a.inventory.splice(idx, 1)
-        b.addInventoryItem(item, amount || 1)
-    }
-}
-
 export function objectGetDamageType(obj: any): string {
     // TODO: any (where does dmgType go? WeaponObj?)
     if (obj.dmgType !== undefined) {
         return obj.dmgType
     }
-    throw 'no damage type for obj: ' + obj
+    throw new Error('no damage type for obj: ' + obj)
 }
 
 // CE item.cc explosiveActivate / _queue_do_explosion_: dynamite (51 → armed 206) and
@@ -135,11 +121,23 @@ const EXPLOSIVES: { [pid: number]: { active: number; min: number; max: number } 
     85: { active: 209, min: 40, max: 80 },
 }
 
-/** CE item.cc explosiveGetDamage: the damage range of an explosive (its plain or armed
- *  pid), or null. sfall explosions_metarule 6 (EXPL_GET_EXPLOSION_DAMAGE). */
-export function explosiveGetDamage(pid: number): { min: number; max: number } | null {
+/** CE item.cc explosiveGetDamage: the damage range of an explosive, or null — with
+ *  sfall's ddraw.ini [Misc] Dynamite_DmgMin / _DmgMax and PlasticExplosive_DmgMin / _DmgMax
+ *  (explosionsReset: max clamped to 0..9999, min to 0..max). `plainOnly` (sfall
+ *  explosions_metarule 6) answers for the unarmed pids only, as CE; the timed explosion
+ *  asks with the armed pid (CE's call there matches nothing and reads uninitialised
+ *  values — DH2 uses the explosive's range). */
+export function explosiveGetDamage(pid: number, plainOnly = false): { min: number; max: number } | null {
+    const ini = (key: string) => {
+        const v = parseInt(sfallIniGetString('ddraw.ini|Misc|' + key) ?? '', 10)
+        return isNaN(v) ? null : v
+    }
     for (const [p, d] of Object.entries(EXPLOSIVES)) {
-        if (Number(p) === pid || d.active === pid) return { min: d.min, max: d.max }
+        if (Number(p) !== pid && (plainOnly || d.active !== pid)) continue
+        const name = Number(p) === 51 ? 'Dynamite' : 'PlasticExplosive'
+        const max = Math.max(0, Math.min(9999, ini(name + '_DmgMax') ?? d.max))
+        const min = Math.max(0, Math.min(max, ini(name + '_DmgMin') ?? d.min))
+        return { min, max }
     }
     return null
 }
@@ -147,9 +145,9 @@ export function explosiveGetDamage(pid: number): { min: number; max: number } | 
 // CE proto_instance.cc _obj_use_explosive — set the timer (10-180 s), then a Traps
 // roll (none with Demolition Expert): success arms it for 10 × seconds ticks, a
 // failure goes off early (half the time), a critical failure at once — both with
-// "Due to your inept handling..." (misc.msg 4000). The armed explosive stays where it
-// is: carried, it explodes on whoever carries it.
-async function useExplosive(obj: Obj, source: Critter): Promise<void> {
+// "Due to your inept handling..." (misc.msg 4000). The armed explosive is put down at
+// the user's feet (CE _obj_use_item rc 2).
+export async function useExplosive(obj: Obj, source: Critter): Promise<void> {
     if (!source.isPlayer) return
     const desc = EXPLOSIVES[obj.pid]
     if (!desc) {
@@ -157,7 +155,11 @@ async function useExplosive(obj: Obj, source: Critter): Promise<void> {
         if (obj.pid === 206 || obj.pid === 209) uiLog(getMessage('proto', 590) ?? 'The timer is already ticking!')
         return
     }
-    if (Scripting.timeEventList.some((e) => e.obj === obj && (e.userdata === 'explosion' || e.userdata === 'explosionFailure'))) {
+    if (
+        Scripting.timeEventList.some(
+            (e) => e.obj === obj && (e.userdata === 'explosion' || e.userdata === 'explosionFailure'),
+        )
+    ) {
         uiLog(getMessage('proto', 590) ?? 'The timer is already ticking!') // OBJECT_QUEUED
         return
     }
@@ -165,40 +167,146 @@ async function useExplosive(obj: Obj, source: Critter): Promise<void> {
     if (seconds === -1) return
     uiLog(getMessage('proto', 589) ?? 'You set the timer.')
 
+    // CE _obj_use_item rc 2: one explosive leaves its owner (itemRemove / itemReplace)
+    obj = takeOneFromOwner(obj, source)
     // explosiveActivate: the armed proto
     switchItemProto(obj, desc.active)
 
     let delay = 10 * seconds
-    const roll = source.hasPerk('Demolition Expert') ? RollResult.Success : skillRoll(source, 'Traps').roll
+    const roll = source.hasPerk('Demolition Expert') ? RollResult.Success : skillRoll(source, 'Traps', 0)
     let failure = false
-    if (roll === RollResult.CriticalFailure) { delay = 0; failure = true }
-    else if (roll === RollResult.Failure) { delay = Math.trunc(delay / 2); failure = true }
+    if (roll === RollResult.CriticalFailure) {
+        delay = 0
+        failure = true
+    } else if (roll === RollResult.Failure) {
+        delay = Math.trunc(delay / 2)
+        failure = true
+    }
     dbg('object', `[Object] explosive armed: ${seconds}s, Traps ${RollResult[roll]}, fires in ${delay} ticks`)
-    const fire = () => explosiveDetonate(obj, desc.min, desc.max, failure)
-    if (delay === 0) fire()
+    // … and is placed at the owner's feet (_obj_connect), then _protinstTestDroppedExplosive
+    const gMap = world.gMap
+    if (gMap) {
+        gMap.addObject(obj)
+        obj.position = { x: source.position.x, y: source.position.y }
+        testDroppedExplosive(source)
+    }
+    if (delay === 0) {
+        const dmg = explosiveGetDamage(obj.pid) ?? desc
+        explosiveDetonate(obj, dmg.min, dmg.max, failure)
+    } else scheduleExplosion(obj, delay, failure)
+}
+
+// CE queue.cc EVENT_TYPE_EXPLOSION / EXPLOSION_FAILURE on an armed explosive (also queueLoad:
+// the event keeps only its owner, the damage comes from the pid, explosiveGetDamage)
+export function scheduleExplosion(obj: Obj, ticks: number, failure: boolean): void {
+    const dmg = explosiveGetDamage(obj.pid)
+    if (!dmg) return
     // CE queue.cc _queue_explode_exit: leaving the map sets it off at once, unanimated
-    else Scripting.timeEventList.push({ obj, ticks: delay, userdata: failure ? 'explosionFailure' : 'explosion', fn: fire,
-        leaveMap: () => { explosiveDetonate(obj, desc.min, desc.max, false, false); return true } })
+    Scripting.timeEventList.push({
+        obj,
+        ticks,
+        userdata: failure ? 'explosionFailure' : 'explosion',
+        fn: () => explosiveDetonate(obj, dmg.min, dmg.max, failure),
+        leaveMap: () => {
+            explosiveDetonate(obj, dmg.min, dmg.max, false, false)
+            return true
+        },
+    })
+}
+
+// CE item.cc itemRemove(owner, item, 1) + itemReplace: a single item comes off the stack
+// (or out of the hand, which then takes an identical item from the inventory). Returns it.
+function takeOneFromOwner(obj: Obj, owner: Critter): Obj {
+    const a = owner as any
+    if ((obj.amount ?? 1) > 1) {
+        obj.amount -= 1
+        const one = cloneItem(obj)
+        one.amount = 1
+        return one
+    }
+    const idx = owner.inventory.indexOf(obj)
+    if (idx !== -1) owner.inventory.splice(idx, 1)
+    for (const hand of ['leftHand', 'rightHand'] as const) if (a[hand] === obj) refillHand(owner, hand, obj)
+    return obj
+}
+
+// CE item.cc itemReplace: the hand whose item was used up takes an identical one (same pid, no
+// script) from the inventory or a carried bag; else it is empty (an NPC's: its fist).
+export function refillHand(owner: Critter, hand: 'leftHand' | 'rightHand', used: Obj): void {
+    const a = owner as any
+    const find = (list: Obj[]): { list: Obj[]; item: Obj } | null => {
+        for (const it of list) {
+            if (it.pid === used.pid && !it._script) return { list, item: it }
+            if (it.subtype === 'container' && it.inventory?.length) {
+                const inner = find(it.inventory)
+                if (inner) return inner
+            }
+        }
+        return null
+    }
+    const same = find(owner.inventory)
+    if (!same) a[hand] = owner.isPlayer ? null : (owner.constructor as any).makeFist?.()
+    else if ((same.item.amount ?? 1) > 1) {
+        same.item.amount -= 1
+        a[hand] = Object.assign(cloneItem(same.item), { amount: 1 })
+    } else {
+        same.list.splice(same.list.indexOf(same.item), 1)
+        a[hand] = same.item
+    }
+    if (owner.isPlayer) uiDrawWeapon()
+}
+
+// CE proto_instance.cc _protinstTestDroppedExplosive: the critters in the would-be blast
+// around the dude that aren't on his team and pass a PE roll suspect him; the first one
+// starts a fight out of combat.
+export function testDroppedExplosive(dude: Critter): void {
+    if (!dude.isPlayer) return
+    const elevation = world.gMap?.currentElevation ?? 0
+    let watcher: Critter | null = null
+    for (const c of explosionRingCritters(dude.position, elevation, dude, false)) {
+        if (c === dude || c.dead || c.teamNum === dude.teamNum) continue
+        if (getRandomInt(1, 10) > c.getStat('PER')) continue // statRoll(STAT_PERCEPTION) < success
+        c.whoHitMe = dude
+        watcher ??= c
+    }
+    if (watcher && !world.inCombat) {
+        const attacker = watcher
+        setTimeout(() => {
+            if (world.inCombat || attacker.dead) return
+            Combat.start(undefined, {
+                attacker,
+                defender: dude,
+                actionPointsBonus: 0,
+                accuracyBonus: 0,
+                damageBonus: 0,
+                minDamage: 0,
+                maxDamage: 99999,
+                overrideAttackResults: false,
+                attackerResults: 0,
+                targetResults: 0,
+            })
+        }, 0)
+    }
 }
 
 // The item becomes another proto in place (CE: item->pid = …) — art, inventory art, name.
-function switchItemProto(obj: Obj, pid: number): void {
+export function switchItemProto(obj: Obj, pid: number): void {
     const pro = loadPRO(pid, pid & 0xffff)
     if (!pro) return
     obj.pid = pid
     obj.pro = pro
     obj.art = lookupArt(makePID(pro.frmType, pro.frmPID))
-    const invPID = ((pro as any).extra?.invFRM ?? -1) & 0xffff
+    const invPID = (pro.extra?.invFRM ?? -1) & 0xffff
     const invName = invPID !== 0xffff ? getLstId('art/inven/inven', invPID) : null
     if (invName) obj.invArt = 'art/inven/' + invName.split('.')[0]
     obj.name = getMessage('pro_item', pro.textID) ?? obj.name
 }
 
 // CE item.cc booksInit (vanilla table): book PID → [proto.msg line, skill]
-const BOOKS: { [pid: number]: [number, string] } = {
-    73: [802, 'Science'],     // PROTO_ID_BIG_BOOK_OF_SCIENCE
-    76: [803, 'Repair'],      // PROTO_ID_DEANS_ELECTRONICS
-    80: [804, 'First Aid'],   // PROTO_ID_FIRST_AID_BOOK
+export const BOOKS: { [pid: number]: [number, string] } = {
+    73: [802, 'Science'], // PROTO_ID_BIG_BOOK_OF_SCIENCE
+    76: [803, 'Repair'], // PROTO_ID_DEANS_ELECTRONICS
+    80: [804, 'First Aid'], // PROTO_ID_FIRST_AID_BOOK
     102: [805, 'Small Guns'], // PROTO_ID_GUNS_AND_BULLETS
     86: [806, 'Outdoorsman'], // PROTO_ID_SCOUT_HANDBOOK
 }
@@ -207,26 +315,26 @@ const BOOKS: { [pid: number]: [number, string] } = {
 // rises by (100 − skill) / 10 points (×1.5 with Comprehension) — none past 100, "You
 // learn nothing new." (801) — and reading takes (11 − INT) hours; "You read the book."
 // (800) and the book's line. The book is used up (return 1).
-function useBook(book: Obj): void {
+export function useBook(book: Obj): void {
     const [messageId0, skill] = BOOKS[book.pid]
-    if (globalState.inCombat) {
+    if (world.inCombat) {
         uiLog(getMessage('proto', 902) ?? 'You cannot do that in combat.')
         return
     }
-    const dude = globalState.player as Critter
+    const dude = world.player as Critter
     let messageId = messageId0
     let increase = Math.trunc((100 - dude.getSkill(skill)) / 10)
     if (increase <= 0) {
         messageId = 801
     } else {
-        if (dude.hasPerk('Comprehension')) increase = Math.trunc(150 * increase / 100)
+        if (dude.hasPerk('Comprehension')) increase = Math.trunc((150 * increase) / 100)
         for (let i = 0; i < increase; i++) {
             if (dude.getSkill(skill) >= 300) break // skillAddForce: −3 at the cap
             dude.skills.baseSkills[skill] = dude.skills.getBase(skill) + 1
         }
     }
     GameTime.advanceSeconds(3600 * (11 - dude.getStat('INT')))
-    globalState.gMap?.updateMap() // scriptsExecMapUpdateProc
+    world.gMap?.updateMap() // scriptsExecMapUpdateProc
     uiLog(getMessage('proto', 800) ?? 'You read the book.')
     const line = getMessage('proto', messageId)
     if (line) uiLog(line)
@@ -240,11 +348,13 @@ function useBook(book: Obj): void {
 
 export const PROTO_ID_FLARE = 79
 export const PROTO_ID_LIT_FLARE = 205
+// CE proto_types.h: the misc items _obj_use_misc_item uses up
+export const MISC_USE_CONSUMED: ReadonlySet<number> = new Set([431, 444, 331, 499, 523, 516])
 
 // The critter carrying `item` (in a hand or the inventory), if any.
-function itemOwner(item: Obj): Critter | null {
-    const gMap = globalState.gMap
-    const player = globalState.player as Critter | null
+export function itemOwner(item: Obj): Critter | null {
+    const gMap = world.gMap
+    const player = world.player as Critter | null
     const has = (c: any) => c && (c.inventory?.includes(item) || c.leftHand === item || c.rightHand === item)
     if (has(player)) return player
     return (gMap?.getObjects().find((o) => o.type === 'critter' && has(o)) as Critter | undefined) ?? null
@@ -254,13 +364,17 @@ function itemOwner(item: Obj): Critter | null {
 // holder with the larger of the two lights; without it the holder's own light comes
 // back (the dude 4 hexes at full intensity — objectsInit — an NPC its proto's).
 export function updateHandFlareLight(c: Critter): void {
-    const a = c as any
-    let radius = c.isPlayer ? 4 : (c.pro as any)?.lightDistance ?? 0
-    let intensity = c.isPlayer ? 65536 : (c.pro as any)?.lightIntensity ?? 0
+    const a = c
+    let radius = c.isPlayer ? 4 : (c.pro?.lightDistance ?? 0)
+    let intensity = c.isPlayer ? 65536 : (c.pro?.lightIntensity ?? 0)
+    // CE inventory.cc _inven_update_lighting: the dude's light is max(4, the hand item's
+    // lightDistance) at 0x10000 — any light-giving item, the lit flare among them
     for (const h of [a.leftHand, a.rightHand]) {
-        if (h?.pid !== PROTO_ID_LIT_FLARE) continue
-        radius = Math.max(radius, h.lightRadius ?? 8)
-        intensity = Math.max(intensity, h.lightIntensity ?? 65536)
+        if (!h || h.pid === undefined) continue
+        const r = h.pid === PROTO_ID_LIT_FLARE ? (h.lightRadius ?? 8) : (h.lightRadius ?? h.pro?.lightDistance ?? 0)
+        if (!(r > 0)) continue
+        radius = Math.max(radius, r)
+        if (!c.isPlayer) intensity = Math.max(intensity, h.lightIntensity ?? 65536)
     }
     c.lightRadius = radius
     c.lightIntensity = intensity
@@ -280,10 +394,19 @@ export function useFlare(obj: Obj, source: Critter): boolean {
     switchItemProto(obj, PROTO_ID_LIT_FLARE)
     obj.lightRadius = 8
     obj.lightIntensity = 65536
+    scheduleFlareBurnOut(obj, 72000)
+    const owner = itemOwner(obj)
+    if (owner) updateHandFlareLight(owner)
+    else if (Config.engine.doFloorLighting) Lightmap.rebuildLight()
+    return true
+}
+
+// CE queue.cc EVENT_TYPE_FLARE (flareEventProcess) on a lit flare (also queueLoad)
+export function scheduleFlareBurnOut(obj: Obj, ticks: number): void {
     const burnOut = () => {
         const owner = itemOwner(obj)
         if (owner) {
-            const a = owner as any
+            const a = owner
             if (a.leftHand === obj) a.leftHand = owner.isPlayer ? undefined : (owner.constructor as any).makeFist?.()
             if (a.rightHand === obj) a.rightHand = owner.isPlayer ? undefined : (owner.constructor as any).makeFist?.()
             const i = owner.inventory.indexOf(obj)
@@ -291,46 +414,62 @@ export function useFlare(obj: Obj, source: Critter): boolean {
             updateHandFlareLight(owner)
             if (owner.isPlayer) uiDrawWeapon()
         } else {
-            globalState.gMap?.destroyObject(obj)
+            world.gMap?.destroyObject(obj)
             if (Config.engine.doFloorLighting) Lightmap.rebuildLight()
         }
     }
-    // queue.cc EVENT_TYPE_FLARE: its clear proc is flareEventProcess — leaving the map burns it out
-    Scripting.timeEventList.push({ obj, ticks: 72000, userdata: 'flare', fn: burnOut, leaveMap: () => { burnOut(); return true } })
-    const owner = itemOwner(obj)
-    if (owner) updateHandFlareLight(owner)
-    else if (Config.engine.doFloorLighting) Lightmap.rebuildLight()
-    return true
+    // its clear proc is flareEventProcess too — leaving the map burns it out
+    Scripting.timeEventList.push({
+        obj,
+        ticks,
+        userdata: 'flare',
+        fn: burnOut,
+        leaveMap: () => {
+            burnOut()
+            return true
+        },
+    })
+}
+export function explosionRunning(): boolean {
+    return objState.explosionStarted >= 0 && performance.now() - objState.explosionStarted < 5000
 }
 
 // CE queue.cc explosionEventProcess / explosionFailureEventProcess → _queue_do_explosion_:
 // at the owner's tile when carried.
 function explosiveDetonate(obj: Obj, min: number, max: number, failure: boolean, animate = true): void {
-    const gMap = globalState.gMap
+    const gMap = world.gMap
     if (!gMap) return
     if (failure) uiLog(getMessage('misc', 4000) ?? 'Due to your inept handling, the explosive detonates prematurely.')
-    const player = globalState.player
-    if (player?.hasPerk('Demolition Expert')) { min += 10; max += 10 }
-    const owner = gMap.getObjects().find((o) => o.type === 'critter' && (o as Critter).inventory.includes(obj)) as Critter | undefined
-        ?? (player && player.inventory.includes(obj) ? player : undefined)
+    const player = world.player
+    if (player?.hasPerk('Demolition Expert')) {
+        min += 10
+        max += 10
+    }
+    const owner =
+        (gMap.getObjects().find((o) => o.type === 'critter' && (o as Critter).inventory.includes(obj)) as
+            Critter | undefined) ?? (player && player.inventory.includes(obj) ? player : undefined)
     if (owner) {
         const idx = owner.inventory.indexOf(obj)
         if (idx !== -1) owner.inventory.splice(idx, 1)
         obj.position = { ...owner.position }
         gMap.addObject(obj)
     }
-    obj.explode(player ?? null, min, max, 3, animate)
+    // _queue_do_explosion_: another explosion still running (−2) re-queues it 50 ticks on,
+    // as a plain explosion (no second "inept handling" line)
+    if (!obj.explode(player ?? null, min, max, 3, animate)) scheduleExplosion(obj, 50, false)
 }
 
-// Set the object (door/container) open/closed; returns true if possible, false if not (e.g. locked)
-export function setObjectOpen(obj: Obj, open: boolean, loot = true, signalEvent = true): boolean {
+// Set the object (door/container) open/closed; returns true if possible, false if not (e.g. locked).
+// `ignoreLock`: the dude's / a critter's use of a door, where CE leaves the lock to the door's
+// script (_obj_use_door plays the locked sound and opens it when the script doesn't override).
+export function setObjectOpen(obj: Obj, open: boolean, loot = true, signalEvent = true, ignoreLock = false): boolean {
     if (!obj.isDoor && !obj.isContainer) {
         return false
     }
 
     // Open/closable doors/containers
     // TODO: Door/Container subclasses
-    if (obj.locked) {
+    if (obj.locked && !ignoreLock) {
         // CE ref: proto_instance.cc:1712 _obj_use_door — SLDOORS<id> for locked doors;
         //         proto_instance.cc:1804 — ILCNTNR<id> + msg 487 for locked containers
         playOpenSfx(obj, SCENERY_SOUND_EFFECT.locked)
@@ -354,7 +493,7 @@ export function setObjectOpen(obj: Obj, open: boolean, loot = true, signalEvent 
         obj.anim = null
         if (loot && obj.isContainer && open) {
             // loot a container
-            uiLoot(obj)
+            uiPort.uiLoot(obj)
         }
     })
 
@@ -365,13 +504,13 @@ export function setObjectOpen(obj: Obj, open: boolean, loot = true, signalEvent 
 // byte tools/proto.py keeps as itemFlags), set on natural weapons (claws, spore spikes,
 // robot and turret guns). Not the object flag OBJECT_HIDDEN.
 export function itemIsHidden(item: Obj | null | undefined): boolean {
-    return !!item && (((item as any).pro?.extra?.itemFlags ?? 0) & 0x08) !== 0
+    return !!item && ((item.pro?.extra?.itemFlags ?? 0) & 0x08) !== 0
 }
 
 // CE proto_instance.cc _check_door_state: an open door (CE _obj_is_portal) gets
 // OBJECT_OPEN_DOOR (shoot-through, light-through, no-block), a closed one loses it, and
 // the light is rebuilt — every blocking, line-of-fire and light query reads these flags.
-const OBJECT_OPEN_DOOR = 0xA0000010
+const OBJECT_OPEN_DOOR = 0xa0000010
 export function setDoorPassable(obj: Obj, open: boolean): void {
     if (!obj.isDoor) return
     const flags = (obj.flags ?? 0) >>> 0
@@ -385,14 +524,14 @@ export function toggleObjectOpen(obj: Obj, loot = true, signalEvent = true): boo
 }
 
 function objectFindIndex(obj: Obj): number {
-    return globalState.gMap.getObjects().findIndex((object) => object === obj)
+    return world.gMap!.getObjects().findIndex((object) => object === obj)
 }
 
 // CE ref: proto_instance.cc:2171 objectUnjamAll — clears jammed flag on all map objects.
 // Called by the midnight queue event (GTC5).
 export function objectUnjamAll(): void {
-    if (!globalState.gMap) return
-    for (const obj of globalState.gMap.getObjects()) {
+    if (!world.gMap) return
+    for (const obj of world.gMap.getObjects()) {
         if (obj.jammed) obj.jammed = false
     }
 }
@@ -438,7 +577,7 @@ function objectZCompareDH2(a: Obj, b: Obj): number {
     }
     const aInFront = hexIsInFrontOf(a.position, b.position)
     const bInFront = hexIsInFrontOf(b.position, a.position)
-    if (aInFront && !bInFront) return 1   // a renders later → drawn on top
+    if (aInFront && !bInFront) return 1 // a renders later → drawn on top
     if (bInFront && !aInFront) return -1
     // Ambiguous (neither strictly in front) — fall back to a stable ordering.
     if (a.position.y !== b.position.y) return a.position.y - b.position.y
@@ -453,7 +592,7 @@ function objectZOrder(obj: Obj, index: number): void {
     }
 
     // TOOD: mutable/potentially unsafe usage of getObjects
-    const objects = globalState.gMap.getObjects()
+    const objects = world.gMap!.getObjects()
 
     objects.splice(oldIdx, 1) // remove the object...
 
@@ -490,8 +629,10 @@ export function zsortMap(levels: Obj[][] | null): void {
 // Spatial trigger lookup — shared by Obj.explode and Critter.move. CE scripts.cc
 // scriptsExecSpatialProc: the spatial's own tile always; otherwise within its radius,
 // and a radius of 0 means that tile only.
-export function hitSpatialTrigger(position: Point): any {
-    return globalState.gMap.getSpatials().filter((spatial) => {
+// CE scripts.cc scriptsExecSpatialProc(object, tile, elevation): the spatials of the moving
+// object's elevation (a critter on another floor than the dude's triggers its own floor's)
+export function hitSpatialTrigger(position: Point, elevation?: number): any {
+    return (world.gMap!.getSpatials(elevation) ?? []).filter((spatial: any) => {
         const distance = hexDistance(position, spatial.position)
         if (distance === 0) return true
         const radius = spatial.range ?? 0
@@ -515,7 +656,7 @@ export interface SerializedObj {
     extra: any
 
     script: string
-    _script: Scripting.SerializedScript | undefined
+    _script: Scripting.SerializedScript | null | undefined
 
     name: string
     subtype: string
@@ -540,34 +681,36 @@ export interface SerializedObj {
     jammed?: boolean
 }
 
+// the class + interface merge is intended: the interface carries the methods installed below
+// eslint-disable-next-line @typescript-eslint/no-unsafe-declaration-merging
 export class Obj {
     uid = -1 // Unique ID given to all objects, to distinguish objects with the same PIDs
 
-    pid: number // PID (Prototype IDentifier)
-    pidID: number // ID (not type) part of the PID
-    type: ObjType = null // getPROTypeName(): item/critter/scenery/wall/tile/misc
-    pro: Proto = null // PRO object (shared per pid — see weaponAmmo.ts for per-object state)
+    pid!: number // PID (Prototype IDentifier)
+    pidID!: number // ID (not type) part of the PID
+    type: ObjType | null = null // getPROTypeName(): item/critter/scenery/wall/tile/misc
+    pro: Proto | null = null // PRO object (shared per pid — see weaponAmmo.ts for per-object state)
     flags = 0 // Flags from PRO; may be overriden by map objects
-    art: string // TODO: Path // Art path
-    frmPID: number = null // Art FID
-    orientation: number = null // Direction the object is facing
+    art!: string // TODO: Path // Art path
+    frmPID: number | null = null // Art FID
+    orientation: number | null = null // Direction the object is facing
     visible = true // Is the object visible?
     open = false // Is the object open? (Mainly for doors)
     locked = false // Is the object locked? (Mainly for doors)
     jammed = false // Is the lock jammed? (CE DOOR_FLAG_JAMMGED / OBJ_JAMMED)
 
-    extra: { [key: string]: any } // per-object map data (fomap.py item/scenery/misc extras)
+    extra!: { [key: string]: any } // per-object map data (fomap.py item/scenery/misc extras)
 
-    script: string // Script name
-    _script: Scripting.Script | undefined // Live script object
+    script!: string // Script name
+    _script: Scripting.Script | null | undefined // Live script object
 
     // TOOD: unify these
-    name: string // = "<unnamed obj>"; // Only for some critters at the moment.
-    subtype: string // Some objects, like items and scenery, have subtypes
-    invArt: string // Art path used for in-inventory image
+    name!: string // = "<unnamed obj>"; // Only for some critters at the moment.
+    subtype!: string // Some objects, like items and scenery, have subtypes
+    invArt!: string // Art path used for in-inventory image
 
     anim: string | null = null // Current animation name ('idle', 'walk', 'attack', ...)
-    animCallback: () => void | null = null // Callback when current animation is finished playing
+    animCallback: (() => void) | null = null // Callback when current animation is finished playing
     frame = 0 // Animation frame index
     lastFrameTime = 0 // Time since last animation frame played
 
@@ -575,7 +718,7 @@ export class Obj {
     // For static animations, this is just null (effectively just the frame offset as declared in the .FRM),
     // but for walk/run animations it is the sum of frame offsets between the last action frame
     // and the current frame.
-    shift: Point = null
+    shift: Point | null = null
 
     // Carry-offset accumulated across FRM art transitions so that switching FRMs never causes a
     // visual jump. Mirrors CE's obj->x/y (object.cc) which is reset on objectSetLocation (tile
@@ -598,10 +741,10 @@ export class Obj {
     lightRadius = 0
     lightIntensity = 655
 
-    miscOn?: boolean      // CE ref: item.cc miscItemIsOn() — true while trickle event is queued
-    miscCharges?: number  // CE ref: item.cc — remaining charge count (Stealth Boy / Geiger Counter)
+    miscOn?: boolean // CE ref: item.cc miscItemIsOn() — true while trickle event is queued
+    miscCharges?: number // CE ref: item.cc — remaining charge count (Stealth Boy / Geiger Counter)
     ammoQuantity?: number // CE obj->data.item.weapon.ammoQuantity — rounds loaded (weapons; see weaponAmmo.ts)
-    ammoTypePid?: number  // CE obj->data.item.weapon.ammoTypePid — loaded ammo type
+    ammoTypePid?: number // CE obj->data.item.weapon.ammoTypePid — loaded ammo type
 
     static fromPID(pid: number, sid?: number): Obj {
         return Obj.fromPID_(new Obj(), pid, sid)
@@ -612,22 +755,28 @@ export class Obj {
         const pidType = (pid >> 24) & 0xff
         const pidID = pid & 0xffff
 
-        const pro: Proto = loadPRO(pid, pidID)
+        const pro: Proto = loadPRO(pid, pidID)!
         obj.type = getPROTypeName(pidType)
         obj.pid = pid
         obj.pro = pro
         obj.flags = obj.pro.flags
+        // CE object.cc objectCreateWithFidPid → objectSetLight(proto lightDistance, lightIntensity)
+        const lightDistance = pro.lightDistance ?? 0
+        if (lightDistance > 0) {
+            obj.lightRadius = Math.min(lightDistance, 8)
+            obj.lightIntensity = pro.lightIntensity ?? 0
+        }
 
         // TODO: Subclasses
-        if (pidType == 0) {
+        if (pidType === 0) {
             // item — PRO JSON uses camelCase 'subType' (from proto.py), not 'subtype'
             obj.subtype = getPROSubTypeName(pro.extra.subType ?? pro.extra.subtype)
-            obj.name = getMessage('pro_item', pro.textID)
+            obj.name = getMessage('pro_item', pro.textID)!
 
             const invPID = pro.extra.invFRM & 0xffff
             dbg('object', `[Object] invPID: ${invPID}, pid=${pid}`)
             if (invPID !== 0xffff) {
-                obj.invArt = 'art/inven/' + getLstId('art/inven/inven', invPID).split('.')[0]
+                obj.invArt = 'art/inven/' + getLstId('art/inven/inven', invPID)!.split('.')[0]
             }
         }
 
@@ -638,6 +787,42 @@ export class Obj {
         }
 
         initWeaponAmmo(obj)
+        // CE proto.cc _proto_update_gen: a new scenery object takes its proto's door flags,
+        // stairs / ladder destinations and elevator; a new exit grid goes nowhere yet
+        const ex = pro?.extra ?? {}
+        if (pidType === 2) {
+            const e: any = (obj.extra = obj.extra ?? {})
+            switch (ex.subType) {
+                case 0: {
+                    // SCENERY_TYPE_DOOR: openFlags (proto.py reads it as walkthroughFlag)
+                    const f = ex.walkthroughFlag ?? 0
+                    e.openFlags = f
+                    obj.locked = (f & 0x02000000) !== 0
+                    obj.jammed = (f & 0x04000000) !== 0
+                    break
+                }
+                case 1:
+                    e.destination = ex.destination
+                    e.destinationMap = ex.destinationMap
+                    break // stairs
+                case 2:
+                    e.elevatorType = ex.elevatorType
+                    e.elevatorLevel = ex.elevatorLevel
+                    break // elevator
+                case 3:
+                case 4:
+                    e.destinationMap = ex.destination
+                    break // ladders: field_0 is the map
+            }
+        } else if (pidType === 5 && pid >= 0x5000010 && pid <= 0x5000017) {
+            obj.extra = {
+                ...(obj.extra ?? {}),
+                exitMapID: -1,
+                startingPosition: -1,
+                startingElevation: 0,
+                startingOrientation: 0,
+            }
+        }
         obj.init()
         obj.loadScript(sid)
         return obj
@@ -649,9 +834,10 @@ export class Obj {
 
     static fromMapObject_<T extends Obj>(obj: T, mobj: any, deserializing = false): T {
         // Load an Obj from a map object
-        //console.log("fromMapObject: %o", mobj)
         if (mobj.uid) {
             obj.uid = mobj.uid
+            // keep new uids clear of restored ones (saved timers are keyed by uid, CE object ids)
+            if (mobj.uid >= _lastObjectUID) _lastObjectUID = mobj.uid + 1
         }
         obj.pid = mobj.pid
         obj.pidID = mobj.pidID
@@ -696,8 +882,10 @@ export class Obj {
         if (!deserializing && typeof mobj.extra?.charges === 'number' && mobj.extra.charges >= 0) {
             // CE misc.charges from the .map: a money pile on the ground holds its amount
             // there (itemGetMoney; _obj_pickup takes at least 1), a charged item its charges.
-            if (obj.pid === 41 && mobj.amount === undefined) obj.amount = Math.max(1, mobj.extra.charges) // PROTO_ID_MONEY
-            else if (obj.pid !== 41 && mobj.miscCharges === undefined && mobj.extra.charges !== (obj.pro as any)?.extra?.charges) obj.miscCharges = mobj.extra.charges
+            if (obj.pid === 41 && mobj.amount === undefined)
+                obj.amount = Math.max(1, mobj.extra.charges) // PROTO_ID_MONEY
+            else if (obj.pid !== 41 && mobj.miscCharges === undefined && mobj.extra.charges !== obj.pro?.extra?.charges)
+                obj.miscCharges = mobj.extra.charges
         }
         if (obj.subtype === 'ammo') {
             if (deserializing && mobj.ammoQuantity === undefined) {
@@ -749,7 +937,6 @@ export class Obj {
             this.uid = _lastObjectUID++
         }
 
-        //console.log("init: %o", this)
         if (this.inventory !== undefined) {
             // containers and critters
             this.inventory = this.inventory.map((obj) => objFromMapObject(obj))
@@ -777,9 +964,12 @@ export class Obj {
                     dbg('object', `[Script] PRO sid=${lstIndex} → applying SID stub for pid=${this.pid}`)
                     this.script = sidStub.scriptName
                     this._script = sidStub
-                    try { Scripting.initScript(this._script, this) } catch (e) {
+                    try {
+                        Scripting.initScript(this._script, this)
+                    } catch (e) {
                         dbgWarn('object', `[Script] initScript stub error for sid=${lstIndex}:`, e)
                     }
+                    this.scriptAttached()
                     return
                 }
                 try {
@@ -817,9 +1007,13 @@ export class Obj {
                 } catch (e) {
                     dbgWarn('object', '[Script] initScript error for %s:', scriptName, e)
                 }
+                this.scriptAttached()
             }
         }
     }
+
+    // Called once a script is attached (Critter: CE critterGetName's scrname.msg name)
+    protected scriptAttached(): void {}
 
     enterMap(): void {
         // TODO: do we updateMap?
@@ -828,7 +1022,7 @@ export class Obj {
         // are added in. @important
 
         if (this._script) {
-            Scripting.objectEnterMap(this, globalState.currentElevation, globalState.gMap.mapID)
+            Scripting.objectEnterMap(this, world.currentElevation, world.gMap!.mapID)
         }
     }
 
@@ -853,7 +1047,7 @@ export class Obj {
 
         // give us a new z-order
         if (Config.engine.doZOrder !== false) {
-            objectZOrder(this, curIdx)
+            objectZOrder(this, curIdx!)
         }
 
         return true
@@ -861,10 +1055,10 @@ export class Obj {
 
     updateAnim(): void {
         if (!this.anim) return
-        if (this.anim === 'dead') return  // corpse is frozen, never step frames
+        if (this.anim === 'dead') return // corpse is frozen, never step frames
 
-        const imageInfo = globalState.imageInfo[this.art]
-        if (!imageInfo) return  // image metadata not yet loaded, skip this tick
+        const imageInfo = assets.imageInfo![this.art]
+        if (!imageInfo) return // image metadata not yet loaded, skip this tick
 
         const time = window.performance.now()
         let fps = imageInfo.fps
@@ -916,7 +1110,7 @@ export class Obj {
             return false
         }
 
-        return !((this.pro.flags & 0x00000010) /* NoBlock */)
+        return !(this.pro.flags & 0x00000010 /* NoBlock */)
     }
 
     // Pathfinding-only predicate. CE pathfinder allows traversal through
@@ -943,7 +1137,7 @@ export class Obj {
 
     singleAnimation(reversed?: boolean, callback?: () => void): void {
         if (reversed) {
-            this.frame = globalState.imageInfo[this.art].numFrames - 1
+            this.frame = assets.imageInfo![this.art].numFrames - 1
         } else {
             this.frame = 0
         }
@@ -973,7 +1167,7 @@ export class Obj {
         if (Scripting.timeEventList.some((e) => e.obj === this || e.obj === obj)) return false // OBJECT_QUEUED
         if (this.subtype === 'container') return false
         if ((this.inventory?.length ?? 0) !== 0 || (obj.inventory?.length ?? 0) !== 0) return false
-        if (((this as any).miscCharges ?? 0) !== ((obj as any).miscCharges ?? 0)) return false
+        if ((this.miscCharges ?? 0) !== (obj.miscCharges ?? 0)) return false
         return true
     }
 
@@ -1015,8 +1209,8 @@ export class Obj {
         if (this.subtype === 'armor' && POWER_ARMORS.includes(this.pid)) weight = Math.trunc(weight / 2)
         else if (this.subtype === 'container') weight += this.getInventoryWeight()
         else if (this.subtype === 'weapon') {
-            const rounds = (this as any).ammoQuantity ?? 0
-            const ammoPid = (this as any).ammoTypePid ?? -1
+            const rounds = this.ammoQuantity ?? 0
+            const ammoPid = this.ammoTypePid ?? -1
             if (rounds > 0 && ammoPid !== -1) {
                 const ammo = loadPRO(ammoPid, ammoPid & 0xffff)
                 const perBox = Math.max(1, ammo?.extra?.quantity ?? 1)
@@ -1040,14 +1234,14 @@ export class Obj {
             for (const it of this.inventory) cost += it.stackCost()
         } else if (this.subtype === 'weapon') {
             const rounds = ammoGetQuantity(this)
-            const ammoPid = (this as any).ammoTypePid ?? -1
+            const ammoPid = this.ammoTypePid ?? -1
             if (rounds > 0 && ammoPid !== -1) {
                 const ammo = loadPRO(ammoPid, ammoPid & 0xffff)
                 const perBox = Math.max(1, ammo?.extra?.quantity ?? 1)
-                cost += Math.trunc(rounds * (ammo?.extra?.cost ?? 0) / perBox)
+                cost += Math.trunc((rounds * (ammo?.extra?.cost ?? 0)) / perBox)
             }
         } else if (this.subtype === 'ammo') {
-            cost = Math.trunc(cost * ammoGetQuantity(this) / ammoGetCapacity(this))
+            cost = Math.trunc((cost * ammoGetQuantity(this)) / ammoGetCapacity(this))
         }
         return cost
     }
@@ -1068,7 +1262,12 @@ export class Obj {
             const self = this as any
             for (const slot of ['leftHand', 'rightHand', 'armor']) {
                 const item = self[slot]
-                if (item && item.pid !== undefined && !this.inventory.includes(item) && typeof item.stackWeight === 'function') {
+                if (
+                    item &&
+                    item.pid !== undefined &&
+                    !this.inventory.includes(item) &&
+                    typeof item.stackWeight === 'function'
+                ) {
                     w += item.stackWeight()
                 }
             }
@@ -1088,6 +1287,10 @@ export class Obj {
             return total + (item.pro?.extra?.size ?? 0) * count < maxSize
         }
         if (this.type !== 'critter') return true
+        // CE item.cc itemAttemptAdd: a non-biped critter takes nothing (-5) unless it has
+        // CRITTER_BARTER (sfall fix: Skynet, Goris)
+        const extra = this.pro?.extra
+        if ((extra?.bodyType ?? 0) !== 0 && ((extra?.flags ?? 0) & 0x02) === 0) return false
         const max = (this as unknown as Critter).getStat?.('Carry') ?? Infinity
         const addWeight = item.stackWeight(count)
         return this.getInventoryWeight() + addWeight <= max
@@ -1101,10 +1304,10 @@ export class Obj {
             wall: 'pro_wall',
             misc: 'pro_misc',
         }
-        return categories[this.type]
+        return categories[this.type!]
     }
 
-    getDescription(): string {
+    getDescription(): string | null {
         if (!this.pro) {
             return null
         }
@@ -1137,28 +1340,40 @@ export class Obj {
     }
 
     get isDoor(): boolean {
-        return this.type === 'scenery' && this.pro.extra.subType === 0 // SCENERY_DOOR
+        return this.type === 'scenery' && this.pro!.extra.subType === 0 // SCENERY_DOOR
     }
 
     get isStairs(): boolean {
-        return this.type === 'scenery' && this.pro.extra.subType === 1 // SCENERY_STAIRS
+        return this.type === 'scenery' && this.pro!.extra.subType === 1 // SCENERY_STAIRS
     }
 
     get isLadder(): boolean {
         return (
             this.type === 'scenery' &&
-            (this.pro.extra.subType === 3 || // SCENERY_LADDER_BOTTOM
-                this.pro.extra.subType === 4)
+            (this.pro!.extra.subType === 3 || // SCENERY_LADDER_BOTTOM
+                this.pro!.extra.subType === 4)
         ) // SCENERY_LADDER_TOP
     }
 
     get isContainer(): boolean {
-        return this.type === 'item' && this.pro.extra.subType === 1 // SUBTYPE_CONTAINER
+        return this.type === 'item' && this.pro!.extra.subType === 1 // SUBTYPE_CONTAINER
+    }
+
+    // CE proto.cc _proto_action_can_pickup: any item but a container without ext flag 0x8000
+    // (bags and backpacks have it; chests and lockers don't, they are opened). 0x8000 is
+    // bit 7 of the proto JSON's weaponFlags byte.
+    get canPickUp(): boolean {
+        return this.type === 'item' && (!this.isContainer || ((this.pro?.extra?.weaponFlags ?? 0) & 0x80) !== 0)
     }
 
     get isExplosive(): boolean {
         // CE explosiveIsExplosive + explosiveIsActiveExplosive (armed 206 / 209)
-        return this.pid === 85 /* Plastic Explosives */ || this.pid === 51 /* Dynamite */ || this.pid === 206 || this.pid === 209
+        return (
+            this.pid === 85 /* Plastic Explosives */ ||
+            this.pid === 51 /* Dynamite */ ||
+            this.pid === 206 ||
+            this.pid === 209
+        )
     }
 
     get isSelectable(): boolean {
@@ -1166,7 +1381,7 @@ export class Obj {
     }
 
     get canUse(): boolean {
-        if (this._script !== undefined && this._script.use_p_proc !== undefined) {
+        if (this._script !== undefined && this._script!.use_p_proc !== undefined) {
             return true
         } else if (this.isExplosive) {
             return !(this as any).armed // already armed → only Drop is shown
@@ -1175,291 +1390,15 @@ export class Obj {
                 return true
             } else {
                 // CE ref: proto.cc:257 _proto_action_can_use() bit 0x0800.
-                // FO2 .pro files are big-endian; proto.py reads the 4 extendedFlags
-                // bytes separately as itemFlags/actionFlags/weaponFlags/attackMode.
-                // Bit 0x0800 lands in byte 2 (weaponFlags, bit 0x08) after the swap.
-                return (this.pro.extra.weaponFlags & 0x08) != 0
+                // FO2 .pro files are big-endian; proto.py reads an item's 4 extendedFlags
+                // bytes separately as itemFlags/actionFlags/weaponFlags/attackMode, so
+                // bit 0x0800 lands in byte 2 (weaponFlags, bit 0x08). Scenery keeps the
+                // whole int32 as extendedFlags.
+                if (this.type === 'scenery') return ((this.pro!.extra.extendedFlags ?? 0) & 0x0800) !== 0
+                return (this.pro!.extra.weaponFlags & 0x08) !== 0
             }
         }
         return false
-    }
-
-    // Returns whether or not the object was used
-    use(source?: Critter, useScript?: boolean): boolean {
-        if (this.canUse === false && !this.isContainer) {
-            dbg('object', "[Object] can't use object")
-            return false
-        }
-
-        if (useScript !== false && this._script && this._script.use_p_proc !== undefined) {
-            if (source === undefined) {
-                source = globalState.player
-            }
-            if (Scripting.use(this, source) === true) {
-                dbg('object', '[Object] useObject: overridden by script')
-                return true // script overrided us
-            }
-        } else if (this.script !== undefined && !this._script) {
-            dbgWarn('object', '[Object] used object has script but is not loaded: ' + this.script)
-        }
-
-        if (this.subtype === 'drug') {
-            if (source === undefined) source = globalState.player as Critter
-            if (globalState.drugHandler) {
-                const handled = globalState.drugHandler(this, source)
-                if (handled) {
-                    // CE ref: item.cc itemUse() — drug item is consumed on use.
-                    const owner = source ?? globalState.player as Critter
-                    if (owner) {
-                        const idx = owner.inventory.indexOf(this)
-                        if (idx !== -1) {
-                            if (this.amount > 1) this.amount--
-                            else owner.inventory.splice(idx, 1)
-                        } else {
-                            const ownerAny = owner as any
-                            if (ownerAny.leftHand === this) ownerAny.leftHand = null
-                            else if (ownerAny.rightHand === this) ownerAny.rightHand = null
-                        }
-                    }
-                    if (source?.isPlayer) drawHP(source.getStat('HP'))
-                }
-                return handled
-            }
-        }
-
-        // CE ref: proto_instance.cc:1245 — First Aid Kit / Doctor's Bag trigger skills.
-        if (this.subtype === 'misc' && globalState.miscItemUseHandler) {
-            if (source === undefined) source = globalState.player as Critter
-            if (globalState.miscItemUseHandler(this, source)) return true
-        }
-
-        // CE ref: item.cc:2246-2280 _item_m_use_charged_item() — Stealth Boy / Geiger Counter toggle.
-        if (isChargedMiscItem(this)) {
-            if (source === undefined) source = globalState.player as Critter
-            useChargedMiscItem(this, source ?? null)
-            return true
-        }
-
-        if (this.isExplosive) {
-            useExplosive(this, source)
-            return true
-        }
-
-        // CE _obj_use_item → _obj_use_book
-        if (BOOKS[this.pid]) {
-            useBook(this)
-            return true
-        }
-
-        // CE _obj_use_item → _obj_use_flare
-        if (this.pid === PROTO_ID_FLARE) {
-            useFlare(this, source ?? globalState.player as Critter)
-            return true
-        }
-
-        // Play the interact animation on the source critter (non-blocking: the
-        // interaction effect proceeds concurrently). Skipped for ladders because
-        // the climb animation already handles the timing in the isLadder branch.
-        if (source && !this.isLadder && source.hasAnimation('use')) {
-            source.staticAnimation('use', () => source.clearAnim())
-        }
-
-        if (this.isDoor || this.isContainer) {
-            toggleObjectOpen(this, true, true)
-        } else if (this.isStairs) {
-            // CE proto_instance.cc useStairs: builtTile -1 fails; destinationMap > 0 is
-            // another map, anything else this one.
-            if (this.extra.destination === -1 || this.extra.destination === undefined) return false
-            const destTile = fromTileNum(this.extra.destination & 0xffff)
-            const destElev = ((this.extra.destination >> 28) & 0xf) >> 1
-
-            if (!(this.extra.destinationMap > 0)) {
-                // same map, new destination
-                dbg('object', `[Object] stairs: tile=(${destTile.x}, ${destTile.y}), elev=${destElev}`)
-
-                globalState.player.position = destTile
-                globalState.gMap.changeElevationFaded(destElev)
-                // CE ref: map.cc:386 mapSetElevation fires only map_update_p_proc, not map_enter_p_proc
-                globalState.gMap.updateMap()
-            } else {
-                dbg('object', `[Object] stairs → ${this.extra.destinationMap} @ (${destTile.x}, ${destTile.y}), elev=${destElev}`)
-                globalState.gMap.loadMapByID(this.extra.destinationMap, destTile, destElev)
-            }
-        } else if (this.isLadder) {
-            const isTop = this.pro.extra.subType === 4
-            // CE ref: proto_instance.cc:1512 useLadderDown/useLadderUp — reads tile and
-            // elevation from the packed destinationBuiltTile field (same format as stairs);
-            // builtTile -1 fails, destinationMap != 0 is a map transition (tools/fomap.py
-            // reads it since 2026-10-24; before, every ladder stayed on its map).
-            if (this.extra.destination === -1 || this.extra.destination === undefined) return false
-            const destTile = fromTileNum(this.extra.destination & 0xffff)
-            const destElev = ((this.extra.destination >> 28) & 0xf) >> 1
-            const destMap = this.extra.destinationMap ?? 0
-            dbg('object', `[Object] ladder (${isTop ? 'top' : 'bottom'} → map ${destMap} tile=${destTile.x},${destTile.y} elev=${destElev})`)
-
-            if (destMap < 0) {
-                // CE mapHandleTransition: -1 town map, -2 world map — no vanilla ladder has either
-                dbgWarn('object', `[Object] ladder to map ${destMap} (town / world map) not supported`)
-                return false
-            }
-            if (destMap !== 0) {
-                globalState.gMap.loadMapByID(destMap, destTile, destElev)
-                return true
-            }
-
-            const actor = source ?? globalState.player
-            // CE ref: actions.cc:1050 — sfxBuildCharName(critter, ANIM_CLIMB_LADDER) is
-            // played as the climb starts (HMWARRAE → fallback HMXXXXAE etc.).
-            playCharSfx(actor, sfxBuildCharName(actor, 4 /* ANIM_CLIMB_LADDER */))
-            if (actor.hasAnimation('climb')) {
-                actor.staticAnimation('climb', () => {
-                    actor.clearAnim()
-                    actor.position = destTile
-                    globalState.gMap.changeElevationFaded(destElev)
-                    // CE ref: map.cc:386 mapSetElevation fires only map_update_p_proc
-                    globalState.gMap.updateMap()
-                })
-                return true // updateMap() handled in callback above; skip the one below
-            }
-            globalState.player.position = destTile
-            globalState.gMap.changeElevationFaded(destElev)
-            // CE ref: map.cc:386 mapSetElevation fires only map_update_p_proc
-            globalState.gMap.updateMap()
-        } else {
-            this.singleAnimation()
-        }
-
-        globalState.gMap.updateMap()
-        return true
-    }
-
-    // CE actions.cc actionExplode — the explosion sprite on the tile and the six around
-    // it, the critter on the tile plus up to 6 more in the blast rings (radius 3,
-    // _compute_explosion_on_extras), each taking d(min, max) − explosion DT/DR with
-    // knockback; then damage_p_proc for the scripts in range (_scr_explode_scenery).
-    // `_radius` is unused: CE's scripted explosions always use the rocket radius.
-    // `animate` false (CE actionExplode's animate): the blast lands at once, no sprites.
-    explode(source: Obj | null, minDmg: number, maxDmg: number, _radius: number = 3, animate = true): void {
-        const killer = (source ?? this) as Critter // explosive itself as killer when source is null
-        const center = { x: this.position.x, y: this.position.y }
-        const elevation = this.elevation ?? globalState.gMap?.currentElevation ?? 0
-        const blast = () => this.explosionBlast(killer, center, elevation, minDmg, maxDmg)
-        if (!animate) return blast()
-        const explosion = createObjectWithPID(makePID(5 /* misc */, 14 /* Explosion */), -1)
-        explosion.position = { ...center }
-
-        const adjExplosions = hexNeighbors(center).map(pos => {
-            const adj = createObjectWithPID(makePID(5 /* misc */, 14 /* Explosion */), -1)
-            adj.position = { x: pos.x, y: pos.y }
-            return adj
-        })
-
-        lazyLoadImage(explosion.art, () => {
-            if (!globalState.gMap) return
-            globalState.gMap.addObject(explosion)
-            for (const adj of adjExplosions) {
-                globalState.gMap!.addObject(adj)
-                adj.singleAnimation(false, () => { adj.anim = null; globalState.gMap?.destroyObject(adj) })
-            }
-            globalState.audioEngine?.playSfxByName('whn1xxx1') // CE actionExplode
-
-            let fired = false
-            explosion.singleAnimation(false, () => {
-                // updateAnim keeps calling a finished animation's callback until the anim
-                // is cleared; the blast happens once.
-                explosion.anim = null
-                if (fired) return
-                fired = true
-                globalState.gMap?.destroyObject(explosion)
-                blast()
-            })
-        })
-    }
-
-    private explosionBlast(killer: Critter, center: Point, elevation: number, minDmg: number, maxDmg: number): void {
-        const gMap = globalState.gMap
-        if (!gMap) return
-
-        const atTile = gMap.blockingObjectAt(toTileNum(center), elevation, 0, null)
-        const main = atTile && atTile.type === 'critter' && !(atTile as Critter).dead ? atTile as Critter : null
-        const victims = [...(main ? [main] : []), ...explosionRingCritters(center, elevation, main, false)]
-        dbg('object', `[Object] explosion: ${minDmg}-${maxDmg}, ${victims.length} critter(s)`)
-        for (const v of victims) {
-            if (v.dead) continue
-            const { damage, knockback } = computeExplosionDamage(minDmg, maxDmg, v, getRandomInt)
-            critterDamage(v, damage, killer, true, true, 'Explosive', undefined, {
-                attackerAnim: ANIM_STAND, weapon: null, knockback,
-                knockbackRotation: hexDirectionTo(center, v.position),
-            })
-            if (v.isPlayer) drawHP(v.getStat('HP'))
-        }
-
-        scriptsExplodeScenery(this, center, elevation, (obj, target) => {
-            if (!obj._script) return
-            try {
-                Scripting.damage(obj, target, null as any, 20) // fixed param 20
-            } catch (e) {
-                dbgWarn('object', `[Object] damage_p_proc error for ${obj.script}:`, e)
-            }
-        })
-
-        globalState.gMap?.destroyObject(this)
-    }
-
-    pickup(source: Critter) {
-        if (this._script) {
-            dbg('object', '[Object] picking up %o', this)
-            if (Scripting.pickup(this, source)) {
-                return // script handled it
-            }
-        }
-        // CE ref: item.cc itemAttemptAdd — refuse pickup if the player is over
-        // their carry weight. Floats the standard "you can't carry any more" message.
-        if (!source.canCarry(this, this.amount ?? 1)) {
-            addFloatMessage({
-                msg: "You can't carry any more.",
-                obj: source, color: 'white', startTime: window.performance.now(),
-            })
-            return
-        }
-        const doPickup = () => {
-            globalState.audioEngine.playSfxByName('ipickup1')
-            source.addInventoryItem(this, this.amount)
-            globalState.gMap.destroyObject(this)
-            source.clearAnim()
-        }
-        const playPickup = () => {
-            if (source.hasAnimation('pickUp')) {
-                source.staticAnimation('pickUp', doPickup)
-            } else {
-                doPickup()
-            }
-        }
-        // Walk to the object first, then play the pickup animation (in combat: AP-limited
-        // walk + 3 AP, CE actionPickUp / _check_scenery_ap_cost)
-        source.walkInFrontOfToAct(this.position, playPickup)
-    }
-
-    // CE proto_instance.cc _obj_drop(owner, item): the owner's is_dropping_p_proc
-    // (source_obj = the item), then the item's drop_p_proc (source_obj = the owner);
-    // either can override and keep the item. Otherwise it leaves the owner (inventory or
-    // hand / armor slot) and lands on the owner's tile. True when it was dropped.
-    drop(source: Obj): boolean {
-        if (source._script && Scripting.isDropping(source, this)) return false
-        if (this._script && Scripting.drop(this, source)) return false
-
-        const owner = source as any
-        const i = source.inventory.indexOf(this)
-        if (i !== -1) source.inventory.splice(i, 1)
-        else for (const slot of ['leftHand', 'rightHand', 'armor']) if (owner[slot] === this) owner[slot] = null
-        this.flags = (this.flags ?? 0) & ~0x7000000 // no longer in a hand / worn
-
-        globalState.audioEngine.playSfxByName('iputdown')
-        globalState.gMap.addObject(this) // add to objects
-        if (this.pid === PROTO_ID_LIT_FLARE && Config.engine.doFloorLighting) Lightmap.rebuildLight() // its light now on the floor
-        const idx = globalState.gMap.getObjects().length - 1 // our new index
-        this.move({ x: source.position.x, y: source.position.y }, idx)
-        return true
     }
 
     // TODO: override this for subclasses
@@ -1468,12 +1407,12 @@ export class Obj {
             uid: this.uid,
             pid: this.pid,
             pidID: this.pidID,
-            type: this.type,
+            type: this.type!,
             pro: this.pro, // XXX: if pro changes in the future, this should be cloned
             flags: this.flags,
             art: this.art,
-            frmPID: this.frmPID,
-            orientation: this.orientation,
+            frmPID: this.frmPID!,
+            orientation: this.orientation!,
             visible: this.visible,
             extra: this.extra,
             script: this.script,
@@ -1484,13 +1423,15 @@ export class Obj {
             frame: this.frame,
             amount: this.amount,
             position: { x: this.position.x, y: this.position.y },
-            inventory: this.inventory.map((obj) => {
-                if (typeof obj.serialize !== 'function') {
-                    dbgWarn('object', '[Serialize] skipping non-serializable object', obj)
-                    return null
-                }
-                return obj.serialize()
-            }).filter((obj) => obj !== null),
+            inventory: this.inventory
+                .map((obj) => {
+                    if (typeof obj.serialize !== 'function') {
+                        dbgWarn('object', '[Serialize] skipping non-serializable object', obj)
+                        return null
+                    }
+                    return obj.serialize()
+                })
+                .filter((obj) => obj !== null),
             lightRadius: this.lightRadius,
             lightIntensity: this.lightIntensity,
             miscOn: this.miscOn,
@@ -1503,3 +1444,10 @@ export class Obj {
         }
     }
 }
+
+// Obj's methods kept in other files by topic (wiki/code_quality.md Q16): installed on the prototype
+// by classParts.ts (so this module does not import them: they import half the engine), typed through
+// the interface merge below.
+type ObjMethods = typeof objUseMethods
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type, @typescript-eslint/no-unsafe-declaration-merging
+export interface Obj extends ObjMethods {}

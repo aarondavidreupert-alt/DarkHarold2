@@ -113,7 +113,7 @@ function getDate(): GameDate {
 }
 ```
 
-Months are kept 0-indexed internally; `vm_bridge.ts:52` adds 1 before pushing
+Months are kept 0-indexed internally; `vmBridge.ts:52` adds 1 before pushing
 to the script stack.
 
 ---
@@ -280,7 +280,7 @@ CE advances 5 seconds per combat round. In DH2 `src/combat/Combat.ts`:
 CE: the `rest.cc` / `Rest` dialog advances time in fixed increments (1h, 2h, 3h,
 etc.), calls `gameTimeAddTicks` and processes queue events per hour.
 
-DH2 (`src/ui_pipboy/shell.ts pipboyRest`): CE's animated clock — `GameTime.setTime` steps through the time-jump hook, so midnights and timed events fire during the rest; an event that returns 1 in CE (poison at ≤ 5 HP, radiation, withdrawal, the midnight movie) or combat / dialogue ends it.
+DH2 (`src/uiPipBoy/shell.ts pipboyRest`): CE's animated clock — `GameTime.setTime` steps through the time-jump hook, so midnights and timed events fire during the rest; an event that returns 1 in CE (poison at ≤ 5 HP, radiation, withdrawal, the midnight movie) or combat / dialogue ends it.
 
 ### Skill use
 

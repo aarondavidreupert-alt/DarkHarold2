@@ -3,18 +3,28 @@
 DarkHarold2 is a semi-faithful browser recreation of Fallout 2, forked from the DarkFO project (Apache 2.0 license). Goal: faithful F2 gameplay with only minor tweaks — do not invent features, follow the originals.
 
 ## Tech Stack
-- Engine/logic: TypeScript (strict mode: noImplicitAny, noImplicitReturns), compiled with `npx tsc` → `js/`
+- Engine/logic: TypeScript 6, `strict` (incl. `strictNullChecks`) + `noImplicitReturns`; a value the code knows is set is marked `!`. Compiled with `npx tsc -p .` (`npm run build`) → `js/`
 - Rendering: WebGL 2.0 (no canvas 2D fallback)
 - Audio: Web Audio API (ACM source files, converted to WAV by pipeline)
-- Asset pipeline: Python 3.9+ / Pipenv, scripts under `tools/` (`tools/setup.py` orchestrates full extraction; `tools/pipeline_gui.py` is a Tkinter GUI front-end)
-- Package management: npm (TS devDeps only — no runtime npm modules), Pipenv (Python). Browser libraries are vendored under `lib/` (pathfinding-browser.js, wasmoon/ — Lua 5.4 for the Lua script backend)
+- Asset pipeline: Python 3.11+ / Pipenv, scripts under `tools/` (`tools/setup.py` orchestrates full extraction; `tools/pipeline_gui.py` is a Tkinter GUI front-end)
+- Package management: npm (TS devDeps only — no runtime npm modules), Pipenv (Python). Browser libraries are vendored under `lib/` (wasmoon/ — Lua 5.4 for the Lua script backend)
 - No native dependencies — browser-safe only
 
 ## Build Commands
 - `npx tsc` — compile TypeScript (output to js/)
 - `pipenv run python tools/setup.py /path/to/Fallout2/` — full asset extraction pipeline (run from project root; `--stages`, `--skip-existing`, `--delete-originals` flags available)
 - `pipenv run python tools/pipeline_gui.py` — graphical front-end for the same pipeline
-- No test runner — manual testing in browser only
+- `npm test` — unit tests (`test/*.test.mjs`, `node --test` on the compiled `js/`; pretest runs tsc). Expected
+  values come from CE (cite file + function in each test), never from running the TS. A module a test imports
+  must load in Node: keep `globalState.ts`, `logger.ts` and the formula modules free of game / DOM imports
+- `npm run lint:ratchet` — ESLint must not rise above `tools/eslintBaseline.json` (`-- --update` after lowering it)
+- `npm run parity` — `tools/luadiff.html` in headless Chromium (Playwright); must print the luadiff baseline line.
+  Needs the extracted game data: local only, not in CI
+- `npm run smoke` / `npm run storycrawl` — headless game boot (page errors, `SMOKE_SYNC_XHR=1` counts blocking
+  requests) and the story crawler on both backends (VM = Lua, `--compare` a saved run). Local only, like parity
+- `npm run format` (Prettier, checked in CI), `npm run cycles` (import cycles; CI: largest ≤ 25 modules; game logic calls UI windows through `uiPort`, never by import)
+- CI (`.github/workflows/ci.yml`): build (0 errors, `strict`), import-cycle ratchet, Prettier, lint ratchet, `npm test`.
+  Everything else (play testing, story crawler) is manual in the browser
 
 ## Ground-Truth References
 All game logic, formulas, and data structures must be anchored to:
@@ -29,7 +39,7 @@ When researching any system before implementing or documenting:
 
 Available wiki docs (43 system docs in `wiki/`, audited 2026-10-18; `lua_scripts.md` added 2026-10-19, `lua_variable_names.md` (generated review list) 2026-10-21, `upu_support.md` (Unofficial Patch, mod folders) 2026-10-22):
 `actions.md`, `ai_behavior.md`, `animation.md`, `car_system.md`, `character_stats.md`, `combat.md`, `companion_party.md`, `critter_stats.md`, `damage_formula.md`, `dialogue_system.md`, `drugs.md`, `economy.md`, `endgame.md`, `faction_reputation.md`, `file_formats.md`, `hotkeys.md`, `interface_windows.md`, `items.md`, `known_bugs.md`, `lighting.md`, `lua_scripts.md`, `lua_variable_names.md`, `map_scripting.md`, `upu_support.md`, `palette_colors.md`, `pathfinding.md`, `perks_traits.md`, `pipboy.md`, `proto_system.md`, `quest_system.md`, `random_numbers.md`, `rendering.md`, `save_load.md`, `scripting_reference.md`, `scripting_vm.md`, `scroll_clamping.md`, `settings.md`, `skill_checks.md`, `sound_system.md`, `spatial_triggers.md`, `status_effects.md`, `tile_system.md`, `time_clock.md`, `weapon_combat.md`, `worldmap.md`.
-Meta/audit: `CODEBASE_FOCE.md`, `CODEBASE_jsFO.md`, `CROSS_CHECK_NOTES.md`, `alignment.md`, `extended_flags.md`, `failed_animation_offset_attempts.md`, `ts-split-refactor.md`, `edit_history.md`, `autocrawler.md` (AutoCrawler usage), `README.md`.
+Meta/audit: `CE_PARITY_AUDIT.md` (+ `ce_audit/`, function-by-function CE parity tables), `cleanup_audit.md` (codebase hygiene audit, 2026-10-26), `code_quality.md` (modern-standards assessment + fixing plan, 2026-10-27), `planning_archive.md` (early planning docs, superseded), `CODEBASE_FOCE.md`, `CODEBASE_jsFO.md`, `CROSS_CHECK_NOTES.md`, `alignment.md`, `extended_flags.md`, `failed_animation_offset_attempts.md`, `ts-split-refactor.md`, `edit_history.md`, `autocrawler.md` (AutoCrawler usage), `README.md`.
 
 ## File Access Policy
 - ALWAYS pull from the remote branch before reading any file
@@ -37,17 +47,21 @@ Meta/audit: `CODEBASE_FOCE.md`, `CODEBASE_jsFO.md`, `CROSS_CHECK_NOTES.md`, `ali
 - Never fabricate reference files (pal.py, frmpixels.py, example_scripts/, etc.)
 
 ## Key Files
-- src/scripting.ts — Script class with all opcode intrinsic methods (~1700 lines)
-- src/vm.ts — bytecode VM (opMap of 32+ raw bytecode handlers)
-- src/vm_bridge.ts — wires bytecode opcodes to Script class methods (bridgeOpMap, ~150 entries)
+- src/scripting.ts — the Script class, script loading and state; its opcode methods live in src/scripting/opcodes/<category>.ts, the event entry points (talk, use, damage, …) in src/scripting/events.ts
+- src/vm.ts — bytecode VM (opMap of raw bytecode handlers)
+- src/vmBridge.ts — wires bytecode opcodes to Script class methods (bridgeOpMap, ~270 `bridged()` entries)
+- src/lua/ — the Lua script backend (luaRuntime.ts, prelude.ts, luaDiff.ts)
 - src/player.ts — Player class and stat initialization
-- src/gametime.ts — in-game time constants, tick system, day/night cycle
-- src/combat.ts — combat loop, AI, hit/damage calculation, critical effects
-- src/critter.ts — critter damage/kill/heal helpers
-- src/object.ts — Obj / Critter base types
-- src/globalState.ts — central game state singleton (gMap, player, combatActive, etc.)
+- src/gametime.ts — in-game time constants, day/night cycle; src/gameTick.ts — the per-tick game loop
+- src/combat/Combat.ts — combat loop, AI, hit/damage (src/combat.ts is its barrel; also combat/{AI,damage,hitChance,...}.ts, criticalEffects/)
+- src/critter/lifecycle.ts — critter damage/kill helpers (src/critter.ts is its barrel)
+- src/object/Obj.ts, src/object/Critter.ts — Obj / Critter types (src/object.ts is their barrel)
+- src/state/ — owned game state: `world` (gMap, player, gParty, combat, time), `uiState`, `view` (camera), `services` (renderer, audio), `assets` (images, protos, messages)
+- src/globalState.ts — engine runtime fields (loading flags, eventLog) plus a getter / setter for every `src/state/` field
 - src/config.ts — Config singleton with engine/UI/scripting/combat debug flags
-- src/main.ts — main game loop, input handling, map loading entry point
+- src/main.ts — boot only: renderer, audio, fallout2.cfg, the asset caches, `initGame`
+- src/input.ts, src/hotkeys.ts — mouse and keyboard handlers; src/playerUse.ts — object interaction
+- src/devConsole/ — DH2 developer console commands, registered for `play.html#dev` only
 - src/heart.ts — 60Hz heartbeat loop
 
 ## Lua Script Backend (default)
@@ -60,10 +74,10 @@ files are derived from the user's install — never commit them. See `wiki/lua_s
 ## Scripting System Architecture
 Three-file split — understand this before touching any opcode:
 1. `src/vm.ts` — low-level bytecode decoder (`opMap`, raw stack ops)
-2. `src/vm_bridge.ts` — maps bytecode op values to Script methods via `bridgeOpMap` and the `bridged(procName, argc)` factory
-3. `src/scripting.ts` — `Script` class, one method per FO2 script intrinsic
+2. `src/vmBridge.ts` — maps bytecode op values to Script methods via `bridgeOpMap` and the `bridged(procName, argc)` factory
+3. `src/scripting.ts` — `Script` class, one method per FO2 script intrinsic; the methods are kept by category in `src/scripting/opcodes/*.ts` (core, critter, inventory, objects, map, anim, dialogue, combat, metarule, sfall) and installed on `Script.prototype` by `src/classParts.ts` (`installMethods`)
 
-To add a new opcode: implement the method on `Script` in scripting.ts, then wire it in vm_bridge.ts with `bridged("methodName", argCount)`. Never add raw stack logic in vm_bridge.ts.
+To add a new opcode: add the method to the matching `src/scripting/opcodes/<category>.ts` object (it gets `this: Script` as its first parameter), then wire it in vmBridge.ts with `bridged("methodName", argCount)`. Never add raw stack logic in vmBridge.ts.
 
 Script variable scoping:
 - GVARs — engine-wide, persisted in save
@@ -71,7 +85,8 @@ Script variable scoping:
 - MVARs — per-map, persisted with map
 
 ## Key Singletons
-- `globalState` — exported from src/globalState.ts, also on `window`. Contains: `gMap`, `player`, `combatActive`, `knownAreas`, `eventLog`, `proMap` (proto cache), `images` (texture cache)
+- `world`, `uiState`, `view`, `services`, `assets` — `src/state/*.ts`; new code imports the owner (`world.player`)
+- `globalState` — exported from src/globalState.ts, also on `window`. Own fields: `isLoading`, `eventLog`, the use handlers; every `src/state/` field is reachable through it too (`globalState.player`, dev console, saves)
 - `Config` — exported from src/config.ts, also on `window`. Flags for debug, UI, combat, scripting verbosity
 
 ## Data Pipeline & Asset Conventions
@@ -93,10 +108,16 @@ Proto type encoding (pid high byte): 0=items, 1=critters, 2=scenery, 3=walls, 4=
 Tile coordinate convention: `tileNum = y * 200 + x` (200-wide grid, 40000 max tiles per elevation)
 
 ## Conventions
-- Scripting opcodes live on the `Script` class inside the `Scripting` module in
-  `src/scripting.ts` (the planned `src/scripting/` split has not happened). To
-  add an opcode: add the method to `Script` there, then wire it in
-  `src/vm_bridge.ts` with `bridged("name", argc[, returns])`.
+- Scripting opcodes are methods of the `Script` class (`src/scripting.ts`), kept by
+  category in `src/scripting/opcodes/<category>.ts` (object literals with a `this: Script`
+  parameter, installed on the prototype by `src/classParts.ts`; 2026-10-28, code_quality Q16).
+  To add an opcode: add it to the matching category file, then wire it in
+  `src/vmBridge.ts` with `bridged("name", argc[, returns])`. The same pattern splits
+  `combat/Combat.ts` (`combat/combat*.ts`) and `object/Obj.ts` (`object/objUse.ts`). The class module imports
+  its method files as types only (`import type`); a new file goes into `classParts.ts`.
+- Game logic (scripting, combat, objects, world map) opens UI windows through `uiPort` (`src/uiPort.ts`, filled by
+  `uiPortInstall.ts`), not by importing `ui*.ts`: those import the logic back (code_quality Q14). GVARs live in
+  `src/globalVars.ts`.
 - Use the existing `stub()` helper for unimplemented opcodes — never silent no-ops
 - Use `dbg()` / `dbgWarn()` from src/logger.ts for logging — never raw console.log in new code
 - TimedEvent / `timeEventList` in scripting.ts is the hook for all tick-based callbacks
@@ -158,7 +179,8 @@ party (level-ups, CE placement), perk selection, poison/radiation/addiction, scr
 schedules, unarmed special moves, talking heads + speech + subtitles, movies, endgame slides,
 and all 181 vanilla opcodes (0 active `stub()` calls). Remaining deliberate approximations
 are listed in README.md → "Known approximations" and `wiki/known_bugs.md`:
-- Action menu on right-click (CE: held left button); mouse wheel zooms (CE: scrolls)
+- Action menu on a command-mode click (CE: held left button; `[dh2] mouse_mode=ce` gives CE's clicks); mouse wheel zooms (CE: scrolls; `mouse_wheel=ce`)
+- `[dh2]` CE switches for other DH2 choices: `talk_mode`, `scroll_mode`, `save_slots`, `egg_mode`, `barter_running_item`, `combat_outline`, `elevation_fade` (defaults keep DH2's)
 - Browser limits: no `fallout2.cfg` write-back (localStorage instead), mouse sensitivity stored only
 - DH2 day/night light curve on by default (`[dh2] day_night_cycle=0` = CE script-only lighting)
 - Cosmetic: no Pip-Boy screensaver, no palette fade around skill use
@@ -170,4 +192,4 @@ an opcode scan of the 1288 scripts in scripts.lst finds a handler for all 192 op
 - WebGL 2.0 only — no Three.js, no canvas 2D, no native deps
 - Browser-safe: no Node.js-only APIs in src/
 - Do not modify the asset pipeline (Python) unless the task is explicitly about assets
-- TypeScript strict mode enforced — no implicit any, no implicit returns
+- TypeScript: `strict` + no implicit returns (tsconfig.json); keep `as any` rare (CI does not count it yet; 172 left)

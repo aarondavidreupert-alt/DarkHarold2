@@ -17,13 +17,13 @@ limitations under the License.
 // Critter perception, shared by the scripting opcodes (obj_can_see_obj /
 // obj_can_hear_obj) and the combat AI (_ai_danger_source, notify_onlookers).
 
-import globalState from './globalState.js'
+import { world } from './state/world.js'
 import { hexDirectionTo, hexDistance } from './geometry.js'
 import type { Critter, Obj } from './object.js'
 
 // CE actions.cc _can_see: the target is in front of the critter (its facing ±1).
 export function canSee(obj: Obj, target: Obj): boolean {
-    const dir = Math.abs(obj.orientation - hexDirectionTo(obj.position, target.position))
+    const dir = Math.abs(obj.orientation! - hexDirectionTo(obj.position, target.position))
     return [0, 1, 5].indexOf(dir) !== -1
 }
 
@@ -38,9 +38,9 @@ export function isWithinPerception(obj: Critter, target: Obj | null | undefined)
     // CE ref: combat_ai.cc:3514-3522 isWithinPerception — sneak detection tiers:
     //   dudeIsSneaking (isSneaking && sneakWorking) → ÷4 (strong path)
     //   dudeHasState(SNEAKING) (isSneaking only, roll failing) → ×2/3 (weak path)
-    const playerTarget = target === globalState.player
-    const isSneaking = playerTarget && (globalState.player as any).isSneaking === true
-    const sneakWorking = isSneaking && (globalState.player as any).sneakWorking === true
+    const playerTarget = target === world.player
+    const isSneaking = playerTarget && (world.player as any).isSneaking === true
+    const sneakWorking = isSneaking && (world.player as any).sneakWorking === true
     let reqDist
 
     if (canSee(obj, target)) {
@@ -62,7 +62,7 @@ export function isWithinPerception(obj: Critter, target: Obj | null | undefined)
     }
 
     // Hearing range — CE combat_ai.cc:3527: no OBJECT_TRANS_GLASS halving here.
-    reqDist = globalState.inCombat ? perception * 2 : perception
+    reqDist = world.inCombat ? perception * 2 : perception
 
     if (sneakWorking) {
         reqDist = Math.floor(reqDist / 4)

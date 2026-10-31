@@ -45,15 +45,21 @@ function less(a: Element, b: Element): boolean {
     const tb = elementType(b)
     if (ta !== tb) return ta < tb
     if (ta === 3) return false // pointers: no meaningful order in DH2
-    return (a as any) < (b as any)
+    return a < b
 }
 
 function listSort<T>(arr: T[], action: number, lessFn: (a: T, b: T) => boolean): void {
     const cmp = (a: T, b: T) => (lessFn(a, b) ? -1 : lessFn(b, a) ? 1 : 0)
     switch (action) {
-        case ACTION_SORT: arr.sort(cmp); break
-        case ACTION_RSORT: arr.sort((a, b) => -cmp(a, b)); break
-        case ACTION_REVERSE: arr.reverse(); break
+        case ACTION_SORT:
+            arr.sort(cmp)
+            break
+        case ACTION_RSORT:
+            arr.sort((a, b) => -cmp(a, b))
+            break
+        case ACTION_REVERSE:
+            arr.reverse()
+            break
         case ACTION_SHUFFLE: // CE: std::shuffle with a random_device seed (not the game RNG)
             for (let i = arr.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1))
@@ -76,10 +82,15 @@ interface SfallArray {
 // CE SFallArrayList
 class ListArray implements SfallArray {
     values: Element[]
-    constructor(len: number, public flags: number) {
+    constructor(
+        len: number,
+        public flags: number,
+    ) {
         this.values = new Array(len).fill(0)
     }
-    size() { return this.values.length }
+    size() {
+        return this.values.length
+    }
     getKey(index: number): Element {
         if (index < -1 || index > this.size()) return 0
         if (index === -1) return 0 // -1: "is it associative?" — no
@@ -90,7 +101,8 @@ class ListArray implements SfallArray {
         return i >= 0 && i < this.size() ? this.values[i] : 0
     }
     set(key: any, val: any): void {
-        if (typeof key === 'number' && Number.isInteger(key) && key >= 0 && key < this.size()) this.values[key] = toElement(val)
+        if (typeof key === 'number' && Number.isInteger(key) && key >= 0 && key < this.size())
+            this.values[key] = toElement(val)
     }
     resize(newLen: number): void {
         if (newLen === -1 || this.size() === newLen) return
@@ -112,7 +124,9 @@ class ListArray implements SfallArray {
 class AssocArray implements SfallArray {
     pairs: { key: Element; value: Element }[] = []
     constructor(public flags: number) {}
-    size() { return this.pairs.length }
+    size() {
+        return this.pairs.length
+    }
     private find(key: Element): number {
         return this.pairs.findIndex((p) => same(p.key, key))
     }
@@ -148,7 +162,10 @@ class AssocArray implements SfallArray {
             if (newLen < ACTION_SHUFFLE - 2) return
             let action = newLen
             let byValue = false
-            if (action < ACTION_SHUFFLE) { action += 4; byValue = true }
+            if (action < ACTION_SHUFFLE) {
+                action += 4
+                byValue = true
+            }
             listSort(this.pairs, action, byValue ? (a, b) => less(a.value, b.value) : (a, b) => less(a.key, b.key))
         }
     }
@@ -187,14 +204,31 @@ export function createTempArray(len: number, flags: number): number {
     return id
 }
 
-export function arrayKey(id: number, index: number): Element { return arrays.get(id)?.getKey(index) ?? 0 }
-export function lenArray(id: number): number { return arrays.get(id)?.size() ?? -1 }
-export function getArray(id: number, key: any): Element { return arrays.get(id)?.get(key) ?? 0 }
-export function setArray(id: number, key: any, val: any, allowUnset: boolean): void { arrays.get(id)?.set(key, val, allowUnset) }
-export function freeArray(id: number): void { arrays.delete(id); temporary.delete(id) }
-export function fixArray(id: number): void { temporary.delete(id) }
-export function resizeArray(id: number, newLen: number): void { arrays.get(id)?.resize(newLen) }
-export function scanArray(id: number, val: any): Element { return arrays.get(id)?.scan(val) ?? -1 }
+export function arrayKey(id: number, index: number): Element {
+    return arrays.get(id)?.getKey(index) ?? 0
+}
+export function lenArray(id: number): number {
+    return arrays.get(id)?.size() ?? -1
+}
+export function getArray(id: number, key: any): Element {
+    return arrays.get(id)?.get(key) ?? 0
+}
+export function setArray(id: number, key: any, val: any, allowUnset: boolean): void {
+    arrays.get(id)?.set(key, val, allowUnset)
+}
+export function freeArray(id: number): void {
+    arrays.delete(id)
+    temporary.delete(id)
+}
+export function fixArray(id: number): void {
+    temporary.delete(id)
+}
+export function resizeArray(id: number, newLen: number): void {
+    arrays.get(id)?.resize(newLen)
+}
+export function scanArray(id: number, val: any): Element {
+    return arrays.get(id)?.scan(val) ?? -1
+}
 
 /** CE DeleteAllTempArrays — after each game tick (scripts.cc scriptsHandleRequests). */
 export function deleteAllTempArrays(): void {
@@ -219,7 +253,9 @@ export function stackArray(key: any, val: any): number {
 export function arrayFromObjects(objects: object[]): number {
     const id = createTempArray(objects.length, 0)
     const arr = arrays.get(id) as ListArray
-    objects.forEach((o, i) => { arr.values[i] = o })
+    objects.forEach((o, i) => {
+        arr.values[i] = o
+    })
     return id
 }
 
@@ -228,6 +264,8 @@ export function stringSplit(str: string, split: string): number {
     const parts = split === '' ? [...str] : str.split(split)
     const id = createTempArray(parts.length, 0)
     const arr = arrays.get(id) as ListArray
-    parts.forEach((p, i) => { arr.values[i] = toElement(p) })
+    parts.forEach((p, i) => {
+        arr.values[i] = toElement(p)
+    })
     return id
 }

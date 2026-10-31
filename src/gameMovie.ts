@@ -22,12 +22,17 @@ limitations under the License.
 // to art/cuts/<name>.webm plus art/cuts/<name>.json { fps } — the MVE timer rate,
 // which is what .SVE subtitle and .CFG effect frame numbers count in.
 
-import { UIMode } from './ui_panels.js'
+import { UIMode } from './uiMode.js'
 import { Config } from './config.js'
-import globalState from './globalState.js'
+import { world } from './state/world.js'
+import { uiState } from './state/uiState.js'
+import { services } from './state/services.js'
 import { dbg, dbgWarn } from './logger.js'
 import { getFileText, parseIni } from './util.js'
 import { assetUrl } from './modAssets.js'
+import * as Events from './events.js'
+
+Events.on('loadMapPost', () => gameMovieFadeOut()) // CE map.cc mapLoad → gameMovieFadeOut
 
 // CE game_movie.h MovieId / game_movie.cc:21 gMovieFileNames
 export const MOVIE_IPLOGO = 0
@@ -49,17 +54,42 @@ export const MOVIE_ARTIMER4 = 15
 export const MOVIE_CREDITS = 16
 
 const MOVIE_FILE_NAMES = [
-    'iplogo', 'intro', 'elder', 'vsuit', 'afailed', 'adestroy', 'car', 'cartucci',
-    'timeout', 'tanker', 'enclave', 'derrick', 'artimer1', 'artimer2', 'artimer3',
-    'artimer4', 'credits',
+    'iplogo',
+    'intro',
+    'elder',
+    'vsuit',
+    'afailed',
+    'adestroy',
+    'car',
+    'cartucci',
+    'timeout',
+    'tanker',
+    'enclave',
+    'derrick',
+    'artimer1',
+    'artimer2',
+    'artimer3',
+    'artimer4',
+    'credits',
 ]
 
 // The side files Fallout 2 ships for its movies (master.dat art/cuts/*.cfg,
 // text/english/cuts/*.sve). CE simply tries to open them (moviefx.cc movieEffectsLoad,
 // movie.cc movieLoadSubtitles) and carries on without; in the browser a missing file
 // is a logged 404, so the others aren't requested at all.
-const MOVIES_WITH_EFFECTS = new Set(['afailed', 'artimer1', 'artimer2', 'artimer3', 'artimer4', 'credits',
-    'derrick', 'elder', 'tanker', 'timeout', 'vsuit'])
+const MOVIES_WITH_EFFECTS = new Set([
+    'afailed',
+    'artimer1',
+    'artimer2',
+    'artimer3',
+    'artimer4',
+    'credits',
+    'derrick',
+    'elder',
+    'tanker',
+    'timeout',
+    'vsuit',
+])
 const MOVIES_WITH_SUBTITLES = new Set(['afailed', 'artimer1', 'artimer2', 'artimer3', 'artimer4', 'credits', 'elder'])
 
 // CE game_movie.h GameMovieFlags
@@ -71,9 +101,23 @@ export const GAME_MOVIE_PAUSE_MUSIC = 0x08
 const FADE = GAME_MOVIE_FADE_IN | GAME_MOVIE_FADE_OUT | GAME_MOVIE_PAUSE_MUSIC
 // CE interpreter_extra.cc:3584 opPlayGameMovie flags[] — DERRICK (11) has no fade-out.
 export const SCRIPT_MOVIE_FLAGS = [
-    FADE, FADE, FADE, FADE, FADE, FADE, FADE, FADE, FADE, FADE, FADE,
+    FADE,
+    FADE,
+    FADE,
+    FADE,
+    FADE,
+    FADE,
+    FADE,
+    FADE,
+    FADE,
+    FADE,
+    FADE,
     GAME_MOVIE_FADE_IN | GAME_MOVIE_PAUSE_MUSIC,
-    FADE, FADE, FADE, FADE, FADE,
+    FADE,
+    FADE,
+    FADE,
+    FADE,
+    FADE,
 ]
 
 const MOVIE_W = 640
@@ -96,11 +140,19 @@ export function gameMovieIsPlaying(): boolean {
 
 // CE game_movie.cc:325 gameMovieIsSeen
 export function gameMovieIsSeen(movie: number): boolean {
-    return globalState.seenMovies.has(movie)
+    return world.seenMovies.has(movie)
 }
 
-interface Subtitle { frame: number; text: string }
-interface FadeEffect { frame: number; type: 'in' | 'out'; color: [number, number, number]; steps: number }
+interface Subtitle {
+    frame: number
+    text: string
+}
+interface FadeEffect {
+    frame: number
+    type: 'in' | 'out'
+    color: [number, number, number]
+    steps: number
+}
 
 // CE movie.cc:559 movieLoadSubtitles — "frame:text" per line.
 function loadSubtitles(name: string): Subtitle[] {
@@ -127,12 +179,17 @@ function loadEffects(name: string): FadeEffect[] {
     if (!MOVIES_WITH_EFFECTS.has(name)) return []
     try {
         const ini = parseIni(getFileText(`data/art/cuts/${name}.cfg`))
-        const frames = String(ini.info?.effect_frames ?? '').split(',').map((s) => parseInt(s, 10)).filter((n) => !isNaN(n))
+        const frames = String(ini.info?.effect_frames ?? '')
+            .split(',')
+            .map((s) => parseInt(s, 10))
+            .filter((n) => !isNaN(n))
         const out: FadeEffect[] = []
         for (const f of frames) {
             const sec = ini[String(f)]
             if (!sec) continue
-            const c = String(sec.fade_color ?? '0,0,0').split(',').map((s) => parseInt(s, 10) || 0)
+            const c = String(sec.fade_color ?? '0,0,0')
+                .split(',')
+                .map((s) => parseInt(s, 10) || 0)
             out.push({
                 frame: f,
                 type: String(sec.fade_type).trim().toLowerCase() === 'out' ? 'out' : 'in',
@@ -154,11 +211,26 @@ function loadFps(name: string): number {
     }
 }
 
+// CE game_movie.cc gGameMovieFaded / gameMovieFadeOut: after a movie that faded in and not
+// out the screen stays black; a map load (map.cc mapLoad) or the main menu fades it back.
+let fadedLayer: HTMLDivElement | null = null
+export function gameMovieFadeOut(): void {
+    const layer = fadedLayer
+    if (!layer) return
+    fadedLayer = null
+    void fadeTo(layer, 0).then(() => layer.remove())
+}
+
 function makeFadeLayer(): HTMLDivElement {
     const el = document.createElement('div')
     Object.assign(el.style, {
-        position: 'fixed', inset: '0', background: '#000', opacity: '0',
-        zIndex: '10001', pointerEvents: 'none', transition: `opacity ${FADE_MS}ms linear`,
+        position: 'fixed',
+        inset: '0',
+        background: '#000',
+        opacity: '0',
+        zIndex: '10001',
+        pointerEvents: 'none',
+        transition: `opacity ${FADE_MS}ms linear`,
     })
     document.body.appendChild(el)
     return el
@@ -182,23 +254,38 @@ export function gameMoviePlay(movie: number, flags: number): Promise<void> {
     if (name === undefined) return Promise.resolve()
     if (skipAll) {
         // what finish() does once the movie ends
-        globalState.seenMovies.add(movie)
-        if (movie === MOVIE_VSUIT) globalState.player?.updateNativeLook()
+        world.seenMovies.add(movie)
+        if (movie === MOVIE_VSUIT) world.player?.updateNativeLook()
         return Promise.resolve()
     }
     dbg('script', `[Movie] playing ${name}.mve (flags 0x${flags.toString(16)})`)
 
     playing = new Promise<void>((resolve) => {
-        const audio = globalState.audioEngine as any
+        const audio = services.audioEngine as any
         const musicEl: HTMLAudioElement | undefined = audio?.musicAudio
         const musicWasPlaying = !!musicEl && !musicEl.paused
-        const prevUiMode = globalState.uiMode
+        const prevUiMode = uiState.uiMode
         const fadeLayer = makeFadeLayer()
 
         const screen = document.createElement('div')
-        Object.assign(screen.style, { position: 'fixed', inset: '0', background: '#000', zIndex: '10000', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'none' })
+        Object.assign(screen.style, {
+            position: 'fixed',
+            inset: '0',
+            background: '#000',
+            zIndex: '10000',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'none',
+        })
         const box = document.createElement('div')
-        Object.assign(box.style, { position: 'relative', width: MOVIE_W + 'px', height: MOVIE_H + 'px', background: '#000', overflow: 'hidden' })
+        Object.assign(box.style, {
+            position: 'relative',
+            width: MOVIE_W + 'px',
+            height: MOVIE_H + 'px',
+            background: '#000',
+            overflow: 'hidden',
+        })
         const video = document.createElement('video')
         video.src = assetUrl(`art/cuts/${name}.webm`)
         video.preload = 'auto'
@@ -210,10 +297,25 @@ export function gameMoviePlay(movie: number, flags: number): Promise<void> {
         video.disablePictureInPicture = true
         ;(video as any).disableRemotePlayback = true
         video.setAttribute('controlslist', 'nodownload nofullscreen noremoteplayback')
-        Object.assign(video.style, { position: 'absolute', left: '0', width: MOVIE_W + 'px', top: '80px', height: '320px' })
+        Object.assign(video.style, {
+            position: 'absolute',
+            left: '0',
+            width: MOVIE_W + 'px',
+            top: '80px',
+            height: '320px',
+        })
         const sub = document.createElement('div')
         // CE movie.cc:629 — subtitle strip centered between the movie's bottom and 480.
-        Object.assign(sub.style, { position: 'absolute', left: '0', width: MOVIE_W + 'px', top: '408px', textAlign: 'center', color: '#fcfcfc', font: '12px monospace', textShadow: '1px 1px 0 #000' })
+        Object.assign(sub.style, {
+            position: 'absolute',
+            left: '0',
+            width: MOVIE_W + 'px',
+            top: '408px',
+            textAlign: 'center',
+            color: '#fcfcfc',
+            font: '12px monospace',
+            textShadow: '1px 1px 0 #000',
+        })
         const fx = document.createElement('div') // moviefx colour fades over the movie
         Object.assign(fx.style, { position: 'absolute', inset: '0', opacity: '0', pointerEvents: 'none' })
         box.append(video, fx, sub)
@@ -242,15 +344,23 @@ export function gameMoviePlay(movie: number, flags: number): Promise<void> {
                 document.removeEventListener('keydown', resumeListener, true)
                 screen.removeEventListener('mousedown', resumeListener)
             }
-            globalState.seenMovies.add(movie) // CE gGameMoviesSeen[movie] = 1
+            world.seenMovies.add(movie) // CE gGameMoviesSeen[movie] = 1
             // CE interpreter_extra.cc:4625 — the vault-suit movie changes the dude's look.
-            if (movie === MOVIE_VSUIT) globalState.player?.updateNativeLook()
+            if (movie === MOVIE_VSUIT) world.player?.updateNativeLook()
             if (flags & GAME_MOVIE_FADE_OUT) fadeLayer.style.opacity = '1'
             screen.remove()
-            globalState.uiMode = prevUiMode
-            if ((flags & GAME_MOVIE_PAUSE_MUSIC) && musicWasPlaying) musicEl!.play().catch(() => {})
+            uiState.uiMode = prevUiMode
+            if (flags & GAME_MOVIE_PAUSE_MUSIC && musicWasPlaying) musicEl!.play().catch(() => {})
             if (flags & GAME_MOVIE_FADE_OUT) await fadeTo(fadeLayer, 0)
-            fadeLayer.remove()
+            if (flags & GAME_MOVIE_FADE_IN && !(flags & GAME_MOVIE_FADE_OUT)) {
+                // CE gGameMovieFaded: the palette stays black until gameMovieFadeOut (the
+                // next map load) — e.g. DERRICK's FADE_IN-only flags
+                fadeLayer.style.opacity = '1'
+                fadedLayer?.remove()
+                fadedLayer = fadeLayer
+            } else {
+                fadeLayer.remove()
+            }
             playing = null
             resolve()
         }
@@ -275,13 +385,18 @@ export function gameMoviePlay(movie: number, flags: number): Promise<void> {
                 if (frame < ef.frame) continue
                 const t = ef.steps > 0 ? Math.min(1, (frame - ef.frame) / ef.steps) : 1
                 alpha = ef.type === 'in' ? 1 - t : t
-                fx.style.background = `rgb(${ef.color.map((c) => Math.round(c * 255 / 63)).join(',')})`
+                fx.style.background = `rgb(${ef.color.map((c) => Math.round((c * 255) / 63)).join(',')})`
             }
             fx.style.opacity = String(alpha)
         }
         // rAF for smooth fades; timeupdate as well so subtitles advance even when
         // rAF is throttled (background tab).
-        const tick = () => { if (!finished) { update(); requestAnimationFrame(tick) } }
+        const tick = () => {
+            if (!finished) {
+                update()
+                requestAnimationFrame(tick)
+            }
+        }
         video.addEventListener('timeupdate', update)
 
         video.addEventListener('ended', () => void finish())
@@ -293,17 +408,27 @@ export function gameMoviePlay(movie: number, flags: number): Promise<void> {
 
         const start = async () => {
             if (flags & GAME_MOVIE_STOP_MUSIC) audio?.stopMusic?.()
-            else if ((flags & GAME_MOVIE_PAUSE_MUSIC) && musicWasPlaying) musicEl!.pause()
+            else if (flags & GAME_MOVIE_PAUSE_MUSIC && musicWasPlaying) musicEl!.pause()
             if (flags & GAME_MOVIE_FADE_IN) await fadeTo(fadeLayer, 1)
             // An error during the fade-in may already have finished the movie; don't
             // put its window up afterwards (it would never be removed).
             if (finished) return
+            // a movie brings its own palette: the black left by an earlier FADE_IN-only movie goes
+            if (fadedLayer) {
+                fadedLayer.remove()
+                fadedLayer = null
+            }
             document.body.appendChild(screen)
             fadeLayer.style.opacity = '0'
-            globalState.uiMode = UIMode.movie // modal: pauses tickGame (CE isoDisable)
+            uiState.uiMode = UIMode.movie // modal: pauses tickGame (CE isoDisable)
             document.addEventListener('keydown', onInput, true)
             screen.addEventListener('mouseup', onInput, true)
-            video.volume = Math.max(0, Math.min(1, audio?.musicVolume ?? 1))
+            // CE gameMoviesInit / backgroundSoundSetVolume → movieSetVolume: the music volume
+            // × 0.94 (under the master mix), nothing when the music is off
+            const musicOn = Config.engine.soundsEnabled && Config.engine.musicEnabled
+            video.volume = musicOn
+                ? Math.max(0, Math.min(1, (audio?.musicVolume ?? 1) * 0.94 * (audio?.masterVolume ?? 1)))
+                : 0
             try {
                 await video.play()
             } catch {
@@ -318,11 +443,14 @@ export function gameMoviePlay(movie: number, flags: number): Promise<void> {
                     }
                     if (finished) return
                     sub.textContent = ''
-                    video.play().catch(() => void finish())
+                    video.play().catch((): void => void finish())
                 }
                 // The click that starts playback must not also skip the movie: its
                 // mouseup (or the key's own keydown) is swallowed, input counts again after.
-                const armSkip = () => setTimeout(() => { awaitingGesture = false }, 0)
+                const armSkip = () =>
+                    setTimeout(() => {
+                        awaitingGesture = false
+                    }, 0)
                 screen.addEventListener('mouseup', armSkip, { once: true, capture: true })
                 document.addEventListener('keyup', armSkip, { once: true, capture: true })
                 resumeListener = resume

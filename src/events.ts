@@ -16,27 +16,21 @@ limitations under the License.
 
 // Event manager
 
-export module Events {
-    export type EventHandler = (e: any) => void;
+export type EventHandler = (e: any) => void
 
-    const handlers: { [msgType: string]: EventHandler[] } = {};
+const handlers: { [msgType: string]: EventHandler[] } = {}
 
-    export function on(msgType: string, handler: EventHandler): void {
-        if(msgType in handlers)
-            handlers[msgType].push(handler);
-        else
-            handlers[msgType] = [handler];
-    }
+export function on(msgType: string, handler: EventHandler): void {
+    if (msgType in handlers) handlers[msgType].push(handler)
+    else handlers[msgType] = [handler]
+}
 
-    export function off(msgType: string, handler: EventHandler): void {
-        if (msgType in handlers)
-            handlers[msgType] = handlers[msgType].filter(h => h !== handler)
-    }
+export function off(msgType: string, handler: EventHandler): void {
+    if (msgType in handlers) handlers[msgType] = handlers[msgType].filter((h) => h !== handler)
+}
 
-    export function emit(msgType: string, msg?: any): void {
-        if(msgType in handlers) {
-            for(const handler of handlers[msgType])
-                handler(msg);
-        }
+export function emit(msgType: string, msg?: any): void {
+    if (msgType in handlers) {
+        for (const handler of handlers[msgType]) handler(msg)
     }
 }

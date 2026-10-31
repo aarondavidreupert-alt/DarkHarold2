@@ -3,10 +3,13 @@
 import { isCombatActive } from '../combat.js'
 import { Config } from '../config.js'
 import globalState from '../globalState.js'
+import { world } from '../state/world.js'
+import { uiState } from '../state/uiState.js'
 import { Critter } from '../object.js'
-import { Scripting } from '../scripting.js'
+import * as Scripting from '../scripting.js'
 import { toTileNum } from '../tile.js'
-import { UIMode, uiEndDialogue } from '../ui.js'
+import { uiEndDialogue } from '../ui.js'
+import { UIMode } from '../uiMode.js'
 import { buildReport, printSummary } from './report.js'
 import {
     COMBAT_ACTIVE_TIMEOUT_MS,
@@ -61,9 +64,9 @@ async function crawlOneNpc(npc: Critter): Promise<DialogueNpcResult> {
     }
 
     // Immediately check whether the talk proc triggered combat (rare but possible).
-    if (globalState.inCombat) {
+    if (world.inCombat) {
         result.status = 'combat-triggered'
-        globalState.combat?.forceEnd()
+        world.combat?.forceEnd()
         await waitFor(() => !isCombatActive(), COMBAT_ACTIVE_TIMEOUT_MS)
         result.durationMs = performance.now() - t0
         return result
@@ -79,9 +82,9 @@ async function crawlOneNpc(npc: Critter): Promise<DialogueNpcResult> {
     const openDeadline = performance.now() + DIALOGUE_OPEN_TIMEOUT_MS
     while (performance.now() < openDeadline) {
         stepEngine()
-        await new Promise<void>(r => setTimeout(r, DIALOGUE_POLL_MS))
-        const mode = globalState.uiMode
-        if (mode === UIMode.dialogue || globalState.inCombat) {
+        await new Promise<void>((r) => setTimeout(r, DIALOGUE_POLL_MS))
+        const mode = uiState.uiMode
+        if (mode === UIMode.dialogue || world.inCombat) {
             dialogueOpened = true
             break
         }
@@ -97,9 +100,9 @@ async function crawlOneNpc(npc: Critter): Promise<DialogueNpcResult> {
         return result
     }
 
-    if (globalState.inCombat) {
+    if (world.inCombat) {
         result.status = 'combat-triggered'
-        globalState.combat?.forceEnd()
+        world.combat?.forceEnd()
         await waitFor(() => !isCombatActive(), COMBAT_ACTIVE_TIMEOUT_MS)
         result.durationMs = performance.now() - t0
         return result
@@ -112,7 +115,7 @@ async function crawlOneNpc(npc: Critter): Promise<DialogueNpcResult> {
     // exits cleanly instead of cycling until MAX_DIALOGUE_CLICKS.
     let clicks = 0
     const visitedPerState = new Map<string, Set<string>>()
-    let loopMode: UIMode = globalState.uiMode
+    let loopMode: UIMode = uiState.uiMode
     while (loopMode === UIMode.dialogue && clicks < MAX_DIALOGUE_CLICKS) {
         const reply = getReplyText()
         if (reply && !result.replies.includes(reply)) result.replies.push(reply)
@@ -131,18 +134,21 @@ async function crawlOneNpc(npc: Critter): Promise<DialogueNpcResult> {
 
         // Per-state visited tracking.
         const hash = optEls
-            .map(el => el.textContent?.trim() ?? '').filter(Boolean).sort().join('\x00')
+            .map((el) => el.textContent?.trim() ?? '')
+            .filter(Boolean)
+            .sort()
+            .join('\x00')
         if (!visitedPerState.has(hash)) visitedPerState.set(hash, new Set())
         const visitedInState = visitedPerState.get(hash)!
 
-        const optLabels = optEls.map(el => el.textContent?.trim() ?? '')
+        const optLabels = optEls.map((el) => el.textContent?.trim() ?? '')
         const nonExitEls = optEls.filter((_, i) => !isExitOption(optLabels[i]))
-        const exitEls    = optEls.filter((_, i) =>  isExitOption(optLabels[i]))
+        const exitEls = optEls.filter((_, i) => isExitOption(optLabels[i]))
 
         // Pick: first unvisited non-exit, then first unvisited exit.
         const toClick =
-            nonExitEls.find(el => !visitedInState.has(el.textContent?.trim() ?? '')) ??
-            exitEls.find(el => !visitedInState.has(el.textContent?.trim() ?? ''))
+            nonExitEls.find((el) => !visitedInState.has(el.textContent?.trim() ?? '')) ??
+            exitEls.find((el) => !visitedInState.has(el.textContent?.trim() ?? ''))
 
         if (!toClick) {
             // Every option in this state has been visited — tree fully explored.
@@ -162,37 +168,45 @@ async function crawlOneNpc(npc: Critter): Promise<DialogueNpcResult> {
         result.optionsSeen++
 
         // Yield so deferred async work (transitions, animation callbacks) can settle.
-        await new Promise<void>(r => setTimeout(r, 0))
+        await new Promise<void>((r) => setTimeout(r, 0))
 
-        if (globalState.inCombat) {
+        if (world.inCombat) {
             result.status = 'combat-triggered'
-            globalState.combat?.forceEnd()
+            world.combat?.forceEnd()
             await waitFor(() => !isCombatActive(), COMBAT_ACTIVE_TIMEOUT_MS)
             break
         }
 
         // Re-read after yielding — TypeScript would narrow the old variable.
-        loopMode = globalState.uiMode
+        loopMode = uiState.uiMode
 
         // Barter mode is a valid terminal state — dismiss and stop.
         if (loopMode === UIMode.barter) {
             uiEndDialogue()
-            await new Promise<void>(r => setTimeout(r, 0))
+            await new Promise<void>((r) => setTimeout(r, 0))
             break
         }
     }
 
-    if (clicks >= MAX_DIALOGUE_CLICKS && globalState.uiMode === UIMode.dialogue) {
+    if (clicks >= MAX_DIALOGUE_CLICKS && uiState.uiMode === UIMode.dialogue) {
         result.status = 'stuck-max-clicks'
-        try { Scripting.dialogueEnd() } catch { /* best-effort cleanup */ }
-        await waitFor(() => globalState.uiMode === UIMode.none, 2000)
+        try {
+            Scripting.dialogueEnd()
+        } catch {
+            /* best-effort cleanup */
+        }
+        await waitFor(() => uiState.uiMode === UIMode.none, 2000)
     }
 
     // Final sanity: uiMode must be none after a successful run.
-    if (result.status === 'ok' && globalState.uiMode !== UIMode.none) {
+    if (result.status === 'ok' && uiState.uiMode !== UIMode.none) {
         result.status = 'stuck-no-exit'
-        try { Scripting.dialogueEnd() } catch { /* best-effort cleanup */ }
-        await waitFor(() => globalState.uiMode === UIMode.none, 2000)
+        try {
+            Scripting.dialogueEnd()
+        } catch {
+            /* best-effort cleanup */
+        }
+        await waitFor(() => uiState.uiMode === UIMode.none, 2000)
     }
 
     result.durationMs = performance.now() - t0
@@ -204,22 +218,22 @@ export async function runDialogueCrawler(mapName?: string): Promise<CrawlerRepor
         console.error('[AutoCrawler] Config.engine.debug must be true')
         return null
     }
-    if (!globalState.gMap || !globalState.player) {
+    if (!world.gMap || !world.player) {
         console.error('[AutoCrawler] No active map/player — start a game first')
         return null
     }
 
     if (mapName) {
         console.log(`[AutoCrawler] Loading map: ${mapName}`)
-        globalState.gMap.loadMap(mapName)
-        if (!await waitFor(() => !globalState.isLoading, 30000)) {
+        world.gMap.loadMap(mapName)
+        if (!(await waitFor(() => !globalState.isLoading, 30000))) {
             console.error('[AutoCrawler] Map load timed out — aborting')
             return null
         }
     }
 
     const npcs = listTalkableNPCs()
-    const mapLabel = globalState.gMap.name ?? 'unknown'
+    const mapLabel = world.gMap.name ?? 'unknown'
     console.log(`[AutoCrawler] Dialogue crawl on "${mapLabel}": ${npcs.length} talkable NPC(s)`)
 
     // Silence noisy logs for the duration of the crawl.
@@ -237,8 +251,10 @@ export async function runDialogueCrawler(mapName?: string): Promise<CrawlerRepor
             const r = await crawlOneNpc(npc)
             results.push(r)
             setLastReport(buildReport('dialogue', mapLabel, results))
-            console.log(`[AutoCrawler]     → status=${r.status}  options=${r.optionsSeen}  ${r.durationMs.toFixed(0)}ms`)
-            await new Promise<void>(r2 => setTimeout(r2, 20))
+            console.log(
+                `[AutoCrawler]     → status=${r.status}  options=${r.optionsSeen}  ${r.durationMs.toFixed(0)}ms`,
+            )
+            await new Promise<void>((r2) => setTimeout(r2, 20))
         }
     } finally {
         Config.scripting.debugLogShowType.stub = prevStub

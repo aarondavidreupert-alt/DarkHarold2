@@ -12,12 +12,12 @@
 `raw/fallout2-ce/src/proto_types.h` (item type enum),
 `raw/fallout2-ce/src/game_vars.h` (GVAR constants),
 `raw/fallout2-ce/src/interpreter_extra.cc` (`opSetGlobalVar`, `opAddObjectToInventory`)  
-**DH2 ref:** `src/ui_pipboy/shell.ts` (`openPipBoy`, `closePipBoy`, `togglePipBoy`),
-`src/ui_pipboy/tabs/status.ts` (`renderStatusTab`),
-`src/ui_pipboy/tabs/automaps.ts` (`renderAutomapsTab`),
-`src/ui_pipboy/tabs/archives.ts` (`renderArchivesTab`),
+**DH2 ref:** `src/uiPipBoy/shell.ts` (`openPipBoy`, `closePipBoy`, `togglePipBoy`),
+`src/uiPipBoy/tabs/status.ts` (`renderStatusTab`),
+`src/uiPipBoy/tabs/automaps.ts` (`renderAutomapsTab`),
+`src/uiPipBoy/tabs/archives.ts` (`renderArchivesTab`),
 `src/automapData.ts` (`markSeenAt`, `getArchivedMaps`,
-`drawAutomapInto`, `snapshotCurrentMapObjects`), `src/ui_automap.ts`,
+`drawAutomapInto`, `snapshotCurrentMapObjects`), `src/uiAutomap.ts`,
 `src/input.ts` (keyboard trigger),
 `src/object/Obj.ts` (`Obj.use()` — misc item use path),
 `src/pro.ts` (`getPROSubTypeName` — misc subtype mapping),
@@ -50,7 +50,7 @@
 
 ### 1.2 DH2
 
-`togglePipBoy()` / `openPipBoy()` in `src/ui_pipboy/shell.ts`, triggered by `Config.controls.pipboy` (`src/input.ts`) or the HUD button.
+`togglePipBoy()` / `openPipBoy()` in `src/uiPipBoy/shell.ts`, triggered by `Config.controls.pipboy` (`src/input.ts`) or the HUD button.
 
 - CE `pipboyOpen` gate: until the Vault Suit movie (`MOVIE_VSUIT`) has been seen, "You aren't wearing the pipboy!" (misc.msg 7000) and nothing opens. The sfall option `pipboy_available_at_game_start` is `fallout2.cfg [dh2] pipboy_available_at_game_start=1` (`Config.engine.pipboyAvailableAtStart`).
 - Appends a `640×480` div with `pip.png`, the red-dot tab buttons (STATUS, AUTOMAPS, ARCHIVES, CLOSE), the date/time bar; opens on STATUS; resets `_rest_time`.
@@ -75,7 +75,7 @@ CE has 4 physical tab buttons (index 1 is a spacer with no button):
 Plus a separate alarm bell button in the date/time bar at the top (key code 504), which
 also opens the alarm clock / rest screen.
 
-DH2 has the same four buttons and the alarm bell (`src/ui_pipboy/shell.ts`, tabs in `src/ui_pipboy/tabs/`): STATUS (quests and holodisks), AUTOMAPS, ARCHIVES (video archives) and ALARM CLOCK (rest) — see §9.
+DH2 has the same four buttons and the alarm bell (`src/uiPipBoy/shell.ts`, tabs in `src/uiPipBoy/tabs/`): STATUS (quests and holodisks), AUTOMAPS, ARCHIVES (video archives) and ALARM CLOCK (rest) — see §9.
 
 ---
 
@@ -105,7 +105,7 @@ at 35 lines per page with "MORE" / "DONE" navigation.
 not the STATUS tab. There is no HP bar, level, XP, conditions (poison/rad), addictions,
 or any other character stat visible in the CE Pip-Boy content area.
 
-### 3.2 DH2 (`src/ui_pipboy/tabs/status.ts`)
+### 3.2 DH2 (`src/uiPipBoy/tabs/status.ts`)
 
 As CE `pipboyWindowHandleStatus` (2026-10-17):
 - Left: STATUS (pipboy.msg 202) and the quest locations (map.msg names) with at least one quest at or past its display threshold; "no quests" (203) when there are none.
@@ -152,7 +152,7 @@ screen. The Pip-Boy view always uses a fixed render.
 `automapSaveCurrent()` (`automap.cc:683`) is called when the player leaves a map: writes
 the current map+elevation's tile data to AUTOMAP.DB and updates the header offsets.
 
-### 4.2 DH2 (`renderAutomapsTab`, `ui_pipboy.ts–544`; `automapData.ts`)
+### 4.2 DH2 (`renderAutomapsTab`, `uiPipBoy.ts–544`; `automapData.ts`)
 
 DH2 does not have AUTOMAP.DB or the CE FRM-based renderer. Instead it tracks which hex
 tiles the player has seen (`markSeenAt`) and renders them as coloured pixels on a canvas.
@@ -176,7 +176,7 @@ tiles the player has seen (`markSeenAt`) and renders them as coloured pixels on 
    overlay (walls=grey, doors=orange, scenery=blue, items=yellow, critters=red), player
    marker (yellow cross), zoom label, tile count, and legend.
 
-Zoom/pan: `getAutomapZoom()` / `zoomIn()` / `zoomOut()` from `src/ui_automap.ts`;
+Zoom/pan: `getAutomapZoom()` / `zoomIn()` / `zoomOut()` from `src/uiAutomap.ts`;
 drag-pan via `attachAutomapDragPan()`; mouse-wheel zoom via `attachAutomapWheelZoom()`.
 
 **Gap vs CE:** DH2 has no AUTOMAP.DB; no FRM-based rendering; no high/low detail toggle.
@@ -187,7 +187,7 @@ whereas CE's `automapSaveCurrent` captures the full level tile data on exit.
 
 ## 5. ARCHIVES Tab — Video Archives
 
-The ARCHIVES dot opens CE's VIDEO ARCHIVES (`pipboyHandleVideoArchive` / `pipboyRenderVideoArchive`, `pipboy.cc:1673–1765`; `src/ui_pipboy/tabs/archives.ts`): every movie 2–15 the player has seen (pipboy.msg 500 + movie, header 206); clicking one replays it with FADE_IN | FADE_OUT | PAUSE_MUSIC. The quest log is on the STATUS page, as in CE (§3).
+The ARCHIVES dot opens CE's VIDEO ARCHIVES (`pipboyHandleVideoArchive` / `pipboyRenderVideoArchive`, `pipboy.cc:1673–1765`; `src/uiPipBoy/tabs/archives.ts`): every movie 2–15 the player has seen (pipboy.msg 500 + movie, header 206); clicking one replays it with FADE_IN | FADE_OUT | PAUSE_MUSIC. The quest log is on the STATUS page, as in CE (§3).
 
 ---
 
@@ -216,7 +216,7 @@ The ARCHIVES dot opens CE's VIDEO ARCHIVES (`pipboyHandleVideoArchive` / `pipboy
 
 ### 7.2 DH2
 
-Bell button in the date/time bar → `toggleWaitMenu()` (`src/ui_pipboy/shell.ts`), ported 2026-10-17:
+Bell button in the date/time bar → `toggleWaitMenu()` (`src/uiPipBoy/shell.ts`), ported 2026-10-17:
 - `critterCanDudeRest()` (CE `_critter_can_obj_dude_rest`): a living critter whose `whoHitMe` is the dude blocks resting; where maps.txt `can_rest_here` forbids it for the elevation (`mapCanRestHere`, `src/data.ts`), every living critter of another team blocks it too → `iisxxxx1` + "You cannot rest at this location!" (215).
 - ALARM CLOCK (300), "Hit Points cur/max" (301), options 302–314; 315 (until the party is healed) only with a party member rest can heal (living, visible, not a robot, wounded).
 - `pipboyRest(hours, minutes, duration)`: the CE frame loop (≈20 fps over `minutes / 1440 × 3.5 + 0.25` s), time set per frame so queued events fire on the way; `_Check4Health`: every 180 minutes rested, `_partyMemberRestingHeal` — the dude and every party member heal their Healing Rate. "Until healed": `wound / Healing Rate × 3` hours in ≤ 24 h chunks, then 3-hour steps until the dude (and with 315 the party) is full.
