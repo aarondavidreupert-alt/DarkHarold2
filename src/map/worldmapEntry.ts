@@ -44,13 +44,26 @@ export function worldmapExitEntry(map: MapJSON, elevation: number): { position: 
     const start = map.startPosition
     const near = grid.reduce((a, b) => (hexDistance(b, start) < hexDistance(a, start) ? b : a))
     const gridDistance = (p: Point) => Math.min(...grid.map((g) => hexDistance(g, p)))
-    const inside = startArea(objects, start)
+    const walls = scrollBlockers(objects)
+    const inside = startArea(walls, start)
 
-    // from that grid hex towards the header start: the first free hex not next to the grid,
-    // inside the start's scroll-blocker ring
-    let p = near
-    for (let i = 0; i < 40 && hexDistance(p, start) > 0; i++) {
+    // the hexes from that grid hex towards the header start
+    const path: Point[] = []
+    for (let p = near; path.length < 200 && hexDistance(p, start) > 0;) {
         p = hexInDirection(p, hexDirectionTo(p, start))
+        path.push(p)
+    }
+    // the first free hex not next to the grid, inside the start's scroll-blocker ring and past
+    // the last scroll blocker on the way: an open blocker line (San Francisco Chinatown's V)
+    // leaves both sides one area, and the view could not scroll from the entry over it (CA85)
+    let from = 0
+    path.forEach((p, i) => {
+        if (walls.has(p.x + p.y * 200)) {
+            from = i + 1
+        }
+    })
+    for (let i = from; i < path.length; i++) {
+        const p = path[i]
         if (gridDistance(p) >= 2 && !blocked.has(key(p)) && inside.has(p.x + p.y * 200)) {
             return { position: p, orientation: hexDirectionTo(near, p) }
         }
@@ -58,14 +71,17 @@ export function worldmapExitEntry(map: MapJSON, elevation: number): { position: 
     return null
 }
 
-// The hexes the view centre can reach from the header start: hex neighbours not through a
-// scroll blocker (the whole grid on a map without blockers).
-function startArea(objects: MapObjectJSON[], start: Point): Set<number> {
-    const walls = new Set(
+function scrollBlockers(objects: MapObjectJSON[]): Set<number> {
+    return new Set(
         objects
             .filter((o) => o.pid === SCROLL_BLOCKER_PID && o.position)
             .map((o) => o.position!.x + o.position!.y * 200),
     )
+}
+
+// The hexes the view centre can reach from the header start: hex neighbours not through a
+// scroll blocker (the whole grid on a map without blockers).
+function startArea(walls: Set<number>, start: Point): Set<number> {
     const area = new Set([start.x + start.y * 200])
     const stack = [start]
     while (stack.length > 0) {
