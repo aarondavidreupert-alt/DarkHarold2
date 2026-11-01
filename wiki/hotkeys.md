@@ -63,7 +63,7 @@ Cases are case-insensitive (CE handles both `KEY_UPPERCASE_X` and `KEY_LOWERCASE
 | `O` / `o` | Open options menu | `game.cc:643` |
 | `Escape` | Open options menu (same as O) | `game.cc:643` |
 | `Tab` | Open automap overlay (blocked if Alt held) | `game.cc:585` |
-| `Home` | Center viewport on player / snap to player elevation | `game.cc:738` |
+| `Home` | Scroll the view to the player (stops at a scroll blocker) / snap to player elevation | `game.cc:738` `_tile_scroll_to(gDude->tile, 2)` |
 | `Ctrl+P` | Pause game | `game.cc:593` |
 | `Ctrl+Q` / `Ctrl+X` / `F10` | Quit game (confirmation dialog) | `game.cc:579` |
 

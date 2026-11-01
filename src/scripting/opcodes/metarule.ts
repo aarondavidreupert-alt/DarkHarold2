@@ -10,7 +10,7 @@ import { SKILL_NAMES } from '../../skills.js'
 import * as SfallArrays from '../../sfallArrays.js'
 import * as Worldmap from '../../worldmap.js'
 import { areaContainingMap, lookupMapName } from '../../data.js'
-import { centerCamera } from '../../renderer.js'
+import { tileSetCenterChecked } from '../../render/camera.js'
 import { dbg, dbgWarn } from '../../logger.js'
 import { drawAC } from '../../hudRefresh.js'
 import { fromTileNum } from '../../tile.js'
@@ -307,10 +307,9 @@ export const metaruleOpcodes = {
                 return 0
             }
             case 108: {
-                // CE ref: interpreter_extra.cc:2045 METARULE3_TILE_SET_CENTER
-                // Centers the game camera on the given tile number.
-                centerCamera(fromTileNum(obj as number))
-                return 0
+                // CE ref: interpreter_extra.cc:2045 METARULE3_TILE_SET_CENTER —
+                // tileSetCenter(tile, REFRESH_WINDOW): the scroll checks stay on (CA81)
+                return tileSetCenterChecked(fromTileNum(obj as number))
             }
             case 109: {
                 // METARULE3_109 (chem use preference) — CE ref: combat_ai.cc:804

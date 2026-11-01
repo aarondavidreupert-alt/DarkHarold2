@@ -30,7 +30,7 @@ import { UIMode } from './uiMode.js'
 import { uiLog } from './messageLog.js'
 import { getMessage } from './util.js'
 import { showAlert } from './uiDialog.js'
-import { centerCamera } from './render/camera.js'
+import { tileScrollTo } from './render/camera.js'
 import { showInventory } from './uiInventory.js'
 import { showCharacterScreen } from './uiCharacter.js'
 import { showOptionsMenu, changeBrightness, quitConfirmation } from './uiOptions.js'
@@ -161,13 +161,14 @@ function changeMasterVolume(dir: 1 | -1): void {
     savePreferences()
 }
 
-// CE KEY_HOME: back to the dude's elevation and scroll to him
+// CE game.cc KEY_HOME: back to the dude's elevation and _tile_scroll_to(dude, 2) — the centre
+// walks toward him with the scroll checks on and stops at a scroll blocker (known_bugs CA81)
 function centerOnDude(): void {
     const p = world.player
     const map = world.gMap
     if (!p || !map) return
     if ((p.elevation ?? map.currentElevation) !== map.currentElevation) map.changeElevation(p.elevation ?? 0, true)
-    centerCamera(p.position)
+    tileScrollTo(p.position)
 }
 
 const SKILL_KEYS: { [k: string]: Skills } = {

@@ -995,6 +995,20 @@ export function centerCamera(around: Point) {
     else clampCameraPosition()
 }
 
+// CE tile.cc tileSetCenter(tile, TILE_SET_CENTER_REFRESH_WINDOW): the checks on, the move
+// refused whole (a script's tile_set_center). Returns CE's 0 / -1.
+export function tileSetCenterChecked(around: Point): number {
+    if (Config.ui.scrollBounds === 'ce' && !window.borderDebug && _ceCentre) {
+        const scr = hexToScreen(around.x, around.y)
+        if (blockerAtCentre(scr.x, scr.y) || playerLimitRefuses(_ceCentre.x, _ceCentre.y, scr.x, scr.y)) {
+            logScroll('refused: tile_set_center', { tile: hexTag(scr.x, scr.y) })
+            return -1
+        }
+    }
+    centerCamera(around)
+    return 0
+}
+
 // CE tile.cc _tile_scroll_to(tile, 2): the centre walks toward the tile and stops at the
 // first centre tileSetCenter refuses (a scroll blocker, the player limit) — the checks stay
 // on, unlike centerCamera (CE turns them off only for move_to and a map load)
