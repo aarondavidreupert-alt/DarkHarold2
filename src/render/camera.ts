@@ -800,6 +800,28 @@ function blockerAtCentre(cx: number, cy: number): boolean {
     return _blockerHexes.has(tile)
 }
 
+// [dh2] scroll_return=1: a centre outside the player's blocker-enclosed area (the player
+// walked across a blocker line, or arrived beyond one: Klamath Canyon from Downtown, ncr1
+// from ncr2) may cross blockers on a step that brings it closer to the player, never on
+// one away from them; back in the player's area, the blockers hold again. CE leaves the
+// view behind the wall (known_bugs CA83).
+function returnsToPlayer(cx: number, cy: number, nx: number, ny: number): boolean {
+    if (!Config.ui.scrollReturn) {
+        return false
+    }
+    const p = world.player?.position
+    if (!p) {
+        return false
+    }
+    const pa = areaAt(p.x, p.y)
+    const h = hexFromScreen(cx, cy)
+    if (pa === -1 || areaAt(h.x, h.y) === pa) {
+        return false
+    }
+    const d = hexToScreen(p.x, p.y)
+    return Math.hypot(d.x - nx, d.y - ny) < Math.hypot(d.x - cx, d.y - cy)
+}
+
 // A sample step is refused when it enters another blocker hex. CE checks only the tile a
 // whole 32×24 step lands on, so a centre on a blocker (the map centred on a player standing
 // on one, e.g. arbridge's camera corridor) can step off it; walking the move in 8 px samples
@@ -954,7 +976,7 @@ function clampCameraCE(ignoreRestrictions: boolean): void {
                 const step = Math.sign(left) * Math.min(Math.abs(left), CE_SCROLL_SAMPLE)
                 let nx = axis === 'x' ? cx + step : cx
                 let ny = axis === 'y' ? cy + step : cy
-                if (blockerEntered(cx, cy, nx, ny)) {
+                if (blockerEntered(cx, cy, nx, ny) && !returnsToPlayer(cx, cy, nx, ny)) {
                     const slid = slideOffBlocker(cx, cy, nx, ny, axis)
                     if (!slid) {
                         logScroll('refused: scroll blocker', { centre: hexTag(cx, cy), into: hexTag(nx, ny), axis })

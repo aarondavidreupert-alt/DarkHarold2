@@ -107,6 +107,11 @@ export const Config = {
         // the blocker ring / black border allow. fallout2.cfg [dh2]
         // scroll_player_limit=0|1, console setScrollPlayerLimit(on).
         scrollPlayerLimit: true,
+        // scroll_bounds=ce: a view centre in another scroll-blocker area than the player (the
+        // player walked across a blocker line, or arrived beyond one) may cross blockers on a
+        // move toward the player, never away. DH2 addition (CE leaves the view stuck).
+        // fallout2.cfg [dh2] scroll_return=0|1.
+        scrollReturn: true,
         // No critter (player or NPC) paths from inside the black map border to outside
         // it (map/pathfinder.ts). DH2 addition. fallout2.cfg [dh2] walk_limit=0|1.
         walkLimitToBorder: true,

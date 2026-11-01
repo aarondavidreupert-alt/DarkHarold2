@@ -164,6 +164,12 @@ export function applyCfg(cfg: CfgSections): void {
     //                          blocker ring and the black border still stop the view
     const spl = int(dh2['scroll_player_limit'])
     if (spl !== null) Config.ui.scrollPlayerLimit = spl !== 0
+    //   scroll_return=0  a view behind a scroll-blocker wall from the player stays there (CE;
+    //                    default 1: it may cross blockers toward the player, never away)
+    const sr = int(dh2['scroll_return'])
+    if (sr !== null) {
+        Config.ui.scrollReturn = sr !== 0
+    }
     //   walk_limit=0  critters may walk past the black map border (default 1: they stop at it)
     const wl = int(dh2['walk_limit'])
     if (wl !== null) Config.ui.walkLimitToBorder = wl !== 0

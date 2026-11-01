@@ -70,6 +70,17 @@ inside the border, so all exits stay reachable: of all map elevations only `ncr2
 480×400 px player limit: the view then goes as far as the ring and the black border
 allow. known_bugs RD20.
 
+`[dh2] scroll_return=1` (default; a DH2 addition): scroll blockers do not stop the player
+from walking, so the player can cross a blocker line the view cannot (Klamath Downtown's
+exit side, or a map transition that arrives beyond one). A view centre in another
+blocker-enclosed area than the player may then cross blockers on a step that brings it
+closer to the player, never on one away from them; back in the player's area the blockers
+hold again, and Home always reaches the player. `=0`: CE, the view stays behind the wall.
+An audit of the vanilla maps (2026-11-01) found the view and the player always arrive in
+the same area, but six exit-grid targets lie outside the target map's start area
+(broken1/2 → broken2, kladwtwn → klacanyn, modgard/modmain → modinn, ncr2 → ncr1), where
+walking into the main playfield leaves a CE view behind. known_bugs CA83.
+
 ## The core question: where does CE store "map bounds"?
 
 **It doesn't.** This is the key finding of the deep dive. CE has *no* per-map

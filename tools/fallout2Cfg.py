@@ -214,6 +214,9 @@ scroll_bounds=ce
 ; 1 = with scroll_bounds=ce the view stays within 480x400 px of the player (CE), 0 = it goes
 ; as far as the blocker ring and the black border allow (console setScrollPlayerLimit)
 scroll_player_limit=1
+; 1 = a view behind a scroll-blocker wall from the player may cross blockers on its way back
+; to the player (never away from them), 0 = CE: it stays behind the wall
+scroll_return=1
 ; 1 = no one (player or NPC) walks past the black border around the map, 0 = no such limit
 walk_limit=1
 """
