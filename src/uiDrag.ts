@@ -22,6 +22,41 @@ visible within the parent.
 
 import { Config, DragWindow } from './config.js'
 
+const POINTER_CURSORS = new Set(['pointer', 'grab'])
+
+// The selectors of the stylesheet rules that set a pointer / grab cursor (read once, on
+// the first press, when the stylesheets have loaded)
+let pointerSelectors: string[] | null = null
+function pointerRuleSelectors(): string[] {
+    if (pointerSelectors) {
+        return pointerSelectors
+    }
+    const out: string[] = []
+    for (const sheet of Array.from(document.styleSheets)) {
+        let rules: CSSRuleList
+        try {
+            rules = sheet.cssRules
+        } catch {
+            continue // a cross-origin sheet (fonts)
+        }
+        for (const r of Array.from(rules)) {
+            if (r instanceof CSSStyleRule && POINTER_CURSORS.has(r.style.cursor)) {
+                out.push(r.selectorText)
+            }
+        }
+    }
+    pointerSelectors = out
+    return out
+}
+
+function matchesSafe(el: HTMLElement, selector: string): boolean {
+    try {
+        return el.matches(selector)
+    } catch {
+        return false
+    }
+}
+
 function isInteractiveDescendant(target: EventTarget | null, root: HTMLElement): boolean {
     let el: HTMLElement | null = target as HTMLElement | null
     while (el && el !== root) {
@@ -39,9 +74,11 @@ function isInteractiveDescendant(target: EventTarget | null, root: HTMLElement):
             tag === 'CANVAS'
         )
             return true
-        // Honor `cursor: pointer` as a hint that this child is clickable
-        const cs = window.getComputedStyle(el)
-        if (cs.cursor === 'pointer' || cs.cursor === 'grab') return true
+        // Honor `cursor: pointer` as a hint that this child is clickable. Read from the inline
+        // style and the matching stylesheet rules, not the computed cursor: ui.css forces CE's
+        // arrow on every element (!important), which hid every button from this check — a
+        // press on a dialog's Yes started a drag (known_bugs CA84)
+        if (POINTER_CURSORS.has(el.style.cursor) || pointerRuleSelectors().some((s) => matchesSafe(el!, s))) return true
         el = el.parentElement
     }
     return false
@@ -66,9 +103,15 @@ export function makePanelDraggable(elem: HTMLElement, kind: DragWindow): void {
         startMouseY = e.clientY
         // Read current offset from the element itself — parse inline styles
         // or fall back to offsetLeft/Top which is relative to offsetParent.
+        // A panel placed by its parent's layout (a dialog box centred by its flex overlay,
+        // position: relative, no left / top) starts at offset 0: offsetLeft / Top would move
+        // it that far again — down to the lower right (CA84)
         const cs = window.getComputedStyle(elem)
-        startLeft = parseFloat(cs.left) || elem.offsetLeft || 0
-        startTop = parseFloat(cs.top) || elem.offsetTop || 0
+        const relative = cs.position === 'relative'
+        const left = parseFloat(cs.left)
+        const top = parseFloat(cs.top)
+        startLeft = !isNaN(left) ? left : relative ? 0 : elem.offsetLeft
+        startTop = !isNaN(top) ? top : relative ? 0 : elem.offsetTop
         e.preventDefault()
     }
 
