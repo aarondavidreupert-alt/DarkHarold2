@@ -99,6 +99,34 @@ export function getWorldViewHeight(): number {
     return SCREEN_HEIGHT / getZoom()
 }
 
+// CE map.cc: the iso window is the screen minus the interface bar (screenGetVisibleHeight =
+// height − INTERFACE_BAR_HEIGHT 100), and its centre is the view centre — the centre tile,
+// tileSetCenter's 480 / 400 px limit from the dude, the scroll-blocker test. DH2's canvas
+// runs on under the HUD, so the canvas centre sat half a HUD below the map's: the limits
+// and the black border were off-centre vertically (known_bugs CA79). In world px.
+const CE_INTERFACE_BAR_HEIGHT = 100
+function hudWorldHeight(): number {
+    if (typeof document === 'undefined') {
+        return 0
+    }
+    const bar = document.getElementById('bar')
+    const cnv = document.getElementById('cnv')
+    let px = CE_INTERFACE_BAR_HEIGHT
+    if (bar && cnv) {
+        const b = bar.getBoundingClientRect()
+        const c = cnv.getBoundingClientRect()
+        // the bar's height over the canvas, in canvas px
+        if (b.height > 0 && c.height > 0) {
+            px = Math.max(0, Math.min(b.bottom, c.bottom) - b.top) * (SCREEN_HEIGHT / c.height)
+        }
+    }
+    return px / getZoom()
+}
+/** The view centre's offset from the camera's top-left: the middle of the map above the HUD. */
+export function viewCentreOffset(): Point {
+    return { x: getWorldViewWidth() / 2, y: (getWorldViewHeight() - hudWorldHeight()) / 2 }
+}
+
 // CE ref: tile.cc:461 tileSetBorder() — border margins computed at 640×380
 // (ORIGINAL_ISO_WINDOW_WIDTH/HEIGHT) regardless of actual viewport size. The
 // CE comment says: "For now keep borders for original resolution."
@@ -725,8 +753,9 @@ function blockerAtCentre(cx: number, cy: number): boolean {
 // a script's tile_set_center / move_to (CE turns the checks off around move_to
 // and on map load) — only the grid border applies.
 function clampCameraCE(ignoreRestrictions: boolean): void {
-    const halfW = getWorldViewWidth() / 2
-    const halfH = getWorldViewHeight() / 2
+    const centre = viewCentreOffset()
+    const halfW = centre.x
+    const halfH = centre.y
     let cx = view.cameraPosition.x + halfW
     let cy = view.cameraPosition.y + halfH
 
@@ -769,10 +798,9 @@ function clampCameraCE(ignoreRestrictions: boolean): void {
 
 // [dh2] scroll_bounds=dh2: the older clamp to a rectangle (getActiveScrollLimits).
 function clampCameraDH2(): void {
-    const viewW = getWorldViewWidth()
-    const viewH = getWorldViewHeight()
-    const halfW = viewW / 2
-    const halfH = viewH / 2
+    const centre = viewCentreOffset()
+    const halfW = centre.x
+    const halfH = centre.y
 
     const prevX = view.cameraPosition.x
     const prevY = view.cameraPosition.y
@@ -821,20 +849,17 @@ export function setCenterTile() {
 }
 
 export function getCenterTile(): Point {
-    return hexFromScreen(
-        view.cameraPosition.x + getWorldViewWidth() / 2,
-        view.cameraPosition.y + getWorldViewHeight() / 2,
-    )
+    const centre = viewCentreOffset()
+    return hexFromScreen(view.cameraPosition.x + centre.x, view.cameraPosition.y + centre.y)
 }
 
 export function centerCamera(around: Point) {
     const scr = hexToScreen(around.x, around.y)
     // The visible world region shrinks as zoom grows, so divide by zoom
     // when offsetting from the target to the top-left camera anchor.
-    const viewW = getWorldViewWidth()
-    const viewH = getWorldViewHeight()
-    view.cameraPosition.x = (scr.x - viewW / 2) | 0
-    view.cameraPosition.y = (scr.y - viewH / 2) | 0
+    const centre = viewCentreOffset()
+    view.cameraPosition.x = (scr.x - centre.x) | 0
+    view.cameraPosition.y = (scr.y - centre.y) | 0
     if (Config.ui.scrollBounds === 'ce' && !window.borderDebug) clampCameraCE(true)
     else clampCameraPosition()
 }
@@ -844,8 +869,9 @@ export function centerCamera(around: Point) {
 // on, unlike centerCamera (CE turns them off only for move_to and a map load)
 export function tileScrollTo(around: Point): void {
     const scr = hexToScreen(around.x, around.y)
-    view.cameraPosition.x = (scr.x - getWorldViewWidth() / 2) | 0
-    view.cameraPosition.y = (scr.y - getWorldViewHeight() / 2) | 0
+    const centre = viewCentreOffset()
+    view.cameraPosition.x = (scr.x - centre.x) | 0
+    view.cameraPosition.y = (scr.y - centre.y) | 0
     clampCameraPosition()
 }
 

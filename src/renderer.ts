@@ -50,6 +50,7 @@ import {
     worldToScreen,
     getWorldViewWidth,
     getWorldViewHeight,
+    viewCentreOffset,
 } from './render/camera.js'
 
 // Camera/zoom/screen helpers live in render/camera.ts per
@@ -376,8 +377,9 @@ export class Renderer {
             this.renderText('mt: ' + mouseSquare.x + ',' + mouseSquare.y, 225, 15)
             this.renderText('m: ' + mousePos[0] + ', ' + mousePos[1], 325, 15)
             this.renderText('lit: ' + _hudLit, 5, 30)
-            const _ctrX = Math.round(view.cameraPosition.x + getWorldViewWidth() / 2)
-            const _ctrY = Math.round(view.cameraPosition.y + getWorldViewHeight() / 2)
+            const _ctr = viewCentreOffset()
+            const _ctrX = Math.round(view.cameraPosition.x + _ctr.x)
+            const _ctrY = Math.round(view.cameraPosition.y + _ctr.y)
             this.renderText('ctr: ' + _ctrX + ',' + _ctrY + '  zoom:' + (view.cameraZoom || 1).toFixed(2), 5, 45)
             const _b = window.mapContentBounds
             if (_b) {
