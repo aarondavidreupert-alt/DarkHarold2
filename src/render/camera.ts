@@ -601,6 +601,10 @@ export function scrollDebug() {
     out.centreOffset = { x: Math.round(c.x), y: Math.round(c.y) }
     out.centre = hexTag(cam.x + c.x, cam.y + c.y)
     out.blockers = _blockerHexes.size
+    if (p) {
+        const h = hexFromScreen(cam.x + c.x, cam.y + c.y)
+        out.areas = { player: areaAt(p.x, p.y), centre: areaAt(h.x, h.y) } // -1: on a blocker
+    }
     out.reach = scrollReach()
     if (ob) {
         out.barsPx = {
@@ -821,7 +825,57 @@ function slideOffBlocker(cx: number, cy: number, nx: number, ny: number, axis: '
 }
 
 // DH2 console scrollLog(): one line when a scroll is refused or the map centres the view
-export const scrollLogState = { on: false, last: '' }
+// on across reloads (localStorage, a per-browser debug switch)
+export const scrollLogState = { on: readScrollLogSwitch(), last: '' }
+
+function readScrollLogSwitch(): boolean {
+    try {
+        return typeof localStorage !== 'undefined' && localStorage.getItem('dh2.scrollLog') === '1'
+    } catch {
+        return false
+    }
+}
+
+// The blocker-enclosed area (computeScrollBlockerBounds) of a hex; -1 on a blocker.
+function areaAt(x: number, y: number): number {
+    return _hexArea.length === 40000 ? _hexArea[x + y * 200] : -1
+}
+
+// scrollLog(): warn when the view centre moves into another blocker-enclosed area than
+// the player's (the view stranded behind a scroll-blocker wall), with the call stack.
+let _centreWithPlayer = true
+function checkCentreArea(fromX: number, fromY: number, cx: number, cy: number, how: string): void {
+    if (!scrollLogState.on) {
+        return
+    }
+    const p = world.player?.position
+    if (!p) {
+        return
+    }
+    const h = hexFromScreen(cx, cy)
+    const pa = areaAt(p.x, p.y)
+    const ca = areaAt(h.x, h.y)
+    if (pa === -1 || ca === -1) {
+        return // on a blocker: no area
+    }
+    const same = pa === ca
+    if (!same && _centreWithPlayer) {
+        const stack = (new Error().stack ?? '').split('\n').slice(2, 9).join('\n')
+        console.warn(
+            "[scroll] the view centre left the player's area " +
+                JSON.stringify({
+                    player: `${p.x},${p.y}`,
+                    from: hexTag(fromX, fromY),
+                    to: hexTag(cx, cy),
+                    how,
+                    zoom: getZoom(),
+                }) +
+                '\n' +
+                stack,
+        )
+    }
+    _centreWithPlayer = same
+}
 
 function logScroll(msg: string, data: Record<string, unknown>): void {
     if (!scrollLogState.on) {
@@ -921,6 +975,15 @@ function clampCameraCE(ignoreRestrictions: boolean): void {
     if (ignoreRestrictions) {
         const p = world.player?.position
         logScroll('view centred (no restrictions)', { player: p ? `${p.x},${p.y}` : null, centre: hexTag(cx, cy) })
+    }
+    if (_ceCentre) {
+        checkCentreArea(
+            _ceCentre.x,
+            _ceCentre.y,
+            cx,
+            cy,
+            ignoreRestrictions ? 'centred without checks' : 'scroll / clamp',
+        )
     }
     _ceCentre = { x: cx, y: cy }
     view.cameraPosition.x = cx - halfW

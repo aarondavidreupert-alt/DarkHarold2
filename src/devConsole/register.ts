@@ -37,10 +37,16 @@ export function registerDevConsole(): void {
     // the scroll-limit editor (render/camera.ts, wiki/scroll_clamping.md)
     devWindow.scrollDebug = scrollDebug
     // scrollLog(on = true) — one console line when a scroll is refused (scroll blocker,
-    // player limit, grid / black border) or the map centres the view
+    // player limit, grid / black border) or the map centres the view, and a warning with
+    // the call stack when the view centre leaves the player's blocker-enclosed area
     devWindow.scrollLog = (on: boolean = true) => {
         scrollLogState.on = on !== false
         scrollLogState.last = ''
+        try {
+            localStorage.setItem('dh2.scrollLog', scrollLogState.on ? '1' : '0') // stays on across reloads
+        } catch {
+            // no storage: on for this page only
+        }
         console.log(`[DH2] scroll log ${scrollLogState.on ? 'on' : 'off'}`)
     }
     devWindow.blackBar = blackBar
