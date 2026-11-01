@@ -246,9 +246,10 @@ fills the un-rendered (non-content) region black behind the overlay.
 - `scrollLog()` — one console line whenever a scroll is refused (`scroll blocker` with the
   centre hex and the blocker hex it would enter, `player limit` with dx / dy from the player,
   `grid border`, `black border`) and when a map load or move_to centres the view, and a
-  warning with the call stack when the view centre moves into another blocker-enclosed area
-  than the player's (the view stranded behind a scroll-blocker wall); `scrollDebug()` shows
-  both area ids as `areas`. It stays on across reloads (localStorage) until
+  warning with the call stack when the view centre crosses a scroll-blocker wall (its
+  blocker-enclosed area changes; only centring without the checks — map load, elevation
+  change, move_to — may do that); `scrollDebug()` shows the player's and the centre's area
+  ids as `areas`. It stays on across reloads (localStorage) until
   `scrollLog(false)`. A repeated line is printed once.
 - Smooth scrolling (`scroll_mode=dh2`) walks a move in 8 px samples. A sample is refused only
   when it enters another blocker hex, so a centre that starts on a blocker (the view centred on

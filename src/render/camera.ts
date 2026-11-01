@@ -395,6 +395,7 @@ export function computeScrollBlockerBounds(objects: Obj[]): void {
         }
     }
     _ceCentre = null // the next centerCamera (elevation change, map load) sets it
+    _lastCentreArea = -1
     _ringBounds = undefined // chosen again for this elevation (scrollRingBounds)
     _walkBounds = undefined
     // exit grids (misc pid 0x5000010-0x5000017) by destination, for walkBorderBounds
@@ -841,40 +842,41 @@ function areaAt(x: number, y: number): number {
     return _hexArea.length === 40000 ? _hexArea[x + y * 200] : -1
 }
 
-// scrollLog(): warn when the view centre moves into another blocker-enclosed area than
-// the player's (the view stranded behind a scroll-blocker wall), with the call stack.
-let _centreWithPlayer = true
+// scrollLog(): warn when the view centre itself crosses a scroll-blocker wall (its
+// blocker-enclosed area changes), with the call stack. Only centring without the checks
+// (map load, elevation change, move_to) may do that, as in CE; a scroll or Home never should.
+let _lastCentreArea = -1
 function checkCentreArea(fromX: number, fromY: number, cx: number, cy: number, how: string): void {
     if (!scrollLogState.on) {
         return
     }
-    const p = world.player?.position
-    if (!p) {
-        return
-    }
     const h = hexFromScreen(cx, cy)
-    const pa = areaAt(p.x, p.y)
     const ca = areaAt(h.x, h.y)
-    if (pa === -1 || ca === -1) {
+    if (ca === -1) {
         return // on a blocker: no area
     }
-    const same = pa === ca
-    if (!same && _centreWithPlayer) {
-        const stack = (new Error().stack ?? '').split('\n').slice(2, 9).join('\n')
-        console.warn(
-            "[scroll] the view centre left the player's area " +
-                JSON.stringify({
-                    player: `${p.x},${p.y}`,
-                    from: hexTag(fromX, fromY),
-                    to: hexTag(cx, cy),
-                    how,
-                    zoom: getZoom(),
-                }) +
-                '\n' +
-                stack,
-        )
+    const before = _lastCentreArea
+    _lastCentreArea = ca
+    if (before === -1 || before === ca) {
+        return
     }
-    _centreWithPlayer = same
+    const p = world.player?.position
+    const stack = (new Error().stack ?? '').split('\n').slice(2, 9).join('\n')
+    console.warn(
+        '[scroll] the view centre crossed a scroll-blocker wall ' +
+            JSON.stringify({
+                player: p ? `${p.x},${p.y}` : null,
+                playerArea: p ? areaAt(p.x, p.y) : null,
+                fromArea: before,
+                toArea: ca,
+                from: hexTag(fromX, fromY),
+                to: hexTag(cx, cy),
+                how,
+                zoom: getZoom(),
+            }) +
+            '\n' +
+            stack,
+    )
 }
 
 function logScroll(msg: string, data: Record<string, unknown>): void {

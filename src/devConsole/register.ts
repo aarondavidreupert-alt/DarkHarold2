@@ -38,7 +38,7 @@ export function registerDevConsole(): void {
     devWindow.scrollDebug = scrollDebug
     // scrollLog(on = true) — one console line when a scroll is refused (scroll blocker,
     // player limit, grid / black border) or the map centres the view, and a warning with
-    // the call stack when the view centre leaves the player's blocker-enclosed area
+    // the call stack when the view centre crosses a scroll-blocker wall
     devWindow.scrollLog = (on: boolean = true) => {
         scrollLogState.on = on !== false
         scrollLogState.last = ''
