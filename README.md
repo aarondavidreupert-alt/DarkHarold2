@@ -527,6 +527,11 @@ World map: `encounterLog()` prints one line per random-encounter roll (square, c
 expected and actual encounters), `resetEncounterStats()` starts counting again, and `setWalkSpeed(x)`
 changes the world map travel speed (1 = CE; game time per distance stays CE's).
 
+Scrolling: `scrollDebug()` prints the player's hex, the view-centre hex and how far the view can scroll
+each way (copyable JSON); `scrollLog()` prints one line whenever a scroll is refused (scroll blocker,
+player limit, grid or black border) or the view is centred (`scrollLog(false)` stops it). See
+`wiki/scroll_clamping.md`.
+
 ### Enabling
 
 `Config.engine.debug` is on by default (`src/config.ts`); the AutoCrawler needs it too.

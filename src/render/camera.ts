@@ -588,6 +588,20 @@ export function scrollDebug() {
         zoom: z,
         screen: { w: SCREEN_WIDTH, h: SCREEN_HEIGHT },
     }
+    // the CE limits: where the centre is, and how far (world px) it can scroll each way now
+    const p = world.player?.position
+    const c = viewCentreOffset()
+    out.map = world.gMap?.name ?? null
+    out.mode = {
+        scrollBounds: Config.ui.scrollBounds,
+        playerLimit: Config.ui.scrollPlayerLimit,
+        toBorder: Config.ui.scrollLimitToBorder,
+    }
+    out.player = p ? `${p.x},${p.y}` : null
+    out.centreOffset = { x: Math.round(c.x), y: Math.round(c.y) }
+    out.centre = hexTag(cam.x + c.x, cam.y + c.y)
+    out.blockers = _blockerHexes.size
+    out.reach = scrollReach()
     if (ob) {
         out.barsPx = {
             left: Math.round((ob.minX - cam.x) * z),
@@ -598,6 +612,39 @@ export function scrollDebug() {
     }
     console.log('[scrollDebug] ' + JSON.stringify(out))
     return out
+}
+
+// How far (world px) the camera can scroll up / down / left / right from where it is,
+// in 32×24 px steps; the camera and CE centre are put back afterwards.
+function scrollReach(): Record<string, number> {
+    const cam = view.cameraPosition
+    const save = { x: cam.x, y: cam.y, ce: _ceCentre, log: scrollLogState.on }
+    scrollLogState.on = false
+    const reach: Record<string, number> = {}
+    for (const [name, dx, dy] of [
+        ['up', 0, -1],
+        ['down', 0, 1],
+        ['left', -1, 0],
+        ['right', 1, 0],
+    ] as const) {
+        cam.x = save.x
+        cam.y = save.y
+        _ceCentre = save.ce
+        for (let k = 0; k < 100; k++) {
+            const bx = cam.x,
+                by = cam.y
+            cam.x += dx * 32
+            cam.y += dy * 24
+            clampCameraPosition()
+            if (cam.x === bx && cam.y === by) break
+        }
+        reach[name] = Math.round(Math.abs(cam.x - save.x) + Math.abs(cam.y - save.y))
+    }
+    cam.x = save.x
+    cam.y = save.y
+    _ceCentre = save.ce
+    scrollLogState.on = save.log
+    return reach
 }
 
 // --- Interactive black-bar editor (call from DevTools console) ---
@@ -743,6 +790,56 @@ function blockerAtCentre(cx: number, cy: number): boolean {
     return _blockerHexes.has(tile)
 }
 
+// A sample step is refused when it enters another blocker hex. CE checks only the tile a
+// whole 32×24 step lands on, so a centre on a blocker (the map centred on a player standing
+// on one, e.g. arbridge's camera corridor) can step off it; walking the move in 8 px samples
+// it would never leave its own hex (known_bugs CA80).
+function blockerEntered(fromX: number, fromY: number, toX: number, toY: number): boolean {
+    if (!blockerAtCentre(toX, toY)) {
+        return false
+    }
+    const a = hexFromScreen(fromX, fromY)
+    const b = hexFromScreen(toX, toY)
+    return a.x !== b.x || a.y !== b.y
+}
+
+// CE's centre moves in whole 32×24 px steps from a tile, so along a blocker wall it lands on
+// the free hexes beside it; DH2's smooth scroll can stop anywhere, e.g. a few px from a
+// zig-zag wall, where every step along the wall enters a blocker (arbridge's corridor, CA80).
+// A refused step may slide up to half a hex across its axis onto a free hex.
+const BLOCKER_SLIDE = [8, -8, 16, -16]
+function slideOffBlocker(cx: number, cy: number, nx: number, ny: number, axis: 'x' | 'y'): Point | null {
+    for (const off of BLOCKER_SLIDE) {
+        const sx = axis === 'y' ? nx + off : nx
+        const sy = axis === 'x' ? ny + off : ny
+        const across = axis === 'y' ? { x: cx + off, y: cy } : { x: cx, y: cy + off }
+        if (!blockerEntered(cx, cy, across.x, across.y) && !blockerEntered(cx, cy, sx, sy)) {
+            return { x: sx, y: sy }
+        }
+    }
+    return null
+}
+
+// DH2 console scrollLog(): one line when a scroll is refused or the map centres the view
+export const scrollLogState = { on: false, last: '' }
+
+function logScroll(msg: string, data: Record<string, unknown>): void {
+    if (!scrollLogState.on) {
+        return
+    }
+    const line = msg + ' ' + JSON.stringify(data)
+    if (line === scrollLogState.last) {
+        return // one line per refusal, not one per frame
+    }
+    scrollLogState.last = line
+    console.log('[scroll] ' + line)
+}
+
+function hexTag(x: number, y: number): string {
+    const h = hexFromScreen(x, y)
+    return `${h.x},${h.y}${blockerAtCentre(x, y) ? ' (blocker)' : ''}`
+}
+
 // [dh2] scroll_bounds=ce. CE refuses each scroll step whose new centre tile holds
 // a scroll blocker (the ring mappers placed around the playfield) or that takes
 // the centre too far from the player, then keeps the grid border. DH2 moves the
@@ -771,9 +868,29 @@ function clampCameraCE(ignoreRestrictions: boolean): void {
                 const left = target - cur
                 if (left === 0) break
                 const step = Math.sign(left) * Math.min(Math.abs(left), CE_SCROLL_SAMPLE)
-                const nx = axis === 'x' ? cx + step : cx
-                const ny = axis === 'y' ? cy + step : cy
-                if (blockerAtCentre(nx, ny) || playerLimitRefuses(cx, cy, nx, ny)) break
+                let nx = axis === 'x' ? cx + step : cx
+                let ny = axis === 'y' ? cy + step : cy
+                if (blockerEntered(cx, cy, nx, ny)) {
+                    const slid = slideOffBlocker(cx, cy, nx, ny, axis)
+                    if (!slid) {
+                        logScroll('refused: scroll blocker', { centre: hexTag(cx, cy), into: hexTag(nx, ny), axis })
+                        break
+                    }
+                    nx = slid.x
+                    ny = slid.y
+                }
+                if (playerLimitRefuses(cx, cy, nx, ny)) {
+                    const p = world.player?.position
+                    const d = p ? hexToScreen(p.x, p.y) : { x: 0, y: 0 }
+                    logScroll('refused: player limit (480 x / 400 y px)', {
+                        player: p ? `${p.x},${p.y}` : null,
+                        centre: hexTag(cx, cy),
+                        dx: Math.round(Math.abs(d.x - nx)),
+                        dy: Math.round(Math.abs(d.y - ny)),
+                        axis,
+                    })
+                    break
+                }
                 cx = nx
                 cy = ny
             }
@@ -781,15 +898,29 @@ function clampCameraCE(ignoreRestrictions: boolean): void {
     }
 
     // CE tileSetBorder: the grid border, whatever the restrictions
+    const walkedX = cx,
+        walkedY = cy
     cx = Math.max(CE_CENTER_BOUNDS.minX, Math.min(CE_CENTER_BOUNDS.maxX, cx))
     cy = Math.max(CE_CENTER_BOUNDS.minY, Math.min(CE_CENTER_BOUNDS.maxY, cy))
+    if (cx !== walkedX || cy !== walkedY) {
+        logScroll('stopped: grid border', { centre: hexTag(cx, cy) })
+    }
     // [dh2] scroll_limit=1: never past the black border (RD19)
     if (Config.ui.scrollLimitToBorder) {
         const bar = getActiveScrollBarBounds()
         if (bar) {
+            const bx = cx,
+                by = cy
             cx = Math.max(bar.minX, Math.min(bar.maxX, cx))
             cy = Math.max(bar.minY, Math.min(bar.maxY, cy))
+            if (cx !== bx || cy !== by) {
+                logScroll('stopped: black border ([dh2] scroll_limit)', { centre: hexTag(cx, cy), bar })
+            }
         }
+    }
+    if (ignoreRestrictions) {
+        const p = world.player?.position
+        logScroll('view centred (no restrictions)', { player: p ? `${p.x},${p.y}` : null, centre: hexTag(cx, cy) })
     }
     _ceCentre = { x: cx, y: cy }
     view.cameraPosition.x = cx - halfW

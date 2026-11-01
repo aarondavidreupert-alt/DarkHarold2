@@ -9,7 +9,7 @@
 import globalState from '../globalState.js'
 import { services } from '../state/services.js'
 import * as Lightmap from '../lightmap.js'
-import { blackBar, borderSave, clearBorder, scrollDebug } from '../render/camera.js'
+import { blackBar, borderSave, clearBorder, scrollDebug, scrollLogState } from '../render/camera.js'
 import * as Worldmap from '../worldmap.js'
 import { Config } from '../config.js'
 import { registerEggCommands } from './egg.js'
@@ -36,6 +36,13 @@ export function registerDevConsole(): void {
 
     // the scroll-limit editor (render/camera.ts, wiki/scroll_clamping.md)
     devWindow.scrollDebug = scrollDebug
+    // scrollLog(on = true) — one console line when a scroll is refused (scroll blocker,
+    // player limit, grid / black border) or the map centres the view
+    devWindow.scrollLog = (on: boolean = true) => {
+        scrollLogState.on = on !== false
+        scrollLogState.last = ''
+        console.log(`[DH2] scroll log ${scrollLogState.on ? 'on' : 'off'}`)
+    }
     devWindow.blackBar = blackBar
     devWindow.borderSave = borderSave
     devWindow.clearBorder = clearBorder

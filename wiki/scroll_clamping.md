@@ -239,7 +239,19 @@ fills the un-rendered (non-content) region black behind the overlay.
 
 ### Console calibration helpers (`camera.ts`, registered on `window`)
 - `scrollDebug()` — prints copyable JSON: object bbox, auto clamp, active clamp,
-  camera position, zoom, screen size, and bar pixel widths for the current frame.
+  camera position, zoom, screen size, and bar pixel widths for the current frame;
+  also the map, the player's hex, the view-centre hex (marked `(blocker)` when it holds a
+  scroll blocker) and `reach`: how far (world px) the view can scroll up / down / left /
+  right from where it is now.
+- `scrollLog()` — one console line whenever a scroll is refused (`scroll blocker` with the
+  centre hex and the blocker hex it would enter, `player limit` with dx / dy from the player,
+  `grid border`, `black border`) and when a map load or move_to centres the view;
+  `scrollLog(false)` stops it. A repeated line is printed once.
+- Smooth scrolling (`scroll_mode=dh2`) walks a move in 8 px samples. A sample is refused only
+  when it enters another blocker hex, so a centre that starts on a blocker (the view centred on
+  a player standing on one) can step off it, as CE's 32×24 px step can; and a refused sample may
+  slide up to half a hex across its axis onto a free hex, where CE's grid-aligned step would land
+  (a zig-zag blocker wall, arbridge's camera corridor; known_bugs CA80).
 - `blackBar('W'|'E'|'N'|'S')` — enters edit mode for the named bar edge (West/East/
   North/South). Grey semi-transparent bars appear and scroll clamping is disabled so
   you can reach any position. Keys while in edit mode:
