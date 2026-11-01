@@ -4,10 +4,14 @@
 // of CE's map header start (map.cc mapLoad), which on some maps is at another exit
 // (Arroyo Bridge: by the green grid to the village). No such grid: CE's start. The map
 // script can still move the party (override_map_start), as in CE.
+// The hex is inside the header start's scroll-blocker ring: on maps whose exit grids lie
+// outside the ring (Klamath Downtown) the view, centred on the party, stayed behind the
+// ring and could not scroll after them into town (known_bugs CA82).
 
-import { hexDirectionTo, hexDistance, hexInDirection, Point } from '../geometry.js'
+import { hexDirectionTo, hexDistance, hexInDirection, hexNeighbors, Point } from '../geometry.js'
 
 const OBJECT_NO_BLOCK = 0x10 // CE obj flags
+const SCROLL_BLOCKER_PID = 0x500000c // CE object.cc _obj_scroll_blocking_at
 
 // set by the world map's town entrance, read once by the next map load
 let pending = false
@@ -20,7 +24,7 @@ export function takeWorldmapEntryPending(): boolean {
     return was
 }
 
-type MapObjectJSON = { type: string; flags?: number; position?: Point; extra?: { exitMapID?: number } }
+type MapObjectJSON = { type: string; pid?: number; flags?: number; position?: Point; extra?: { exitMapID?: number } }
 type MapJSON = { startPosition: Point; levels: { objects?: MapObjectJSON[] }[] }
 
 /** The hex 2+ hexes inside the world-map exit grid nearest the header start, facing away
@@ -40,14 +44,39 @@ export function worldmapExitEntry(map: MapJSON, elevation: number): { position: 
     const start = map.startPosition
     const near = grid.reduce((a, b) => (hexDistance(b, start) < hexDistance(a, start) ? b : a))
     const gridDistance = (p: Point) => Math.min(...grid.map((g) => hexDistance(g, p)))
+    const inside = startArea(objects, start)
 
-    // from that grid hex towards the header start: the first free hex not next to the grid
+    // from that grid hex towards the header start: the first free hex not next to the grid,
+    // inside the start's scroll-blocker ring
     let p = near
-    for (let i = 0; i < 8 && hexDistance(p, start) > 0; i++) {
+    for (let i = 0; i < 40 && hexDistance(p, start) > 0; i++) {
         p = hexInDirection(p, hexDirectionTo(p, start))
-        if (gridDistance(p) >= 2 && !blocked.has(key(p))) {
+        if (gridDistance(p) >= 2 && !blocked.has(key(p)) && inside.has(p.x + p.y * 200)) {
             return { position: p, orientation: hexDirectionTo(near, p) }
         }
     }
     return null
+}
+
+// The hexes the view centre can reach from the header start: hex neighbours not through a
+// scroll blocker (the whole grid on a map without blockers).
+function startArea(objects: MapObjectJSON[], start: Point): Set<number> {
+    const walls = new Set(
+        objects
+            .filter((o) => o.pid === SCROLL_BLOCKER_PID && o.position)
+            .map((o) => o.position!.x + o.position!.y * 200),
+    )
+    const area = new Set([start.x + start.y * 200])
+    const stack = [start]
+    while (stack.length > 0) {
+        for (const n of hexNeighbors(stack.pop()!)) {
+            const t = n.x + n.y * 200
+            if (n.x < 0 || n.x >= 200 || n.y < 0 || n.y >= 200 || area.has(t) || walls.has(t)) {
+                continue
+            }
+            area.add(t)
+            stack.push(n)
+        }
+    }
+    return area
 }
