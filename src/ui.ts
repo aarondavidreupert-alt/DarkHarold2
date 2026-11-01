@@ -34,7 +34,6 @@ import { showCharacterScreen, closeCharacterScreen, getCharacterWindow } from '.
 import { initLoot } from './uiLoot.js'
 import { initCalledShot } from './uiCalledShot.js'
 import { drawHP, drawAC, drawAP, uiDrawWeapon, uiEndCombatAnimationDone, attackButtonDisabled } from './uiHud.js'
-import { assetUrl } from './modAssets.js'
 import {
     closeAllPanels,
     isCharacterOpen,
@@ -367,16 +366,14 @@ export function initUI() {
             }
             return e.offsetY < $reply.clientHeight / 2 ? 'up' : 'down'
         }
-        $reply.addEventListener('mousemove', (e) => {
-            const dir = half(e)
-            $reply.style.cursor =
-                dir === null
-                    ? ''
-                    : `url('${assetUrl(`art/intrface/${dir === 'up' ? 'suparrow' : 'sdnarrow'}.png`)}') 7 7, pointer`
-        })
-        $reply.addEventListener('mouseleave', () => {
-            $reply.style.cursor = ''
-        })
+        // the cursors are ui.css's .replyScrollUp / .replyScrollDown (the page-wide game arrow is
+        // !important, so an inline cursor would not show)
+        const setCursor = (dir: 'up' | 'down' | null) => {
+            $reply.classList.toggle('replyScrollUp', dir === 'up')
+            $reply.classList.toggle('replyScrollDown', dir === 'down')
+        }
+        $reply.addEventListener('mousemove', (e) => setCursor(half(e)))
+        $reply.addEventListener('mouseleave', () => setCursor(null))
         $reply.addEventListener('click', (e) => {
             const dir = half(e)
             if (dir !== null) {

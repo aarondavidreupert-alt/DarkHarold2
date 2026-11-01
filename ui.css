@@ -2181,35 +2181,38 @@ html, body {
   pointer-events: none;
 }
 
-/* HUD and UI overlays use Fallout custom cursor */
-#bar,
-#dialogueContainer,
-#inventoryBox,
-#lootBox,
-#barterBox,
-#worldMapContainer,
-#elevatorBox,
-#calledShotBox,
-#itemContextMenu,
-#pipBoyContainer,
-#automapContainer {
-  cursor: url('art/intrface/stdarrow.png'), none !important;
+/* CE: every window shows the game's arrow (gameMouseSetCursor(MOUSE_CURSOR_ARROW): main menu,
+   character selector / editor, options, preferences, load / save, skilldex, inventory, dialogue,
+   …). The page-wide rule replaces a list of windows that left the system cursor on the rest.
+   The game view draws its own cursor (#cnv: none); more specific rules keep the HUD's scroll
+   arrows, the dialogue reply arrows and the movie screen's hidden cursor. */
+html,
+body,
+body * {
+  cursor: url('art/intrface/stdarrow.png') 0 0, default !important;
 }
 
+/* CE inventory.cc inventoryOpen / the loot and barter windows: the pointing hand (FRM 286 HAND,
+   hotspot = its frame offset 0,0) is the inventory windows' cursor (inventorySetCursor) */
+#inventoryBox,
+#inventoryBox *,
+#lootBox,
+#lootBox *,
+#barterBox,
+#barterBox * {
+  cursor: url('art/intrface/hand.png') 0 0, default !important;
+}
 
+/* CE game_dialog.cc _reply_arrow_up / _down: a reply too long for its window */
+#dialogueContainer #dialogueBoxReply.replyScrollUp {
+  cursor: url('art/intrface/suparrow.png') 7 7, n-resize !important;
+}
+#dialogueContainer #dialogueBoxReply.replyScrollDown {
+  cursor: url('art/intrface/sdnarrow.png') 7 7, s-resize !important;
+}
 
-
-
-
-
-
-
-
-
-#bar *, #dialogueContainer *, #inventoryBox *, #lootBox *,
-#barterBox *, #worldMapContainer *, #elevatorBox *,
-#calledShotBox *, #itemContextMenu *,
-#pipBoyContainer *,
-#automapContainer * {
-  cursor: url('art/intrface/stdarrow.png'), none !important;
+/* CE gameMoviePlay: the mouse is hidden while a movie plays */
+#gameMovieScreen,
+#gameMovieScreen * {
+  cursor: none !important;
 }

@@ -268,6 +268,7 @@ export function gameMoviePlay(movie: number, flags: number): Promise<void> {
         const fadeLayer = makeFadeLayer()
 
         const screen = document.createElement('div')
+        screen.id = 'gameMovieScreen' // ui.css: no cursor during a movie
         Object.assign(screen.style, {
             position: 'fixed',
             inset: '0',
