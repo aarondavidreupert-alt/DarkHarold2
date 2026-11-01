@@ -249,7 +249,8 @@ fills the un-rendered (non-content) region black behind the overlay.
   warning with the call stack when the view centre crosses a scroll-blocker wall (its
   blocker-enclosed area changes; only centring without the checks — map load, elevation
   change, move_to — may do that); `scrollDebug()` shows the player's and the centre's area
-  ids as `areas`. It stays on across reloads (localStorage) until
+  ids as `areas`, and `history`: the last 40 view-centre hex changes (hex, area, how, the
+  calling function, the player's hex and area), recorded whether or not the log is on. It stays on across reloads (localStorage) until
   `scrollLog(false)`. A repeated line is printed once.
 - Smooth scrolling (`scroll_mode=dh2`) walks a move in 8 px samples. A sample is refused only
   when it enters another blocker hex, so a centre that starts on a blocker (the view centred on

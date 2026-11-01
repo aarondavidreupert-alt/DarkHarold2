@@ -607,6 +607,7 @@ export function scrollDebug() {
         out.areas = { player: areaAt(p.x, p.y), centre: areaAt(h.x, h.y) } // -1: on a blocker
     }
     out.reach = scrollReach()
+    out.history = _centreHistory.slice()
     if (ob) {
         out.barsPx = {
             left: Math.round((ob.minX - cam.x) * z),
@@ -619,12 +620,15 @@ export function scrollDebug() {
     return out
 }
 
+let _reachRunning = false
+
 // How far (world px) the camera can scroll up / down / left / right from where it is,
 // in 32×24 px steps; the camera and CE centre are put back afterwards.
 function scrollReach(): Record<string, number> {
     const cam = view.cameraPosition
     const save = { x: cam.x, y: cam.y, ce: _ceCentre, log: scrollLogState.on }
     scrollLogState.on = false
+    _reachRunning = true
     const reach: Record<string, number> = {}
     for (const [name, dx, dy] of [
         ['up', 0, -1],
@@ -649,6 +653,7 @@ function scrollReach(): Record<string, number> {
     cam.y = save.y
     _ceCentre = save.ce
     scrollLogState.on = save.log
+    _reachRunning = false
     return reach
 }
 
@@ -846,6 +851,29 @@ function areaAt(x: number, y: number): number {
 // blocker-enclosed area changes), with the call stack. Only centring without the checks
 // (map load, elevation change, move_to) may do that, as in CE; a scroll or Home never should.
 let _lastCentreArea = -1
+
+// The last centre-hex changes (scrollDebug() prints them as `history`): hex, area, how
+// and the calling function, so the step that crossed a wall shows up afterwards.
+const _centreHistory: string[] = []
+let _historyHex = ''
+function recordCentre(cx: number, cy: number, how: string): void {
+    const h = hexFromScreen(cx, cy)
+    const key = `${h.x},${h.y}`
+    if (key === _historyHex) {
+        return
+    }
+    _historyHex = key
+    const caller = (new Error().stack ?? '').split('\n')[4]?.trim().split(' ')[1] ?? '?'
+    const p = world.player?.position
+    _centreHistory.push(
+        `${key} area ${areaAt(h.x, h.y)} ${how} via ${caller}` +
+            (p ? ` (player ${p.x},${p.y} area ${areaAt(p.x, p.y)})` : ''),
+    )
+    if (_centreHistory.length > 40) {
+        _centreHistory.shift()
+    }
+}
+
 function checkCentreArea(fromX: number, fromY: number, cx: number, cy: number, how: string): void {
     if (!scrollLogState.on) {
         return
@@ -977,6 +1005,9 @@ function clampCameraCE(ignoreRestrictions: boolean): void {
     if (ignoreRestrictions) {
         const p = world.player?.position
         logScroll('view centred (no restrictions)', { player: p ? `${p.x},${p.y}` : null, centre: hexTag(cx, cy) })
+    }
+    if (!_reachRunning) {
+        recordCentre(cx, cy, ignoreRestrictions ? 'centred without checks' : 'scroll / clamp')
     }
     if (_ceCentre) {
         checkCentreArea(
