@@ -300,6 +300,12 @@ export const animOpcodes = {
         if ((flags & 0x10) !== 0) {
             obj.clearAnim()
             flags &= ~0x10
+        } else if (obj.type === 'critter' && obj.inAnim()) {
+            // CE reg_anim_begin(ANIMATION_REQUEST_UNRESERVED): _check_registry refuses an object
+            // already in an animation sequence — the move it is on goes on. Restarting it made
+            // Smoke, whose critter_p_proc picks a new tile by the dude every tick, run on the
+            // spot (known_bugs CA74).
+            return
         }
         if (!obj.walkTo(tile, flags !== 0)) {
             warn('animate_move_obj_to_tile: no path', 'movement', this)

@@ -29,7 +29,15 @@ import { world } from '../state/world.js'
 import { assets } from '../state/assets.js'
 import { heart } from '../heart.js'
 import { dbg, dbgWarn } from '../logger.js'
-import { createObjectWithPID, Critter, Obj, objectUnjamAll, objFromMapObject, zsortObject } from '../object.js'
+import {
+    createObjectWithPID,
+    Critter,
+    Obj,
+    objectUnjamAll,
+    objFromMapObject,
+    zsortMap,
+    zsortObject,
+} from '../object.js'
 import { randomBetween } from '../random.js'
 import { centerCamera } from '../renderer.js'
 import { setMapScrollLimits } from '../render/camera.js'
@@ -499,6 +507,11 @@ GameMap.prototype.loadMapByID = function (
                           zsortObject(player) // draw order at the new tile (CA65)
                       }
                       player.orientation = startingOrientation
+                      // CE mapHandleTransition → mapSetElevation → _partyMemberSyncPosition: the party
+                      // goes next to the dude at his new tile — it stayed by the map's default start,
+                      // so Smoke turned up away from the player in Arroyo (known_bugs CA74)
+                      this.placeParty()
+                      zsortMap(this.objects)
                       centerCamera(player.position)
                   }
         this.loadMap(mapName, startingPosition, startingElevation, place)

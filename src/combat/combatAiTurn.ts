@@ -259,38 +259,6 @@ export const combatAiTurnMethods = {
     combataiRating(this: Combat, c: Critter): number {
         return combatAiRating(c)
     },
-    findTarget(this: Combat, obj: Critter): Critter | null {
-        // CE ref: combat_ai.cc _ai_danger_source / isWithinPerception
-        // Target must be within PER*5 tiles with LOS, or PER*2 tiles without.
-        const targets = this.combatants.filter(
-            (x) => !x.dead && x.teamNum !== obj.teamNum && this.isWithinPerception(obj, x),
-        )
-        if (targets.length === 0) return null
-        const attackWho = obj.ai?.packet.attackWho ?? 'closest'
-        switch (attackWho) {
-            // same order as CE _compare_strength / _compare_weakness (see aiDangerSource)
-            case 'strongest':
-                targets.sort((a, b) => this.combataiRating(a) - this.combataiRating(b))
-                return targets[0]
-            case 'weakest':
-                targets.sort((a, b) => this.combataiRating(b) - this.combataiRating(a))
-                return targets[0]
-            case 'whomever':
-            case 'whomever_attacking_me': {
-                const whoHitMe = obj.whoHitMe
-                if (whoHitMe instanceof Critter && !whoHitMe.dead && targets.includes(whoHitMe)) {
-                    return whoHitMe
-                }
-                // Fall through to 'closest'
-                targets.sort((a, b) => hexDistance(obj.position, a.position) - hexDistance(obj.position, b.position))
-                return targets[0]
-            }
-            case 'closest':
-            default:
-                targets.sort((a, b) => hexDistance(obj.position, a.position) - hexDistance(obj.position, b.position))
-                return targets[0]
-        }
-    },
     walkUpTo(
         this: Combat,
         obj: Critter,
@@ -431,9 +399,8 @@ export const combatAiTurnMethods = {
     // ignores fleeing critters unless berserk / charging); anyone else goes for whoever
     // hit it. Otherwise the critters that attacked it, its team or were hit by its
     // team, sorted by attack_who, the first one it perceives and can reach or shoot.
-    // DH2: when none qualifies, the nearest perceived enemy (Combat.findTarget) — DH2
-    // doesn't set whoHitMe for every way a fight can start.
-    aiDangerSource(this: Combat, obj: Critter, fallback = true): Critter | null {
+    // None qualifies: null, as CE (no "any other team" fallback).
+    aiDangerSource(this: Combat, obj: Critter): Critter | null {
         const player = world.player
         if (!obj.ai) return null
         const party = !!world.gParty?.isPartyMember(obj)
@@ -527,7 +494,12 @@ export const combatAiTurnMethods = {
             )
                 return c
         }
-        return fallback ? this.findTarget(obj) : null
+        // CE: nobody to fight — nullptr. DH2 fell back to findTarget (the nearest critter of
+        // another team in perception), so every critter in a fight attacked whoever was not
+        // its team: the Arroyo villagers turned on the player after the spore plants, the Duntons
+        // when he shot the radscorpion (known_bugs CA73). Hostility comes from whoHitMe (a hit,
+        // the attack opcode, an encounter's team combat) and the attackers found above.
+        return null
     },
     // CE combat_ai.cc _combatai_want_to_join — a non-combatant joins when it took damage,
     // its combat_p_proc (fixed param 5) or an onlooker / friend notice made it ENGAGING,
@@ -542,7 +514,7 @@ export const combatAiTurnMethods = {
         if (c._script?.combat_p_proc) Scripting.combatEvent(c, 'wantToJoin')
         if (a.engaging) return true
         if (a.disengaging || a.fleeing) return false
-        return this.aiDangerSource(c, false) !== null
+        return this.aiDangerSource(c) !== null
     },
     // CE combat_ai.cc _combatai_want_to_stop
     wantToStop(this: Combat, c: Critter): boolean {
@@ -550,7 +522,7 @@ export const combatAiTurnMethods = {
         if (a.disengaging) return true
         if ((c.injuryFlags & (DAM_KNOCKED_OUT | DAM_DEAD)) !== 0 || c.dead) return true
         if (a.fleeing) return true
-        const enemy = this.aiDangerSource(c, false)
+        const enemy = this.aiDangerSource(c)
         return enemy === null || !this.isWithinPerception(c, enemy)
     },
     // CE combat_ai.cc _combatai_notify_onlookers: whoever perceives the victim of an
