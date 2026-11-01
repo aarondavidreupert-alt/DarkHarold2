@@ -570,8 +570,9 @@ export class Renderer {
             offsetX += obj.ceOff.x
             offsetY += obj.ceOff.y
         } else {
-            offsetX += frameInfo.ox + obj.artOffset.x
-            offsetY += frameInfo.oy + obj.artOffset.y
+            const own = frameOffsetSinceFirst(obj, info, frameInfo)
+            offsetX += own.x + obj.artOffset.x
+            offsetY += own.y + obj.artOffset.y
         }
 
         if (obj === world.player && (obj.art !== _animLogLast.art || obj.frame !== _animLogLast.frame)) {
@@ -760,12 +761,31 @@ export function objectBoundingBox(obj: Obj): BoundingBox | null {
     }
     const dirOffset = info.directionOffsets[obj.orientation!]
     const ceModel = Config.engine.animOffsetModel === 'ce' && obj.type === 'critter' && obj.shift === null
-    const ox = ceModel ? obj.ceOff.x : frameInfo.ox + obj.artOffset.x
-    const oy = ceModel ? obj.ceOff.y : frameInfo.oy + obj.artOffset.y
+    const own = frameOffsetSinceFirst(obj, info, frameInfo)
+    const ox = ceModel ? obj.ceOff.x : own.x + obj.artOffset.x
+    const oy = ceModel ? obj.ceOff.y : own.y + obj.artOffset.y
     const offsetX = Math.floor(frameInfo.w / 2) - dirOffset.x - ox
     const offsetY = frameInfo.h - dirOffset.y - oy
 
     return { x: scr.x - offsetX, y: scr.y - offsetY, w: frameInfo.w, h: frameInfo.h }
+}
+
+// CE object.cc objectGetRect: tile + 16 + the art's rotation offset + obj->x / y, which a
+// placed object starts at 0 (objectSetLocation) and an animation moves by the later frames'
+// deltas — frame 0's own offset is never applied. `ox` / `oy` sum the deltas from frame 0 on,
+// so a scenery / wall / item frame is at ox[frame] − ox[0]. 64 non-critter FRMs carry a frame-0
+// offset: Klamath's broken post (36 px) stood on Aldo (known_bugs CA75). Critters keep their
+// own model (ceOff / artOffset in critterAnimation.ts).
+function frameOffsetSinceFirst(
+    obj: Obj,
+    info: { frameOffsets: { [dir: number]: { ox: number; oy: number }[] } },
+    frameInfo: { ox: number; oy: number },
+): { x: number; y: number } {
+    if (obj.type === 'critter') {
+        return { x: frameInfo.ox, y: frameInfo.oy }
+    }
+    const first = info.frameOffsets[obj.orientation ?? 0]?.[0]
+    return { x: frameInfo.ox - (first?.ox ?? 0), y: frameInfo.oy - (first?.oy ?? 0) }
 }
 
 export function getObjectUnderCursor(p: (obj: Obj) => boolean) {
