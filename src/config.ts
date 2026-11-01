@@ -288,6 +288,11 @@ export const Config = {
         // the frame rate. 0 = CE: one step a frame (60 a second at CE's fps cap).
         // Set in fallout2.cfg: [dh2] worldmap_fps=30.
         worldmapFps: 30,
+        // DH2 option, not in CE: what the scripts' obj_can_see_obj sees through. 'ce' (default):
+        // any object that blocks movement blocks sight; 'shoot': objects shots fly over
+        // (OBJECT_SHOOT_THRU: bushes, rubble, low walls) don't; 'light': objects light passes
+        // (OBJECT_LIGHT_THRU, also windows and fences) don't. Set in fallout2.cfg: [dh2] sight_through.
+        sightThrough: 'ce' as 'ce' | 'shoot' | 'light',
         doInfiniteUse: false, // allow infinite-range object usage?
         doFloorLighting: true, // use FO2-realistic floor lighting?
         floorLightingMode: 'auto' as 'auto' | 'gpu' | 'cpu', // lighting backend: 'auto' detects GPU capability

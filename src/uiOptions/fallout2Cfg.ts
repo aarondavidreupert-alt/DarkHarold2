@@ -231,6 +231,11 @@ export function applyCfg(cfg: CfgSections): void {
     if (mt === 'white' || mt === 'ce') {
         Config.ui.menuText = mt
     }
+    //   sight_through=ce|shoot|light  what obj_can_see_obj sees through (DH2; ce = blocking objects block)
+    const st = dh2['sight_through']?.trim().toLowerCase()
+    if (st === 'ce' || st === 'shoot' || st === 'light') {
+        Config.engine.sightThrough = st
+    }
     //   worldmap_entry=exit|ce        from the world map: at the world-map exit grid, or CE's map start
     const we = dh2['worldmap_entry']?.trim().toLowerCase()
     if (we === 'exit' || we === 'ce') {

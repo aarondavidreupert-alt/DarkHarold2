@@ -162,12 +162,13 @@ export function hexLine(a: Point, b: Point): Point[] | null {
 export function hexLineBeyond(from: Point, to: Point, distance: number): Point {
     if (distance <= 0 || (from.x === to.x && from.y === to.y)) return from
 
+    // hexToScreen is the hex centre already — CE's tileToScreenXY + (16, 8) (known_bugs CA77)
     const fromSc = hexToScreen(from.x, from.y)
-    let tileX = fromSc.x + 16
-    let tileY = fromSc.y + 8
+    let tileX = fromSc.x
+    let tileY = fromSc.y
     const toSc = hexToScreen(to.x, to.y)
-    const toX = toSc.x + 16
-    const toY = toSc.y + 8
+    const toX = toSc.x
+    const toY = toSc.y
 
     const deltaX = toX - tileX
     const deltaY = toY - tileY

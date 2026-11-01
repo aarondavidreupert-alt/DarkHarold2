@@ -650,7 +650,15 @@ export class GameMap {
     // walks from `from` (not necessarily `source`'s tile) and skips `prev`, the value
     // *obstaclePtr held on entry — combat loops pass the last obstacle so the walk
     // continues past it. Shoot mode (blockType 1 ⇔ CE a6 == 32) ignores SHOOT_THRU.
-    straightPathObstacle(source: Obj, from: Point, to: Point, blockType: number, prev: Obj | null): Obj | null {
+    // `passFlags` (DH2, [dh2] sight_through): objects with any of these flags don't stop the line.
+    straightPathObstacle(
+        source: Obj,
+        from: Point,
+        to: Point,
+        blockType: number,
+        prev: Obj | null,
+        passFlags = 0,
+    ): Obj | null {
         const elev = source.elevation
         const shoot = blockType === 1
         const aiState = { moveBlockObj: null as Obj | null }
@@ -658,6 +666,9 @@ export class GameMap {
             const o = this.blockingObjectAt(toTileNum(p), elev, blockType, source, aiState)
             if (o === null || o === prev) return null
             if (shoot && (((o.flags ?? 0) >>> 0) & 0x80000000) !== 0) return null
+            if (passFlags !== 0 && (((o.flags ?? 0) >>> 0) & passFlags) !== 0) {
+                return null
+            }
             return o
         }
 
@@ -666,10 +677,14 @@ export class GameMap {
 
         const fromSc = hexToScreen(from.x, from.y)
         const toSc = hexToScreen(to.x, to.y)
-        let tileX = fromSc.x + 16,
-            tileY = fromSc.y + 8
-        const toX = toSc.x + 16,
-            toY = toSc.y + 8
+        // CE starts and ends at the hex centres: tileToScreenXY (the hex's top-left) + (16, 8).
+        // DH2's hexToScreen already is the centre (the hex spans −16…15, −9…6 around it), so
+        // CE's +16 / +8 on top of it put both ends into the next hex: the line tested the
+        // neighbours' tiles and could miss the target's own (known_bugs CA77).
+        let tileX = fromSc.x,
+            tileY = fromSc.y
+        const toX = toSc.x,
+            toY = toSc.y
         const stepX = Math.sign(toX - tileX),
             stepY = Math.sign(toY - tileY)
         const ddx = 2 * Math.abs(toX - tileX),

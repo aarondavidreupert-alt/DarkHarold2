@@ -625,10 +625,21 @@ export function setSeed(n: number): void {
 
 // CE opObjectCanSeeObject: same elevation, both on the map, within perception (any
 // target), and the target is the first obstacle of _make_straight_path(a, a, b)
+// CE interpreter_extra.cc opObjectCanSeeObject: within perception, and the first object
+// _make_straight_path(…, 16) meets with _obj_blocking_at is the target — any object that
+// blocks movement blocks sight (a knee-high bush too; CE has no size flag).
+// [dh2] sight_through (DH2 option, default 'ce'): 'shoot' lets the line pass objects with
+// OBJECT_SHOOT_THRU (bushes, rubble, low walls — what a shot flies over), 'light' those with
+// OBJECT_LIGHT_THRU (also windows, fences and glass) — the line passes such objects, as CE's
+// combat shot path passes SHOOT_THRU ones.
+const OBJECT_SHOOT_THRU = 0x80000000
+const OBJECT_LIGHT_THRU = 0x20000000
 export function objCanSeeObj(obj: Critter, target: Obj): boolean {
     if (obj.elevation !== target.elevation || !obj.position || !target.position) return false
     if (!isWithinPerception(obj, target as Critter)) return false
-    return world.gMap!.straightPathBlockingObject(obj, target.position, 0) === target
+    const mode = Config.engine.sightThrough
+    const seeThrough = mode === 'shoot' ? OBJECT_SHOOT_THRU : mode === 'light' ? OBJECT_LIGHT_THRU : 0
+    return world.gMap!.straightPathObstacle(obj, obj.position, target.position, 0, null, seeThrough) === target
 }
 
 export interface SerializedScript {
