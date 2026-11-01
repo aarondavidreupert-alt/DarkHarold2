@@ -34,6 +34,7 @@ import { showCharacterScreen, closeCharacterScreen, getCharacterWindow } from '.
 import { initLoot } from './uiLoot.js'
 import { initCalledShot } from './uiCalledShot.js'
 import { drawHP, drawAC, drawAP, uiDrawWeapon, uiEndCombatAnimationDone, attackButtonDisabled } from './uiHud.js'
+import { assetUrl } from './modAssets.js'
 import {
     closeAllPanels,
     isCharacterOpen,
@@ -355,6 +356,34 @@ export function initUI() {
     makeScrollable($id('worldMapLabels'))
     makeScrollable($id('displayLog'))
     makeScrollable($id('dialogueBoxReply'), 30)
+    // CE game_dialog.cc gameDialogReplyWindowInit: a reply too long for the window (_gdReplyTooBig)
+    // scrolls with the mouse — the top half gives the small up-arrow cursor (suparrow), the
+    // bottom half the down-arrow one (sdnarrow, _reply_arrow_up / _down), and a click turns the page
+    {
+        const $reply = $id('dialogueBoxReply')
+        const half = (e: MouseEvent): 'up' | 'down' | null => {
+            if ($reply.scrollHeight <= $reply.clientHeight + 1) {
+                return null
+            }
+            return e.offsetY < $reply.clientHeight / 2 ? 'up' : 'down'
+        }
+        $reply.addEventListener('mousemove', (e) => {
+            const dir = half(e)
+            $reply.style.cursor =
+                dir === null
+                    ? ''
+                    : `url('${assetUrl(`art/intrface/${dir === 'up' ? 'suparrow' : 'sdnarrow'}.png`)}') 7 7, pointer`
+        })
+        $reply.addEventListener('mouseleave', () => {
+            $reply.style.cursor = ''
+        })
+        $reply.addEventListener('click', (e) => {
+            const dir = half(e)
+            if (dir !== null) {
+                $reply.scrollTop += (dir === 'up' ? -1 : 1) * $reply.clientHeight
+            }
+        })
+    }
 
     drawHP(world.player!.getStat('HP'))
     drawAC(world.player!.getStat('AC'))

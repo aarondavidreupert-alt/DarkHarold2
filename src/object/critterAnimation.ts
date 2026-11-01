@@ -339,6 +339,14 @@ Critter.prototype.updateStaticAnim = function (this: Critter): void {
                 this.anim = 'held'
                 this.animCallback = null
             }
+            // A forward animation whose callback left it on (a knockdown's fall lying there, a
+            // fall during the knockback slide) holds its last frame, as CE does: the frame stayed
+            // one past the end, so the critter had no frame to draw and vanished while lying or
+            // sliding (known_bugs CA69). The death path's callback steps back itself (frame--).
+            const numFrames = assets.imageInfo![art]?.numFrames ?? 0
+            if (!reversed && this.art === art && numFrames > 0 && this.frame >= numFrames) {
+                this.frame = numFrames - 1
+            }
         }
     }
 }

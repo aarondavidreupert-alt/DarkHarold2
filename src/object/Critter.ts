@@ -33,7 +33,7 @@ import { dbg, dbgWarn } from '../logger.js'
 import * as Scripting from '../scripting.js'
 import { getMessage, getProtoMsg } from '../util.js'
 import { scriptNumberOf } from '../data.js'
-import { drawAP } from '../hudRefresh.js'
+import { drawAP, updateIndicatorBar } from '../hudRefresh.js'
 import { uiLog } from '../messageLog.js'
 import { getAiPacket, AiPacket } from '../aiPackets.js'
 import { getObjectLightIntensity } from '../combat/hitChance.js'
@@ -365,6 +365,9 @@ export class Critter extends Obj {
             Scripting.timeEventList.length,
             ...Scripting.timeEventList.filter((e) => !(e.obj === this && e.userdata === 'sneak')),
         )
+        // CE dudeDisableState → indicatorBarRefresh: the SNEAK box goes off with it (it stayed lit,
+        // so the next Sneak seemed to do nothing and the dude to sneak while running)
+        updateIndicatorBar()
     }
 
     move(position: Point, curIdx?: number, signalEvents = true): boolean {

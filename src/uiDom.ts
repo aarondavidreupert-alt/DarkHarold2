@@ -119,10 +119,10 @@ export function makeEl(tag: string, options: ElementOptions): HTMLElement {
  *  _display_inventory_info prints "x<n>" over the icon's top-left corner. */
 export function appendItemSlot($el: HTMLElement, img: HTMLElement, label: string | null): void {
     const children: HTMLElement[] = [img]
-    if (label !== null) {
-        const amt = makeEl('span', { classes: ['invItemAmount'] })
-        amt.textContent = label
-        children.push(amt)
-    }
+    // a single item gets an empty count line too, so every slot is as tall (CE draws each
+    // item in a fixed INVENTORY_SLOT_HEIGHT slot)
+    const amt = makeEl('span', { classes: ['invItemAmount'] })
+    amt.textContent = label ?? ' '
+    children.push(amt)
     $el.appendChild(makeEl('div', { classes: ['invItemSlot'], children }))
 }

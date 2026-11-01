@@ -48,6 +48,13 @@ export function uiHideContextMenu() {
     }
     // CE: the mode stays ARROW after an action menu ([dh2] mouse_mode=ce); DH2 goes back to move
     uiState.cursorMode = Config.ui.mouseMode === 'ce' ? 'command' : 'move'
+    // no action icon until the mouse moves and rests again (CE gameMouseRefresh): a hover
+    // timer from before the menu put the binoculars back next to the cursor
+    if (uiState.commandModeTimer !== null) {
+        clearTimeout(uiState.commandModeTimer)
+        uiState.commandModeTimer = null
+    }
+    uiState.showLookCursor = false
     $id('itemContextMenu').style.visibility = 'hidden'
 }
 

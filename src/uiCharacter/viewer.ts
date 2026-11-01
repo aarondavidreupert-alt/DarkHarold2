@@ -551,6 +551,15 @@ export function showCharacterScreen() {
 
     let n = 0
     for (const stat of STATS) {
+        // CE character_editor.cc: one button over the whole SPECIAL column (19,38 125x227,
+        // event 525) picks the stat by the row under the mouse — the name, the number and
+        // the description all show the card (DH2 had the number only)
+        const rowW = new Widget(null, { x: 19, y: 37 + n - 5, w: 125, h: 33 })
+        rowW.css({ cursor: 'pointer' }).onClick(() => {
+            selectedStat = stat
+            showInfoCard(SPECIAL_NAMES[stat], SPECIAL_TEXTS[stat], SPECIAL_IMG[stat])
+        })
+        characterWindow.add(rowW)
         const valW = new Widget(null, { x: 59, y: 37 + n, w: 28, h: 28 })
         valW.css({ cursor: 'pointer' }).onClick(() => {
             selectedStat = stat
@@ -560,7 +569,10 @@ export function showCharacterScreen() {
         characterWindow.add(valW)
 
         // CE characterEditorDrawPrimaryStat: description at x 103, y statY + 8
-        const commentLbl = new Label(103, 45 + n, '', '#3cf800').css({ fontSize: '0.69em' }) as Label
+        const commentLbl = new Label(103, 45 + n, '', '#3cf800').css({
+            fontSize: '0.69em',
+            pointerEvents: 'none',
+        }) as Label
         statCommentLabels.push(commentLbl)
         characterWindow.add(commentLbl)
 

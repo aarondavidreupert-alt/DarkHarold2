@@ -279,9 +279,11 @@ export const STAT_COMMENTS = [
     'Heroic',
 ]
 
+// CE character_editor.cc characterEditorDrawPrimaryStat: editor.msg 199 + value — the short
+// forms (V.Bad, Avrg, V.Good, Exclnt, …) that fit the column; stat.msg's long ones overran it
 export function statComment(value: number): string {
     const v = Math.max(1, Math.min(10, value))
-    return getMessage('stat', 300 + v) ?? STAT_COMMENTS[v]
+    return getMessage('editor', 199 + v) ?? getMessage('stat', 300 + v) ?? STAT_COMMENTS[v]
 }
 
 export const FOLDER_TABS = [
