@@ -354,9 +354,28 @@ class Heart {
 // not having a consistent keymap. (also, this won't work with special characters.)
 // Keys typed into a text field (save description, name entry, ...) belong to the
 // field, not to the game hotkeys.
+// Only a visible text field: a preference slider (an invisible <input type=range>) kept the
+// focus after the options window closed, and every key — the arrow keys scrolling the map
+// too — went to it (known_bugs CA78).
+const TEXT_INPUT_TYPES = new Set(['text', 'search', 'password', 'email', 'number', 'tel', 'url'])
 function isTypingTarget(t: EventTarget | null): boolean {
     const el = t as HTMLElement | null
-    return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable === true)
+    if (!el) {
+        return false
+    }
+    const typing =
+        (el.tagName === 'INPUT' && TEXT_INPUT_TYPES.has((el as HTMLInputElement).type)) ||
+        el.tagName === 'TEXTAREA' ||
+        el.isContentEditable === true
+    if (!typing) {
+        return false
+    }
+    // a field of a window that has been closed (hidden) doesn't keep the keys
+    const visible = el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden'
+    if (!visible) {
+        el.blur()
+    }
+    return visible
 }
 
 window.onkeydown = function (e) {

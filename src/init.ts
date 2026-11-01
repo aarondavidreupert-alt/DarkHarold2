@@ -94,6 +94,11 @@ export function initGame() {
         el.addEventListener('mouseenter', () => {
             uiState.gameHasFocus = true
         })
+        // a window closing over a resting mouse fires no mouseenter: the flag stayed off and
+        // edge scrolling with it until the mouse left the game and came back (known_bugs CA78)
+        el.addEventListener('mousemove', () => {
+            uiState.gameHasFocus = true
+        })
         el.addEventListener('mouseleave', (e) => {
             if (!inGameArea((e as MouseEvent).relatedTarget)) uiState.gameHasFocus = false
         })
