@@ -704,7 +704,9 @@ def write_config(overwrite=True):
 	if fallout2Cfg.write_default_cfg("fallout2.cfg"):
 		info("Wrote default fallout2.cfg")
 	else:
-		info("Keeping existing fallout2.cfg")
+		# the options added to DarkHarold2 since the file was written, with their comments
+		added = fallout2Cfg.add_missing_options("fallout2.cfg")
+		info("Keeping existing fallout2.cfg" + (" - added %s" % ", ".join(added) if added else ""))
 	if fallout2Cfg.write_default_mods_order():
 		info("Wrote mods/mods_order.txt (no mods)")
 	return True

@@ -18,7 +18,9 @@ limitations under the License.
 # plus DarkHarold2's [dh2] section (read by src/uiOptions/fallout2Cfg.ts).
 # CE writes the file itself on exit (gameConfigSave); a browser can't, so the
 # pipeline creates it once. An existing file is never overwritten - it may hold
-# the user's own settings.
+# the user's own settings - but the options it lacks (added to DarkHarold2 after it
+# was written) are appended with their comments, as CE gameConfigInit fills in the
+# defaults of missing keys.
 
 import os
 
@@ -231,6 +233,59 @@ def write_default_cfg(path="fallout2.cfg", overwrite=False):
     return True
 
 
+def _section_entries(text):
+    """{section: [(key, lines)]} of a cfg text, lowercase section and key names; `lines`
+    are the key's line and the comment lines right above it. Top-level keys: section ''."""
+    out = {"": []}
+    section = ""
+    comments = []
+    for line in text.splitlines():
+        s = line.strip()
+        if s.startswith("[") and s.endswith("]"):
+            section = s[1:-1].strip().lower()
+            out.setdefault(section, [])
+            comments = []
+        elif s.startswith(";") or s.startswith("#"):
+            comments.append(line)
+        elif "=" in s:
+            out[section].append((s.split("=", 1)[0].strip().lower(), comments + [line]))
+            comments = []
+        else:
+            comments = []
+    return out
+
+
+def add_missing_options(path="fallout2.cfg"):
+    """Append the options of DEFAULT_CFG that the existing file at `path` lacks, each with
+    its comment lines, at the end of its section (a missing section at the end of the file).
+    The file's own lines and values are kept. Returns the added keys as 'section.key'."""
+    with open(path, encoding="latin-1") as f:
+        lines = f.read().splitlines()
+    have = {sec: {k for k, _ in entries} for sec, entries in _section_entries("\n".join(lines)).items()}
+    added = []
+    for section, entries in _section_entries(DEFAULT_CFG).items():
+        missing = [(k, block) for k, block in entries if k not in have.get(section, set())]
+        if not missing:
+            continue
+        new_lines = [l for _, block in missing for l in block]
+        added += [(section + "." if section else "") + k for k, _ in missing]
+        if section not in have:
+            lines += ["", "[%s]" % section] + new_lines
+            continue
+        # after the section's last non-blank line
+        start = 0
+        if section:
+            start = next(i for i, l in enumerate(lines) if l.strip().lower() == "[%s]" % section) + 1
+        end = next((i for i in range(start, len(lines)) if lines[i].strip().startswith("[")), len(lines))
+        while end > start and not lines[end - 1].strip():
+            end -= 1
+        lines[end:end] = new_lines
+    if added:
+        with open(path, "w", encoding="latin-1", newline="\r\n") as f:
+            f.write("\n".join(lines) + "\n")
+    return added
+
+
 DEFAULT_MODS_ORDER = r"""; mods_order.txt - DarkHarold2 mod load order (sfall's format, sfall LoadOrder.cpp)
 ;
 ; One mod per line, loaded top to bottom; a later line takes priority over an earlier one.
@@ -259,4 +314,8 @@ def write_default_mods_order(path=os.path.join("mods", "mods_order.txt"), overwr
 if __name__ == "__main__":
     import sys
     target = sys.argv[1] if len(sys.argv) > 1 else "fallout2.cfg"
-    print(("wrote " if write_default_cfg(target) else "kept existing ") + target)
+    if write_default_cfg(target):
+        print("wrote " + target)
+    else:
+        added = add_missing_options(target)
+        print("kept existing " + target + (", added " + ", ".join(added) if added else ""))
