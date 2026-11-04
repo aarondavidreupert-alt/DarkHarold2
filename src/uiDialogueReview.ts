@@ -33,6 +33,7 @@ import { endLips } from './talkingHead.js'
 import { getDialogueSpeaker } from './uiDialogue.js'
 import { getUiContainer } from './uiContainer.js'
 import { assetUrl } from './modAssets.js'
+import { CE_COLOR } from './uiFont.js'
 
 const SCROLL_STEP_PX = 32
 
@@ -75,8 +76,14 @@ export function uiShowDialogueReview(): void {
         width: '334px',
         height: '342px',
         overflowY: 'auto',
+        scrollbarWidth: 'none', // the DH2 bar below instead of the browser's (white) one
         fontSize: '.75em',
+        // DH2: the text can be selected and copied (debugging); a press on it does not drag
+        // the window (uiDrag data-drag="no")
+        userSelect: 'text',
+        cursor: 'text',
     })
+    list.dataset.drag = 'no'
     const speakerName = (getDialogueSpeaker()?.name ?? '') + ':'
     const dudeName = (world.player?.name ?? '') + ':'
     const line = (text: string, color: string, indent: number): HTMLDivElement => {
@@ -99,6 +106,48 @@ export function uiShowDialogueReview(): void {
         entries.push(box)
     }
     panel.appendChild(list)
+
+    // Scroll bar (DH2, as the save / load list's): a thin track right of the text, the thumb
+    // in the list green; a click on the track jumps there.
+    const track = document.createElement('div')
+    Object.assign(track.style, {
+        position: 'absolute',
+        left: '424px',
+        top: '76px',
+        width: '4px',
+        height: '342px',
+        background: CE_COLOR.dimGreen,
+    })
+    const thumb = document.createElement('div')
+    Object.assign(thumb.style, { position: 'absolute', left: '0', width: '4px', background: CE_COLOR.green })
+    track.appendChild(thumb)
+    panel.appendChild(track)
+    const updateTrack = (): void => {
+        const total = list.scrollHeight
+        const visible = list.clientHeight
+        track.style.display = total > visible ? 'block' : 'none'
+        if (total <= visible) {
+            return
+        }
+        const h = track.clientHeight || 342
+        thumb.style.height = Math.max(8, Math.round((h * visible) / total)) + 'px'
+        thumb.style.top = Math.round((h * list.scrollTop) / total) + 'px'
+    }
+    list.addEventListener('scroll', updateTrack)
+    track.addEventListener('mousedown', (e) => {
+        e.stopPropagation()
+        const y = e.clientY - track.getBoundingClientRect().top
+        const h = track.getBoundingClientRect().height || 1
+        list.scrollTop = (list.scrollHeight * y) / h - list.clientHeight / 2
+    })
+    track.addEventListener(
+        'wheel',
+        (e) => {
+            e.preventDefault()
+            list.scrollTop += e.deltaY
+        },
+        { passive: false },
+    )
     // CE: ↑ / ↓ move the first entry shown by one
     let origin = 0
     const showFrom = (i: number) => {
@@ -209,4 +258,5 @@ export function uiShowDialogueReview(): void {
     getUiContainer().appendChild(panel)
 
     list.scrollTop = 0 // CE: gameDialogReviewWindowUpdate(win, 0), the oldest entry first
+    updateTrack()
 }
