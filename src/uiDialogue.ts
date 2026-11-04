@@ -119,7 +119,7 @@ function setupDialogueActionButtons(target: Critter | undefined): void {
             // message 903 ("This person will not barter with you") for
             // regular NPCs, 913 ("This critter can't carry anything") for
             // party members, both from proto.msg (gProtoMessageList).
-            uiSetDialogueReply(getProtoMsg(isPartyMember ? 913 : 903) ?? '') // CE gameDialogRenderSupplementaryMessage
+            uiSetSupplementaryMessage(getProtoMsg(isPartyMember ? 913 : 903) ?? '') // CE gameDialogRenderSupplementaryMessage
         }
     }
 
@@ -236,7 +236,17 @@ export function uiEndDialogue() {
 // CE _gdProcess: a reply too long for its window turns to the next page every 10 s
 let replyPageTimer: number | null = null
 
+// A script reply (gsay_reply / gsay_message): the reply window, and the options are cleared
+// for the ones the script adds next.
 export function uiSetDialogueReply(reply: string) {
+    uiSetSupplementaryMessage(reply)
+    $id('dialogueBoxTextArea').innerHTML = ''
+}
+
+// CE game_dialog.cc gameDialogRenderSupplementaryMessage: a message of the engine's (barter's
+// "Ok, that's a good trade.", "This person will not barter with you") drawn in the reply
+// window; the script's options stay.
+export function uiSetSupplementaryMessage(reply: string) {
     const $dialogueBoxReply = $id('dialogueBoxReply')
     // as text: .msg lines such as "<cough> <cough>" or "<zzzt>" are not markup (CE draws them as is)
     $dialogueBoxReply.textContent = reply
@@ -252,8 +262,6 @@ export function uiSetDialogueReply(reply: string) {
         }
         $r.scrollTop += Math.max(1, $r.clientHeight)
     }, 10000)
-
-    $id('dialogueBoxTextArea').innerHTML = ''
 }
 
 /**

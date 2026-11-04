@@ -27,7 +27,7 @@ import * as Scripting from '../scripting.js'
 import { aiAttemptWeaponReload } from '../combat/Combat.js'
 import { endLips } from '../talkingHead.js'
 import { UIMode } from '../uiMode.js'
-import { uiAnimateBox, uiSetDialogueReply } from '../uiDialogue.js'
+import { uiAnimateBox, uiSetSupplementaryMessage } from '../uiDialogue.js'
 import {
     drawBagView,
     examineToLog,
@@ -321,7 +321,7 @@ export function uiBarterMode(merchant: Critter) {
                 return w + (it && it.pid !== undefined ? it.stackWeight(it.amount ?? 1) : 0)
             }, 0)
         if (tableWeight > player!.getStat('Carry') - carried) {
-            uiSetDialogueReply(getMessage('inventry', 31) ?? 'Sorry, you cannot carry that much.')
+            uiSetSupplementaryMessage(getMessage('inventry', 31) ?? 'Sorry, you cannot carry that much.')
             return false
         }
 
@@ -342,7 +342,7 @@ export function uiBarterMode(merchant: Critter) {
             const running = (o: Obj): Obj | null =>
                 queued.has(o.uid) ? o : ((o.inventory ?? []).map(running).find((x) => x) ?? null)
             const item = playerBarterTable.map(running).find((x) => x) ?? null
-            uiSetDialogueReply(runningItemReply(item))
+            uiSetSupplementaryMessage(runningItemReply(item))
             return false
         }
 
@@ -376,14 +376,14 @@ export function uiBarterMode(merchant: Critter) {
 
             redrawBarterInventory()
             // CE inventoryOpenTrade: inventry.msg 27 "Ok, that's a good trade." (not for party members)
-            uiSetDialogueReply(getMessage('inventry', 27) ?? "Ok, that's a good trade.")
+            uiSetSupplementaryMessage(getMessage('inventry', 27) ?? "Ok, that's a good trade.")
             return true
         } else {
             // CE ref: inventory.cc:4742-4755 _barter_attempt_transaction —
             // message 28 "No, your offer is not good enough.", rendered via
             // gameDialogRenderSupplementaryMessage into the dialogue reply
-            // window (DH2: #dialogueBoxReply — see uiSetDialogueReply).
-            uiSetDialogueReply(getMessage('inventry', 28) ?? 'No, your offer is not good enough.')
+            // window (DH2: #dialogueBoxReply — see uiSetSupplementaryMessage).
+            uiSetSupplementaryMessage(getMessage('inventry', 28) ?? 'No, your offer is not good enough.')
             return false
         }
     }
@@ -500,7 +500,7 @@ export function uiBarterMode(merchant: Critter) {
                   ? merchantBags[merchantBags.length - 1]
                   : undefined
         if (amount > 0 && toBag && !toBag.canCarry(obj, amount)) {
-            uiSetDialogueReply(getMessage('inventry', 26) ?? 'There is no space left for that item.')
+            uiSetSupplementaryMessage(getMessage('inventry', 26) ?? 'There is no space left for that item.')
             return
         }
         uiSwapItem(from, obj, to, amount)

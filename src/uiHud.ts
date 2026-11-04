@@ -403,6 +403,26 @@ function resetChangedHandActions(): void {
     }
 }
 
+// CE interface.cc interfaceBarRefreshMainAction: the hand item's inventory image at its own
+// size, centred in the 188 x 67 button: x = (188 - w) / 2, y = (67 - h) / 2 (C integer
+// division); pressed, it moves 1 px right and 2 px up (ui.css).
+function showHandItemImage($img: HTMLImageElement, invArt: string): void {
+    $img.onload = function () {
+        if (!$img.complete) {
+            return
+        }
+        Object.assign($img.style, {
+            position: 'absolute',
+            left: Math.trunc((188 - $img.naturalWidth) / 2) + 'px',
+            top: Math.trunc((67 - $img.naturalHeight) / 2) + 'px',
+            display: '',
+        })
+    }
+    $img.setAttribute('draggable', 'false')
+    $img.style.display = ''
+    $img.src = assetUrl(invArt + '.png')
+}
+
 export function uiDrawWeapon(): void {
     resetChangedHandActions()
     // draw the active weapon in the interface bar
@@ -423,9 +443,7 @@ export function uiDrawWeapon(): void {
         // non-weapon item in the active hand shows its own icon in the HUD
         // (INTERFACE_ITEM_ACTION_USE), not the unarmed fists/kicks fallback.
         if (activeItem && activeItem.invArt && !objectIsWeapon(activeItem)) {
-            $wepImg.style.display = ''
-            $wepImg.onload = null
-            $wepImg.src = assetUrl(activeItem.invArt + '.png')
+            showHandItemImage($wepImg, activeItem.invArt)
             $typeImg.style.display = 'none'
             hide($id('attackButtonCalled'))
             return
@@ -452,21 +470,7 @@ export function uiDrawWeapon(): void {
 
     {
         // CE interfaceBarRefreshMainAction draws the item's inventory image for any weapon
-        $wepImg.onload = null
-        $wepImg.onload = function () {
-            if (!$wepImg.complete) {
-                return
-            }
-            Object.assign($wepImg.style, {
-                position: 'absolute',
-                top: '5px',
-                left: $id('attackButton').offsetWidth / 2 - $wepImg.width / 2 + 'px',
-                maxHeight: $id('attackButton').offsetHeight - 10 + 'px',
-                display: '',
-            })
-            $wepImg.setAttribute('draggable', 'false')
-        }
-        $wepImg.src = assetUrl(weapon.invArt + '.png')
+        showHandItemImage($wepImg, weapon.invArt)
     }
 
     // draw weapon AP cost digit

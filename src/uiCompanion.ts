@@ -51,7 +51,7 @@ import {
     setCompanionDisposition,
 } from './party.js'
 import { uiCompanionTrade } from './uiCompanionTrade.js'
-import { getVisibleDialoguePanel, uiSetDialogueReply, uiSwapDialoguePanel } from './uiDialogue.js'
+import { getVisibleDialoguePanel, uiSetSupplementaryMessage, uiSwapDialoguePanel } from './uiDialogue.js'
 import { $id } from './uiDom.js'
 import * as Scripting from './scripting.js'
 import { assetUrl } from './modAssets.js'
@@ -402,7 +402,7 @@ function makeStandingPreview(critter: Critter): HTMLCanvasElement {
 // trade — proto.msg 913 "This critter can't carry anything." for a party member (903 otherwise)
 function canBarter(critter: Critter): boolean {
     if (((critter.pro?.extra?.flags ?? 0) & 0x02) !== 0) return true
-    uiSetDialogueReply(getProtoMsg(world.gParty?.isPartyMember(critter) ? 913 : 903) ?? '')
+    uiSetSupplementaryMessage(getProtoMsg(world.gParty?.isPartyMember(critter) ? 913 : 903) ?? '')
     return false
 }
 

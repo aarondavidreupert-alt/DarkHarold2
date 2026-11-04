@@ -38,7 +38,7 @@ import { uiState } from './state/uiState.js'
 import { relinkTradedHands, tradeHeldAside } from './inventoryWield.js'
 import { Critter, cloneItem, Obj } from './object.js'
 import { UIMode } from './uiMode.js'
-import { getVisibleDialoguePanel, uiSetDialogueReply, uiSwapDialoguePanel } from './uiDialogue.js'
+import { getVisibleDialoguePanel, uiSetSupplementaryMessage, uiSwapDialoguePanel } from './uiDialogue.js'
 import {
     drawBagView,
     examineToLog,
@@ -129,8 +129,8 @@ export function uiCompanionTrade(companion: Critter): void {
             // CE ref: inventory.cc:4710-4718 — message 31 "Sorry, you cannot
             // carry that much.", rendered via gameDialogRenderSupplementaryMessage
             // into the dialogue reply window (DH2: #dialogueBoxReply, which
-            // stays visible behind the trade panel — see uiSetDialogueReply).
-            uiSetDialogueReply(getMessage('inventry', 31) ?? 'Sorry, you cannot carry that much.')
+            // stays visible behind the trade panel — see uiSetSupplementaryMessage).
+            uiSetSupplementaryMessage(getMessage('inventry', 31) ?? 'Sorry, you cannot carry that much.')
             return
         }
 
@@ -140,7 +140,7 @@ export function uiCompanionTrade(companion: Critter): void {
         if (totalWeight(playerBarterTable) > companionWeightAvailable) {
             // CE ref: inventory.cc:4720-4728 — message 32 "Sorry, that's too
             // much to carry." (gGameDialogSpeakerIsPartyMember branch).
-            uiSetDialogueReply(getMessage('inventry', 32) ?? "Sorry, that's too much to carry.")
+            uiSetSupplementaryMessage(getMessage('inventry', 32) ?? "Sorry, that's too much to carry.")
             return
         }
 
@@ -240,7 +240,7 @@ export function uiCompanionTrade(companion: Critter): void {
                   ? companionBags[companionBags.length - 1]
                   : undefined
         if (amount > 0 && toBag && !toBag.canCarry(obj, amount)) {
-            uiSetDialogueReply(getMessage('inventry', 26) ?? 'There is no space left for that item.')
+            uiSetSupplementaryMessage(getMessage('inventry', 26) ?? 'There is no space left for that item.')
             return
         }
         uiSwapItem(from, obj, to, amount)

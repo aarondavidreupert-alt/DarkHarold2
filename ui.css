@@ -353,8 +353,8 @@ html, body {
 }
 
 #attackButtonContainer:active #attackButtonWeapon {
-  /* move weapon image up */
-  transform: translateY(-2px);
+  /* CE interfaceBarRefreshMainAction: the pressed button draws the item 1 px right, 2 px up */
+  transform: translate(1px, -2px);
 }
 
 #attackButton {

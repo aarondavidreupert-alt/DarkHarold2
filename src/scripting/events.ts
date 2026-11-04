@@ -110,6 +110,15 @@ export function reenterDialogue(): void {
         return
     }
     uiPort.uiStartDialogue(true, scriptingState.currentDialogueObject as Critter)
+    // CE gdUnhide: the reply window and options show the script's reply and options again
+    // (barter's own messages had replaced the reply text)
+    const last = scriptingState.dialogueReviewLog[scriptingState.dialogueReviewLog.length - 1]
+    if (last) {
+        uiPort.uiSetDialogueReply(last.reply)
+    }
+    scriptingState.dialogueOptionTexts.forEach((text, i) =>
+        uiPort.uiAddDialogueOption(text, i, scriptingState.dialogueOptionReactions[i] ?? 50),
+    )
     if (scriptingState.dialogueOptionProcs.length === 0) {
         dbg('dialogue', '[dialogue exit after barter (no options)]')
         dialogueExit()
