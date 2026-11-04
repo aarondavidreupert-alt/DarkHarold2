@@ -15,16 +15,20 @@ limitations under the License.
 */
 
 import { getCurrentMapInfo } from './data.js'
-import globalState from './globalState.js'
+import { world } from './state/world.js'
 import { dbg, dbgWarn } from './logger.js'
 import { getFileJSON, getRandomInt } from './util.js'
 import { getWeaponSounds, ImpactMaterial } from './soundMap.js'
 import { assetUrl } from './modAssets.js'
+import type { Obj } from './object.js'
+import { soundSourceVolume } from './soundVolume.js'
+import { Config } from './config.js'
+import { getHourMilitary } from './gametime.js'
 
 // Has the page had a user gesture yet? (browser autoplay policy; true where the
 // UserActivation API is missing)
 function audioUnlocked(): boolean {
-    return (navigator as any).userActivation?.hasBeenActive ?? true
+    return navigator.userActivation?.hasBeenActive ?? true
 }
 
 // Bump when the pipeline's SFX/speech output changes, so browsers drop cached copies
@@ -34,13 +38,21 @@ export const AUDIO_ASSET_QUERY = '?r=2'
 // Audio engine for handling music and sound effects
 
 export interface AudioEngine {
-    playSfx(sfx: string): void
-    playSfxByName(stem: string): void
+    // source: the object making the sound (CE _gsound_compute_relative_volume)
+    playSfx(sfx: string, source?: Obj | null): void
+    playSfxByName(stem: string, source?: Obj | null): void
     hasSfx(stem: string): boolean
     playMusic(music: string): void
     playSound(soundName: string): HTMLAudioElement | null
-    playWeaponSfx(soundId: string, type: 'attack' | 'attack_burst' | 'impact' | 'reload' | 'empty', material?: ImpactMaterial): void
+    playWeaponSfx(
+        soundId: string,
+        type: 'attack' | 'attack_burst' | 'impact' | 'reload' | 'empty',
+        material?: ImpactMaterial,
+        source?: Obj | null,
+    ): void
     stopMusic(): void
+    pauseMusic(): void
+    resumeMusic(): void
     stopAll(): void
     tick(): void
     setVolume(channel: 'master' | 'music' | 'sfx' | 'speech', value: number): void
@@ -49,16 +61,33 @@ export interface AudioEngine {
 export class NullAudioEngine implements AudioEngine {
     playSfx(sfx: string): void {}
     playSfxByName(stem: string): void {}
-    hasSfx(stem: string): boolean { return false }
+    hasSfx(stem: string): boolean {
+        return false
+    }
     playMusic(music: string): void {}
     playSound(soundName: string): HTMLAudioElement | null {
         return null
     }
-    playWeaponSfx(soundId: string, type: 'attack' | 'attack_burst' | 'impact' | 'reload' | 'empty', material?: ImpactMaterial): void {}
+    playWeaponSfx(
+        soundId: string,
+        type: 'attack' | 'attack_burst' | 'impact' | 'reload' | 'empty',
+        material?: ImpactMaterial,
+    ): void {}
     stopMusic(): void {}
+    pauseMusic(): void {}
+    resumeMusic(): void {}
     stopAll(): void {}
     tick(): void {}
     setVolume(_channel: 'master' | 'music' | 'sfx' | 'speech', _value: number): void {}
+}
+
+// CE worldmap.cc wmSfxIdxName: at night (game hour ≤ 600 or ≥ 1800) the birds are crickets —
+// brdchir1 → cricket, brdchirp → cricket1 (wmRemapSfxList)
+function nightRemap(name: string): string {
+    if (name !== 'brdchir1' && name !== 'brdchirp') return name
+    const hour = getHourMilitary()
+    if (hour > 600 && hour < 1800) return name
+    return name === 'brdchir1' ? 'cricket' : 'cricket1'
 }
 
 export class HTMLAudioEngine implements AudioEngine {
@@ -67,13 +96,18 @@ export class HTMLAudioEngine implements AudioEngine {
     nextSfx: string | null = null
     lastAmbientTime = -Infinity // CE _lastTime_1 (real time)
     musicAudio: HTMLAudioElement | null = null
+    // CE game_sound.cc: the track to restart when a zero volume is raised (_gsound_background_df_vol)
+    lastMusic: string | null = null
+    musicOffByVolume = false
+    pausedMusic: HTMLAudioElement | null = null
 
-    // Volume levels (0.0–1.0 internally; Preferences UI uses 0–100)
-    masterVolume: number = 1
-    musicVolume: number = 1
-    sfxVolume: number = 1
+    // Volume levels (0.0–1.0 internally; Preferences UI uses 0–100). CE game_config.cc
+    // gameConfigInit: every volume starts at 22281 of 32767 (fallout2.cfg sets them otherwise).
+    masterVolume: number = 22281 / 32767
+    musicVolume: number = 22281 / 32767
+    sfxVolume: number = 22281 / 32767
     // FO2-CE ref: settings.cc:93 speech_volume (0–32767 in CE, normalised to 0.0–1.0 here)
-    speechVolume: number = 1
+    speechVolume: number = 22281 / 32767
 
     // Web Audio pipeline for SFX (decodeAudioData + one-shot buffers).
     // Music stays on HTMLAudioElement — loop + streaming are simpler there.
@@ -93,7 +127,7 @@ export class HTMLAudioEngine implements AudioEngine {
 
     private getCtx(): AudioContext {
         if (!this.ctx) {
-            const Ctor = (window as any).AudioContext ?? (window as any).webkitAudioContext
+            const Ctor = window.AudioContext ?? window.webkitAudioContext
             this.ctx = new Ctor() as AudioContext
             // Build gain chain: source → sfxGainNode → masterGainNode → destination
             this.sfxGainNode = this.ctx.createGain()
@@ -140,63 +174,113 @@ export class HTMLAudioEngine implements AudioEngine {
         return promise
     }
 
-    private async playBuffer(name: string, buf: AudioBuffer): Promise<void> {
+    private async playBuffer(name: string, buf: AudioBuffer, source: Obj | null = null): Promise<void> {
         const ctx = this.getCtx()
         // Browsers suspend the context until the first user gesture.  Awaiting
         // resume() here ensures source.start() doesn't fire into a suspended
         // context (which would silently drop the sound).
         if (ctx.state === 'suspended') {
-            try { await ctx.resume() } catch { /* will retry on next play */ }
+            try {
+                await ctx.resume()
+            } catch {
+                /* will retry on next play */
+            }
         }
-        const source = ctx.createBufferSource()
-        source.buffer = buf
-        // Route through sfxGainNode → masterGainNode → destination for volume control
-        source.connect(this.sfxGainNode!)
-        source.start()
+        const node = ctx.createBufferSource()
+        node.buffer = buf
+        // Route through sfxGainNode → masterGainNode → destination for volume control; an
+        // off-screen source through its own gain first (CE _gsound_compute_relative_volume)
+        const relative = soundSourceVolume(source)
+        if (relative < 1) {
+            const gain = ctx.createGain()
+            gain.gain.value = relative
+            node.connect(gain)
+            gain.connect(this.sfxGainNode!)
+        } else {
+            node.connect(this.sfxGainNode!)
+        }
+        node.start()
         // Log every actual play (not just first-load) so the console reflects
         // sound events 1:1 — including cache hits like repeated door toggles.
         dbg('audio', '[Sound]', name)
     }
 
-    playSfx(sfx: string): void {
+    playSfx(sfx: string, source: Obj | null = null): void {
+        if (!Config.engine.soundsEnabled) return // [sound] sounds=0
         // Fire-and-forget; errors are logged inside loadSfx / playBuffer.
-        this.loadSfx(sfx).then(buf => {
-            if (buf) return this.playBuffer(sfx, buf)
-            return undefined
-        }).catch(e => dbgWarn('audio', '[Audio] playSfx failed:', sfx, e))
+        this.loadSfx(sfx)
+            .then((buf) => {
+                if (buf) return this.playBuffer(sfx, buf, source)
+                return undefined
+            })
+            .catch((e) => dbgWarn('audio', '[Audio] playSfx failed:', sfx, e))
     }
 
     playMusic(music: string): void {
         this.stopMusic()
+        this.lastMusic = music
+        if (!Config.engine.soundsEnabled || !Config.engine.musicEnabled) return // [sound] sounds=0 / music=0
+        // CE backgroundSoundSetVolume: a zero music or master volume disables the music
+        if (this.musicVolume === 0 || this.masterVolume === 0) {
+            this.musicOffByVolume = true
+            return
+        }
         this.musicAudio = this.playSound('music/' + music)
         if (this.musicAudio) {
             this.musicAudio.loop = true
-            this.musicAudio.volume = this.musicVolume * this.masterVolume
+            this.musicAudio.volume = this.musicElementVolume()
         }
     }
 
+    // CE plays the background music at gMusicVolume × 0.94 (under the master mix)
+    private musicElementVolume(): number {
+        return this.musicVolume * 0.94 * this.masterVolume
+    }
+
+    // CE backgroundSoundPause / Resume (loadsave.cc: under the save / load window)
+    pauseMusic(): void {
+        if (this.musicAudio && !this.musicAudio.paused) {
+            this.musicAudio.pause()
+            this.pausedMusic = this.musicAudio
+        }
+    }
+
+    resumeMusic(): void {
+        const el = this.pausedMusic
+        this.pausedMusic = null
+        if (el && el === this.musicAudio) el.play().catch((e) => dbg('audio', '[Audio] play() blocked:', e))
+    }
+
     playSound(soundName: string): HTMLAudioElement | null {
-        var sound = new Audio()
-        sound.addEventListener('canplaythrough', () => {
-            dbg('audio', '[Sound]', soundName)
-            if (audioUnlocked()) {
-                sound.play().catch(e => dbg('audio', '[Audio] play() blocked:', e))
-                return
-            }
-            // Music before the first user gesture: start it on that gesture.
-            if (!sound.loop) return
-            const start = () => {
-                window.removeEventListener('pointerdown', start, true)
-                window.removeEventListener('keydown', start, true)
-                if (this.musicAudio === sound) sound.play().catch(e => dbg('audio', '[Audio] play() blocked:', e))
-            }
-            window.addEventListener('pointerdown', start, true)
-            window.addEventListener('keydown', start, true)
-        }, false)
-        sound.addEventListener('error', () => {
-            // File missing (404) or unsupported format — fail silently to avoid console spam
-            dbgWarn('audio', '[Audio] could not load:', soundName)
-        }, false)
+        const sound = new Audio()
+        sound.addEventListener(
+            'canplaythrough',
+            () => {
+                dbg('audio', '[Sound]', soundName)
+                if (audioUnlocked()) {
+                    sound.play().catch((e) => dbg('audio', '[Audio] play() blocked:', e))
+                    return
+                }
+                // Music before the first user gesture: start it on that gesture.
+                if (!sound.loop) return
+                const start = () => {
+                    window.removeEventListener('pointerdown', start, true)
+                    window.removeEventListener('keydown', start, true)
+                    if (this.musicAudio === sound) sound.play().catch((e) => dbg('audio', '[Audio] play() blocked:', e))
+                }
+                window.addEventListener('pointerdown', start, true)
+                window.addEventListener('keydown', start, true)
+            },
+            false,
+        )
+        sound.addEventListener(
+            'error',
+            () => {
+                // File missing (404) or unsupported format — fail silently to avoid console spam
+                dbgWarn('audio', '[Audio] could not load:', soundName)
+            },
+            false,
+        )
         sound.src = assetUrl('audio/' + soundName + '.wav' + AUDIO_ASSET_QUERY)
         return sound
     }
@@ -209,7 +293,7 @@ export class HTMLAudioEngine implements AudioEngine {
         return stem.toUpperCase() in this.sfxLookup!
     }
 
-    playSfxByName(stem: string): void {
+    playSfxByName(stem: string, source: Obj | null = null): void {
         if (!this.sfxLookup) {
             this.sfxLookup = getFileJSON('lut/lst/sound_sfx_sndlist.json') ?? {}
         }
@@ -217,10 +301,15 @@ export class HTMLAudioEngine implements AudioEngine {
             dbgWarn('audio', `[Audio] SFX stem not found: ${stem}`)
             return
         }
-        this.playSfx(stem)
+        this.playSfx(stem, source)
     }
 
-    playWeaponSfx(soundId: string, type: 'attack' | 'attack_burst' | 'impact' | 'reload' | 'empty', material: ImpactMaterial = 'flesh'): void {
+    playWeaponSfx(
+        soundId: string,
+        type: 'attack' | 'attack_burst' | 'impact' | 'reload' | 'empty',
+        material: ImpactMaterial = 'flesh',
+        source: Obj | null = null,
+    ): void {
         if (!soundId) return
         const sounds = getWeaponSounds(soundId, material)
         const file = sounds[type]
@@ -230,13 +319,15 @@ export class HTMLAudioEngine implements AudioEngine {
         // without a dedicated wa<id>2xxx1 burst sample.  Rather than log a
         // 404, fall back to the single-shot attack sound.
         if (type === 'attack_burst') {
-            this.loadSfx(file).then(buf => {
-                if (buf) return this.playBuffer(file, buf)
-                return this.loadSfx(sounds.attack).then(fb => {
-                    if (fb) return this.playBuffer(sounds.attack, fb)
-                    return undefined
+            this.loadSfx(file)
+                .then((buf) => {
+                    if (buf) return this.playBuffer(file, buf, source)
+                    return this.loadSfx(sounds.attack).then((fb) => {
+                        if (fb) return this.playBuffer(sounds.attack, fb, source)
+                        return undefined
+                    })
                 })
-            }).catch(e => dbgWarn('audio', '[Audio] playWeaponSfx burst failed:', file, e))
+                .catch((e) => dbgWarn('audio', '[Audio] playWeaponSfx burst failed:', file, e))
             return
         }
 
@@ -250,26 +341,38 @@ export class HTMLAudioEngine implements AudioEngine {
             if (!(file.toUpperCase() in this.sfxLookup!)) {
                 const xxxImpact = `wh${soundId.toLowerCase()}1xxx1`
                 if (xxxImpact.toUpperCase() in this.sfxLookup!) {
-                    this.playSfx(xxxImpact)
+                    this.playSfx(xxxImpact, source)
                 }
                 return
             }
         }
 
-        this.playSfx(file)
+        this.playSfx(file, source)
     }
 
     setVolume(channel: 'master' | 'music' | 'sfx' | 'speech', value: number): void {
         // value is 0–100 from the UI; normalise to 0.0–1.0
         const v = Math.max(0, Math.min(100, value)) / 100
-        if (channel === 'master') {
-            this.masterVolume = v
-            if (this.masterGainNode) this.masterGainNode.gain.value = v
+        if (channel === 'master' || channel === 'music') {
+            if (channel === 'master') {
+                this.masterVolume = v
+                if (this.masterGainNode) this.masterGainNode.gain.value = v
+            } else {
+                this.musicVolume = v
+            }
             // Music uses HTMLAudioElement so update its volume directly.
-            if (this.musicAudio) this.musicAudio.volume = this.musicVolume * v
-        } else if (channel === 'music') {
-            this.musicVolume = v
-            if (this.musicAudio) this.musicAudio.volume = v * this.masterVolume
+            if (this.musicAudio) this.musicAudio.volume = this.musicElementVolume()
+            // CE gameSoundSetMasterVolume / backgroundSoundSetVolume: at 0 the music stops
+            // (backgroundSoundDisable); raised again, the track starts over
+            if (this.musicVolume === 0 || this.masterVolume === 0) {
+                if (this.musicAudio) {
+                    this.stopMusic()
+                    this.musicOffByVolume = true
+                }
+            } else if (this.musicOffByVolume) {
+                this.musicOffByVolume = false
+                if (this.lastMusic) this.playMusic(this.lastMusic)
+            }
         } else if (channel === 'speech') {
             // FO2-CE ref: settings.cc:93 speech_volume — stored for future speech playback.
             this.speechVolume = v
@@ -284,6 +387,7 @@ export class HTMLAudioEngine implements AudioEngine {
     // its HTTP connection, and a few map changes would use up the browser's six per host.
     stopMusic(): void {
         const el = this.musicAudio
+        this.musicOffByVolume = false
         if (!el) return
         this.musicAudio = null
         el.pause()
@@ -322,19 +426,19 @@ export class HTMLAudioEngine implements AudioEngine {
     tick(): void {
         const curMapInfo = getCurrentMapInfo()
         if (!curMapInfo?.ambientSfx || curMapInfo.ambientSfx.length === 0) return
-        const now = globalState.gameTickTime
+        const now = world.gameTickTime
         if (this.nextSfxTime === 0) {
             this.nextSfx = this.rollNextSfx()
             this.nextSfxTime = now + 10 * getRandomInt(15, 20)
             return
         }
         if (now < this.nextSfxTime) return
-        const sfx = globalState.inCombat ? '' : this.nextSfx
+        const sfx = world.inCombat ? '' : this.nextSfx
         this.nextSfx = this.rollNextSfx()
         this.nextSfxTime = now + 10 * getRandomInt(15, 20)
         if (sfx) {
             const real = window.performance.now()
-            if (real - this.lastAmbientTime >= 5000) this.playSfx(sfx)
+            if (real - this.lastAmbientTime >= 5000) this.playSfx(nightRemap(sfx))
             this.lastAmbientTime = real
         }
     }

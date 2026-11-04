@@ -394,4 +394,4 @@ FO2 scripts define specific procedure names that the engine calls at fixed event
 | `pickup_p_proc` | Item picked up |
 | `timed_event_p_proc` | Scheduled timer fires (`add_timer_event`) |
 
-The `vm_bridge.ts` `GameScriptVM` constructor patches `scriptObj` so each known procedure name becomes a callable function that re-enters the VM at that procedure's offset.
+The `vmBridge.ts` `GameScriptVM` constructor patches `scriptObj` so each known procedure name becomes a callable function that re-enters the VM at that procedure's offset.

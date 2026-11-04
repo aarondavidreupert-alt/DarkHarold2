@@ -6,9 +6,9 @@ registrations = 180 opcodes, `opAttackComplex` is registered twice) and
 helpers they call (`scripts.cc scriptExecProc / scriptsRequestElevator`, `actions.cc actionDamage`,
 `inventory.cc objectGetCarried*ByPid`, `party_member.cc _getPartyMemberCount`, `combat_ai.cc
 critterSetTeam / critterSetAiPacket`, `proto_instance.cc objectOpen / objectLock`, `object.cc
-_obj_remove`). DH2 files: `src/scripting.ts` (Script class), `src/vm_bridge.ts`, `src/vm.ts`,
+_obj_remove`). DH2 files: `src/scripting.ts` (Script class), `src/vmBridge.ts`, `src/vm.ts`,
 `src/lua/prelude.ts`, the `tools/int2lua.py` opcode table (cross-checked: every name / argc / push
-flag is identical to `vm_bridge.ts`, so both backends dispatch to the same `Script` methods with
+flag is identical to `vmBridge.ts`, so both backends dispatch to the same `Script` methods with
 the same arity), plus the helpers they call (`src/object/Obj.ts`, `src/inventoryWield.ts`,
 `src/map/GameMap.ts`, `src/critter/lifecycle.ts`, `src/party.ts`, `src/geometry/hexGrid.ts`).
 Audited 2026-10-24. Line numbers are `src/scripting.ts` unless noted.
@@ -103,15 +103,15 @@ scripts guard their object arguments, and the difference shows only with a broke
 | 0x80B2 | opMarkAreaKnown | mark_area_known :3164 | ✅ | | |
 | 0x80B3 | opReactionInfluence | reaction_influence :2504 | ✅ | | 0 as CE |
 | 0x80B4 | opRandom | random :743 | ✅ | | randomBetween |
-| 0x80B5 | opRollDice | vm_bridge.ts:106 / prelude `roll_dice` | ✅ | | 0 as CE |
+| 0x80B5 | opRollDice | vmBridge.ts:106 / prelude `roll_dice` | ✅ | | 0 as CE |
 | 0x80B6 | opMoveTo | move_to :2408 | ⚠️ | MED | OP-12: elevation compared with the current elevation, not the object's; returns undefined (CE: new tile or -1) |
 | 0x80B7 | opCreateObject | create_object_sid :1890 | ✅ | | pid 0 not refused (LOW); a bad elevation returns null where CE still creates the object |
 | 0x80B8 | opDisplayMsg | display_msg :751 | ✅ | | |
 | 0x80B9 | opScriptOverrides | script_overrides :1039 | ✅ | | |
 | 0x80BA | opObjectIsCarryingObjectWithPid | obj_is_carrying_obj_pid :1301 | ⚠️ | HIGH | OP-02 |
 | 0x80BB | opTileContainsObjectWithPid | tile_contains_obj_pid :2389 | ⚠️ | MED | OP-10: 0 for any elevation but the current one |
-| 0x80BC | opGetSelf | builtin self_obj (vm_bridge.ts:54) | ✅ | | |
-| 0x80BD | opGetSource | builtin source_obj (vm_bridge.ts:62) | ⚠️ | LOW | OP-13: CE `scriptExecProc` clears `source` after every proc; DH2 keeps the last one |
+| 0x80BC | opGetSelf | builtin self_obj (vmBridge.ts:54) | ✅ | | |
+| 0x80BD | opGetSource | builtin source_obj (vmBridge.ts:62) | ⚠️ | LOW | OP-13: CE `scriptExecProc` clears `source` after every proc; DH2 keeps the last one |
 | 0x80BE | opGetTarget | builtin target_obj | ✅ | | CE defaults target to the owner when null (minor) |
 | 0x80BF | opGetDude | builtin dude_obj | ✅ | | |
 | 0x80C0 | opGetObjectBeingUsed | obj_being_used_with :2509 | ✅ | | |
@@ -156,7 +156,7 @@ scripts guard their object arguments, and the difference shows only with a broke
 | 0x80E7 | opAnimBusy | anim_busy :1947 | ✅ | | returns a boolean |
 | 0x80E8 | opCritterHeal | critter_heal :1666 | ✅ | | critterAdjustHitPoints |
 | 0x80E9 | opSetLightLevel | set_light_level :2054 → gametime.ts:240 | ✅ | | CE intensity formula |
-| 0x80EA | opGetGameTime | builtin game_time (vm_bridge.ts:58) | ⚠️ | HIGH | OP-01 |
+| 0x80EA | opGetGameTime | builtin game_time (vmBridge.ts:58) | ⚠️ | HIGH | OP-01 |
 | 0x80EB | opGetGameTimeInSeconds | builtin game_time_in_seconds | ✅ | | live |
 | 0x80EC | opGetObjectElevation | elevation :1381 | ✅ | | null: CE 0, DH2 -1 (LOW) |
 | 0x80ED | opKillCritter | kill_critter :1539 | 🟡 | LOW | OP-15: on self CE stops the procedure (PROGRAM_FLAG_0x0100); DH2 runs on |
@@ -207,18 +207,18 @@ scripts guard their object arguments, and the difference shows only with a broke
 | 0x811A | opExplosion | explosion :3030 | 🟡 | LOW | elevation ignored (current elevation); tile -1 not refused; immediate (CE request) |
 | 0x811B | opGetDaysSinceLastVisit | days_since_visited :3101 | ✅ | | |
 | 0x811C | _op_gsay_start | gsay_start :2754 | ✅ | | |
-| 0x811D | _op_gsay_end | vm_bridge.ts:317 / gsay_end :2801 | ✅ | | suspend + resume |
+| 0x811D | _op_gsay_end | vmBridge.ts:317 / gsay_end :2801 | ✅ | | suspend + resume |
 | 0x811E | _op_gsay_reply | gsay_reply :2765 | ✅ | | |
-| 0x811F | _op_gsay_option | vm_bridge.ts:328 / gsay_option :2743 | ✅ | | |
+| 0x811F | _op_gsay_option | vmBridge.ts:328 / gsay_option :2743 | ✅ | | |
 | 0x8120 | _op_gsay_message | gsay_message :2777 | ✅ | | the synthesised option text is "[Done]" (see the dialogue audit) |
-| 0x8121 | _op_giq_option | vm_bridge.ts:340 / giq_option :2819 | ✅ | | INT + Smooth Talker, both signs; a string proc target isn't handled by the VM wrapper (LOW) |
+| 0x8121 | _op_giq_option | vmBridge.ts:340 / giq_option :2819 | ✅ | | INT + Smooth Talker, both signs; a string proc target isn't handled by the VM wrapper (LOW) |
 | 0x8122 | opPoison | poison :1681 | ✅ | | |
 | 0x8123 | opGetPoison | get_poison :1543 | ✅ | | |
 | 0x8124 | opPartyAdd | party_add :3211 | ✅ | | |
 | 0x8125 | opPartyRemove | party_remove :3215 | ✅ | | |
 | 0x8126 | opRegAnimAnimateForever | reg_anim_animate_forever :2987 | ✅ | | |
 | 0x8127 | opCritterInjure | critter_injure :1626 | ✅ | | |
-| 0x8128 | opCombatIsInitialized | builtin combat_is_initialized (vm_bridge.ts:55) | ⚠️ | HIGH | OP-01 |
+| 0x8128 | opCombatIsInitialized | builtin combat_is_initialized (vmBridge.ts:55) | ⚠️ | HIGH | OP-01 |
 | 0x8129 | _op_gdialog_barter | gdialog_mod_barter :2444 | ✅ | | |
 | 0x812A | opGetGameDifficulty | game_difficulty :2541 | ✅ | | |
 | 0x812B | opGetRunningBurningGuy | running_burning_guy :2546 | ✅ | | |
@@ -294,10 +294,10 @@ the `gsay_*` opcodes above). Not re-verified against the .int files (they are no
 
 ## Detailed findings
 
-### OP-01 — `game_time` and `combat_is_initialized` are cached, not live (HIGH, NEW)
+### OP-01 — `game_time` and `combat_is_initialized` are cached, not live (HIGH, NEW) — **FIXED 2026-10-24 (PA11)**
 - CE: `interpreter_extra.cc opGetGameTime` → `gameTimeGetTime()`; `opCombatIsInitialized` →
   `isInCombat()`. Both are read at the moment the script asks.
-- DH2: `vm_bridge.ts:55,58` builtins return `s.combat_is_initialized` / `s.game_time`, plain fields
+- DH2: `vmBridge.ts:55,58` builtins return `s.combat_is_initialized` / `s.game_time`, plain fields
   on the Script object (the Lua backend reads the same builtins through `readBuiltinVar`).
   - `game_time` is set in `talk` :3463, `updateCritter` :3474, `spatial` :3489, `destroy` :3501,
     `damage` :3514, `combatEvent` :3621, `updateMap` (object scripts) :3661, `objectRunProc` :3715,
@@ -317,7 +317,7 @@ the `gsay_*` opcodes above). Not re-verified against the .int files (they are no
 - Fix: make both builtins live: `game_time: () => Math.max(1, globalState.gameTickTime)`,
   `combat_is_initialized: () => isCombatActive() ? 1 : 0`; drop the per-entry-point assignments.
 
-### OP-02 — `obj_is_carrying_obj_pid` counts stacks; `obj_carrying_pid_obj` doesn't recurse (HIGH / MED, NEW)
+### OP-02 — `obj_is_carrying_obj_pid` counts stacks; `obj_carrying_pid_obj` doesn't recurse (HIGH / MED, NEW) — **FIXED 2026-10-24 (PA8)**
 - CE: `inventory.cc:2857 objectGetCarriedQuantityByPid` sums `inventoryItem->quantity` of every
   matching stack and recurses into every item's own inventory (bags); `:2837
   objectGetCarriedObjectByPid` returns the first match, recursing as well. In CE equipped items
@@ -332,7 +332,7 @@ the `gsay_*` opcodes above). Not re-verified against the .int files (they are no
 - Fix: sum `stack.amount` over matches plus recursion into `item.inventory`, and include the
   player's `leftHand` / `rightHand` / `armor` (as CE's list does); same for `obj_carrying_pid_obj`.
 
-### OP-03 — `add_obj_to_inven` / `add_mult_objs_to_inven` add a clone (HIGH, NEW)
+### OP-03 — `add_obj_to_inven` / `add_mult_objs_to_inven` add a clone (HIGH, NEW) — **FIXED 2026-10-24 (PA7)**
 - CE `opAddObjectToInventory` / `opAddMultipleObjectsToInventory`: `itemAdd(owner, item, qty)` makes
   that object (or the stack it merges into) the inventory entry and `_obj_disconnect`s it from the
   map; an item that already has an owner is refused (single form). The quantity is clamped to
@@ -349,7 +349,7 @@ the `gsay_*` opcodes above). Not re-verified against the .int files (they are no
   object itself when no stack matches (merge into an existing stack otherwise, as itemAdd does);
   refuse an item already carried; clamp the quantity.
 
-### OP-04 — `destroy_object` doesn't remove carried items (HIGH, NEW)
+### OP-04 — `destroy_object` doesn't remove carried items (HIGH, NEW) — **FIXED 2026-10-24 (PA9)**
 - CE `opDestroyObject`: `objectGetOwner(object)` → `itemRemove(owner, object, quantity)`, interface
   refresh for the dude, then `objectDestroy` (which runs `destroy_p_proc`, object.cc
   `_obj_remove`). A critter is dropped from combat first. Destroying self hides the object and
@@ -363,7 +363,7 @@ the `gsay_*` opcodes above). Not re-verified against the .int files (they are no
 - Fix: find the owner (map critters / containers recursively, plus the dude), unequip and splice
   the item (as `destroy_mult_objs` already does), refresh the UI, then run destroy_p_proc.
 
-### OP-05 — `critter_dmg` deals raw damage (HIGH, NEW)
+### OP-05 — `critter_dmg` deals raw damage (HIGH, NEW) — **FIXED 2026-10-24 (PA10)**
 - CE `opCritterDamage` → `actions.cc:1890 actionDamage(tile, elevation, amount, amount, type,
   animate = !(flags & 0x200), bypassArmor = flags & 0x100)`: the defender is whatever blocks the
   tile; damage = `_compute_dmg_damage` (amount − DT[type], then − DR[type] %, ≥ 0, knockback)
@@ -378,7 +378,7 @@ the `gsay_*` opcodes above). Not re-verified against the .int files (they are no
 - Fix: decode the flags, apply DT/DR for the type (reuse the combat damage helpers), log the hit,
   use a neutral source for `damage_p_proc`.
 
-### OP-06 — `metarule(METARULE_PARTY_COUNT)` off by one (HIGH, NEW)
+### OP-06 — `metarule(METARULE_PARTY_COUNT)` off by one (HIGH, NEW) — **FIXED 2026-10-24 (PA12)**
 - CE `party_member.cc:900 _getPartyMemberCount`: `gPartyMembersLength` (the dude is entry 0) minus
   members that aren't critters, are dead or hidden.
 - DH2 :777 `globalState.gParty?.party.length` — `Party.party` holds only the companions
@@ -388,7 +388,7 @@ the `gsay_*` opcodes above). Not re-verified against the .int files (they are no
 - Fix: `1 + party.filter(c => c.type === 'critter' && !c.dead && c.visible !== false).length`.
   Correct `wiki/companion_party.md` ("DH2: the same").
 
-### OP-07 — `metarule` 13 / 15 / 18 / 19 (MED, NEW)
+### OP-07 — `metarule` 13 / 15 / 18 / 19 (MED, NEW) — **FIXED 2026-10-25**
 - 13 SIGNAL_END_GAME (:761): CE sets `_game_user_wants_to_quit = 2` (back to the main menu after
   the end sequence). DH2 calls `(Endgame as any).triggerEnd?.()`, which `endgame.ts` doesn't
   export → no-op.
@@ -406,7 +406,7 @@ the `gsay_*` opcodes above). Not re-verified against the .int files (they are no
   `self_obj` with the explicit-type fallback, no throw; 18 → search `timeEventList` for the
   target's drug events; 19 → `lookupMapName(target)`, then the map's known state.
 
-### OP-08 — `critter_inven_obj` hands for the dude (MED, NEW)
+### OP-08 — `critter_inven_obj` hands for the dude (MED, NEW) — **FIXED 2026-10-25**
 - CE `opCritterGetInventoryObject`: for gDude, INVEN_TYPE_RIGHT_HAND returns `critterGetItem2`
   only if the current hand isn't HAND_LEFT (else null); LEFT_HAND returns `critterGetItem1` only
   if it is. NPCs get their slots. A non-critter pushes 0. INV_COUNT counts the full inventory list
@@ -418,7 +418,7 @@ the `gsay_*` opcodes above). Not re-verified against the .int files (they are no
   inactive hand's item.
 - Fix: for the player, return a hand slot only when it is the active hand (`activeHand`).
 
-### OP-09 — `animate_move_obj_to_tile` flags and guards (MED, NEW)
+### OP-09 — `animate_move_obj_to_tile` flags and guards (MED, NEW) — **FIXED 2026-10-25**
 - CE `opAnimateMoveObjectToTile`: tile ≤ −1 → nothing; inactive critter or combat → nothing;
   `flags & 0x10` (ANIMATE_INTERRUPT) → `reg_anim_clear`, and the bit is dropped; then walk if
   `flags == 0`, else run.
@@ -428,7 +428,7 @@ the `gsay_*` opcodes above). Not re-verified against the .int files (they are no
 - Fix: treat 0x10 as "clear the current animation", run only for the other bits, return in combat
   or for dead / knocked-out critters.
 
-### OP-10 — tile / visibility helpers (MED, NEW)
+### OP-10 — tile / visibility helpers (MED, NEW) — **FIXED 2026-10-25**
 - `tile_is_visible` (0x80F8): CE `interpreter_extra.cc:401 tileIsVisible` — 1 when
   `abs(gCenterTile − tile) % 200 < 5` or `/ 200 < 5` (near the screen centre). DH2 :2172 —
   `Lightmap.tile_intensity[tile] > 0`. Scripts use it to decide whether something happens in view
@@ -444,7 +444,7 @@ the `gsay_*` opcodes above). Not re-verified against the .int files (they are no
 - `tile_distance_objs` (0x80D3, LOW): CE 9999 across elevations; DH2 measures anyway.
 - Fix: port each CE test literally.
 
-### OP-11 — `override_map_start` is deferred (MED, NEW)
+### OP-11 — `override_map_start` is deferred (MED, NEW) — **FIXED 2026-10-25**
 - CE `opOverrideMapStart`: sets the dude's rotation and location (`objectSetLocation`) and centres
   the view immediately.
 - DH2 :2092 stores `overrideStartPos`, which only `enterMap` returns (consumed after the map
@@ -453,7 +453,7 @@ the `gsay_*` opcodes above). Not re-verified against the .int files (they are no
 - Fix: move the player at once (as `move_to` does for the dude); keep the hand-off only for the
   map-enter case.
 
-### OP-12 — `move_to` elevation handling (MED, NEW)
+### OP-12 — `move_to` elevation handling (MED, NEW) — **FIXED 2026-10-25**
 - CE `opMoveTo`: `objectSetLocation(object, tile, elevation)` for any object; a critter changing
   elevation leaves combat; pushes the new tile (−1 on failure).
 - DH2 :2408 compares `elevation` with `globalState.currentElevation`, not the object's own: an NPC
@@ -462,13 +462,14 @@ the `gsay_*` opcodes above). Not re-verified against the .int files (they are no
 - Fix: compare with `obj.elevation`, re-home the object between elevation lists whenever they
   differ, return the tile.
 
-### OP-13 — per-proc script fields aren't reset (LOW, NEW)
+### OP-13 — per-proc script fields aren't reset (LOW, NEW) — **FIXED 2026-10-25**
 - CE `scripts.cc scriptExecProc` (:1336–1340): `script->action = proc` before the run,
   `script->source = nullptr` after it; `target` defaults to the owner.
 - DH2: `action` is never assigned (`script_action` is always 0); `source_obj` keeps its last value
   across procs (a `critter_p_proc` sees whoever last talked to the critter; CE sees 0).
+- **Fixed 2026-10-25:** every engine call into a procedure (VM `GameScriptVM.engineCall`, the Lua proc wrapper) sets `action` to its SCRIPT_PROC_* number (`src/scriptProcs.ts`) and clears `source_obj` afterwards, unless the procedure is waiting in a dialogue. Startup code is not an engine call (no change).
 
-### OP-14 — `metarule3` 100 / 105 / 106 (MED, NEW)
+### OP-14 — `metarule3` 100 / 105 / 106 (MED, NEW) — **FIXED 2026-10-25**
 - 106 TILE_GET_NEXT_CRITTER: CE walks the critters at (tile, elevation) and returns the one after
   `previousCritter` (the dude included). DH2 :984 ignores both elevation and the previous critter
   and skips the dude, so a `while (c := tile_get_next_critter(t, e, c))` loop never advances.
@@ -477,12 +478,13 @@ the `gsay_*` opcodes above). Not re-verified against the .int files (they are no
   matching event, of any type.
 - 101 / 105 subtile marking: DH2 no-op / constant 1 (worldmap fog of war not implemented).
 
-### OP-15 — self-destruction doesn't stop the procedure (LOW, NEW)
+### OP-15 — self-destruction doesn't stop the procedure (LOW, NEW) — **FIXED 2026-10-25**
 - CE `destroy_object`, `destroy_mult_objs`, `kill_critter` and `critter_dmg` on self set
   PROGRAM_FLAG_0x0100, which ends `_interpret` (interpreter.cc:2628 / 2649). DH2 keeps executing
   the rest of the procedure on a destroyed / dead self.
+- **Fixed 2026-10-25:** `destroy_object`, `destroy_mult_objs`, `kill_critter` and `critter_dmg` on the script's own `self_obj` end the procedure (VM: halt and drop the frame; Lua: EXIT). CE's flag also keeps the script from running any later procedure until it is reloaded; DH2 stops only the current one.
 
-### OP-16 — `critter_add_trait` OBJECT traits (MED, NEW)
+### OP-16 — `critter_add_trait` OBJECT traits (MED, NEW) — **FIXED 2026-10-25**
 - CE `opCritterAddTrait`: AI_PACKET → `combat_ai.cc:3280 critterSetAiPacket` (also writes the
   proto for potential party members); TEAM → skipped for party members, for an unchanged team and
   while loading, else `critterSetTeam` (clears who-hit-me if now the same team, the last target,
@@ -494,7 +496,7 @@ the `gsay_*` opcodes above). Not re-verified against the .int files (they are no
   fight; team changes keep the old grudge.
 - Fix: refresh or drop `critter.ai` on an AI-packet change; port the TEAM guards and side effects.
 
-### OP-17 — `obj_open` / `obj_close` go through the use path (MED, NEW)
+### OP-17 — `obj_open` / `obj_close` go through the use path (MED, NEW) — **FIXED 2026-10-25**
 - CE `proto_instance.cc:2090 objectOpen` / `:2100 objectClose`: toggle when the frame says closed /
   open — the lock isn't checked, no UI, nobody animates.
 - DH2 :1806 / :1796 → `Obj.use(self_obj, false)` → plays the `use` animation on the script's self
@@ -503,7 +505,7 @@ the `gsay_*` opcodes above). Not re-verified against the .int files (they are no
   container opens.
 - Fix: call `setObjectOpen(obj, true / false, false, true)` directly, without the lock check.
 
-### OP-18 — `use_obj_on_obj` lacks the engine's default use (MED, NEW)
+### OP-18 — `use_obj_on_obj` lacks the engine's default use (MED, NEW) — **FIXED 2026-10-25**
 - CE `opUseObjectOnObject`: a critter self → `_action_use_an_item_on_object(self, target, item)`
   (walk + animation, then `_obj_use_item_on`), else `_obj_use_item_on(self, target, item)`: the
   target's `use_obj_on_p_proc`, and if not overridden the item's own effect (drug / healing item on
@@ -532,6 +534,6 @@ the `gsay_*` opcodes above). Not re-verified against the .int files (they are no
   (CE `scriptsRequest*`); `load_map` and `dialogue_system_enter` are deferred, as in CE.
 - `dh2_script_fixes()` is a Script method (not an opcode) that the decompiled Lua asks before a
   script fix (`tools/int2lua.py` SCRIPT_FIXES).
-- The sfall opcodes in `vm_bridge.ts` (arrays, `abs`, `get_ini_setting`, `set_self`, proto data,
+- The sfall opcodes in `vmBridge.ts` (arrays, `abs`, `get_ini_setting`, `set_self`, proto data,
   weapon ammo, PC base / extra stats, `party_member_list`, `get_script`, `sfall_func0-2`, …) are
   outside this audit's scope (CE `sfall_opcodes.cc`).

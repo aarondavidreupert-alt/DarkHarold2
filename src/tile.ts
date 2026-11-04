@@ -12,9 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { hexFromScreen, hexToScreen, Point } from './geometry.js'
+import { Point } from './geometry.js'
 import globalState from './globalState.js'
-import { SCREEN_HEIGHT, SCREEN_WIDTH } from './renderer.js'
 
 export const TILE_WIDTH = 80
 export const TILE_HEIGHT = 36
@@ -29,48 +28,30 @@ export function fromTileNum(tile: number): Point {
 
 export function tileToScreen(x: number, y: number): Point {
     x = 99 - x // this algorithm expects x to be reversed
-    var sx = 4752 + 32 * y - 48 * x
-    var sy = 24 * y + 12 * x
+    const sx = 4752 + 32 * y - 48 * x
+    const sy = 24 * y + 12 * x
 
     return { x: sx, y: sy }
 }
 
 export function tileFromScreen(x: number, y: number): Point {
-    var off_x = -4800 + x
-    var off_y = y
-    var xx = off_x - (off_y * 4) / 3
-    var tx = xx / 64
+    const off_x = -4800 + x
+    const off_y = y
+    const xx = off_x - (off_y * 4) / 3
+    let tx = xx / 64
 
     if (xx >= 0) tx++
     tx = -tx
-    var yy = off_y + off_x / 4
-    var ty = yy / 32
+    const yy = off_y + off_x / 4
+    let ty = yy / 32
     if (yy < 0) ty--
 
     return { x: 99 - Math.round(tx), y: Math.round(ty) }
 }
 
+// CE object.cc objectSetLocation: the square of a hex is (tile % 200 / 2, tile / 200 / 2);
+// DH2's square arrays are mirrored in x ([y][99 - x], fomap.py). (Going through the screen
+// position put every odd hex row one square too far south.)
 export function hexToTile(pos: Point): Point {
-    // Calculate screen position of `pos`, then look up which roof tile that belongs to,
-    // and then calculate the square tile position from the screen position.
-    const scrPos = hexToScreen(pos.x, pos.y)
-    return tileFromScreen(scrPos.x, scrPos.y)
+    return { x: 99 - (pos.x >> 1), y: pos.y >> 1 }
 }
-
-function getCenterTile(cameraPosition: Point): Point {
-    // Camera is top-left of the visible world region; when zoomed, the
-    // visible width/height in world units is SCREEN_WIDTH/zoom. Offset
-    // half that to find the middle tile under the viewport.
-    const z = globalState.cameraZoom || 1.0
-    return hexFromScreen(
-        cameraPosition.x + ((SCREEN_WIDTH / (2 * z)) | 0) - 32,
-        cameraPosition.y + ((SCREEN_HEIGHT / (2 * z)) | 0) - 16
-    )
-    /*return hexFromScreen(cameraX + Math.floor((SCREEN_WIDTH - 32) / 2),
-                       cameraY + Math.floor((SCREEN_HEIGHT - 16) / 2))*/
-}
-
-export function setCenterTile() {
-    globalState.centerTile = getCenterTile(globalState.cameraPosition)
-}
-

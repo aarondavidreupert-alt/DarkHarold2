@@ -268,7 +268,7 @@ Navigational reference for [fallout2-ce](https://github.com/alexbatalov/fallout2
 
 **Key function:** `int scriptExecProc(int sid, int proc)` — executes a named procedure on a script instance.
 
-**DarkHarold2 counterparts:** `src/scripting.ts`, `src/vm.ts`, `src/vm_bridge.ts`
+**DarkHarold2 counterparts:** `src/scripting.ts`, `src/vm.ts`, `src/vmBridge.ts`
 
 ---
 
@@ -289,7 +289,7 @@ Navigational reference for [fallout2-ce](https://github.com/alexbatalov/fallout2
 
 Script intrinsics (game functions called from scripts) are registered separately at 0x80A0+.
 
-**DarkHarold2 counterparts:** `src/vm.ts` (VM opcodes), `src/vm_bridge.ts` (intrinsic wiring)
+**DarkHarold2 counterparts:** `src/vm.ts` (VM opcodes), `src/vmBridge.ts` (intrinsic wiring)
 
 ---
 

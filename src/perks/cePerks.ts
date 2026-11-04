@@ -11,7 +11,13 @@ import type { Critter } from '../object.js'
 import { STAT_NAME_BY_ID } from '../statIds.js'
 import { getMessage } from '../util.js'
 
-export interface CePerk { id: number; maxRank: number; stat: number; statMod: number; stats: number[] }
+export interface CePerk {
+    id: number
+    maxRank: number
+    stat: number
+    statMod: number
+    stats: number[]
+}
 
 export const CE_PERKS: CePerk[] = [
     { id: 0, maxRank: 1, stat: -1, statMod: 0, stats: [0, 5, 0, 0, 0, 0, 0] }, // PERK_AWARENESS

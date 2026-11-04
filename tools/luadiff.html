@@ -14,7 +14,6 @@
 		.ok { color: #6c6; } .bad { color: #e66; }
 		pre { background: #1b1b1b; padding: 8px; overflow-x: auto; }
 	</style>
-	<script src="lib/pathfinding-browser.js"></script>
 	<script src="lut/intensityColorTable.js"></script>
 	<script src="lib/wasmoon/index.js"></script>
 </head>
@@ -24,11 +23,9 @@
 	<pre id="log"></pre>
 	<div id="failures"></div>
 	<script type="module">
-		// the engine modules import each other in a cycle that main.js is part of, so
-		// it has to be the first import; its window.onload (the game boot) is disabled
-		import './js/main.js'
+		// luaDiff.js loads on its own (main.js used to have to come first, while one import
+		// cycle spanned the engine: wiki/code_quality.md Q14)
 		import { runLuaDiff } from './js/lua/luaDiff.js'
-		window.onload = null
 		const ARROYO = ['acbrahmn', 'acdog', 'aceric', 'acfist', 'acjordan', 'acklint', 'acmorlis', 'acmynoc',
 			'acnagor', 'acsporpl', 'actemvil', 'acvillgr', 'acwarior', 'ahelder', 'ahhakun', 'aibkdor', 'aichest',
 			'aicrops', 'aitemcst', 'aitemdor', 'animfrvr', 'ascrldr', 'aswell', 'atdeath', 'atgoo', 'atsrtrp0',

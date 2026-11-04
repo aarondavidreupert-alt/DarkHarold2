@@ -2,7 +2,7 @@
 // table to produce a structured list of active/completed quests for display
 // in the PipBoy ARCHIVES tab.
 
-import { Scripting } from './scripting.js'
+import * as Scripting from './scripting.js'
 import { getQuestDefs, getQuestGvarSet } from './questData.js'
 
 export interface ActiveQuest {

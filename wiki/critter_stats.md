@@ -1,7 +1,7 @@
 # Critter Stats & Combat Attributes — DarkHarold2 Reference
 
 > Ground-truth: `raw/fallout2-ce/src/proto_types.h`, `critter.cc`, `critter.h`, `combat_ai.cc`, `combat_ai_defs.h`, `stat_defs.h`, `obj_types.h`  
-> DH2 impl: `src/object/Critter.ts`, `src/object/Obj.ts`, `src/critter/Weapon.ts`, `src/critter/lifecycle.ts`, `src/pro.ts`, `src/char.ts`, `src/combat.ts` (barrel; `src/combat/*.ts`), `src/scripting.ts`, `src/vm_bridge.ts`
+> DH2 impl: `src/object/Critter.ts`, `src/object/Obj.ts`, `src/critter/Weapon.ts`, `src/critter/lifecycle.ts`, `src/pro.ts`, `src/char.ts`, `src/combat.ts` (barrel; `src/combat/*.ts`), `src/scripting.ts`, `src/vmBridge.ts`
 
 This document covers non-player critters only. SPECIAL stat formulas are documented in `wiki/character_stats.md`. Skill formulas are in `wiki/skill_checks.md`. Perk/trait system is in `wiki/perks_traits.md`.
 
@@ -93,8 +93,8 @@ pid high byte → type name:  0=items, 1=critters, 2=scenery, 3=walls, 4=tiles, 
 
 | Flag | DH2 |
 |---|---|
-| `CRITTER_BARTER` | `metarule METARULE_CRITTER_BARTERS`, dialogue BARTER button (`ui_dialogue.ts`) |
-| `CRITTER_NO_STEAL` | action menu / steal (`ui_contextmenu.ts`) |
+| `CRITTER_BARTER` | `metarule METARULE_CRITTER_BARTERS`, dialogue BARTER button (`uiDialogue.ts`) |
+| `CRITTER_NO_STEAL` | action menu / steal (`uiContextMenu.ts`) |
 | `CRITTER_NO_DROP` | no DAM_DROP (`combat/results.ts attackFindInvalidFlags`), no drop on death / aging |
 | `CRITTER_NO_HEAL` / robots | no healing / aging on map revisit (`map/mapLoader.ts mapAgeDeadCritters`) |
 | `CRITTER_INVULNERABLE` | no damage, no results (`combat/Combat.ts`, `combat/results.ts`) |

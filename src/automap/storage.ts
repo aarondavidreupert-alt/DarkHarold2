@@ -19,13 +19,7 @@ limitations under the License.
 // "Per-file split proposals" §18.
 
 import { dbg, dbgWarn } from '../logger.js'
-import {
-    seenData,
-    objectSnapshots,
-    dirtyTiles,
-    dirtyObjects,
-    ObjectSnapshotEntry,
-} from './tracking.js'
+import { seenData, objectSnapshots, dirtyTiles, dirtyObjects, ObjectSnapshotEntry } from './tracking.js'
 
 // Legacy localStorage keys — only used for the one-time migration.
 const LS_TILES_KEY = 'darkfo.automap.v1'
@@ -48,12 +42,12 @@ function openDB(): Promise<IDBDatabase> {
     if (_db) return Promise.resolve(_db)
     return new Promise((resolve, reject) => {
         const req = indexedDB.open(DB_NAME, DB_VERSION)
-        req.onupgradeneeded = e => {
+        req.onupgradeneeded = (e) => {
             const database = (e.target as IDBOpenDBRequest).result
             if (!database.objectStoreNames.contains(TILES_STORE)) database.createObjectStore(TILES_STORE)
             if (!database.objectStoreNames.contains(OBJECTS_STORE)) database.createObjectStore(OBJECTS_STORE)
         }
-        req.onsuccess = e => {
+        req.onsuccess = (e) => {
             _db = (e.target as IDBOpenDBRequest).result
             resolve(_db)
         }
@@ -66,7 +60,7 @@ function idbGetAll<T>(db: IDBDatabase, storeName: string): Promise<Array<{ key: 
         const results: Array<{ key: string; value: T }> = []
         const tx = db.transaction(storeName, 'readonly')
         const req = tx.objectStore(storeName).openCursor()
-        req.onsuccess = e => {
+        req.onsuccess = (e) => {
             const cursor = (e.target as IDBRequest<IDBCursorWithValue | null>).result
             if (cursor) {
                 results.push({ key: cursor.key as string, value: cursor.value as T })
@@ -79,7 +73,11 @@ function idbGetAll<T>(db: IDBDatabase, storeName: string): Promise<Array<{ key: 
     })
 }
 
-function idbPutBatch(db: IDBDatabase, storeName: string, entries: Array<{ key: string; value: unknown }>): Promise<void> {
+function idbPutBatch(
+    db: IDBDatabase,
+    storeName: string,
+    entries: Array<{ key: string; value: unknown }>,
+): Promise<void> {
     return new Promise((resolve, reject) => {
         const tx = db.transaction(storeName, 'readwrite')
         const store = tx.objectStore(storeName)
@@ -104,7 +102,10 @@ export async function initStorage(): Promise<void> {
 
         for (const { key, value } of tileRecords) seenData.set(key, new Set(value))
         for (const { key, value } of objRecords) objectSnapshots.set(key, value)
-        dbgWarn('automap', `[automapData] loaded ${tileRecords.length} tile records, ${objRecords.length} object records from IDB`)
+        dbgWarn(
+            'automap',
+            `[automapData] loaded ${tileRecords.length} tile records, ${objRecords.length} object records from IDB`,
+        )
 
         // One-time migration: if IDB was empty and localStorage has data, import it.
         if (tileRecords.length === 0 && objRecords.length === 0) {
@@ -129,7 +130,9 @@ async function migrateFromLocalStorage(db: IDBDatabase): Promise<void> {
                 tileBatch.push({ key: k, value: obj[k] })
             }
         }
-    } catch (e) { dbgWarn('automap', '[automapData] migration: failed to read tiles:', e) }
+    } catch (e) {
+        dbgWarn('automap', '[automapData] migration: failed to read tiles:', e)
+    }
 
     try {
         const raw = localStorage.getItem(LS_OBJECTS_KEY)
@@ -140,7 +143,9 @@ async function migrateFromLocalStorage(db: IDBDatabase): Promise<void> {
                 objBatch.push({ key: k, value: obj[k] })
             }
         }
-    } catch (e) { dbgWarn('automap', '[automapData] migration: failed to read objects:', e) }
+    } catch (e) {
+        dbgWarn('automap', '[automapData] migration: failed to read objects:', e)
+    }
 
     if (tileBatch.length === 0 && objBatch.length === 0) return
 
@@ -151,7 +156,10 @@ async function migrateFromLocalStorage(db: IDBDatabase): Promise<void> {
         ])
         localStorage.removeItem(LS_TILES_KEY)
         localStorage.removeItem(LS_OBJECTS_KEY)
-        dbg('map', `[automapData] migrated ${tileBatch.length} tile records, ${objBatch.length} object records from localStorage → IDB`)
+        dbg(
+            'map',
+            `[automapData] migrated ${tileBatch.length} tile records, ${objBatch.length} object records from localStorage → IDB`,
+        )
     } catch (e) {
         dbgWarn('automap', '[automapData] migration: IDB write failed:', e)
     }
@@ -164,14 +172,18 @@ export function loadFromLocalStorage(): void {
             const obj = JSON.parse(raw) as Record<string, string[]>
             for (const k in obj) seenData.set(k, new Set(obj[k]))
         }
-    } catch (e) { dbgWarn('automap', '[automapData] failed to load from localStorage:', e) }
+    } catch (e) {
+        dbgWarn('automap', '[automapData] failed to load from localStorage:', e)
+    }
     try {
         const raw = localStorage.getItem(LS_OBJECTS_KEY)
         if (raw) {
             const obj = JSON.parse(raw) as Record<string, ObjectSnapshotEntry[]>
             for (const k in obj) objectSnapshots.set(k, obj[k])
         }
-    } catch (e) { dbgWarn('automap', '[automapData] failed to load objects from localStorage:', e) }
+    } catch (e) {
+        dbgWarn('automap', '[automapData] failed to load objects from localStorage:', e)
+    }
 }
 
 // ─── Write helpers ────────────────────────────────────────────────────────────
@@ -193,18 +205,20 @@ export function flushPendingWrites(): void {
     dirtyObjects.clear()
     if (tiles.length === 0 && objects.length === 0) return
 
-    openDB().then(db => {
-        const ops: Promise<void>[] = []
-        if (tiles.length > 0) {
-            const batch = tiles.map(k => ({ key: k, value: Array.from(seenData.get(k) ?? []) }))
-            ops.push(idbPutBatch(db, TILES_STORE, batch))
-        }
-        if (objects.length > 0) {
-            const batch = objects.map(k => ({ key: k, value: objectSnapshots.get(k) ?? [] }))
-            ops.push(idbPutBatch(db, OBJECTS_STORE, batch))
-        }
-        return Promise.all(ops)
-    }).catch(e => dbgWarn('automap', '[automapData] failed to flush pending writes:', e))
+    openDB()
+        .then((db) => {
+            const ops: Promise<void>[] = []
+            if (tiles.length > 0) {
+                const batch = tiles.map((k) => ({ key: k, value: Array.from(seenData.get(k) ?? []) }))
+                ops.push(idbPutBatch(db, TILES_STORE, batch))
+            }
+            if (objects.length > 0) {
+                const batch = objects.map((k) => ({ key: k, value: objectSnapshots.get(k) ?? [] }))
+                ops.push(idbPutBatch(db, OBJECTS_STORE, batch))
+            }
+            return Promise.all(ops)
+        })
+        .catch((e) => dbgWarn('automap', '[automapData] failed to flush pending writes:', e))
 }
 
 // Force-flush any pending writes immediately. Called on map transitions and
@@ -225,19 +239,27 @@ export interface SavedAutomap {
 }
 
 function clearStores(): void {
-    openDB().then((db) => new Promise<void>((resolve, reject) => {
-        const tx = db.transaction([TILES_STORE, OBJECTS_STORE], 'readwrite')
-        tx.objectStore(TILES_STORE).clear()
-        tx.objectStore(OBJECTS_STORE).clear()
-        tx.oncomplete = () => resolve()
-        tx.onerror = () => reject(tx.error)
-    })).catch(e => dbgWarn('automap', '[automapData] failed to clear the automap store:', e))
+    openDB()
+        .then(
+            (db) =>
+                new Promise<void>((resolve, reject) => {
+                    const tx = db.transaction([TILES_STORE, OBJECTS_STORE], 'readwrite')
+                    tx.objectStore(TILES_STORE).clear()
+                    tx.objectStore(OBJECTS_STORE).clear()
+                    tx.oncomplete = () => resolve()
+                    tx.onerror = () => reject(tx.error)
+                }),
+        )
+        .catch((e) => dbgWarn('automap', '[automapData] failed to clear the automap store:', e))
 }
 
 // CE automap.cc automapReset (game.cc gameReset): a new game starts with an empty automap.
 export function resetAutomap(): void {
     generation++
-    if (saveTimer !== null) { clearTimeout(saveTimer); saveTimer = null }
+    if (saveTimer !== null) {
+        clearTimeout(saveTimer)
+        saveTimer = null
+    }
     seenData.clear()
     objectSnapshots.clear()
     dirtyTiles.clear()
@@ -258,7 +280,13 @@ export function serializeAutomap(): SavedAutomap {
 export function restoreAutomap(data: SavedAutomap | undefined): void {
     resetAutomap()
     if (!data) return
-    for (const k in data.tiles ?? {}) { seenData.set(k, new Set(data.tiles[k])); dirtyTiles.add(k) }
-    for (const k in data.objects ?? {}) { objectSnapshots.set(k, data.objects[k]); dirtyObjects.add(k) }
+    for (const k in data.tiles ?? {}) {
+        seenData.set(k, new Set(data.tiles[k]))
+        dirtyTiles.add(k)
+    }
+    for (const k in data.objects ?? {}) {
+        objectSnapshots.set(k, data.objects[k])
+        dirtyObjects.add(k)
+    }
     flushPendingWrites()
 }

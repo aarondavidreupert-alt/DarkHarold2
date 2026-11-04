@@ -19,14 +19,23 @@ limitations under the License.
 // a script that calls script_overrides suppresses the engine text. Lines are
 // returned for the caller to print (CE passes the display-monitor callback).
 
-import globalState from './globalState.js'
+import { world } from './state/world.js'
 import type { Critter, Obj } from './object.js'
 import { randomBetween } from './random.js'
-import { Scripting } from './scripting.js'
+import * as Scripting from './scripting.js'
 import { getMessage } from './util.js'
 import { ammoGetCapacity, ammoGetQuantity, weaponGetAmmoTypePid } from './weaponAmmo.js'
 import { loadPRO } from './pro.js'
-import { Worldmap } from './worldmap.js'
+import * as Worldmap from './worldmap.js'
+
+// CE item.cc ammoGetCaliber: an ammo item's caliber; for a weapon, the caliber of the
+// ammo type loaded in it (0 when none is set)
+function ammoGetCaliber(obj: Obj): number {
+    if (obj.subtype === 'ammo') return obj.pro?.extra?.caliber ?? 0
+    const pid = weaponGetAmmoTypePid(obj)
+    if (pid === -1) return 0
+    return loadPRO(pid, pid & 0xffff)?.extra?.caliber ?? 0
+}
 
 const PROTO_ID_CAR = 0x020003f1
 const GVAR_PLAYER_GOT_CAR = 18
@@ -48,7 +57,7 @@ const isCrippled = (c: Critter): boolean =>
 function protoName(pid: number): string {
     if (pid < 0) return ''
     const pro: any = loadPRO(pid, pid & 0xffff)
-    return pro ? getMessage('pro_item', pro.textID) ?? '' : ''
+    return pro ? (getMessage('pro_item', pro.textID) ?? '') : ''
 }
 
 // CE _obj_look_at_func: "You see: %s." (dead critters: 491/492 at random).
@@ -71,7 +80,7 @@ export function objExamine(viewer: Critter, target: Obj): string[] {
         else if (!isDead(target)) out.push(description)
     }
 
-    const player = globalState.player
+    const player = world.player
     if (!player || viewer !== player) return out
 
     if (isCritter(target)) {
@@ -81,13 +90,19 @@ export function objExamine(viewer: Critter, target: Obj): string[] {
         if (target !== player && player.hasPerk('Awareness') && !target.dead) {
             const biped = ((target.pro?.extra?.bodyType ?? 0) as number) === 0
             const hpMsg = protoMsg(biped ? 535 + target.getStat('Gender') : 537)
-            const item2: Obj | null = (target as any).rightHand ?? null
+            const item2: Obj | null = target.rightHand ?? null
             const weapon = item2 && item2.subtype === 'weapon' ? item2 : null
             if (weapon) {
-                const caliber = weapon.pro?.extra?.caliber ?? 0
-                if (caliber !== 0) {
-                    text = format(hpMsg + protoMsg(547), hp, maxHp, weapon.getName(),
-                        ammoGetQuantity(weapon), ammoGetCapacity(weapon), protoName(weaponGetAmmoTypePid(weapon)))
+                if (ammoGetCaliber(weapon) !== 0) {
+                    text = format(
+                        hpMsg + protoMsg(547),
+                        hp,
+                        maxHp,
+                        weapon.getName(),
+                        ammoGetQuantity(weapon),
+                        ammoGetCapacity(weapon),
+                        protoName(weaponGetAmmoTypePid(weapon)),
+                    )
                 } else {
                     text = format(hpMsg + protoMsg(546), hp, maxHp, weapon.getName())
                 }
@@ -102,9 +117,10 @@ export function objExamine(viewer: Critter, target: Obj): string[] {
             else level = Math.trunc((hp * 3) / maxHp) + 1
             if (level > 4) return out // CE: "lookup_val out of range" (debug only)
             const hpText = protoMsg(500 + level)
-            text = target === player
-                ? format(protoMsg(520 + crippled), hpText)
-                : format(protoMsg(522 + target.getStat('Gender')), hpText)
+            text =
+                target === player
+                    ? format(protoMsg(520 + crippled), hpText)
+                    : format(protoMsg(522 + target.getStat('Gender')), hpText)
         }
         if (isCrippled(target)) {
             let n = maxHp >= hp ? 531 : 530
@@ -115,14 +131,23 @@ export function objExamine(viewer: Critter, target: Obj): string[] {
     } else if (target.type === 'scenery') {
         if (target.pid === PROTO_ID_CAR) {
             const gotCar = (Scripting.getGlobalVar(GVAR_PLAYER_GOT_CAR) ?? 0) !== 0
-            out.push(gotCar
-                ? format(protoMsg(549), Math.trunc((100 * Worldmap.getCarFuel()) / CAR_FUEL_MAX))
-                : protoMsg(548))
+            out.push(
+                gotCar
+                    ? format(protoMsg(549), Math.trunc((100 * Worldmap.getCarFuel()) / CAR_FUEL_MAX))
+                    : protoMsg(548),
+            )
         }
     } else if (target.type === 'item') {
         if (target.subtype === 'weapon') {
-            if ((target.pro?.extra?.caliber ?? 0) !== 0) {
-                out.push(format(protoMsg(526), ammoGetQuantity(target), ammoGetCapacity(target), protoName(weaponGetAmmoTypePid(target))))
+            if (ammoGetCaliber(target) !== 0) {
+                out.push(
+                    format(
+                        protoMsg(526),
+                        ammoGetQuantity(target),
+                        ammoGetCapacity(target),
+                        protoName(weaponGetAmmoTypePid(target)),
+                    ),
+                )
             }
         } else if (target.subtype === 'ammo') {
             const e = target.pro?.extra ?? {}

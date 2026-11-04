@@ -45,7 +45,7 @@ entry is one to three sentences. For the live bug registry start with
 
 | File | Summary |
 |------|---------|
-| [scripting_vm.md](scripting_vm.md) | DH2's three-file scripting architecture (`vm.ts` bytecode decoder, `vm_bridge.ts` opcode wiring, `scripting.ts` Script class), procedure hook lifecycle, stack layout, and the full `opMap` of low-level bytecode handlers. |
+| [scripting_vm.md](scripting_vm.md) | DH2's three-file scripting architecture (`vm.ts` bytecode decoder, `vmBridge.ts` opcode wiring, `scripting.ts` Script class), procedure hook lifecycle, stack layout, and the full `opMap` of low-level bytecode handlers. |
 | [scripting_reference.md](scripting_reference.md) | Full reference tables: `SCRIPT_PROC_*` hook IDs, variable scoping (GVAR/LVAR/MVAR), VM bytecodes (0x8000–0x804B), intrinsic opcodes (0x80A0+), `get_pc_stat` constants, `metarule` IDs, and the list of unwired opcodes. |
 | [autocrawler.md](autocrawler.md) | DH2 test tooling: the AutoCrawler (automated map / dialogue / combat crawls, URL auto-start, report JSON). Moved from the project root 2026-10-23. |
 | [lua_scripts.md](lua_scripts.md) | DH2 addition: `tools/int2lua.py` decompiles the `.int` scripts to Lua 5.4; the Lua backend (`src/lua/`, wasmoon) runs them with SSL semantics, coroutine dialogue and a per-script sandbox; `luadiff.html` checks them call for call against the VM. |
@@ -93,8 +93,8 @@ entry is one to three sentences. For the live bug registry start with
 |------|---------|
 | [interface_windows.md](interface_windows.md) | All in-game UI panels: HUD bar (HP/AP/poison/radiation indicators), inventory, character sheet, Skilldex, barter, PipBoy button, elevator panel, and the `UIMode` mutual-exclusion system. Gaps IW1–IW11 and EV1–EV4. |
 | [hotkeys.md](hotkeys.md) | Full keyboard binding table for DH2 vs CE `gameHandleKey`, including what works, what is missing, and known conflicts (F2, Home). |
-| [pipboy.md](pipboy.md) | Pip-Boy window system (status, inventory, automaps, quests, skills), quest display logic, holodisk viewing mechanics (absorbed from `holodisk.md`), and DH2 `ui_pipboy.ts` fidelity gaps #1–#9. |
-| [dialogue_system.md](dialogue_system.md) | CE `game_dialog.cc` dialogue state machine, reaction system, `gdialog_*` scripting opcodes, BARTER button gating, `MSG` file format from `message.cc`, and DH2 `ui_dialogue.ts` implementation gaps. |
+| [pipboy.md](pipboy.md) | Pip-Boy window system (status, inventory, automaps, quests, skills), quest display logic, holodisk viewing mechanics (absorbed from `holodisk.md`), and DH2 `uiPipBoy.ts` fidelity gaps #1–#9. |
+| [dialogue_system.md](dialogue_system.md) | CE `game_dialog.cc` dialogue state machine, reaction system, `gdialog_*` scripting opcodes, BARTER button gating, `MSG` file format from `message.cc`, and DH2 `uiDialogue.ts` implementation gaps. |
 | [settings.md](settings.md) | CE `fallout2.cfg` format and key table, in-game Options screen (`options.cc`), full preference table with defaults and DH2 mappings, floating text object system (`text_object.cc`), and DH2 `src/config.ts` gaps S-CI1–S-CI6 / S-PR1–S-PR6. |
 
 ---

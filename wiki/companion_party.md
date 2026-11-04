@@ -278,7 +278,7 @@ control screen replaces the dialogue window, it is not reached *instead of* talk
 
 **UPDATED 2026-06-22**: DH2 now has real dialogue-window buttons matching CE, added to
 `#dialogueBox` (`play.html`/`ui.css`: `#dialogueBarterButton` at 593,41, `#dialogueCombatControlButton`
-at 593,116), wired in `setupDialogueActionButtons()` (`ui_dialogue.ts`), called from
+at 593,116), wired in `setupDialogueActionButtons()` (`uiDialogue.ts`), called from
 `uiStartDialogue()` every time dialogue opens or re-opens — i.e. genuine persistent window chrome,
 not tied to any one `gsay_end()` node, matching CE's model exactly. `#dialogueBox`'s background also
 swaps between `di_talk.png` (regular NPC) and `di_talkp.png` (party member) here, matching CE's FRM
@@ -297,7 +297,7 @@ NPCs — the buttons are independent UI chrome layered on top, exactly as in CE.
 CE's third dialogue-window button, **Review** (dialogue history scrollback, position 13,154,
 `game_dialog.cc:1512 gameDialogReviewButtonOnMouseUp`), was identified during this research and
 **implemented 2026-06-22** — see `wiki/known_bugs.md` P17 for the full citation table (`#dialogueReviewButton`,
-`src/ui_dialogue_review.ts`, `Scripting.getDialogueReviewLog()`).
+`src/uiDialogueReview.ts`, `Scripting.getDialogueReviewLog()`).
 
 ### 8.2 Control window layout (verified against source)
 
@@ -348,11 +348,11 @@ Background: FRM ID 391 → `custom.png`, 640×190px. Message file: `game\custom.
 | 157 | 96 | Chem use | chemup/chemdn | `ChemUse` |
 
 Per-category value text options (5-6 each, `_custom_settings`, `game_dialog.cc:394-441`) are
-reproduced verbatim from the CE source comments in `ui_companion.ts`'s `CUSTOM_OPTIONS` table.
+reproduced verbatim from the CE source comments in `uiCompanion.ts`'s `CUSTOM_OPTIONS` table.
 
 CE presents the value picker by reusing the normal dialogue option-list rendering
 (`_gdCustomSelect`, `game_dialog.cc:3966`). DH2 builds a small dedicated modal instead
-(`uiCustomCategoryPicker` in `ui_companion.ts`), using the same `cussel.png` background
+(`uiCustomCategoryPicker` in `uiCompanion.ts`), using the same `cussel.png` background
 (FRM 419, 444×206px) CE uses for this sub-window — wiring the value picker through DH2's full
 dialogue state machine for the same visual result would have been substantially more invasive.
 
@@ -378,7 +378,9 @@ name and looking up the exact match — correct regardless of on-disk packet ord
 `setCompanionDisposition()` (`party.ts`) calls this, then re-points `critter.aiNum` at the new
 packet and (if an `AI` instance already exists for this critter) immediately updates
 `critter.ai.packet` too, so the change takes effect without waiting for the critter to next enter
-combat. Switching to anything other than `'custom'` clears `critter.customAiOverrides`.
+combat. `critter.customAiOverrides` is kept across a switch to a named disposition and applies only
+while the custom packet is in use, so switching back to Custom restores the settings (CE writes them
+into the CUSTOM packet itself; PTY-06, 2026-10-25).
 
 `setCompanionCustomSetting()` applies one field override on top of the companion's `'custom'`
 packet (cloned, never mutating the shared canonical packet object keyed by `packetNum` in
@@ -401,8 +403,8 @@ torn down and recreated across multiple combats.
 
 ### 8.6 Files
 
-`src/ui_companion.ts` (control + customize screens), `src/ui_companion_trade.ts` (weight-based
+`src/uiCompanion.ts` (control + customize screens), `src/uiCompanionTrade.ts` (weight-based
 trade), `src/party.ts` (`setCompanionDisposition`, `setCompanionCustomSetting`,
 `getCompanionEffectivePacket`), `src/aiPackets.ts` (`findCompanionPacketForDisposition`),
 `src/object/Critter.ts` (`customAiOverrides` field), `src/combat/AI.ts` (override merge in
-constructor), `src/ui_panels.ts` (`UIMode.companionControl`), `src/input.ts` (trigger).
+constructor), `src/uiPanels.ts` (`UIMode.companionControl`), `src/input.ts` (trigger).

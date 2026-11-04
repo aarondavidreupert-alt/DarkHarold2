@@ -3,7 +3,7 @@
 **Audited:** 2026-05-31  
 **Branch:** claude/codebase-map-docs-xW0xV  
 **CE ref:** `raw/fallout2-ce/src/scripts.h`, `scripts.cc`, `map.cc`, `interpreter_extra.cc`  
-**DH2 ref:** `src/scripting.ts`, `src/vm_bridge.ts`, `src/map/GameMap.ts`, `src/map/mapLoader.ts`, `src/object/Obj.ts`, `src/object/Critter.ts`
+**DH2 ref:** `src/scripting.ts`, `src/vmBridge.ts`, `src/map/GameMap.ts`, `src/map/mapLoader.ts`, `src/object/Obj.ts`, `src/object/Critter.ts`
 
 Do not duplicate content from `wiki/dialogue_system.md` or `wiki/items.md`.
 
@@ -216,7 +216,7 @@ Default: if index unknown, `local_var` initializes to `0` with a warning. LVARs 
 
 **CE:** The FO2 `.int` format supports `export variable` declarations and cross-script variable references via `op_export_var`, `op_store_external`, `op_fetch_external`.
 
-**DH2 ref:** `vm_bridge.ts:63–65`
+**DH2 ref:** `vmBridge.ts:63–65`
 
 ```typescript
 ,0x8016: function() { this.mapScript()[this.pop()] = 0 }  // op_export_var
@@ -474,7 +474,7 @@ Sequence for a script-initiated timed event:
        // implementation
    }
    ```
-2. Wire in `src/vm_bridge.ts` inside `bridgeOpMap`:
+2. Wire in `src/vmBridge.ts` inside `bridgeOpMap`:
    ```typescript
    ,0xXXXX: bridged("myOpcode", 2)  // 2 = argc, true = push return value
    ```

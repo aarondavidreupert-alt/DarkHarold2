@@ -8,7 +8,7 @@
 >
 > DH2 references: `src/object/Obj.ts` (`Obj.pickup`, `Obj.drop`, `Obj.addInventoryItem`),
 > `src/scripting.ts` (inventory & barter opcodes, `Scripting.pickup`),
-> `src/ui_loot.ts` (`uiLoot`), `src/ui_barter/screen.ts` (`uiBarterMode`), `src/playerUse.ts` / `src/main.ts`
+> `src/uiLoot.ts` (`uiLoot`), `src/uiBarter/screen.ts` (`uiBarterMode`), `src/playerUse.ts` / `src/main.ts`
 > (loot entry points).
 >
 > See also: [critter_stats.md](critter_stats.md) §1.3 — `CRITTER_NO_DROP` flag gap.
@@ -156,7 +156,7 @@ All implemented in `src/scripting.ts` inside the `Script` class.
 | `add_mult_objs_to_inven` | `(obj, item, count)` | Calls `obj.addInventoryItem(item, count)` — stack-merges by PID |
 | `add_obj_to_inven` | `(obj, item)` | Delegates to `add_mult_objs_to_inven(obj, item, 1)` |
 | `rm_mult_objs_from_inven` | `(obj, item, count)` | Finds item by `approxEq` (PID match), subtracts count; splices if amount ≤ 0. Wired at `0x8117`. |
-| `rm_obj_from_inven` | `(obj, item)` | Method exists at `scripting.ts:738` and delegates to `rm_mult_objs_from_inven(obj, item, 1)`, but **opcode `0x80D9` is absent from `vm_bridge.ts`** — scripts calling this opcode silently fail. See `wiki/scripting_reference.md §4`. |
+| `rm_obj_from_inven` | `(obj, item)` | Method exists at `scripting.ts:738` and delegates to `rm_mult_objs_from_inven(obj, item, 1)`, but **opcode `0x80D9` is absent from `vmBridge.ts`** — scripts calling this opcode silently fail. See `wiki/scripting_reference.md §4`. |
 
 ### §2.2 Query
 
@@ -178,7 +178,7 @@ All implemented in `src/scripting.ts` inside the `Script` class.
 
 ---
 
-## §3 Loot UI (`ui_loot.ts`)
+## §3 Loot UI (`uiLoot.ts`)
 
 Opened from `main.ts`:
 - Dead critter: right-click → `uiLoot(obj)` (`main.ts:353`)
@@ -190,7 +190,7 @@ export function uiLoot(object: Obj)
 
 Layout: two-column panel (left = player inventory, right = target inventory). Items are rendered as inventory art PNGs with an `×N` quantity label.
 
-**Move (drag-and-drop):** `uiLootMove` resolves source/destination arrays from an encoded string (`"l{idx}"` = player, `"r{idx}"` = target), then delegates to `uiSwapItem(from, item, to, amount)` from `src/ui_barter/swap.ts`. For stacks > 1, prompts for quantity via `uiGetAmount`.
+**Move (drag-and-drop):** `uiLootMove` resolves source/destination arrays from an encoded string (`"l{idx}"` = player, `"r{idx}"` = target), then delegates to `uiSwapItem(from, item, to, amount)` from `src/uiBarter/swap.ts`. For stacks > 1, prompts for quantity via `uiGetAmount`.
 
 **Take all:**
 ```typescript
@@ -502,7 +502,7 @@ contains only `dialogueBoxTextArea`).
 
 ```
 Player right-clicks critter → [Talk] context menu item
-  → main.ts / ui_contextmenu.ts calls Scripting.talk(script, obj)  // scripting.ts:1969
+  → main.ts / uiContextMenu.ts calls Scripting.talk(script, obj)  // scripting.ts:1969
   → script.talk_p_proc() runs in the VM
 
     Inside talk_p_proc:
@@ -518,17 +518,17 @@ Player right-clicks critter → [Talk] context menu item
 Player clicks "[Barter]" <div> in dialogueBoxTextArea
   → Scripting.dialogueReply(idx)   // scripting.ts:238
   → dialogueOptionProcs[idx]() = barter_proc.bind(script)()
-  → gdialog_mod_barter(0)          // scripting.ts:1430 (0x8129 in vm_bridge.ts:181)
-  → uiBarterMode(this.self_obj as Critter)   // src/ui_barter/screen.ts
+  → gdialog_mod_barter(0)          // scripting.ts:1430 (0x8129 in vmBridge.ts:181)
+  → uiBarterMode(this.self_obj as Critter)   // src/uiBarter/screen.ts
       → dialogueBox slides down (uiAnimateBox)
       → barterBox slides up (uiAnimateBox)
       → working inventory copies created
       → offer/talk button handlers wired
 ```
 
-The dialogue window also has CE's permanent **BARTER button** (`src/ui_dialogue.ts`, `game_dialog.cc _gdCanBarter`): with `CRITTER_BARTER` (proto flag 0x02) it opens the barter screen, otherwise the NPC answers with the "no barter" line. `gdialog_mod_barter(mod)` stores `mod` as the barter modifier (`gGameDialogBarterModifier`) before opening the screen; `gdialog_set_barter_mod` sets it too.
+The dialogue window also has CE's permanent **BARTER button** (`src/uiDialogue.ts`, `game_dialog.cc _gdCanBarter`): with `CRITTER_BARTER` (proto flag 0x02) it opens the barter screen, otherwise the NPC answers with the "no barter" line. `gdialog_mod_barter(mod)` stores `mod` as the barter modifier (`gGameDialogBarterModifier`) before opening the screen; `gdialog_set_barter_mod` sets it too.
 
-### §6.3 DH2 Barter Screen — `src/ui_barter/screen.ts` (re-audited 2026-10-18)
+### §6.3 DH2 Barter Screen — `src/uiBarter/screen.ts` (re-audited 2026-10-18)
 
 `barterMinPlayerOffer()` is CE `_barter_compute_value`:
 - `cost` = `stackCost()` of the merchant table (CE `objectGetCost`: ammo by the rounds left, containers with contents, loaded weapons with their rounds — C36), `caps` = `itemGetTotalCaps` of the table (containers included), `costWithoutCaps = cost − caps`;
@@ -536,7 +536,7 @@ The dialogue window also has CE's permanent **BARTER button** (`src/ui_dialogue.
 - `barterModMult = (barterMod + reactionMod + 100 − 25·MasterTrader) × 0.01` (minimum 0.01), with the reaction modifier of `inventoryOpenTrade` (LVAR 0 → good −15 / neutral 0 / bad +25);
 - `balancedCost = (160 + npcBarter) / (160 + partyBarter) × costWithoutCaps × 2`; the merchant wants `trunc(barterModMult × balancedCost) + caps`.
 
-`offer()` is `_barter_attempt_transaction`: first the weight ("Sorry, you cannot carry that much.", inventry.msg 31), then an empty offer or one worth less is "No, your offer is not good enough." (28); otherwise both tables move over. Trading with a party member is the separate weight-only screen (`src/ui_companion_trade.ts`, messages 31 / 32).
+`offer()` is `_barter_attempt_transaction`: first the weight ("Sorry, you cannot carry that much.", inventry.msg 31), then an empty offer or one worth less is "No, your offer is not good enough." (28); otherwise both tables move over. Trading with a party member is the separate weight-only screen (`src/uiCompanionTrade.ts`, messages 31 / 32).
 
 ### §6.4 DH2 Barter Script Opcodes
 

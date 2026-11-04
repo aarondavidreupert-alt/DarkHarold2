@@ -44,19 +44,24 @@ function normalize(path: string): string {
 }
 
 /** Reads mods/<name>/manifest.json for every active mod (Config.scripting.mods, load
- *  order). A mod without a manifest adds no assets (a Lua-only mod). */
-export function initModAssets(mods: string[]): void {
+ *  order). A mod without a manifest adds no assets (a Lua-only mod). main.ts awaits it
+ *  before any asset loads. */
+export async function initModAssets(mods: string[]): Promise<void> {
     layers = []
-    for (const name of mods) {
-        let manifest: ModManifest | null = null
-        try {
-            const xhr = new XMLHttpRequest()
-            xhr.open('GET', `mods/${name}/manifest.json`, false)
-            xhr.send(null)
-            if (xhr.status === 200) manifest = JSON.parse(xhr.responseText)
-        } catch (e) {
-            dbgWarn('load', `mods/${name}/manifest.json: ${e}`)
-        }
+    // fetched together, applied in load order
+    const manifests = await Promise.all(
+        mods.map(async (name): Promise<ModManifest | null> => {
+            try {
+                const response = await fetch(`mods/${name}/manifest.json`)
+                return response.status === 200 ? JSON.parse(await response.text()) : null
+            } catch (e) {
+                dbgWarn('load', `mods/${name}/manifest.json: ${e}`)
+                return null
+            }
+        }),
+    )
+    for (const [i, name] of mods.entries()) {
+        const manifest = manifests[i]
         if (!manifest || !Array.isArray(manifest.files)) {
             dbg('load', `mod ${name}: no manifest (scripts only)`)
             continue
@@ -91,11 +96,32 @@ export function assetLayer(path: string): number {
     return -1
 }
 
+// The version of the art/ files: the image map's Last-Modified + size (main.ts sets it at boot).
+// It goes on every art/ URL, so a pipeline re-export changes them all and the browser cannot
+// combine a cached old sprite sheet with the new image map: `python -m http.server` sends no
+// cache headers, and the browser reuses a cached file for a while without asking (known_bugs
+// CA50). Between re-exports the URLs stay the same, so the files are cached as before.
+let artVersion = ''
+
+export function setArtVersion(stamp: string): void {
+    artVersion = stamp ? encodeURIComponent(stamp) : ''
+}
+
 /** The URL to load for a project asset path: mods/<mod>/<path> when an active mod
  *  overrides it, else `path` unchanged (also for data:, blob: and empty URLs). A query
- *  string is kept. */
+ *  string is kept; an art/ file without one gets the art version (setArtVersion). */
 export function assetUrl(path: string): string {
-    if (layers.length === 0 || !path || /^[a-z]+:/i.test(path)) return path
+    if (!path || /^[a-z]+:/i.test(path)) {
+        return path
+    }
+    const url = modUrl(path)
+    return artVersion && /^art\//i.test(path) && !path.includes('?') ? `${url}?v=${artVersion}` : url
+}
+
+function modUrl(path: string): string {
+    if (layers.length === 0) {
+        return path
+    }
     const q = path.indexOf('?')
     const file = q < 0 ? path : path.slice(0, q)
     const i = assetLayer(file)
@@ -132,11 +158,13 @@ export function mergeModJSON(path: string, value: any, load: (url: string) => an
     return value
 }
 
-/** Rewrites the page's stylesheet rules whose url(...) names a file an active mod
- *  overrides (ui.css's interface art), so CSS-drawn interface pieces use the mod's
- *  image too. Same-origin sheets only. */
+/** Rewrites the page's stylesheet rules and <img> tags whose url(...) / src names a file
+ *  an active mod overrides (ui.css's and play.html's interface art), so those pieces use
+ *  the mod's image too, and adds the art version. Same-origin sheets only. */
 export function overrideStylesheets(): void {
-    if (layers.length === 0) return
+    if (layers.length === 0 && !artVersion) {
+        return // nothing to rewrite: no mod copies, no art version
+    }
     let changed = 0
     const fix = (rules: CSSRuleList) => {
         for (const rule of Array.from(rules)) {
@@ -168,4 +196,19 @@ export function overrideStylesheets(): void {
         }
     }
     if (changed) dbg('load', `mod assets: ${changed} stylesheet images overridden`)
+
+    // play.html's own <img src="art/..."> (the dialogue frame and highlights, the AP lights,
+    // the world map): the same, or a re-export's new image hides behind the cached old one
+    let images = 0
+    for (const img of Array.from(document.querySelectorAll<HTMLImageElement>('img[src]'))) {
+        const src = img.getAttribute('src')!
+        const to = assetUrl(src)
+        if (to !== src) {
+            img.src = to
+            images++
+        }
+    }
+    if (images) {
+        dbg('load', `mod assets: ${images} page images overridden`)
+    }
 }

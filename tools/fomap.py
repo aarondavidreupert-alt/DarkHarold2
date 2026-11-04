@@ -523,24 +523,40 @@ def parseMap(f: BufferedReader, lstFiles: dict[str, list[bytes]]):
     # parse levels
     levels = []
 
+    # CE square: the low 12 bits are the tile id, the top 4 bits flags (roof: 0x01 hidden,
+    # 0x02 never hidden by the roof fill — tile.cc roof_fill_off_process_task)
     def transformTile(idx):
-        return stripExt(lstFiles["tiles"][idx].decode('ascii').rstrip()).lower()
+        return stripExt(lstFiles["tiles"][idx & 0xFFF].decode('ascii').rstrip()).lower()
 
     def transformTileMap(tileMap):
         return [[transformTile(idx) for idx in row] for row in tileMap]
 
+    def tileFlags(tileMap):
+        return {"%d,%d" % (x, y): v >> 12 for y, row in enumerate(tileMap) for x, v in enumerate(row) if v >> 12}
+
     for level in range(numLevels):
-        levels.append({"tiles": {"floor": transformTileMap(floorTiles[level]),
-                                 "roof": transformTileMap(roofTiles[level])
-                                },
+        tiles = {"floor": transformTileMap(floorTiles[level]),
+                 "roof": transformTileMap(roofTiles[level])}
+        roofFlags = tileFlags(roofTiles[level])
+        if roofFlags:  # none in the shipped maps; a mod map may set them
+            tiles["roofFlags"] = roofFlags
+        levels.append({"tiles": tiles,
                        "spatials":  [x for x in scripts["spatials"] if x["elevation"] == level],
                        "objects": objects[level]
                       })
+
+    # CE map.cc mapLoad: the header's scriptIndex (1-based in scripts.lst, 0 = none) is the
+    # map script — the random-encounter maps all run RndDsrt / RndCoast / RndMnt, not a
+    # script named after the map
+    mapScript = None
+    if 0 < mapScriptID <= len(lstFiles["scripts"]):
+        mapScript = stripExt(lstFiles["scripts"][mapScriptID - 1].decode('ascii').split()[0]).lower()
 
     # return map
     return {"version": namedVersion,
             "mapID": mapID,
             "name": mapName,
+            "script": mapScript,
             "levels": levels,
             "startPosition": fromTileNum(playerPosition),
             "startElevation": playerElevation,

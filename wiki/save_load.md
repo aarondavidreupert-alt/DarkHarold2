@@ -4,7 +4,7 @@ Reference doc for the Fallout 2 save/load system — CE savegame format, what st
 is persisted, scripting opcodes, and DH2 implementation status.
 
 Ground truth: `raw/fallout2-ce/src/loadsave.cc`, `loadsave.h`, `scripts.cc`, `game.cc`  
-DH2 implementation: `src/saveload.ts`, `src/scripting.ts`, `src/vm_bridge.ts`, `src/map/GameMap.ts`, `src/object/Obj.ts`, `src/object/Critter.ts`
+DH2 implementation: `src/saveload.ts`, `src/scripting.ts`, `src/vmBridge.ts`, `src/map/GameMap.ts`, `src/object/Obj.ts`, `src/object/Critter.ts`
 
 ---
 
@@ -289,7 +289,9 @@ DH2 uses the browser's **IndexedDB API** (`src/saveload.ts:291–308`):
 | Movies seen | `seenMovies` |
 | Event log | `eventLog` |
 
-Not saved, as in CE or by design: the random generator (CE `randomSave` only resets the roll counter), preferences (CE keeps them in fallout2.cfg; DH2 in `localStorage`, S-CI5).
+Not saved, as in CE or by design: the random generator (CE `randomSave` only resets the roll counter).
+
+Saved since 2026-10-25 (CE parity audit): the preferences (`preferences`, CE handler 17 — a load applies them and makes them the current settings, `_SavePrefs`; they also stay in `localStorage`), a running combat (`combat`: turn order by object uid, whose turn, round, XP, the player's AP — CE `combatSave` / `combatLoad`), and timed events keyed by the owner's `uid` (CE object id) instead of its PID; knockout events are rebuilt as such, a lit flare or an armed explosive is not restored yet.
 
 ---
 
@@ -300,4 +302,4 @@ Not saved, as in CE or by design: the random generator (CE `randomSave` only res
 | Storage | IndexedDB records instead of SAVE.DAT + MAPS/*.SAV — same content, not file-compatible with CE saves |
 | Unvisited maps | Load fresh from `maps/*.json` — the same as CE, which loads them from the master .MAP |
 
-Everything the former table listed (MVARs, kill counts, worldmap, event queue, automap, `is_loading_game`, the slot UI — `ui_saveload.ts` is CE's LOADSAVE screen) is implemented. <!-- audited: 2026-10-18 -->
+Everything the former table listed (MVARs, kill counts, worldmap, event queue, automap, `is_loading_game`, the slot UI — `uiSaveLoad.ts` is CE's LOADSAVE screen) is implemented. <!-- audited: 2026-10-18 -->

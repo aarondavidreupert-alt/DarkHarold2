@@ -1,5 +1,7 @@
 # Scroll Clamping & Map Edge Rendering
 
+> Console commands named here (`setXyz()`, `...Debug()`) are registered only for `play.html#dev` (`src/devConsole/`).
+
 ## CE Reference
 - `src/tile.cc` — `tileInit()` (line 290), `tileSetBorder()` (line 462),
   `tileSetCenter()` (line 537, scroll-reject at 574), `_tile_scroll_to()` (line 1947)
@@ -64,9 +66,20 @@ outside may still walk. The walking area also takes in every exit grid that has 
 inside the border, so all exits stay reachable: of all map elevations only `ncr2`/0
 (exit to map 42) and `redwan1`/1 have such an exit.
 
-`[dh2] scroll_player_limit=0` / console `setScrollPlayerLimit(false)` drops the
+`[dh2] scroll_player_limit=0` / console `setScrollPlayerLimit(false)` (`play.html#dev`) drops the
 480×400 px player limit: the view then goes as far as the ring and the black border
 allow. known_bugs RD20.
+
+`[dh2] scroll_return=1` (default; a DH2 addition): scroll blockers do not stop the player
+from walking, so the player can cross a blocker line the view cannot (Klamath Downtown's
+exit side, or a map transition that arrives beyond one). A view centre in another
+blocker-enclosed area than the player may then cross blockers on a step that brings it
+closer to the player, never on one away from them; back in the player's area the blockers
+hold again, and Home always reaches the player. `=0`: CE, the view stays behind the wall.
+An audit of the vanilla maps (2026-11-01) found the view and the player always arrive in
+the same area, but six exit-grid targets lie outside the target map's start area
+(broken1/2 → broken2, kladwtwn → klacanyn, modgard/modmain → modinn, ncr2 → ncr1), where
+walking into the main playfield leaves a CE view behind. known_bugs CA83.
 
 ## The core question: where does CE store "map bounds"?
 
@@ -237,7 +250,24 @@ fills the un-rendered (non-content) region black behind the overlay.
 
 ### Console calibration helpers (`camera.ts`, registered on `window`)
 - `scrollDebug()` — prints copyable JSON: object bbox, auto clamp, active clamp,
-  camera position, zoom, screen size, and bar pixel widths for the current frame.
+  camera position, zoom, screen size, and bar pixel widths for the current frame;
+  also the map, the player's hex, the view-centre hex (marked `(blocker)` when it holds a
+  scroll blocker) and `reach`: how far (world px) the view can scroll up / down / left /
+  right from where it is now.
+- `scrollLog()` — one console line whenever a scroll is refused (`scroll blocker` with the
+  centre hex and the blocker hex it would enter, `player limit` with dx / dy from the player,
+  `grid border`, `black border`) and when a map load or move_to centres the view, and a
+  warning with the call stack when the view centre crosses a scroll-blocker wall (its
+  blocker-enclosed area changes; only centring without the checks — map load, elevation
+  change, move_to — may do that); `scrollDebug()` shows the player's and the centre's area
+  ids as `areas`, and `history`: the last 40 view-centre hex changes (hex, area, how, the
+  calling function, the player's hex and area), recorded whether or not the log is on. It stays on across reloads (localStorage) until
+  `scrollLog(false)`. A repeated line is printed once.
+- Smooth scrolling (`scroll_mode=dh2`) walks a move in 8 px samples. A sample is refused only
+  when it enters another blocker hex, so a centre that starts on a blocker (the view centred on
+  a player standing on one) can step off it, as CE's 32×24 px step can; and a refused sample may
+  slide up to half a hex across its axis onto a free hex, where CE's grid-aligned step would land
+  (a zig-zag blocker wall, arbridge's camera corridor; known_bugs CA80).
 - `blackBar('W'|'E'|'N'|'S')` — enters edit mode for the named bar edge (West/East/
   North/South). Grey semi-transparent bars appear and scroll clamping is disabled so
   you can reach any position. Keys while in edit mode:

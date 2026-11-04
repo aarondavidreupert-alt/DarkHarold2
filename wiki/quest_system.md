@@ -6,7 +6,7 @@
 `raw/fallout2-ce/src/interpreter_extra.cc` (`opGetGlobalVar` 0x80C5, `opSetGlobalVar` 0x80C6,
 `opGiveExpPoints` 0x80A1), `raw/fallout2-ce/src/game.cc` (`gGameGlobalVars`, `gGameGlobalVarsLength`,
 `gameSetGlobalVar`)  
-**DH2 ref:** `src/questData.ts`, `src/questLog.ts`, `src/ui_pipboy/tabs/status.ts`, `src/scripting.ts`,
+**DH2 ref:** `src/questData.ts`, `src/questLog.ts`, `src/uiPipBoy/tabs/status.ts`, `src/scripting.ts`,
 `src/saveload.ts`  
 **See also:** `wiki/faction_reputation.md` (GVAR 0 = player karma), `wiki/save_load.md` (full save format)
 
@@ -180,13 +180,13 @@ As CE `pipboy.cc questInit` (2026-10-17, known_bugs C40): `getQuestDefs()` reads
 
 `getActiveQuests()` returns every quest whose GVAR has reached its display threshold, `isCompleted` at the completed threshold — the CE display test. `getUnknownActiveGvars()` lists non-zero GVARs no quest covers (debug aid).
 
-### 8.3 Pip-Boy — STATUS page (`src/ui_pipboy/tabs/status.ts`)
+### 8.3 Pip-Boy — STATUS page (`src/uiPipBoy/tabs/status.ts`)
 
 As CE `pipboyWindowHandleStatus`: the locations with a shown quest, then per location "<location> <pipboy.msg 210>" and its numbered quests; completed ones struck through in dark green (`_colorTable[8804]`). See `wiki/pipboy.md` §3.
 
 ### 8.4 XP — `src/scripting.ts`
 
-`give_exp_points` (opcode 0x80A1) is wired in `vm_bridge.ts` and calls
+`give_exp_points` (opcode 0x80A1) is wired in `vmBridge.ts` and calls
 `player.addExperience(amount)` — correctly matches CE. Level-up is triggered when
 the XP threshold is crossed.
 
@@ -200,7 +200,7 @@ the XP threshold is crossed.
 | displayThreshold / completedThreshold display | `pipboy.cc:1162–1197` | ✅ correct (`questLog.ts`) |
 | Pip-Boy location grouping | `pipboy.cc:questDescriptionCompare` | ✅ correct (`questData.ts` sort, `tabs/status.ts`) |
 | Active (green) / done (strikethrough) colours | `pipboy.cc` | ✅ correct |
-| `get_global_var` / `set_global_var` opcodes | `interpreter_extra.cc` | ✅ wired (`vm_bridge.ts`) |
+| `get_global_var` / `set_global_var` opcodes | `interpreter_extra.cc` | ✅ wired (`vmBridge.ts`) |
 | `give_exp_points` | `interpreter_extra.cc:0x80A1` | ✅ wired |
 | GVAR save/load round-trip | `game.cc`, `vault13.gam` | ✅ correct (`saveload.ts:104,224`) |
 | Quest definitions from `quests.txt` | `pipboy.cc:questInit` | ✅ (C40) |

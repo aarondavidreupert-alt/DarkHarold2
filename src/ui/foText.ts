@@ -20,8 +20,8 @@
 // scanning) and pixel-accurate color compositing.
 //
 // Usage:
-//   import { FoText } from '../ui_font.js'
-//   import { font3 } from '../ui_font.js'
+//   import { FoText } from '../uiFont.js'
+//   import { font3 } from '../uiFont.js'
 //
 //   const label = new FoText(font3, 'HELLO', '#c8b466')
 //   label.appendTo(container)
@@ -42,7 +42,7 @@ export class FoText {
     private _color: string | undefined
 
     /**
-     * @param renderer  A FontRenderer instance (e.g. font1, font3, font4 from ui_font.ts).
+     * @param renderer  A FontRenderer instance (e.g. font1, font3, font4 from uiFont.ts).
      * @param text      Initial text string.
      * @param color     Optional CSS hex color (e.g. '#c8b466'). If omitted the
      *                  sprite's native color is used (white in the atlas).
@@ -61,7 +61,9 @@ export class FoText {
 
     // ── Text ──────────────────────────────────────────────────────────────────
 
-    get text(): string { return this._text }
+    get text(): string {
+        return this._text
+    }
     set text(v: string) {
         if (v === this._text) return
         this._text = v
@@ -76,7 +78,9 @@ export class FoText {
 
     // ── Color ─────────────────────────────────────────────────────────────────
 
-    get color(): string | undefined { return this._color }
+    get color(): string | undefined {
+        return this._color
+    }
     set color(v: string | undefined) {
         this._color = v
         if (this.renderer.isLoaded()) this.redraw()
@@ -91,9 +95,13 @@ export class FoText {
     // ── Dimensions ────────────────────────────────────────────────────────────
 
     /** Rendered pixel width (0 if font not yet loaded). */
-    get width(): number { return this.canvas?.width ?? 0 }
+    get width(): number {
+        return this.canvas?.width ?? 0
+    }
     /** Rendered pixel height (0 if font not yet loaded). */
-    get height(): number { return this.canvas?.height ?? 0 }
+    get height(): number {
+        return this.canvas?.height ?? 0
+    }
 
     // ── Convenience ───────────────────────────────────────────────────────────
 

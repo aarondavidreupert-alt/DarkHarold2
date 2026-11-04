@@ -25,12 +25,14 @@ limitations under the License.
 // data/sound/speech/<head>/.
 
 import { AUDIO_ASSET_QUERY } from './audio.js'
-import globalState from './globalState.js'
+import { services } from './state/services.js'
+import { assets } from './state/assets.js'
 import { getCurrentMapInfo, getLstJson } from './data.js'
 import { lazyLoadImage } from './images.js'
 import { dbg } from './logger.js'
 import { getFileBinarySync, getRandomInt } from './util.js'
 import { assetUrl } from './modAssets.js'
+import { Config } from './config.js'
 
 // CE art.h HeadAnimation
 export const HEAD_ANIMATION_VERY_GOOD_REACTION = 0
@@ -57,15 +59,27 @@ const HEAD2 = 'vfngfbnfvppp'
 
 // CE game_dialog.cc:320 _head_phoneme_lookup[PHONEME_COUNT]
 const HEAD_PHONEME_LOOKUP = [
-    0, 3, 1, 1, 3, 1, 1, 1, 7, 8, 7, 3, 1, 8, 1, 7, 7, 6, 6, 2, 2,
-    2, 2, 4, 4, 5, 5, 2, 2, 2, 2, 2, 6, 2, 2, 5, 8, 2, 2, 2, 2, 8,
+    0, 3, 1, 1, 3, 1, 1, 1, 7, 8, 7, 3, 1, 8, 1, 7, 7, 6, 6, 2, 2, 2, 2, 4, 4, 5, 5, 2, 2, 2, 2, 2, 6, 2, 2, 5, 8, 2, 2,
+    2, 2, 8,
 ]
 
 const HEAD_W = 388
 const HEAD_H = 200
 
-interface HeadArt { key: string; numFrames: number; fps: number; frames: { sx: number; sy: number; w: number; h: number; x: number }[]; dirX: number; dirY: number }
-interface Lips { phonemes: number[]; markers: { marker: number; position: number }[]; totalBytes: number; audio: HTMLAudioElement }
+interface HeadArt {
+    key: string
+    numFrames: number
+    fps: number
+    frames: { sx: number; sy: number; w: number; h: number; x: number }[]
+    dirX: number
+    dirY: number
+}
+interface Lips {
+    phonemes: number[]
+    markers: { marker: number; position: number }[]
+    totalBytes: number
+    audio: HTMLAudioElement
+}
 
 let canvas: HTMLCanvasElement | null = null
 let headIndex = -1
@@ -103,7 +117,7 @@ function headArtKey(anim: number, fidget = 0): string {
 }
 
 function loadHeadArt(key: string): HeadArt | null {
-    const info = globalState.imageInfo[key]
+    const info = assets.imageInfo![key]
     if (!info) return null
     lazyLoadImage(key)
     const dir = info.directionOffsets?.[0] ?? { x: 0, y: 0 }
@@ -138,7 +152,7 @@ function render(art: HeadArt | null, frame: number): void {
     const bgName = getLstJson('art/backgrnd/backgrnd', backgroundIndex)
     if (bgName) {
         const bgKey = 'art/backgrnd/' + String(bgName).split('.')[0].toLowerCase()
-        const bg = globalState.images[bgKey]
+        const bg = assets.images[bgKey]
         if (bg) ctx.drawImage(bg, 0, 0)
         else lazyLoadImage(bgKey, () => render(art, frame))
     }
@@ -152,7 +166,7 @@ function render(art: HeadArt | null, frame: number): void {
     if (offset + f.w * art.dirY > 0) offset += f.w * art.dirY
     const y = Math.floor(offset / 640)
     const x = offset - y * 640
-    const img = globalState.images[art.key]
+    const img = assets.images[art.key]
     if (img) ctx.drawImage(img, f.sx, f.sy, f.w, f.h, x, y, f.w, f.h)
     else lazyLoadImage(art.key, () => render(art, frame))
 }
@@ -190,23 +204,30 @@ function setupFidget(reaction: number): void {
 // CE game_dialog.cc:2585 _gdPlayTransition (after gameDialogWaitForFidgetToComplete)
 function playTransition(anim: number): Promise<void> {
     const prev = busyTransition
-    busyTransition = prev.then(() => new Promise<void>((resolve) => {
-        const finishFidget = fidgetArt
-        const steps: [HeadArt, number][] = []
-        if (finishFidget) for (let f = fidgetFrame; f < finishFidget.numFrames; f++) steps.push([finishFidget, f])
-        fidgetArt = null
-        const art = loadHeadArt(headArtKey(anim))
-        if (art) for (let f = 0; f < art.numFrames; f++) steps.push([art, f])
-        const delay = 1000 / (art?.fps ?? 10)
-        let i = 0
-        const step = () => {
-            if (i >= steps.length || !canvas) { resolve(); return }
-            const [a, f] = steps[i++]
-            render(a, f)
-            setTimeout(step, delay)
-        }
-        step()
-    }))
+    busyTransition = prev.then(
+        () =>
+            new Promise<void>((resolve) => {
+                const finishFidget = fidgetArt
+                const steps: [HeadArt, number][] = []
+                if (finishFidget)
+                    for (let f = fidgetFrame; f < finishFidget.numFrames; f++) steps.push([finishFidget, f])
+                fidgetArt = null
+                const art = loadHeadArt(headArtKey(anim))
+                if (art) for (let f = 0; f < art.numFrames; f++) steps.push([art, f])
+                const delay = 1000 / (art?.fps ?? 10)
+                let i = 0
+                const step = () => {
+                    if (i >= steps.length || !canvas) {
+                        resolve()
+                        return
+                    }
+                    const [a, f] = steps[i++]
+                    render(a, f)
+                    setTimeout(step, delay)
+                }
+                step()
+            }),
+    )
     return busyTransition
 }
 
@@ -216,13 +237,19 @@ export function talkToCritterReacts(a1: number): void {
     secondsSinceLastInput = 0
     const v3 = a1 + 50
     if (v3 === GAME_DIALOG_REACTION_GOOD) {
-        if (fidgetReaction === FIDGET_GOOD) void playTransition(HEAD_ANIMATION_VERY_GOOD_REACTION).then(() => setupFidget(FIDGET_GOOD))
-        else if (fidgetReaction === FIDGET_NEUTRAL) void playTransition(HEAD_ANIMATION_NEUTRAL_TO_GOOD).then(() => setupFidget(FIDGET_GOOD))
-        else if (fidgetReaction === FIDGET_BAD) void playTransition(HEAD_ANIMATION_BAD_TO_NEUTRAL).then(() => setupFidget(FIDGET_NEUTRAL))
+        if (fidgetReaction === FIDGET_GOOD)
+            void playTransition(HEAD_ANIMATION_VERY_GOOD_REACTION).then(() => setupFidget(FIDGET_GOOD))
+        else if (fidgetReaction === FIDGET_NEUTRAL)
+            void playTransition(HEAD_ANIMATION_NEUTRAL_TO_GOOD).then(() => setupFidget(FIDGET_GOOD))
+        else if (fidgetReaction === FIDGET_BAD)
+            void playTransition(HEAD_ANIMATION_BAD_TO_NEUTRAL).then(() => setupFidget(FIDGET_NEUTRAL))
     } else if (v3 === GAME_DIALOG_REACTION_BAD) {
-        if (fidgetReaction === FIDGET_GOOD) void playTransition(HEAD_ANIMATION_GOOD_TO_NEUTRAL).then(() => setupFidget(FIDGET_NEUTRAL))
-        else if (fidgetReaction === FIDGET_NEUTRAL) void playTransition(HEAD_ANIMATION_NEUTRAL_TO_BAD).then(() => setupFidget(FIDGET_BAD))
-        else if (fidgetReaction === FIDGET_BAD) void playTransition(HEAD_ANIMATION_VERY_BAD_REACTION).then(() => setupFidget(FIDGET_BAD))
+        if (fidgetReaction === FIDGET_GOOD)
+            void playTransition(HEAD_ANIMATION_GOOD_TO_NEUTRAL).then(() => setupFidget(FIDGET_NEUTRAL))
+        else if (fidgetReaction === FIDGET_NEUTRAL)
+            void playTransition(HEAD_ANIMATION_NEUTRAL_TO_BAD).then(() => setupFidget(FIDGET_BAD))
+        else if (fidgetReaction === FIDGET_BAD)
+            void playTransition(HEAD_ANIMATION_VERY_BAD_REACTION).then(() => setupFidget(FIDGET_BAD))
     }
 }
 
@@ -235,24 +262,36 @@ export function reactToOption(reaction: number): void {
     talkToCritterReacts(v1)
 }
 
-// CE lips.cc lipsLoad — version-2 .lip: big-endian header, phoneme bytes, markers.
+// CE lips.cc lipsLoad — a big-endian header, phoneme bytes, markers. Version 2: 8 int32s +
+// file_name[8] + field_58[4]; version 1 (lipsReadV1): 20 int32s + 8 + 4 + 4 + 4 + 260 bytes
+// of names. Without a .lip (or with another version) CE still plays the speech, with no
+// lip sync.
 function loadLips(audioName: string): Lips | null {
     const base = audioName.split('.')[0].toLowerCase()
+    const audio = new Audio(assetUrl(`audio/speech/${headName}/${base}.mp3${AUDIO_ASSET_QUERY}`))
+    const noLips = (): Lips => ({ phonemes: [0], markers: [], totalBytes: 0, audio })
     let dv: DataView
     try {
         dv = getFileBinarySync(`data/sound/speech/${headName}/${base}.lip`)
     } catch {
-        return null
+        return noLips()
     }
     const version = dv.getInt32(0, false)
-    if (version !== 2) {
-        dbg('dialogue', `[Lips] unsupported .lip version ${version} for ${base}`)
-        return null
+    let totalBytes: number, phonemeCount: number, markerCount: number, p: number
+    if (version === 2) {
+        totalBytes = dv.getInt32(16, false) // field_1C
+        phonemeCount = dv.getInt32(20, false) // field_24
+        markerCount = dv.getInt32(28, false) // field_2C
+        p = 44
+    } else if (version === 1) {
+        totalBytes = dv.getInt32(28, false) // field_1C
+        phonemeCount = dv.getInt32(36, false) // field_24
+        markerCount = dv.getInt32(44, false) // field_2C
+        p = 360
+    } else {
+        dbg('dialogue', `[Lips] wrong .lip version ${version} for ${base}`)
+        return noLips()
     }
-    const totalBytes = dv.getInt32(16, false) // field_1C
-    const phonemeCount = dv.getInt32(20, false) // field_24
-    const markerCount = dv.getInt32(28, false) // field_2C
-    let p = 44 // 8 int32 fields + file_name[8] + field_58[4]
     const phonemes: number[] = []
     for (let i = 0; i < phonemeCount; i++) phonemes.push(dv.getUint8(p++))
     const markers: { marker: number; position: number }[] = []
@@ -260,7 +299,6 @@ function loadLips(audioName: string): Lips | null {
         markers.push({ marker: dv.getInt32(p, false), position: dv.getInt32(p + 4, false) })
         p += 8
     }
-    const audio = new Audio(assetUrl(`audio/speech/${headName}/${base}.mp3${AUDIO_ASSET_QUERY}`))
     return { phonemes, markers, totalBytes, audio }
 }
 
@@ -268,18 +306,21 @@ function loadLips(audioName: string): Lips | null {
 export function startLips(audioName: string | null): void {
     if (!isTalkingHeadActive()) return
     if (audioName === null) {
-        globalState.audioEngine?.playSfxByName?.('censor')
+        services.audioEngine?.playSfxByName?.('censor')
         return
     }
     endLips()
+    if (!Config.engine.soundsEnabled || !Config.engine.speechEnabled) return // [sound] sounds=0 / speech=0
     const l = loadLips(audioName)
     if (!l) return
     lips = l
     lastPhoneme = -1
-    const ae = globalState.audioEngine as any
+    const ae = services.audioEngine as any
     // CE lipsStart: soundSetVolume(sound, speechVolume * 0.69)
     l.audio.volume = Math.max(0, Math.min(1, (ae?.speechVolume ?? 1) * (ae?.masterVolume ?? 1) * 0.69))
-    l.audio.play().catch(() => { /* autoplay blocked: the head still animates */ })
+    l.audio.play().catch(() => {
+        /* autoplay blocked: the head still animates */
+    })
     dbg('dialogue', `[Lips] start ${headName}/${audioName}`)
 }
 
@@ -359,7 +400,14 @@ function ensureCanvas(): HTMLCanvasElement | null {
         // CE: head view occupies (126,14)-(514,214) of the 640x480 dialogue window,
         // seen through the frame's TV hole — so below #dialogueFrame (and the
         // hilight1/hilight2 overlays above it).
-        Object.assign(c.style, { position: 'absolute', left: '126px', top: '14px', width: HEAD_W + 'px', height: HEAD_H + 'px', pointerEvents: 'none' })
+        Object.assign(c.style, {
+            position: 'absolute',
+            left: '126px',
+            top: '14px',
+            width: HEAD_W + 'px',
+            height: HEAD_H + 'px',
+            pointerEvents: 'none',
+        })
         container.insertBefore(c, container.firstChild) // first child = bottom layer, under #dialogueFrame
     }
     c.style.display = 'block'
@@ -373,7 +421,7 @@ function ensureCanvas(): HTMLCanvasElement | null {
 export function startTalkingHead(headId: number, reaction: number, background: number): void {
     if (background !== -1) backgroundIndex = background // CE gameDialogSetBackground
     if (isTalkingHeadActive() || musicState) return // CE: _gdialog_state == 1 → already set up
-    const ae = globalState.audioEngine as any
+    const ae = services.audioEngine as any
     const music: HTMLAudioElement | undefined = ae?.musicAudio
     if (headId === -1) {
         musicState = { stopped: false, oldVolume: music ? music.volume : null }
@@ -406,7 +454,7 @@ export function stopTalkingHead(): void {
     lipsArt = null
     if (canvas) canvas.style.display = 'none'
     canvas = null
-    const ae = globalState.audioEngine as any
+    const ae = services.audioEngine as any
     if (musicState?.stopped) {
         // CE backgroundSoundRestart(11): resume the map's music.
         const mus = getCurrentMapInfo()?.music

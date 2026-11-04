@@ -17,10 +17,10 @@ limitations under the License.
 
 import { weaponGetAmmoTypePid } from '../weaponAmmo.js'
 import { Config } from '../config.js'
-import { CriticalEffects } from '../criticalEffects.js'
+import * as CriticalEffects from '../criticalEffects.js'
 import { hexDistance, Point } from '../geometry.js'
-import globalState from '../globalState.js'
-import { Lightmap } from '../lightmap.js'
+import { world } from '../state/world.js'
+import * as Lightmap from '../lightmap.js'
 import { dbg } from '../logger.js'
 import { Critter, Obj } from '../object.js'
 import { loadPRO } from '../pro.js'
@@ -33,10 +33,6 @@ const PERK_WEAPON_LONG_RANGE = 58
 const PERK_WEAPON_ACCURATE = 59
 const PERK_WEAPON_SCOPE_RANGE = 64
 const PERK_WEAPON_NIGHT_SIGHT = 66
-
-function combatDebug(...args: any[]): void {
-    dbg('combat', ...args)
-}
 
 /** Load ammo stats for a loaded weapon. Returns defaults (X=1,Y=1,RM=0,ACmod=0) if no ammo.
  *  Vanilla: weaponGetAmmoDamageMultiplier / weaponGetAmmoDamageDivisor return 1/1 for no ammo. */
@@ -59,7 +55,7 @@ export function getAmmoStats(weaponObj: Obj): { X: number; Y: number; RM: number
 // CE ref: combat.cc:4398 — attackDetermineToHit's line-of-fire penalty, -10 per live,
 // standing critter that _combat_is_shot_blocked counts between attacker and target.
 export function accountForPartialCover(obj: Critter, target: Critter, from: Point = obj.position): number {
-    if (!globalState.gMap) return 0
+    if (!world.gMap) return 0
     return combatIsShotBlocked(obj, from, target.position, target).critters * 10
 }
 
@@ -67,21 +63,29 @@ export function accountForPartialCover(obj: Critter, target: Critter, from: Poin
 // multihex object (OBJECT_MULTIHEX 0x800), never below 0.
 export function objectDistance(a: Obj, from: Point, b: Obj, to: Point = b.position): number {
     let d = hexDistance(from, to)
-    if (((((a as any).flags ?? 0) >>> 0) & 0x800) !== 0) d -= 1
-    if (((((b as any).flags ?? 0) >>> 0) & 0x800) !== 0) d -= 1
+    if ((((a.flags ?? 0) >>> 0) & 0x800) !== 0) d -= 1
+    if ((((b.flags ?? 0) >>> 0) & 0x800) !== 0) d -= 1
     return Math.max(0, d)
 }
 
 // CE ref: combat.cc:4334-4393 attackDetermineToHit (ranged/throw branch) — distance
 // modifier. Returned as a penalty (positive = harder); negative means a close-range bonus,
 // which CE does apply (toHit += distanceMod whenever useDistance is set).
-export function getHitDistanceModifier(obj: Critter, target: Critter, weapon: Obj, from: Point = obj.position,
-                                       useDistance = true): number {
-    const weaponPerk = (weapon as any)?.pro?.extra?.perk
+export function getHitDistanceModifier(
+    obj: Critter,
+    target: Critter,
+    weapon: Obj,
+    from: Point = obj.position,
+    useDistance = true,
+): number {
+    const weaponPerk = weapon?.pro?.extra?.perk
     let perceptionBonusMult = 2
     let minEffectiveDist = 0
     if (weaponPerk === PERK_WEAPON_LONG_RANGE) perceptionBonusMult = 4
-    else if (weaponPerk === PERK_WEAPON_SCOPE_RANGE) { perceptionBonusMult = 5; minEffectiveDist = 8 }
+    else if (weaponPerk === PERK_WEAPON_SCOPE_RANGE) {
+        perceptionBonusMult = 5
+        minEffectiveDist = 8
+    }
 
     let perception = obj.getStat('PER')
     // SFALL fix kept by CE: Sharpshooter adds 2 PER per rank (player only).
@@ -98,6 +102,9 @@ export function getHitDistanceModifier(obj: Critter, target: Critter, weapon: Ob
 
     if (distanceMod >= 0) distanceMod *= obj.isBlinded ? -12 : -4
     else distanceMod *= -4
+    // CE: toHit += distanceMod only with useDistance or when it is a bonus — the no-range check
+    // doesn't take a scope's minimum-distance penalty (−32 for Scope Range)
+    if (!useDistance && distanceMod <= 0) return 0
     return -distanceMod
 }
 
@@ -116,9 +123,9 @@ export function getObjectLightIntensity(obj: Critter, isPlayer: boolean): number
 // CE ref: combat.cc:4458-4463 — darkness penalty tiers for player attacks.
 function darknessPenalty(target: Critter): number {
     const light = getObjectLightIntensity(target, false)
-    if (light <= 26214) return 40   // < 40% light → -40
-    if (light <= 39321) return 25   // < 60% light → -25
-    if (light <= 52428) return 10   // < 80% light → -10
+    if (light <= 26214) return 40 // < 40% light → -40
+    if (light <= 39321) return 25 // < 60% light → -25
+    if (light <= 52428) return 10 // < 80% light → -10
     return 0
 }
 
@@ -127,7 +134,7 @@ function darknessPenalty(target: Critter): number {
 export function weaponAttackType(weaponObj: Obj | null): 'unarmed' | 'melee' | 'throw' | 'ranged' | 'none' {
     const weapon = (weaponObj as any)?.weapon
     if (!weaponObj || !weapon) return 'unarmed'
-    const modes = (weaponObj as any).pro?.extra?.attackMode ?? 0
+    const modes = weaponObj.pro?.extra?.attackMode ?? 0
     const index = weapon.usesSecondary?.() ? (modes >> 4) & 0xf : modes & 0xf
     const types = ['none', 'unarmed', 'unarmed', 'melee', 'melee', 'throw', 'ranged', 'ranged', 'ranged'] as const
     return types[index] ?? 'none'
@@ -136,7 +143,13 @@ export function weaponAttackType(weaponObj: Obj | null): 'unarmed' | 'melee' | '
 // CE ref: combat.cc:4313 attackDetermineToHit (useDistance = true; `from` is the tile
 // the attack is made from, CE _determine_to_hit_from_tile).
 // `useDistance = false` is CE _determine_to_hit_no_range: distance 0, no line-of-fire count.
-export function getHitChance(obj: Critter, target: Critter, region: string, from: Point = obj.position, useDistance = true) {
+export function getHitChance(
+    obj: Critter,
+    target: Critter,
+    region: string,
+    from: Point = obj.position,
+    useDistance = true,
+) {
     const weaponObj = obj.equippedWeapon
     const weapon = weaponObj?.weapon
     const attackType = weaponAttackType(weaponObj)
@@ -156,7 +169,7 @@ export function getHitChance(obj: Critter, target: Critter, region: string, from
         // CE weaponGetSkillValue: the skill of the hit mode (a spear's throw uses Throwing)
         const skill = weapon!.skillForMode?.() ?? weapon!.weaponSkillType
         toHit = skill === undefined ? 0 : obj.getSkill(skill)
-        const extra = (weaponObj as any).pro?.extra ?? {}
+        const extra = weaponObj.pro?.extra ?? {}
 
         if (isRanged) {
             distanceMod = getHitDistanceModifier(obj, target, weaponObj!, from, useDistance)
@@ -166,7 +179,7 @@ export function getHitChance(obj: Critter, target: Critter, region: string, from
         }
 
         // One Hander trait (player): -40 with two-handed weapons, +20 otherwise.
-        if (obj.isPlayer && (obj as any).traits?.includes('One Hander')) {
+        if (obj.isPlayer && obj.traits?.includes('One Hander')) {
             const twoHanded = ((extra.weaponFlags ?? 0) & 0x02) !== 0 // WEAPON_TWO_HAND 0x200
             toHit += twoHanded ? -40 : 20
         }
@@ -180,25 +193,32 @@ export function getHitChance(obj: Critter, target: Critter, region: string, from
     }
 
     // Defender AC (+ ammo AC modifier), floored at 0.
-    const AC = Math.max(0, target.getStat('AC') + target.getArmorAC() + (globalState.combat?.unusedApAC(target) ?? 0) + ammoACmod)
+    const AC = Math.max(
+        0,
+        target.getStat('AC') + target.getArmorAC() + (world.combat?.unusedApAC(target) ?? 0) + ammoACmod,
+    )
     toHit -= AC
 
     // hit_location_penalty: full for ranged/throw, half (C truncation) otherwise.
     const regionPenalty = CriticalEffects.regionHitChanceDecTable[region] ?? 0
     toHit -= isRanged ? regionPenalty : Math.trunc(regionPenalty / 2)
 
-    if (((((target as any).flags ?? 0) >>> 0) & 0x800) !== 0) toHit += 15 // OBJECT_MULTIHEX
+    if ((((target.flags ?? 0) >>> 0) & 0x800) !== 0) toHit += 15 // OBJECT_MULTIHEX
 
     // Darkness, player attacker only; PERK_WEAPON_NIGHT_SIGHT ignores it.
-    if (obj.isPlayer && (weaponObj as any)?.pro?.extra?.perk !== PERK_WEAPON_NIGHT_SIGHT) {
+    if (obj.isPlayer && weaponObj?.pro?.extra?.perk !== PERK_WEAPON_NIGHT_SIGHT) {
         toHit -= darknessPenalty(target)
     }
+
+    // CE attackDetermineToHit: attack_complex's accuracy bonus (_gcsd) for every to-hit during
+    // the first combatant's turn, before the 95 cap (spray lines and AI decisions included)
+    toHit += world.combat?.gcsd?.accuracyBonus ?? 0
 
     if (obj.isBlinded) toHit -= 25
     if (((target.injuryFlags ?? 0) & 0x03) !== 0) toHit += 40 // DAM_KNOCKED_OUT | DAM_KNOCKED_DOWN
 
     // Combat difficulty applies to everyone not on the player's team.
-    const player = globalState.player
+    const player = world.player
     if (player && obj.teamNum !== player.teamNum) {
         const d = Config.combat.difficultyModifier
         if (d === 75) toHit -= 20
@@ -211,6 +231,9 @@ export function getHitChance(obj: Critter, target: Critter, region: string, from
     // +10 is in the stat; an unarmed move's bonus crit chance is its own roll in rollHit.)
     const critChance = obj.getStat('Critical Chance') + regionPenalty
 
-    combatDebug(`hitChance: type=${attackType} dist=${distanceMod} cover=${coverPenalty} AC=${AC} region=${region} -> ${toHit}%`)
+    dbg(
+        'combat',
+        `hitChance: type=${attackType} dist=${distanceMod} cover=${coverPenalty} AC=${AC} region=${region} -> ${toHit}%`,
+    )
     return { hit: toHit, crit: critChance }
 }

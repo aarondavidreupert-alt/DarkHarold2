@@ -7,7 +7,7 @@
 `characterEditorAdjustPrimaryStat`, `characterEditorToggleTaggedSkill`,
 `characterEditorToggleOptionalTrait`, `characterEditorUpdateLevel`, `_is_supper_bonus`),
 `trait.cc` (`traitGetStatModifier`), `skill.cc` (`skillGetValue`), `proto.cc` (`_ResetPlayer`)  
-**DH2 ref:** `src/ui_character/creator.ts` (`showCharacterCreator`), `src/player.ts`
+**DH2 ref:** `src/uiCharacter/creator.ts` (`showCharacterCreator`), `src/player.ts`
 (`applyCreationStats`, `addExperience`), `src/char.ts` (`SkillSet.get`, `StatSet`),
 `src/skills.ts` (`skillDependencies`, `statDependencies`), `src/object/Critter.ts` (`StatSet` field),
 `src/scripting.ts` (`statMap`, `get_critter_stat`)  
@@ -139,7 +139,7 @@ CE entry: `characterEditorShow(isCreationMode=true)` in `character_editor.cc:793
 Called from `character_selector.cc:192` after `_ResetPlayer()` resets all PC stats to defaults
 and clears traits, skills, and bonus stats.
 
-DH2 entry: `showCharacterCreator(onDone, onCancel)` in `ui_character.ts`.  
+DH2 entry: `showCharacterCreator(onDone, onCancel)` in `uiCharacter.ts`.  
 Called from the new-game main-menu path; operates on `globalState.player`.
 
 ### 3.2 SPECIAL Point Buy
@@ -165,7 +165,7 @@ Called from the new-game main-menu path; operates on `globalState.player`.
   `traitGetStatModifier` in `trait.cc:180`, so the creation UI always shows the trait-adjusted
   value.
 
-**DH2 Behaviour (`ui_character.ts–1255`)**
+**DH2 Behaviour (`uiCharacter.ts–1255`)**
 
 - Pool of 5, all SPECIAL default to 5.
 - Up button: blocks if `newStatSet.getBase(stat) >= 10`; down button: blocks if
@@ -173,7 +173,7 @@ Called from the new-game main-menu path; operates on `globalState.player`.
 - DH2 checks raw base only — trait modifiers are **not** applied to the live display. With
   Gifted selected and base=9, DH2 shows 9; CE shows 10. After `applyCreationStats` the +1 is
   baked in permanently (see §5).
-- Done validation: `pool > 0` → shows info card message and aborts (`ui_character.ts`).
+- Done validation: `pool > 0` → shows info card message and aborts (`uiCharacter.ts`).
 
 **Point-buy summary:**
 
@@ -202,11 +202,11 @@ base default).
 - No check for the 4th slot during creation — it is reserved for the Tag! perk (a
   post-creation perk).
 
-**DH2 Behaviour (`ui_character.ts–1779`)**
+**DH2 Behaviour (`uiCharacter.ts–1779`)**
 
 - `newSkillSet.tagged: string[]`, capped by `SkillSet.getMaxTaggedSkills()` (3 at creation).
 - Done validation: `newSkillSet.tagged.length < 3` → shows "Tag N more skill(s)" info card
-  (`ui_character.ts`).
+  (`uiCharacter.ts`).
 
 **Tagged Skill Value Formula**
 
@@ -328,7 +328,7 @@ Four checks are applied in order when the player presses Done in creation mode
   permitted.
 - Maximum is 2.
 
-### 4.2 DH2 Behaviour (`ui_character.ts–1640`)
+### 4.2 DH2 Behaviour (`uiCharacter.ts–1640`)
 
 - `selectedTraits: string[]`, capped at length 2.
 - Clicking a 3rd trait shows "You may only pick 2 traits." info card — matches CE.
@@ -401,7 +401,7 @@ at creation and drug effects are written/reversed to `baseStats` directly.
 ### 5.3 `applyCreationStats` Flow
 
 Called by the Done handler after DH2's own validation
-(`ui_character.ts`; implemented in `player.ts:142–202`):
+(`uiCharacter.ts`; implemented in `player.ts:142–202`):
 
 ```typescript
 // 1. Set raw SPECIAL bases from creation screen
@@ -472,7 +472,7 @@ Re-audited 2026-10-17. Fixed in this audit:
 - **Weights:** CE `objectGetInventoryWeight` / `itemGetWeight`. Held / worn items, container contents, loaded rounds and power armor at half weight are counted, and ammo is weighed by the box. The inventory readout shows STAT_CARRY_WEIGHT instead of 25 + 25 × ST.
 - **Debug start kit:** pid 43 "Ice Chest" ×200 was meant as Micro Fusion Cells (39).
 
-Earlier fixes: trait derived modifiers (`Player.getStat`), the stat opcodes (RV1), premade characters (`ui_charselect.ts`), Gifted's skill penalty.
+Earlier fixes: trait derived modifiers (`Player.getStat`), the stat opcodes (RV1), premade characters (`uiCharSelect.ts`), Gifted's skill penalty.
 
 | Feature | CE | DH2 |
 |---------|-----|-----|

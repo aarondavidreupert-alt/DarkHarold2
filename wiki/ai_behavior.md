@@ -381,6 +381,33 @@ non-LOS range        = STAT_PERCEPTION × 2 in combat, × 1 out of combat
 returns true if distance <= either range
 ```
 
+### Script sight check (`obj_can_see_obj`)
+
+CE ref: `interpreter_extra.cc opObjectCanSeeObject`. Scripts decide "the critter sees the player"
+with it (spore plants, radscorpions, tough geckos attack on sight): the target must be within
+perception (above), and a straight line `_make_straight_path(…, 16)` with `_obj_blocking_at` must
+meet the target first. **Any object that blocks movement blocks sight** — walls, scenery, critters,
+unless flagged NO_BLOCK or hidden. Fallout has no size or height flag: a knee-high bush blocks a
+1.8 m spore plant's view. The per-object flags that do exist:
+
+| Flag | Value | Effect |
+|---|---|---|
+| `OBJECT_NO_BLOCK` | `0x10` | not blocking at all: no wall to walk, see or shoot |
+| `OBJECT_SHOOT_THRU` | `0x80000000` | shots fly over it — only the combat shot path (`a6 == 32`, `_combat_is_shot_blocked`) skips it, not sight |
+| `OBJECT_LIGHT_THRU` | `0x20000000` | light passes it (lighting only) |
+
+Hakunin's garden: the plants around the spore plants (`maryj01`, `maryj02`) block, but carry
+SHOOT_THRU and LIGHT_THRU — the spore plants don't notice the player behind them, yet in a fight
+shoot across them.
+
+**DH2 option `[dh2] sight_through`** (`fallout2.cfg`; `Config.engine.sightThrough`, added
+2026-11-01): `ce` (default) as above; `shoot` — SHOOT_THRU objects don't block sight (what a shot
+flies over: bushes, rubble, low walls); `light` — LIGHT_THRU objects don't (wider: also windows,
+fences, glass, so guards and townsfolk notice the player through them). The line passes such objects
+as CE's combat shot path passes SHOOT_THRU ones. Measured in Hakunin's garden: with the player behind
+the bushes the spore plant sees him from 0 of 85 tiles with `ce`, 84 with `shoot`, 85 with `light`;
+on open ground from all 28.
+
 ---
 
 ## 5. Flee Logic (`_ai_run_away`)

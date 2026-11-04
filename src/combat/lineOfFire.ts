@@ -19,7 +19,7 @@ limitations under the License.
 // blockType 1), restarting from each obstacle's tile and skipping that obstacle.
 
 import { hexDirectionTo, hexInDirection, Point } from '../geometry.js'
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
 import type { Critter, Obj } from '../object.js'
 
 const OBJECT_MULTIHEX = 0x800
@@ -27,16 +27,21 @@ const DAM_KNOCKED_OUT = 0x01
 const DAM_KNOCKED_DOWN = 0x02
 
 const samePos = (a: Point, b: Point) => a.x === b.x && a.y === b.y
-const flagsOf = (o: Obj) => (((o as any).flags ?? 0) >>> 0)
+const flagsOf = (o: Obj) => (o.flags ?? 0) >>> 0
 
 export function nextShootObstacle(source: Obj, from: Point, to: Point, prev: Obj | null): Obj | null {
-    return globalState.gMap?.straightPathObstacle(source, from, to, 1, prev) ?? null
+    return world.gMap?.straightPathObstacle(source, from, to, 1, prev) ?? null
 }
 
 // CE combat.cc:5897 _combat_is_shot_blocked — true when a non-critter (other than the
 // target) stands on the line; also counts the live, standing critters on it (multihex
 // ones twice; SFALL fix kept by CE) for attackDetermineToHit's -10 per critter.
-export function combatIsShotBlocked(source: Obj, from: Point, to: Point, target: Obj | null): { blocked: boolean; critters: number } {
+export function combatIsShotBlocked(
+    source: Obj,
+    from: Point,
+    to: Point,
+    target: Obj | null,
+): { blocked: boolean; critters: number } {
     let critters = 0
     let obstacle: Obj | null = source
     let current = from

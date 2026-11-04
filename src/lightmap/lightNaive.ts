@@ -27,9 +27,9 @@ limitations under the License.
 // active — that's the deliberate trade-off being demonstrated, not a bug.
 // See wiki/lighting.md → "Naive lighting mode (distance-only baseline)".
 
-import { Obj } from "../object.js"
-import { hexDistance } from "../geometry.js"
-import { toTileNum } from "../tile.js"
+import { Obj } from '../object.js'
+import { hexDistance } from '../geometry.js'
+import { toTileNum } from '../tile.js'
 
 export type LightWriter = (tileNum: number, intensity: number) => void
 

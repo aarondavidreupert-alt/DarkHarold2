@@ -2,7 +2,7 @@
 // DOM/dialogue/engine helpers used by every crawler.
 
 import { aiPackets, getAiPacket } from '../aiPackets.js'
-import globalState from '../globalState.js'
+import { world } from '../state/world.js'
 import { hexNeighbors } from '../geometry.js'
 import { heart } from '../heart.js'
 import { Critter } from '../object.js'
@@ -12,8 +12,8 @@ import type { StoryReport } from './story.js'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-export const DIALOGUE_OPEN_TIMEOUT_MS = 5000   // hard cap for dialogue-open wait
-export const DIALOGUE_POLL_MS = 200            // polling interval; UIMode.none after first poll → no-dialogue
+export const DIALOGUE_OPEN_TIMEOUT_MS = 5000 // hard cap for dialogue-open wait
+export const DIALOGUE_POLL_MS = 200 // polling interval; UIMode.none after first poll → no-dialogue
 export const COMBAT_ACTIVE_TIMEOUT_MS = 2000
 export const PLAYER_TURN_TIMEOUT_MS = 10000
 export const AI_TURN_TIMEOUT_MS = 10000
@@ -54,7 +54,7 @@ export async function waitFor(pred: () => boolean, timeoutMs: number): Promise<b
     const deadline = performance.now() + timeoutMs
     while (!pred()) {
         stepEngine()
-        await new Promise<void>(r => setTimeout(r, 0))
+        await new Promise<void>((r) => setTimeout(r, 0))
         if (performance.now() > deadline) return false
     }
     return true
@@ -64,7 +64,7 @@ export async function waitFor(pred: () => boolean, timeoutMs: number): Promise<b
 
 /** All living, visible, scripted NPCs on the current map that have a talk_p_proc. */
 export function listTalkableNPCs(): Critter[] {
-    const map = globalState.gMap
+    const map = world.gMap
     if (!map) return []
     return map.getObjects().filter((obj): obj is Critter => {
         if (!(obj instanceof Critter)) return false
@@ -77,7 +77,7 @@ export function listTalkableNPCs(): Critter[] {
 /** All living, visible critters on the current map that have a valid AI packet.
  *  These are the targets for the combat crawler. */
 export function listHostileCritters(): Critter[] {
-    const map = globalState.gMap
+    const map = world.gMap
     if (!map) return []
     getAiPacket(0) // trigger lazy init of ai.txt before checking the map
     return map.getObjects().filter((obj): obj is Critter => {
@@ -91,15 +91,15 @@ export function listHostileCritters(): Critter[] {
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 
 export function critterDisplayName(c: Critter): string {
-    return (c.name || (c as any).art || String(c.uid))
+    return c.name || c.art || String(c.uid)
 }
 
 // Move the player to the first hex neighbour of `target`.
 // Uses direct position assignment — no pathfinding, no blocking check.
 // Returns false only if the current map or player are unavailable.
 export function movePlayerAdjacent(target: Critter): boolean {
-    const player = globalState.player
-    if (!player || !globalState.gMap) return false
+    const player = world.player
+    if (!player || !world.gMap) return false
     const neighbors = hexNeighbors(target.position)
     if (neighbors.length === 0) return false
     player.position = neighbors[0]
@@ -121,12 +121,19 @@ export function getReplyText(): string {
 // Substrings that identify "exit" dialogue options (case-insensitive).
 // These are clicked last so all substantive branches are explored first.
 export const EXIT_OPTION_PATTERNS = [
-    'goodbye', 'farewell', 'never mind', 'nevermind',
-    "i'll be going", "i'm going", "i've got to go",
-    "that's all", 'nothing else', 'forget it',
+    'goodbye',
+    'farewell',
+    'never mind',
+    'nevermind',
+    "i'll be going",
+    "i'm going",
+    "i've got to go",
+    "that's all",
+    'nothing else',
+    'forget it',
 ]
 
 export function isExitOption(label: string): boolean {
     const lower = label.toLowerCase()
-    return EXIT_OPTION_PATTERNS.some(p => lower.includes(p))
+    return EXIT_OPTION_PATTERNS.some((p) => lower.includes(p))
 }

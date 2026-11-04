@@ -4,7 +4,7 @@
 
 import { CE_PERKS, CE_PERK_REQS, PERK_COUNT, perkApplyEffect, perkIdByName, perkNameById } from './cePerks.js'
 import { getFileJSON, getMessage } from '../util.js'
-import { Scripting } from '../scripting.js'
+import { getGlobalVar } from '../globalVars.js'
 import { SKILL_NAMES } from '../skills.js'
 import type { Player } from '../player.js'
 import { PerkDef, PERKS, SPECIAL } from './perks.data.js'
@@ -18,7 +18,7 @@ import { PerkDef, PERKS, SPECIAL } from './perks.data.js'
  */
 export function getValidPerks(player: Player): PerkDef[] {
     // perk.msg not loaded: the perks.data.ts minimums
-    if (perkNameById(0) === null) return PERKS.filter(perk => legacyCanAdd(player, perk))
+    if (perkNameById(0) === null) return PERKS.filter((perk) => legacyCanAdd(player, perk))
     const out: PerkDef[] = []
     for (let id = 0; id < PERK_COUNT; id++) {
         if (!perkCanAdd(player, id)) continue
@@ -33,7 +33,7 @@ export function getValidPerks(player: Player): PerkDef[] {
 export function perkDefById(id: number): PerkDef | null {
     const name = perkNameById(id)
     if (!name) return null
-    const known = PERKS.find(p => p.name.toLowerCase() === name.toLowerCase())
+    const known = PERKS.find((p) => p.name.toLowerCase() === name.toLowerCase())
     if (known) return known
     const frm: string | undefined = (getFileJSON('lut/lst/art_skilldex.json') as string[] | null)?.[CE_PERK_REQS[id][6]]
     return {
@@ -53,7 +53,7 @@ const PARAM_GVAR = 0x4000000
 function perkParamMet(player: Player, param: number, value: number): boolean {
     const isVariable = (param & PARAM_GVAR) !== 0
     const p = param & ~PARAM_GVAR
-    const current = isVariable ? Number(Scripting.getGlobalVar(p)) : player.getSkill(SKILL_NAMES[p])
+    const current = isVariable ? Number(getGlobalVar(p)) : player.getSkill(SKILL_NAMES[p])
     if (value < 0) return isVariable ? current < value : current < -value
     return current >= value
 }
@@ -118,7 +118,7 @@ export function getPerkRank(player: Player, perkName: string): number {
  * FO2-CE ref: perk.cc perk_add().
  */
 export function applyPerk(player: Player, perkName: string): void {
-    const def = PERKS.find(p => p.name === perkName) ?? perkDefById(perkIdByName(perkName))
+    const def = PERKS.find((p) => p.name === perkName) ?? perkDefById(perkIdByName(perkName))
     if (!def) throw new Error(`applyPerk: unknown perk '${perkName}'`)
 
     const rank = getPerkRank(player, perkName)

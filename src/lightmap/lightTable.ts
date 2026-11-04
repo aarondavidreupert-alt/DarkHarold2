@@ -17,14 +17,14 @@ limitations under the License.
 // Static light-offset table generation, split out of lightmap.ts.
 // See wiki/ts-split-refactor.md → "Per-file split proposals" §15.
 
-import { hexInDirectionDistance } from "../geometry.js"
-import globalState from "../globalState.js"
-import { fromTileNum, setCenterTile, toTileNum } from "../tile.js"
-import { dbg } from "../logger.js"
+import { hexInDirectionDistance } from '../geometry.js'
+import { world } from '../state/world.js'
+import { setCenterTile } from '../render/camera.js'
+import { fromTileNum, toTileNum } from '../tile.js'
+import { dbg } from '../logger.js'
 
 function zeroArray(arr: any[]) {
-    for (var i = 0; i < arr.length; i++)
-        arr[i] = 0
+    for (let i = 0; i < arr.length; i++) arr[i] = 0
 }
 
 // Light-propagation offsets indexed by (parity, dir, distance). Filled in by
@@ -34,26 +34,23 @@ export const light_offsets = new Array(532)
 zeroArray(light_offsets)
 
 // length 36
-export const light_distance = [1, 2, 3, 4, 5, 6, 7, 8, 2, 3, 4, 5, 6, 7, 8, 3, 4, 5,
-                               6, 7, 8, 4, 5, 6, 7, 8, 5, 6, 7, 8, 6, 7, 8, 7, 8, 8]
+export const light_distance = [
+    1, 2, 3, 4, 5, 6, 7, 8, 2, 3, 4, 5, 6, 7, 8, 3, 4, 5, 6, 7, 8, 4, 5, 6, 7, 8, 5, 6, 7, 8, 6, 7, 8, 7, 8, 8,
+]
 
 let isInit = false
 
 // eax = tile, edx = direction, ebx = distance
 function tile_num_in_direction(tileNum: number, dir: number, distance: number): number {
-    //console.log("tileNum: " + tileNum + " (" + tileNum.toString(16) + ")")
-    if (dir < 0 || dir > 5)
-        throw "tile_num_in_direction: dir = " + dir
-    if (distance === 0)
-        return tileNum
+    if (dir < 0 || dir > 5) throw new Error('tile_num_in_direction: dir = ' + dir)
+    if (distance === 0) return tileNum
 
-    var hex = hexInDirectionDistance(fromTileNum(tileNum), dir, distance)
+    const hex = hexInDirectionDistance(fromTileNum(tileNum), dir, distance)
     if (!hex) {
-        dbg('lighting', "hex (input tile is %s) is %o; dir=%d distance=%d", tileNum.toString(16), hex, dir, distance)
+        dbg('lighting', 'hex (input tile is %s) is %o; dir=%d distance=%d', tileNum.toString(16), hex, dir, distance)
         return -1
     }
 
-    //console.log("tile: %d,%d -> %d,%d", fromTileNum(tileNum).x, fromTileNum(tileNum).y, hex.x, hex.y)
     return toTileNum(hex)
 }
 
@@ -62,21 +59,21 @@ export function obj_light_table_init(): void {
     //var centerTile_: Point = getCenterTile()
 
     // should we use the center tile at all?
-    var edi = toTileNum(globalState.centerTile)
-    var edx = edi & 1
-    var eax = edx*4
+    let edi = toTileNum(world.centerTile)
+    let edx = edi & 1
+    let eax = edx * 4
     eax -= edx
     eax <<= 5
     edx = eax
     eax <<= 3
-    var ecx = 0
+    let ecx = 0
     eax += edx
 
-    var v2c = ecx
-    var v54 = eax
-    var v48
-    var ebx, ebp, esi, v3c, v40, v50, v20, v24, lightOffsetsStart, v58
-    var v44, v4c, v38, v34, v28, v1c, v28
+    let v2c = ecx
+    let v54 = eax
+    let v48
+    let ebx, ebp, esi, v3c, v40, v50, v20, v24, lightOffsetsStart, v58
+    let v44, v4c, v38, v34, v28, v1c
 
     do {
         eax = v54
@@ -99,7 +96,7 @@ export function obj_light_table_init(): void {
             eax = edi
             eax = tile_num_in_direction(eax, edx, ebx) // ?
 
-            esi = ebp*4
+            esi = ebp * 4
             v24 = eax
             eax = v40
             ecx = 0
@@ -119,10 +116,8 @@ export function obj_light_table_init(): void {
                     eax = tile_num_in_direction(eax, edx, ebx)
                     eax -= edi
                     ebx = v20
-                    //console.log("light_offsets[%d] = %d", (esi-4)/4|0, eax)
-                    light_offsets[(esi-4)/4|0] = eax
-                }
-                while (ecx < ebx)
+                    light_offsets[((esi - 4) / 4) | 0] = eax
+                } while (ecx < ebx)
             }
 
             eax = v3c
@@ -131,8 +126,7 @@ export function obj_light_table_init(): void {
             esi--
             v3c = eax
             v40 = esi
-        }
-        while (eax < 8)
+        } while (eax < 8)
 
         ebx = v2c
         ecx = v54
@@ -140,14 +134,13 @@ export function obj_light_table_init(): void {
         ecx += 144
         v2c = ebx
         v54 = ecx
-    }
-    while (ebx < 6)
+    } while (ebx < 6)
 
     // second part
     edi++
     edx = edi
     edx &= 1
-    eax = edx*4
+    eax = edx * 4
     eax -= edx
     eax <<= 5
     edx = eax
@@ -175,7 +168,7 @@ export function obj_light_table_init(): void {
             edx = v4c
             eax = edi
             eax = tile_num_in_direction(eax, edx, ebx)
-            esi = ebp*4
+            esi = ebp * 4
             ecx = 0
             ebx = v44
             v28 = eax
@@ -194,10 +187,8 @@ export function obj_light_table_init(): void {
                     eax = tile_num_in_direction(eax, edx, ebx)
                     eax -= edi
                     edx = v1c
-                    //console.log("light_offsets[%d] = %d", (esi-4)/4|0, eax)
-                    light_offsets[(esi-4)/4|0] = eax
-                }
-                while (ecx < edx)
+                    light_offsets[((esi - 4) / 4) | 0] = eax
+                } while (ecx < edx)
             }
 
             ebx = v38
@@ -206,8 +197,7 @@ export function obj_light_table_init(): void {
             ecx--
             v38 = ebx
             v34 = ecx
-        }
-        while (ebx < 8)
+        } while (ebx < 8)
 
         eax = lightOffsetsStart
         ebp = v58
@@ -215,8 +205,7 @@ export function obj_light_table_init(): void {
         ebp += 144
         lightOffsetsStart = eax
         v58 = ebp
-    }
-    while (eax < 6)
+    } while (eax < 6)
 }
 
 // Lazy: initialize the light_offsets table once. Subsequent calls are no-ops.
@@ -225,7 +214,7 @@ export function obj_light_table_init(): void {
 // matching the pre-split behaviour.
 export function ensureLightTableInit(): void {
     if (isInit) return
-    dbg('lighting', "initializing light tables")
+    dbg('lighting', 'initializing light tables')
     obj_light_table_init()
     isInit = true
 }

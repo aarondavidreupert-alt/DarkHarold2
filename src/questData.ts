@@ -18,14 +18,18 @@ export interface QuestDef {
 
 export interface HolodiskDef {
     gvar: number
-    name: number        // pipboy.msg id of the title
+    name: number // pipboy.msg id of the title
     description: number // pipboy.msg id of the first text line
 }
 
 // CE fileReadString + strtok(" \t,"): '#' lines skipped, the first N numbers of a line.
 function readNumberTable(path: string, columns: number): number[][] {
     let text = ''
-    try { text = getFileText(path) } catch { return [] }
+    try {
+        text = getFileText(path)
+    } catch {
+        return []
+    }
     const rows: number[][] = []
     for (const raw of text.split(/\r?\n/)) {
         const line = raw.trim()
@@ -57,7 +61,12 @@ export function getQuestDefs(): QuestDef[] {
 }
 
 export function getHolodiskDefs(): HolodiskDef[] {
-    if (!holodisks) holodisks = readNumberTable('data/data/holodisk.txt', 3).map(([gvar, name, description]) => ({ gvar, name, description }))
+    if (!holodisks)
+        holodisks = readNumberTable('data/data/holodisk.txt', 3).map(([gvar, name, description]) => ({
+            gvar,
+            name,
+            description,
+        }))
     return holodisks
 }
 

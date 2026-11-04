@@ -227,7 +227,7 @@ html, body {
   top: 30px;
   width: 158px;
   height: 54px;
-  color: #00FF00;
+  color: #3cf800; /* CE _colorTable[992] */
   font-size: 8pt;
   overflow: hidden;
 }
@@ -353,8 +353,8 @@ html, body {
 }
 
 #attackButtonContainer:active #attackButtonWeapon {
-  /* move weapon image up */
-  transform: translateY(-2px);
+  /* CE interfaceBarRefreshMainAction: the pressed button draws the item 1 px right, 2 px up */
+  transform: translate(1px, -2px);
 }
 
 #attackButton {
@@ -499,6 +499,41 @@ html, body {
   overflow: hidden;
 }
 
+/* CE inventory.cc _inventory_window_init: the item list's scroll arrows, right of its top —
+   up at (128,39), down at (128,62), 22x23; FRM 49/50/53 (invupout / invupin / invupds
+   disabled) and 51/52/54 (invdnout / invdnin / invdnds) */
+#inventoryScrollUp,
+#inventoryScrollDown {
+  position: absolute;
+  left: 128px;
+  width: 22px;
+  height: 23px;
+  background-size: 100% 100%;
+  cursor: pointer;
+}
+#inventoryScrollUp {
+  top: 39px;
+  background-image: url("art/intrface/invupout.png");
+}
+#inventoryScrollDown {
+  top: 62px;
+  background-image: url("art/intrface/invdnout.png");
+}
+#inventoryScrollUp:active {
+  background-image: url("art/intrface/invupin.png");
+}
+#inventoryScrollDown:active {
+  background-image: url("art/intrface/invdnin.png");
+}
+#inventoryScrollUp.disabled {
+  background-image: url("art/intrface/invupds.png");
+  cursor: default;
+}
+#inventoryScrollDown.disabled {
+  background-image: url("art/intrface/invdnds.png");
+  cursor: default;
+}
+
 #inventoryDoneButton {
   position: absolute;
   left: 433px;
@@ -506,6 +541,31 @@ html, body {
   width: 26px;
   height: 26px;
   background-image: url("art/intrface/menuup.png");
+}
+
+/* CE INVENTORY_WINDOW_TYPE_USE_ITEM_ON: use.frm (292 x 376), centred like the normal window */
+#inventoryBox.useOn {
+  left: 254px;
+  width: 292px;
+  height: 376px;
+  background-image: url("art/intrface/use.png");
+}
+#inventoryBox.useOn #inventoryBoxInfo,
+#inventoryBox.useOn #inventoryBoxWeight,
+#inventoryBox.useOn #inventoryBoxItem1,
+#inventoryBox.useOn #inventoryBoxItem2,
+#inventoryBox.useOn #inventoryBoxArmor {
+  display: none;
+}
+#inventoryBox.useOn #inventoryDoneButton {
+  left: 233px;
+  top: 328px;
+  width: 15px;
+  height: 16px;
+  background-image: url("art/intrface/lilredup.png");
+}
+#inventoryBox.useOn #inventoryDoneButton:active {
+  background-image: url("art/intrface/lilreddn.png");
 }
 
 #inventoryDoneButton:hover {
@@ -566,6 +626,18 @@ html, body {
   background-size: 259px 162px;
   background-repeat: no-repeat;
   image-rendering: pixelated;
+}
+
+/* CE inventory.cc inventoryQuantityWindowInit: the title (inventry.msg 21 MOVE ITEMS /
+   23 SET TIMER) centred at y 9, font 103 */
+#moveMultTitle {
+  position: absolute;
+  left: 0;
+  top: 9px;
+  width: 259px;
+  text-align: center;
+  line-height: 0;
+  pointer-events: none;
 }
 
 #moveMultCanvas {
@@ -680,7 +752,7 @@ html, body {
 }
 
 /* one item in the inventory, loot, steal, barter and companion-trade lists
-   (ui_dom.ts appendItemSlot): icon and stack count centred, the count 2px below */
+   (uiDom.ts appendItemSlot): icon and stack count centred, the count 2px below */
 .invItemSlot {
   text-align: center;
 }
@@ -738,6 +810,11 @@ html, body {
 
 .invStatColRight {
   flex: 1 1 auto;
+}
+
+/* CE inventoryRenderSummary: one line per stat (labels like "Armor Class" don't wrap) */
+.invStatColRight .invStatLabel {
+  white-space: nowrap;
 }
 
 .number {
@@ -1073,7 +1150,7 @@ html, body {
 /* Persistent dialogue-window action buttons — CE ref: game_dialog.cc:4357-4388
    _gdialog_window_create. Barter (593,41) exists on every dialogue; Combat
    Control (593,116) only when talking to a party member (toggled in
-   uiStartDialogue, ui_dialogue.ts). Both 14x14, same di_rdbt2/di_rdbt1
+   uiStartDialogue, uiDialogue.ts). Both 14x14, same di_rdbt2/di_rdbt1
    up/down convention as the companion control screen's action buttons. */
 #dialogueBarterButton,
 #dialogueCombatControlButton {
@@ -1975,9 +2052,11 @@ html, body {
   background-image: url("art/intrface/lilreddn.png");
 }
 
+/* CE combat.cc _draw_loc_: the left column's names start at x 74, the right column's end at
+   x 431 (right-aligned), on rows _call_ty - 86 */
 .calledShotLabel {
   position: absolute;
-  width: 100px;
+  white-space: nowrap;
   color: #00FF00;
   font-size: small;
 }
@@ -2000,7 +2079,8 @@ html, body {
 }
 
 #calledShot-torso-label {
-  left: 380px;
+  right: 73px;
+  text-align: right;
   top: 30px;
 }
 
@@ -2010,8 +2090,9 @@ html, body {
 }
 
 #calledShot-groin-label {
-  left: 380px;
-  top: 90px;
+  right: 73px;
+  text-align: right;
+  top: 95px;
 }
 
 #calledShot-leftArm-chance {
@@ -2020,7 +2101,8 @@ html, body {
 }
 
 #calledShot-leftArm-label {
-  left: 360px;
+  right: 73px;
+  text-align: right;
   top: 160px;
 }
 
@@ -2030,7 +2112,8 @@ html, body {
 }
 
 #calledShot-leftLeg-label {
-  left: 370px;
+  right: 73px;
+  text-align: right;
   top: 225px;
 }
 
@@ -2041,7 +2124,7 @@ html, body {
 }
 
 #calledShot-head-label {
-  left: 75px;
+  left: 74px;
   top: 30px;
 }
 
@@ -2051,7 +2134,7 @@ html, body {
 }
 
 #calledShot-eyes-label {
-  left: 75px;
+  left: 74px;
   top: 95px;
 }
 
@@ -2061,7 +2144,7 @@ html, body {
 }
 
 #calledShot-rightArm-label {
-  left: 75px;
+  left: 74px;
   top: 160px;
 }
 
@@ -2071,7 +2154,7 @@ html, body {
 }
 
 #calledShot-rightLeg-label {
-  left: 75px;
+  left: 74px;
   top: 225px;
 }
 
@@ -2098,35 +2181,38 @@ html, body {
   pointer-events: none;
 }
 
-/* HUD and UI overlays use Fallout custom cursor */
-#bar,
-#dialogueContainer,
-#inventoryBox,
-#lootBox,
-#barterBox,
-#worldMapContainer,
-#elevatorBox,
-#calledShotBox,
-#itemContextMenu,
-#pipBoyContainer,
-#automapContainer {
-  cursor: url('art/intrface/stdarrow.png'), none !important;
+/* CE: every window shows the game's arrow (gameMouseSetCursor(MOUSE_CURSOR_ARROW): main menu,
+   character selector / editor, options, preferences, load / save, skilldex, inventory, dialogue,
+   …). The page-wide rule replaces a list of windows that left the system cursor on the rest.
+   The game view draws its own cursor (#cnv: none); more specific rules keep the HUD's scroll
+   arrows, the dialogue reply arrows and the movie screen's hidden cursor. */
+html,
+body,
+body * {
+  cursor: url('art/intrface/stdarrow.png') 0 0, default !important;
 }
 
+/* CE inventory.cc inventoryOpen / the loot and barter windows: the pointing hand (FRM 286 HAND,
+   hotspot = its frame offset 0,0) is the inventory windows' cursor (inventorySetCursor) */
+#inventoryBox,
+#inventoryBox *,
+#lootBox,
+#lootBox *,
+#barterBox,
+#barterBox * {
+  cursor: url('art/intrface/hand.png') 0 0, default !important;
+}
 
+/* CE game_dialog.cc _reply_arrow_up / _down: a reply too long for its window */
+#dialogueContainer #dialogueBoxReply.replyScrollUp {
+  cursor: url('art/intrface/suparrow.png') 7 7, n-resize !important;
+}
+#dialogueContainer #dialogueBoxReply.replyScrollDown {
+  cursor: url('art/intrface/sdnarrow.png') 7 7, s-resize !important;
+}
 
-
-
-
-
-
-
-
-
-#bar *, #dialogueContainer *, #inventoryBox *, #lootBox *,
-#barterBox *, #worldMapContainer *, #elevatorBox *,
-#calledShotBox *, #itemContextMenu *,
-#pipBoyContainer *,
-#automapContainer * {
-  cursor: url('art/intrface/stdarrow.png'), none !important;
+/* CE gameMoviePlay: the mouse is hidden while a movie plays */
+#gameMovieScreen,
+#gameMovieScreen * {
+  cursor: none !important;
 }

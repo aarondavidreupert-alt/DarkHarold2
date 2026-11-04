@@ -19,12 +19,10 @@ limitations under the License.
 // "Per-file split proposals" §18.
 
 import { dbgWarn } from '../logger.js'
-import { Events } from '../events.js'
-import { hexDistance, Point } from '../geometry.js'
-import globalState from '../globalState.js'
+import * as Events from '../events.js'
+import { Point } from '../geometry.js'
+import { world } from '../state/world.js'
 import { initStorage, scheduleSave, flushAutomapSave } from './storage.js'
-
-export const REVEAL_RADIUS = 5
 
 // "mapName:elevation" → Set of "x,y"
 export const seenData: Map<string, Set<string>> = new Map()
@@ -52,19 +50,23 @@ export function mapKey(mapName: string, elevation: number): string {
 // loaded map and store it as a snapshot, so the AUTOMAPS tab can render the
 // same overlay for an archived map. Critters are intentionally skipped.
 export function snapshotCurrentMapObjects(): void {
-    const map = globalState.gMap
+    const map = world.gMap
     if (!map || !map.name) return
-    const numLevels: number = (map as any).numLevels ?? 1
+    const numLevels: number = map.numLevels ?? 1
     for (let level = 0; level < numLevels; level++) {
         let objs: any[] = []
-        try { objs = map.getObjects(level) || [] } catch (_e) { objs = [] }
+        try {
+            objs = map.getObjects(level) || []
+        } catch (_e) {
+            objs = []
+        }
         const out: ObjectSnapshotEntry[] = []
         for (const obj of objs) {
             if (!obj || !obj.position) continue
             let t: ObjType | null = null
             if (obj.type === 'wall') t = 'w'
             else if (obj.type === 'scenery') {
-                t = (obj.pro && obj.pro.extra && obj.pro.extra.subType === 0) ? 'd' : 's'
+                t = obj.pro && obj.pro.extra && obj.pro.extra.subType === 0 ? 'd' : 's'
             } else if (obj.type === 'item') t = 'i'
             if (!t) continue
             out.push({ x: obj.position.x, y: obj.position.y, t })
@@ -103,22 +105,25 @@ export function getSeenTiles(mapName: string, elevation: number): Set<string> {
     return seenData.get(mapKey(mapName, elevation)) ?? new Set()
 }
 
-export function markSeenAt(mapName: string, elevation: number, position: Point, radius = REVEAL_RADIUS): void {
+// CE object.cc obj_set_seen + _obj_process_seen: the dude's tile sets one bit of the
+// 5001-byte seen bitmap (8 tiles a byte, 25 bytes a 200-tile row); each set byte marks
+// the bytes within ±2 on the 32 rows from 16 above to 15 below — a band of 32 rows ×
+// 40 tiles around the dude's 8-tile block.
+export function markSeenAt(mapName: string, elevation: number, position: Point): void {
     const k = mapKey(mapName, elevation)
     let set = seenData.get(k)
     if (!set) {
         set = new Set()
         seenData.set(k, set)
     }
-    const minX = Math.max(0, position.x - radius)
-    const maxX = Math.min(199, position.x + radius)
-    const minY = Math.max(0, position.y - radius)
-    const maxY = Math.min(199, position.y + radius)
-    for (let x = minX; x <= maxX; x++) {
-        for (let y = minY; y <= maxY; y++) {
-            if (hexDistance(position, { x, y }) <= radius) {
-                set.add(`${x},${y}`)
-            }
+    const byte = (position.y * 200 + position.x) >> 3
+    for (let row = -16; row < 16; row++) {
+        const center = byte + row * 25
+        if (center < 0 || center >= 5001) continue
+        for (let b = -2; b <= 2; b++) {
+            const v = center + b
+            if (v < 0 || v > 5000) continue
+            for (let t = v * 8; t < v * 8 + 8 && t < 40000; t++) set.add(`${t % 200},${Math.floor(t / 200)}`)
         }
     }
     scheduleSave(k, 'tiles')
@@ -128,26 +133,28 @@ export function initAutomapTracking(): void {
     // Start the IDB load in the background. By the time any map finishes loading
     // and fires loadMapPost (which involves synchronous XHR + async image loads),
     // initStorage will have completed.
-    initStorage().catch(e => dbgWarn('automap', '[automapData] initStorage failed:', e))
+    initStorage().catch((e) => dbgWarn('automap', '[automapData] initStorage failed:', e))
 
     Events.on('playerMoved', (pos: Point) => {
-        const map = globalState.gMap
+        const map = world.gMap
         if (!map || !map.name) return
         markSeenAt(map.name, map.currentElevation, pos)
     })
     Events.on('loadMapPost', () => {
-        const map = globalState.gMap
-        const player = globalState.player
+        const map = world.gMap
+        const player = world.player
         if (!map || !map.name) return
         if (player) markSeenAt(map.name, map.currentElevation, player.position)
         snapshotCurrentMapObjects()
         flushAutomapSave()
     })
     Events.on('loadMapPre', () => {
-        const map = globalState.gMap
+        const map = world.gMap
         if (!map || !map.name) return
         snapshotCurrentMapObjects()
         flushAutomapSave()
     })
-    window.addEventListener('beforeunload', () => { flushAutomapSave() })
+    window.addEventListener('beforeunload', () => {
+        flushAutomapSave()
+    })
 }

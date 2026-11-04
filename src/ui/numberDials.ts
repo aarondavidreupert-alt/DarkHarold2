@@ -13,7 +13,7 @@ import { assetUrl } from '../modAssets.js'
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Number-dial sprite helpers split out of ui_font.ts.
+// Number-dial sprite helpers split out of uiFont.ts.
 // See wiki/ts-split-refactor.md → "Per-file split proposals" §17.
 
 // ---- Sprite-based number dial (matches HUD HP/AC/AP digits) ----------------
@@ -34,11 +34,7 @@ const NUM_MINUS_IDX = 12
  * @param value      Integer to display (may be negative).
  * @param suffix     Optional text to append (e.g. '%').
  */
-export function setNumberDial(
-    container: HTMLElement,
-    value: number,
-    suffix?: string
-): void {
+export function setNumberDial(container: HTMLElement, value: number, suffix?: string): void {
     while (container.firstChild) container.removeChild(container.firstChild)
 
     const negative = value < 0
@@ -91,21 +87,58 @@ const BIG_W = 14
 const BIG_H = 28
 const BIG_SPRITE = 'art/intrface/bignum.png'
 
+// CE character_editor.cc characterEditorDrawBigNumber: a two-digit value outside 0..99
+// shows "99". With `previous` (CE's ANIMATE flag) each changed digit — the ones first,
+// then the tens — shows glyph 11 for BIG_NUM_ANIMATION_DELAY (123 ms) before its value.
+const BIG_NUM_ANIMATION_DELAY = 123
 export function renderBignum(
     value: number,
     digits: 2 | 3,
-    color: 'yellow' | 'red' = 'yellow'
+    color: 'yellow' | 'red' = 'yellow',
+    previous?: number,
 ): HTMLElement {
     const container = document.createElement('div')
     container.style.cssText = `display: inline-flex; height: ${BIG_H}px; flex-shrink: 0;`
     const yOffset = color === 'red' ? -BIG_H : 0
-    const clamped = Math.max(0, Math.min(value, digits === 3 ? 999 : 99))
+    const clamped = digits === 2 ? (value < 0 || value > 99 ? 99 : value) : Math.max(0, Math.min(value, 999))
     const str = String(clamped).padStart(digits, '0')
+    const cells: HTMLDivElement[] = []
+    const glyph = (div: HTMLDivElement, n: number) => {
+        div.style.backgroundPosition = `${-(n * BIG_W)}px ${yOffset}px`
+    }
     for (const ch of str) {
         const n = parseInt(ch)
         const div = document.createElement('div')
         div.style.cssText = `width:${BIG_W}px;height:${BIG_H}px;background-image:url('${assetUrl(BIG_SPRITE)}');background-position:${-(n * BIG_W)}px ${yOffset}px;background-repeat:no-repeat;flex-shrink:0;`
         container.appendChild(div)
+        cells.push(div)
+    }
+    if (
+        digits === 2 &&
+        previous !== undefined &&
+        previous !== value &&
+        value >= 0 &&
+        value <= 99 &&
+        previous >= 0 &&
+        previous <= 99
+    ) {
+        const steps: [HTMLDivElement, number][] = []
+        if (previous % 10 !== value % 10) steps.push([cells[1], value % 10])
+        if (Math.trunc(previous / 10) !== Math.trunc(value / 10)) steps.push([cells[0], Math.trunc(value / 10)])
+        steps.forEach(([div, n], i) => {
+            setTimeout(() => glyph(div, 11), i * BIG_NUM_ANIMATION_DELAY)
+            setTimeout(() => glyph(div, n), (i + 1) * BIG_NUM_ANIMATION_DELAY)
+        })
+        for (const [div] of steps) glyph(div, Math.trunc(previous / (div === cells[0] ? 10 : 1)) % 10)
     }
     return container
+}
+
+// Redraws a two-digit big number in `el`, animated when it shows a different value than
+// last time (CE: the editor's +/- and level-up redraws pass ANIMATE).
+export function setBignum(el: HTMLElement, value: number, color: 'yellow' | 'red' = 'yellow'): void {
+    const prev = el.dataset.bignum !== undefined ? Number(el.dataset.bignum) : undefined
+    while (el.firstChild) el.removeChild(el.firstChild)
+    el.appendChild(renderBignum(value, 2, color, prev))
+    el.dataset.bignum = String(value)
 }

@@ -62,8 +62,6 @@ export function parseWorldmap(data: string): Worldmap {
     // CE ref: worldmap.cc:1337 — one optional walk_mask_name per [Tile N] section.
     const walkMaskNames: (string | null)[] = []
 
-    // console.log(ini)
-
     for (const key in ini) {
         const m = key.match(/Tile (\d+)/)
         if (m !== null) {
@@ -80,7 +78,6 @@ export function parseWorldmap(data: string): Worldmap {
 
                 const x = tileX * 7 + parseInt(pos[1])
                 const y = tileY * 6 + parseInt(pos[2])
-                //console.log(tileX + "/" + tileY + " | " + pos[1] + ", " + pos[2] + " -> " + x + ", " + y)
 
                 squares[x][y] = parseSquare(ini[key][position])
                 squares[x][y].difficulty = difficulty

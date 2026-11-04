@@ -21,17 +21,18 @@ limitations under the License.
 
 import { useDrug } from './drugs.js'
 import { hexDistance, hexNeighbors } from './geometry.js'
-import globalState from './globalState.js'
+import { world } from './state/world.js'
+import { uiState } from './state/uiState.js'
 import { dbg } from './logger.js'
-import { Critter, Obj } from './object.js'
-import { Scripting } from './scripting.js'
+import { Critter, Obj, refillHand } from './object.js'
+import * as Scripting from './scripting.js'
 import { skillUse } from './skillUse.js'
-import { drawAP, drawHP, uiDrawWeapon } from './ui_hud.js'
-import { uiLog } from './ui.js'
-import { getProtoMsg, getRandomInt } from './util.js'
+import { drawAP, drawHP, uiDrawWeapon } from './hudRefresh.js'
+import { uiLog } from './messageLog.js'
+import { getMessage, getProtoMsg, getRandomInt } from './util.js'
 import { Config } from './config.js'
 import { ammoGetCapacity, ammoGetQuantity } from './weaponAmmo.js'
-import { Worldmap } from './worldmap.js'
+import * as Worldmap from './worldmap.js'
 
 const PROTO_ID_FIRST_AID_KIT = 47
 const PROTO_ID_DOCTORS_BAG = 91
@@ -56,12 +57,12 @@ export function itemCanUseOn(item: Obj): boolean {
 // interface.cc _intface_use_item — USE_CROSSHAIR cursor for `item`.
 export function beginUseItemOn(item: Obj): void {
     pendingItem = item
-    globalState.cursorMode = 'useItem'
+    uiState.cursorMode = 'useItem'
 }
 
 export function cancelUseItemOn(): void {
     pendingItem = null
-    if (globalState.cursorMode === 'useItem') globalState.cursorMode = 'move'
+    if (uiState.cursorMode === 'useItem') uiState.cursorMode = 'move'
 }
 
 // game_mouse.cc:1019 — a click in use-crosshair mode: use the item on the object
@@ -69,11 +70,11 @@ export function cancelUseItemOn(): void {
 export function usePendingItemOn(target: Obj | null): void {
     const item = pendingItem
     pendingItem = null
-    globalState.cursorMode = 'move'
-    const player = globalState.player as unknown as Critter
+    uiState.cursorMode = 'move'
+    const player = world.player as unknown as Critter
     if (!item || !target || !player) return
 
-    if (globalState.inCombat) {
+    if (world.inCombat) {
         const ap = player.AP
         if (!ap || ap.getAvailableCombatAP() < USE_ITEM_AP) {
             uiLog(getProtoMsg(700) ?? "You don't have enough action points.")
@@ -82,7 +83,7 @@ export function usePendingItemOn(target: Obj | null): void {
     }
 
     const act = () => {
-        if (globalState.inCombat) {
+        if (world.inCombat) {
             player.AP?.subtractCombatAP(USE_ITEM_AP)
             if (player.AP) drawAP(player.AP.getAvailableCombatAP(), player.AP.getTotalMaxAP(), player.AP.move)
         }
@@ -90,32 +91,52 @@ export function usePendingItemOn(target: Obj | null): void {
     }
 
     // actions.cc _action_use_an_item_on_object — walk next to the target first.
-    if (target === player || Config.engine.doInfiniteUse === true || hexDistance(player.position, target.position) <= 1) {
+    if (
+        target === player ||
+        Config.engine.doInfiniteUse === true ||
+        hexDistance(player.position, target.position) <= 1
+    ) {
         act()
         return
     }
-    const map = globalState.gMap!
+    const map = world.gMap!
     let dest: { x: number; y: number } | null = null
     let best = Infinity
     for (const n of hexNeighbors(target.position)) {
         if (map.recalcPath(player.position, n).length > 0) {
             const d = hexDistance(player.position, n)
-            if (d < best) { best = d; dest = n }
+            if (d < best) {
+                best = d
+                dest = n
+            }
         }
     }
     if (!dest) {
-        uiLog("Can't reach that.")
+        uiLog(getMessage('misc', 2000) ?? 'You cannot get there.') // CE actions.cc _is_next_to
         return
     }
-    if (globalState.inCombat) {
+    if (world.inCombat) {
         const moveAP = player.AP?.getAvailableMoveAP() ?? 0
-        if (!player.walkTo(dest, Config.engine.doAlwaysRun, () => { player.clearAnim(); act() }, moveAP)) {
-            uiLog("Can't reach that.")
+        if (
+            !player.walkTo(
+                dest,
+                Config.engine.doAlwaysRun,
+                () => {
+                    player.clearAnim()
+                    act()
+                },
+                moveAP,
+            )
+        ) {
+            uiLog(getMessage('misc', 2000) ?? 'You cannot get there.') // CE actions.cc _is_next_to
             return
         }
         player.AP?.subtractMoveAP(player.path.path.length - 1)
     } else {
-        player.walkTo(dest, Config.engine.doAlwaysRun, () => { player.clearAnim(); act() })
+        player.walkTo(dest, Config.engine.doAlwaysRun, () => {
+            player.clearAnim()
+            act()
+        })
     }
 }
 
@@ -126,10 +147,14 @@ function removeOne(user: Critter, item: Obj): void {
         else user.inventory.splice(idx, 1)
         return
     }
-    const u = user as any
-    if (item.amount > 1) { item.amount--; return }
-    if (u.leftHand === item) u.leftHand = undefined
-    else if (u.rightHand === item) u.rightHand = undefined
+    const u = user
+    if (item.amount > 1) {
+        item.amount--
+        return
+    }
+    // CE _obj_use_item_on: itemRemove + itemReplace — the hand takes an identical item
+    if (u.leftHand === item) refillHand(user, 'leftHand', item)
+    else if (u.rightHand === item) refillHand(user, 'rightHand', item)
 }
 
 // proto_instance.cc _obj_use_item_on — rc 1 = the item is used up.
@@ -140,7 +165,7 @@ export function objUseItemOn(user: Critter, target: Obj, item: Obj): number {
         if (user.isPlayer) uiDrawWeapon()
         rc = 0
     }
-    globalState.gMap?.updateMap() // scriptsExecMapUpdateProc
+    world.gMap?.updateMap() // scriptsExecMapUpdateProc
     return rc
 }
 
@@ -150,22 +175,46 @@ function protinstUseItemOn(user: Critter, target: Obj, item: Obj): number {
     let criticalChanceModifier = 0
     let skill: 'First Aid' | 'Doctor' | null = null
     switch (item.pid) {
-        case PROTO_ID_DOCTORS_BAG: messageId = 900; criticalChanceModifier = 20; skill = 'Doctor'; break
-        case PROTO_ID_FIRST_AID_KIT: messageId = 901; criticalChanceModifier = 20; skill = 'First Aid'; break
-        case PROTO_ID_PARAMEDICS_BAG: messageId = 910; criticalChanceModifier = 40; skill = 'Doctor'; break
-        case PROTO_ID_FIELD_MEDIC_FIRST_AID_KIT: messageId = 911; criticalChanceModifier = 40; skill = 'First Aid'; break
+        case PROTO_ID_DOCTORS_BAG:
+            messageId = 900
+            criticalChanceModifier = 20
+            skill = 'Doctor'
+            break
+        case PROTO_ID_FIRST_AID_KIT:
+            messageId = 901
+            criticalChanceModifier = 20
+            skill = 'First Aid'
+            break
+        case PROTO_ID_PARAMEDICS_BAG:
+            messageId = 910
+            criticalChanceModifier = 40
+            skill = 'Doctor'
+            break
+        case PROTO_ID_FIELD_MEDIC_FIRST_AID_KIT:
+            messageId = 911
+            criticalChanceModifier = 40
+            skill = 'First Aid'
+            break
     }
 
     if (skill === null) {
-        // Item script first (use_obj_on_p_proc with target_obj = target), then the
-        // target's own use_obj_on_p_proc (target_obj = item); unless one overrides,
-        // the engine default applies.
-        if (Scripting.useObjOnItem(item, user, target)) return 0
-        if (Scripting.useObjOnMe(target, item, user)) return 0
+        // CE: an unscripted item — the target's use_obj_on_p_proc (target_obj = item), the
+        // engine default unless it overrides (then its scr_return value). A scripted item —
+        // its own use_obj_on_p_proc (target_obj = target) decides by its scr_return value,
+        // not the override: 0 goes on to the target's proc and the default; anything else is
+        // the result (1 uses the item up).
+        if (!item._script) {
+            if (Scripting.useObjOnMe(target, item, user)) return target._script?.returnValue ?? 0
+            return defaultUseItem(user, target, item)
+        }
+        Scripting.useObjOnItem(item, user, target)
+        const rv = item._script.returnValue ?? 0
+        if (rv !== 0) return rv
+        if (Scripting.useObjOnMe(target, item, user)) return rv
         return defaultUseItem(user, target, item)
     }
 
-    if (globalState.inCombat) {
+    if (world.inCombat) {
         if (user.isPlayer) uiLog(getProtoMsg(902) ?? 'You cannot do that in combat.')
         return -1
     }
@@ -188,7 +237,7 @@ function defaultUseItem(user: Critter, target: Obj, item: Obj): number {
         }
         const critter = target as Critter
         if (critter.dead) {
-            uiLog(getProtoMsg(583 + getRandomInt(0, 3)) ?? 'That won\'t work on the dead.')
+            uiLog(getProtoMsg(583 + getRandomInt(0, 3)) ?? "That won't work on the dead.")
             return -1
         }
         const rc = useDrug(item, critter) ? 1 : -1
@@ -211,7 +260,7 @@ function defaultUseItem(user: Critter, target: Obj, item: Obj): number {
     return -1
 }
 
-const PROTO_ID_CAR = 0x20003F1
+const PROTO_ID_CAR = 0x20003f1
 const PROTO_ID_CAR_TRUNK = 455
 const PROTO_ID_SMALL_ENERGY_CELL = 38
 const PROTO_ID_MICRO_FUSION_CELL = 39
@@ -220,11 +269,12 @@ const PROTO_ID_MICRO_FUSION_CELL = 39
 // Fusion Cell 40000, scaled by the charge left (wmCarFillGas); proto.msg 595. A full tank
 // gives 596 and keeps the cell (SFALL fix). -1: not a power cell.
 function usePowerOnCar(item: Obj): number {
-    const density = item.pid === PROTO_ID_SMALL_ENERGY_CELL ? 16000 : item.pid === PROTO_ID_MICRO_FUSION_CELL ? 40000 : 0
+    const density =
+        item.pid === PROTO_ID_SMALL_ENERGY_CELL ? 16000 : item.pid === PROTO_ID_MICRO_FUSION_CELL ? 40000 : 0
     if (density === 0) return -1
     if (Worldmap.getCarFuel() < Worldmap.CAR_FUEL_MAX) {
         const capacity = Math.max(1, ammoGetCapacity(item))
-        Worldmap.addCarFuel(Math.trunc(ammoGetQuantity(item) * density / capacity))
+        Worldmap.addCarFuel(Math.trunc((ammoGetQuantity(item) * density) / capacity))
         uiLog(getProtoMsg(595) ?? 'You charge the car with more power.')
         return 1
     }

@@ -7,7 +7,7 @@
 `Procedure`), `raw/fallout2-ce/src/scripts.cc` (`scriptExecProc`,
 `scriptLocateProcs`, `gScriptProcNames`, `scriptsExecMapEnterProc`, et al.),
 `raw/fallout2-ce/src/scripts.h` (`ScriptProc`, `ScriptType`, `Script`)  
-**DH2 ref:** `src/vm.ts` (`ScriptVM`, `opMap`), `src/vm_bridge.ts`
+**DH2 ref:** `src/vm.ts` (`ScriptVM`, `opMap`), `src/vmBridge.ts`
 (`ScriptVMBridge`, `GameScriptVM`, `bridgeOpMap`), `src/scripting.ts`
 (`loadScript`, procedure dispatchers), `src/intfile.ts` (`parseIntFile`,
 `IntFile`)
@@ -179,6 +179,8 @@ opcode, bad opcode (high byte missing `0x80`), internal consistency errors.
 deadline in `program->waitEnd`. Each subsequent `_interpret` call skips
 execution and calls `checkWaitFunc(program)` until it returns false (deadline
 passed), then clears the flag and resumes. (`interpreter.cc:2657–2669`)
+A game script runs inside `_executeProcedure`'s loop, so the wait blocks the game; DH2's `vm.ts`
+does the same, capped at 10 s.
 
 ---
 
@@ -188,85 +190,86 @@ Opcodes are 16-bit values. All CE base opcodes have `(opcode >> 8) & 0x80` set
 (i.e., high bit of the upper byte is set). The dispatch index is `opcode & 0x3FF`,
 allowing up to 1024 slots; SFALL extends `OPCODE_MAX_COUNT` to 768.
 
-Base opcode range: `0x8000–0x804B` (76 opcodes). Key opcodes:
+Base opcode range: `0x8000–0x804B` (76 opcodes), in CE `interpreter.h` order (`enum Opcode`; corrected 2026-10-25, SCR-14):
 
 | Opcode | Name | Operation |
 |---|---|---|
 | `0x8000` | noop | No-op |
 | `0x8001` | push | Push literal (type from flags, value follows opcode in bytecode) |
-| `0x8002` | push_base | Pop argc; push framePointer to retStack; framePointer = stackSize − argc |
-| `0x8003` | pop_base | Pop framePointer from retStack |
-| `0x8004` | pop_to_base | Pop data stack back down to framePointer |
-| `0x8005` | set_global | basePointer = stackSize (marks global frame boundary) |
-| `0x8006` | dump | Pop N items from data stack |
+| `0x8002` | critical_start | Enter critical section |
+| `0x8003` | critical_done | Leave critical section |
+| `0x8004` | jmp | Pop address; set IP |
+| `0x8005` | call | Pop proc index; jump to proc's bodyOffset |
+| `0x8006` | call_at | Schedule a procedure after a delay (TIMED flag) |
 | `0x8007` | call_condition | Set CONDITIONAL flag on procedure |
-| `0x8008` | call_start | Not fully implemented |
-| `0x8009` | wait | Set PROGRAM_IS_WAITING with delay |
-| `0x800A` | cancel | Clear TIMED/CONDITIONAL flags on a procedure |
-| `0x800B` | cancel_all | Clear all procedure flags |
-| `0x800C` | if | Branch if top of stack is zero |
-| `0x800D` | while | Loop branch if top of stack is zero |
-| `0x800E` | store | Pop addr, pop value; write to dataStack[framePointer + addr] |
-| `0x800F` | fetch | Pop addr; push dataStack[framePointer + addr] |
-| `0x8010` | != | Compare top two items |
-| `0x8011` | == | Compare top two items |
-| `0x8012` | <= | Compare top two items |
-| `0x8013` | >= | Compare top two items |
-| `0x8014` | < | Compare top two items |
-| `0x8015` | > | Compare top two items |
-| `0x8016` | + | Add |
-| `0x8017` | - | Subtract |
-| `0x8018` | * | Multiply |
-| `0x8019` | / | Divide |
-| `0x801A` | % | Modulo |
-| `0x801B` | && | Logical and |
-| `0x801C` | \|\| | Logical or |
-| `0x801D` | ! | Logical not |
-| `0x801E` | - (unary) | Negate |
-| `0x801F` | ~ | Bitwise not |
-| `0x8020` | floor | Float→int floor |
-| `0x8021` | & | Bitwise and |
-| `0x8022` | \| | Bitwise or |
-| `0x8023` | ^ | Bitwise xor |
-| `0x8024` | swap_ret | Swap return stack top |
-| `0x8025` | critical_done | Leave critical section |
-| `0x8026` | critical_start | Enter critical section |
-| `0x8027` | jmp | Set IP to immediate 4-byte address |
-| `0x8029` | call | Pop proc index; jump to proc's bodyOffset |
-| `0x802A` | pop_flags | Pop windowId, checkWaitFunc, flags from data stack |
-| `0x802B` | pop_return | Pop IP from return stack |
-| `0x802C` | pop_exit | Pop IP from return stack; set 0x40 flag (exit) |
-| `0x802D` | pop_flags_return | pop_flags + pop_return |
-| `0x802E` | pop_flags_exit | pop_flags + pop_exit |
-| `0x802F` | pop_flags_return_val_exit | Save return value, pop_flags, pop_return, exit |
-| `0x8030` | pop_flags_return_val_exit_extern | External call return with value |
-| `0x8031` | pop_flags_return_extern | External call return |
-| `0x8032` | pop_flags_exit_extern | External call exit |
-| `0x8033` | pop_flags_return_val_extern | External return with value (no exit) |
-| `0x8034` | pop_addr | Pop from return stack (discard) |
-| `0x8035` | atod | ASCII to decimal |
-| `0x8036` | dtoa | decimal to ASCII (int→string) |
-| `0x8037` | exit_prog | Set PROGRAM_FLAG_EXITED |
-| `0x8038` | stop_prog | Set PROGRAM_FLAG_STOPPED |
-| `0x8039` | fetch_global | Pop addr; push dataStack[basePointer + addr] |
-| `0x803A` | store_global | Pop addr, pop value; write to dataStack[basePointer + addr] |
-| `0x803B` | swap | Swap top two data stack items |
-| `0x803C` | fetch_proc_address | Pop proc index; push proc's bodyOffset |
-| `0x803D` | pop | Pop and discard data stack item |
-| `0x803E` | dup | Duplicate data stack top |
-| `0x803F` | store_external | Store to exported variable in external program |
-| `0x8040` | fetch_external | Fetch exported variable from external program |
-| `0x8041` | export_proc | Mark procedure as exported |
-| `0x8042` | export_var | Mark variable as exported |
-| `0x8043` | exit | Exit (program stop) |
-| `0x8044` | detach | Detach child program |
-| `0x8045` | callstart | Start a procedure call |
-| `0x8046` | spawn | Spawn child program |
-| `0x8047` | fork | Fork program |
-| `0x8048` | exec | Execute external program |
-| `0x8049` | check_arg_count | Validate argument count |
-| `0x804A` | lookup_string_proc | Look up procedure by string name |
-| `0x804B` | (intrinsics start) | `interpreter_extra.cc` / `interpreter_lib.cc` opcodes |
+| `0x8008` | callstart | Start a child program |
+| `0x8009` | exec | Execute external program |
+| `0x800A` | spawn | Spawn child program |
+| `0x800B` | fork | Fork program |
+| `0x800C` | atod | ASCII to decimal |
+| `0x800D` | dtoa | Decimal to ASCII (int→string) |
+| `0x800E` | exit | Exit (program stop) |
+| `0x800F` | detach | Detach child program |
+| `0x8010` | exit_prog | Set PROGRAM_FLAG_EXITED |
+| `0x8011` | stop_prog | Set PROGRAM_FLAG_STOPPED |
+| `0x8012` | fetch_global | Pop addr; push dataStack[basePointer + addr] |
+| `0x8013` | store_global | Pop addr, pop value; write to dataStack[basePointer + addr] |
+| `0x8014` | fetch_external | Fetch exported variable from external program |
+| `0x8015` | store_external | Store to exported variable in external program |
+| `0x8016` | export_var | Mark variable as exported |
+| `0x8017` | export_proc | Mark procedure as exported |
+| `0x8018` | swap | Swap top two data stack items |
+| `0x8019` | swapa | Swap top two return stack items |
+| `0x801A` | pop | Pop and discard data stack item |
+| `0x801B` | dup | Duplicate data stack top |
+| `0x801C` | pop_return | Pop IP from return stack |
+| `0x801D` | pop_exit | Pop IP from return stack; set 0x40 flag (exit) |
+| `0x801E` | pop_addr | Pop from return stack (discard) |
+| `0x801F` | pop_flags | Pop windowId, checkWaitFunc, flags from data stack |
+| `0x8020` | pop_flags_return | pop_flags + pop_return |
+| `0x8021` | pop_flags_exit | pop_flags + pop_exit |
+| `0x8022` | pop_flags_return_extern | External call return |
+| `0x8023` | pop_flags_exit_extern | External call exit |
+| `0x8024` | pop_flags_return_val_extern | External return with value (no exit) |
+| `0x8025` | pop_flags_return_val_exit | Save return value, pop_flags, pop_return, exit |
+| `0x8026` | pop_flags_return_val_exit_extern | External call return with value |
+| `0x8027` | check_arg_count | Validate argument count |
+| `0x8028` | lookup_string_proc | Look up procedure by string name |
+| `0x8029` | pop_base | Pop framePointer from retStack |
+| `0x802A` | pop_to_base | Pop data stack back down to framePointer |
+| `0x802B` | push_base | Pop argc; push framePointer to retStack; framePointer = stackSize − argc |
+| `0x802C` | set_global | basePointer = stackSize (marks global frame boundary) |
+| `0x802D` | fetch_proc_address | Pop proc index; push proc's bodyOffset |
+| `0x802E` | dump | Pop N items from data stack |
+| `0x802F` | if | Branch if top of stack is zero |
+| `0x8030` | while | Loop branch if top of stack is zero |
+| `0x8031` | store | Pop addr, pop value; write to dataStack[framePointer + addr] |
+| `0x8032` | fetch | Pop addr; push dataStack[framePointer + addr] |
+| `0x8033` | == | Compare top two items |
+| `0x8034` | != | Compare top two items |
+| `0x8035` | <= | Compare top two items |
+| `0x8036` | >= | Compare top two items |
+| `0x8037` | < | Compare top two items |
+| `0x8038` | > | Compare top two items |
+| `0x8039` | + | Add |
+| `0x803A` | - | Subtract |
+| `0x803B` | * | Multiply |
+| `0x803C` | / | Divide |
+| `0x803D` | % | Modulo |
+| `0x803E` | && | Logical and |
+| `0x803F` | \|\| | Logical or |
+| `0x8040` | & | Bitwise and |
+| `0x8041` | \| | Bitwise or |
+| `0x8042` | ^ | Bitwise xor |
+| `0x8043` | ~ | Bitwise not |
+| `0x8044` | floor | Float→int floor |
+| `0x8045` | ! | Logical not |
+| `0x8046` | - (unary) | Negate |
+| `0x8047` | wait | Set PROGRAM_IS_WAITING with delay |
+| `0x8048` | cancel | Clear TIMED/CONDITIONAL flags on a procedure |
+| `0x8049` | cancel_all | Clear all procedure flags |
+| `0x804A` | start_critical | Enter critical section (critical flag) |
+| `0x804B` | end_critical | Leave critical section (critical flag) |
 
 Opcodes `0x804C`+ are registered by `intLibRegisterProcedures()` (intrinsic built-ins:
 `display_msg`, `script_overrides`, `obj_being_used_with`, etc.) and extended
@@ -502,7 +505,7 @@ interface IntFile {
 
 ---
 
-## 9. DH2 VM (`src/vm.ts`, `src/vm_bridge.ts`)
+## 9. DH2 VM (`src/vm.ts`, `src/vmBridge.ts`)
 
 ### 9.1 `ScriptVM` Class
 
@@ -541,7 +544,7 @@ Opcode numbers are CE's `interpreter.h` `OPCODE_*` values.
 | `0x800C` / `0x800D` | a_to_d / d_to_a | move between data and return stack |
 | `0x8010` | exit_program | halt |
 | `0x8012` / `0x8013` | fetch / store global | `dataStack[svarBase + n]` |
-| `0x8014` / `0x8015` / `0x8016` | fetch / store external, export_var | map-script exported vars (`vm_bridge.ts`) |
+| `0x8014` / `0x8015` / `0x8016` | fetch / store external, export_var | map-script exported vars (`vmBridge.ts`) |
 | `0x8019` / `0x801A` / `0x801B` / `0x801C` | swapa / pop / dup / pop_return | |
 | `0x8027` / `0x8028` | check arg count / lookup proc by name | |
 | `0x8029` / `0x802A` / `0x802B` / `0x802C` | pop_base / pop_to_base / push_base / set_global | frame handling |
@@ -553,9 +556,14 @@ Opcode numbers are CE's `interpreter.h` `OPCODE_*` values.
 | `0x8044` | floor | CE `opFloor`: truncation |
 | `0x8045` / `0x8046` | not / negate | |
 
+Since 2026-10-26 `vm.ts` also runs every other core opcode CE registers (0x8000 / 0x8001 / 0x8006-0x800B /
+0x800E / 0x800F / 0x8011 / 0x8017 / 0x8018 / 0x801D-0x8026 / 0x802D / 0x802E / 0x8047-0x804B; `vmDoEvents`
+runs call_at / call_when from the game loop). int2lua does not translate them, so a script that uses one
+runs on the VM.
+
 A scan of all 1448 `.int` files (2026-10-18) shows no other raw opcode in a script listed in scripts.lst: `call_at` / `call_when` / `callstart` / `exec` / `spawn` / `fork` / `wait` / `cancel` / `xor` / `bwnot` never occur. Only the unused `barstow` / `dumar` / `surf` / `genint` scripts (not in scripts.lst) contain `detach` (0x800F) and the `say*` ops (0x804D / 0x804E).
 
-### 9.3 `vm_bridge.ts` — `bridgeOpMap`
+### 9.3 `vmBridge.ts` — `bridgeOpMap`
 
 ~150 additional opcode handlers are registered in `bridgeOpMap`.
 `Object.assign(opMap, bridgeOpMap)` merges them at load.
@@ -581,7 +589,7 @@ External variable access (MVARs):
 - `0x8015` `store_external` — same mechanism for writing.
 - `0x8016` — look up external by name.
 
-### 9.4 `GameScriptVM` (`vm_bridge.ts`)
+### 9.4 `GameScriptVM` (`vmBridge.ts`)
 
 ```ts
 class GameScriptVM extends ScriptVM {
@@ -606,7 +614,7 @@ class GameScriptVM extends ScriptVM {
 4. Sets `pc` to `intfile.procedures[procName].offset`.
 5. Calls `run()`.
 
-The run loop continues until `pop_return` (0x802B) pops `-1` from `retStack`
+The run loop continues until `pop_return` (0x801C) pops `-1` from `retStack`
 (which sets `pc = -1`); the next `step()` call cannot decode at address `-1` and
 halts. This is the DH2 equivalent of CE's `_executeProcedure` + `_interpret(-1)`.
 

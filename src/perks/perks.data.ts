@@ -36,7 +36,8 @@ export const PERKS: PerkDef[] = [
         id: 'awareness',
         name: 'Awareness',
         img: 'art/skilldex/awarenes.png',
-        description: 'With Awareness, you are provided with detailed information about any critter you examine. You see their exact hit points and what weapons they are equipped with.',
+        description:
+            'With Awareness, you are provided with detailed information about any critter you examine. You see their exact hit points and what weapons they are equipped with.',
         maxRanks: 1,
         minLevel: 3,
         minStats: { PER: 5 },
@@ -46,7 +47,8 @@ export const PERKS: PerkDef[] = [
         id: 'bonus_hth_attacks',
         name: 'Bonus HtH Attacks',
         img: 'art/skilldex/hnd2hnd.png',
-        description: 'You have learned the secret of the Ninja! Your hand-to-hand attacks cost 1 fewer action point to perform.',
+        description:
+            'You have learned the secret of the Ninja! Your hand-to-hand attacks cost 1 fewer action point to perform.',
         maxRanks: 1,
         minLevel: 9,
         minStats: { AGI: 6 },
@@ -56,7 +58,8 @@ export const PERKS: PerkDef[] = [
         id: 'bonus_hth_damage',
         name: 'Bonus HtH Damage',
         img: 'art/skilldex/damage.png',
-        description: 'Each rank of this perk adds +2 points of bonus damage every time you successfully land a hand-to-hand or melee hit.',
+        description:
+            'Each rank of this perk adds +2 points of bonus damage every time you successfully land a hand-to-hand or melee hit.',
         maxRanks: 3,
         minLevel: 3,
         minStats: { STR: 6, AGI: 6 },
@@ -76,7 +79,8 @@ export const PERKS: PerkDef[] = [
         id: 'bonus_ranged_damage',
         name: 'Bonus Ranged Damage',
         img: 'art/skilldex/bonusrng.png',
-        description: 'Each rank of this perk adds +2 points of bonus damage every time you successfully hit with a ranged weapon.',
+        description:
+            'Each rank of this perk adds +2 points of bonus damage every time you successfully hit with a ranged weapon.',
         maxRanks: 2,
         minLevel: 6,
         minStats: { AGI: 6, PER: 6 },
@@ -176,7 +180,8 @@ export const PERKS: PerkDef[] = [
         id: 'sharpshooter',
         name: 'Sharpshooter',
         img: 'art/skilldex/sharpsht.png',
-        description: 'You have a talent for hitting things at range. +2 to your Perception for the purposes of ranged weapon range modifiers.',
+        description:
+            'You have a talent for hitting things at range. +2 to your Perception for the purposes of ranged weapon range modifiers.',
         maxRanks: 1,
         minLevel: 9,
         minStats: { PER: 7, INT: 6 },
@@ -186,11 +191,12 @@ export const PERKS: PerkDef[] = [
         id: 'silent_running',
         name: 'Silent Running',
         img: 'art/skilldex/silntrun.png',
-        description: 'With this perk, you now have the ability to move quickly and silently. You can now sneak and run at the same time.',
+        description:
+            'With this perk, you now have the ability to move quickly and silently. You can now sneak and run at the same time.',
         maxRanks: 1,
         minLevel: 6,
         minStats: { AGI: 6 },
-        minSkills: { 'Sneak': 50 },
+        minSkills: { Sneak: 50 },
     },
     // PERK_SURVIVALIST = 16
     {
@@ -201,7 +207,7 @@ export const PERKS: PerkDef[] = [
         maxRanks: 1,
         minLevel: 3,
         minStats: { END: 6 },
-        minSkills: { 'Outdoorsman': 40 },
+        minSkills: { Outdoorsman: 40 },
     },
     // PERK_MASTER_TRADER = 17
     {
@@ -212,7 +218,7 @@ export const PERKS: PerkDef[] = [
         maxRanks: 1,
         minLevel: 9,
         minStats: { CHA: 7 },
-        minSkills: { 'Barter': 75 },
+        minSkills: { Barter: 75 },
     },
     // PERK_EDUCATED = 18
     {
@@ -229,7 +235,8 @@ export const PERKS: PerkDef[] = [
         id: 'healer',
         name: 'Healer',
         img: 'art/skilldex/healer.png',
-        description: 'The healing of bodies comes naturally. Each rank of this perk improves the hit points healed by 4 when using First Aid or Doctor.',
+        description:
+            'The healing of bodies comes naturally. Each rank of this perk improves the hit points healed by 4 when using First Aid or Doctor.',
         maxRanks: 3,
         minLevel: 3,
         minStats: { PER: 7, INT: 5 },
@@ -250,7 +257,8 @@ export const PERKS: PerkDef[] = [
         id: 'better_criticals',
         name: 'Better Criticals',
         img: 'art/skilldex/betrcrit.png',
-        description: 'The critical hits you cause are more devastating. You gain a +20% bonus on the critical hit table, providing more "ouch" for your whack.',
+        description:
+            'The critical hits you cause are more devastating. You gain a +20% bonus on the critical hit table, providing more "ouch" for your whack.',
         maxRanks: 1,
         minLevel: 9,
         minStats: { PER: 6, AGI: 4, LUK: 6 },
@@ -270,18 +278,20 @@ export const PERKS: PerkDef[] = [
         id: 'slayer',
         name: 'Slayer',
         img: 'art/skilldex/slayer.png',
-        description: 'The Slayer walks the earth! In hand-to-hand combat, all of your hits are upgraded to critical hits.',
+        description:
+            'The Slayer walks the earth! In hand-to-hand combat, all of your hits are upgraded to critical hits.',
         maxRanks: 1,
         minLevel: 18,
         minStats: { AGI: 8 },
-        minSkills: { 'Unarmed': 80 },
+        minSkills: { Unarmed: 80 },
     },
     // PERK_SNIPER = 24
     {
         id: 'sniper',
         name: 'Sniper',
         img: 'art/skilldex/sniper.png',
-        description: 'You have mastered the firearm as a source of pain. Any successful hit in combat with a ranged weapon will be upgraded to a critical hit.',
+        description:
+            'You have mastered the firearm as a source of pain. Any successful hit in combat with a ranged weapon will be upgraded to a critical hit.',
         maxRanks: 1,
         minLevel: 18,
         minStats: { AGI: 8 },
@@ -292,11 +302,12 @@ export const PERKS: PerkDef[] = [
         id: 'silent_death',
         name: 'Silent Death',
         img: 'art/skilldex/silentd.png',
-        description: 'While Sneaking, if you hit a critter in the back, you will cause double damage. The master of the backstab.',
+        description:
+            'While Sneaking, if you hit a critter in the back, you will cause double damage. The master of the backstab.',
         maxRanks: 1,
         minLevel: 18,
         minStats: { AGI: 10 },
-        minSkills: { 'Sneak': 80 },
+        minSkills: { Sneak: 80 },
     },
     // PERK_ACTION_BOY = 26
     {
@@ -313,7 +324,8 @@ export const PERKS: PerkDef[] = [
         id: 'mental_block',
         name: 'Mental Block',
         img: 'art/skilldex/mentalbk.png',
-        description: 'You have the ability to tune out any outside mental interference. You are immune to the effects of the Psychic Nullifier.',
+        description:
+            'You have the ability to tune out any outside mental interference. You are immune to the effects of the Psychic Nullifier.',
         maxRanks: 1,
         minLevel: 9,
     },
@@ -366,7 +378,7 @@ export const PERKS: PerkDef[] = [
         maxRanks: 1,
         minLevel: 12,
         minStats: { INT: 5 },
-        minSkills: { 'First Aid': 40, 'Doctor': 40 },
+        minSkills: { 'First Aid': 40, Doctor: 40 },
     },
     // PERK_MASTER_MEDIC = 33
     {
@@ -377,7 +389,7 @@ export const PERKS: PerkDef[] = [
         maxRanks: 1,
         minLevel: 15,
         minStats: { AGI: 6, INT: 5 },
-        minSkills: { 'Doctor': 75 },
+        minSkills: { Doctor: 75 },
     },
     // PERK_GHOST = 34
     {
@@ -388,7 +400,7 @@ export const PERKS: PerkDef[] = [
         maxRanks: 1,
         minLevel: 6,
         minStats: { AGI: 6 },
-        minSkills: { 'Sneak': 60 },
+        minSkills: { Sneak: 60 },
     },
     // PERK_CULT_OF_PERSONALITY = 35
     {
@@ -415,7 +427,8 @@ export const PERKS: PerkDef[] = [
         id: 'explorer',
         name: 'Explorer',
         img: 'art/skilldex/explorer.png',
-        description: 'The lure of the open wasteland is always on your mind. The chance of finding a special encounter is increased.',
+        description:
+            'The lure of the open wasteland is always on your mind. The chance of finding a special encounter is increased.',
         maxRanks: 1,
         minLevel: 9,
     },
@@ -424,7 +437,8 @@ export const PERKS: PerkDef[] = [
         id: 'flower_child',
         name: 'Flower Child',
         img: 'art/skilldex/flower.png',
-        description: 'You are less likely to be addicted to drugs (50% less likely), and you suffer less from the withdrawal effects.',
+        description:
+            'You are less likely to be addicted to drugs (50% less likely), and you suffer less from the withdrawal effects.',
         maxRanks: 1,
         minLevel: 9,
         minStats: { END: 5 },
@@ -438,14 +452,14 @@ export const PERKS: PerkDef[] = [
         maxRanks: 2,
         minLevel: 6,
         minStats: { END: 6 },
-        minSkills: { 'Outdoorsman': 40 },
+        minSkills: { Outdoorsman: 40 },
     },
     // PERK_ANIMAL_FRIEND = 40
     {
         id: 'animal_friend',
         name: 'Animal Friend',
         img: 'art/skilldex/animalfr.png',
-        description: 'Animals simply won\'t attack you unless provoked.',
+        description: "Animals simply won't attack you unless provoked.",
         maxRanks: 1,
         minLevel: 9,
         minStats: { INT: 5 },
@@ -465,7 +479,8 @@ export const PERKS: PerkDef[] = [
         id: 'mysterious_stranger',
         name: 'Mysterious Stranger',
         img: 'art/skilldex/stranger.png',
-        description: 'With this perk, you have gained the attention of a Mysterious Stranger who will appear to help you in random combat encounters.',
+        description:
+            'With this perk, you have gained the attention of a Mysterious Stranger who will appear to help you in random combat encounters.',
         maxRanks: 1,
         minLevel: 9,
         minStats: { LUK: 4 },
@@ -479,14 +494,15 @@ export const PERKS: PerkDef[] = [
         maxRanks: 1,
         minLevel: 6,
         minStats: { END: 6 },
-        minSkills: { 'Outdoorsman': 40 },
+        minSkills: { Outdoorsman: 40 },
     },
     // PERK_QUICK_POCKETS = 44
     {
         id: 'quick_pockets',
         name: 'Quick Pockets',
         img: 'art/skilldex/quikpock.png',
-        description: 'You have learned to keep your inventory better organized. Accessing your inventory in combat costs 2 fewer action points.',
+        description:
+            'You have learned to keep your inventory better organized. Accessing your inventory in combat costs 2 fewer action points.',
         maxRanks: 1,
         minLevel: 3,
         minStats: { AGI: 5 },
@@ -516,7 +532,8 @@ export const PERKS: PerkDef[] = [
         id: 'tag',
         name: 'Tag!',
         img: 'art/skilldex/tag.png',
-        description: 'Tag one more skill. Two skills are better than one, but three is better than two, and four is the best of all.',
+        description:
+            'Tag one more skill. Two skills are better than one, but three is better than two, and four is the best of all.',
         maxRanks: 1,
         minLevel: 12,
     },
@@ -525,7 +542,8 @@ export const PERKS: PerkDef[] = [
         id: 'mutate',
         name: 'Mutate!',
         img: 'art/skilldex/mutate.png',
-        description: 'The radiation of the wasteland has changed you! One of your traits will mutate into something else.',
+        description:
+            'The radiation of the wasteland has changed you! One of your traits will mutate into something else.',
         maxRanks: 1,
         minLevel: 9,
     },
@@ -569,7 +587,7 @@ export const PERKS: PerkDef[] = [
         description: 'You are an expert with explosives. All thrown explosives deal +25% more damage.',
         maxRanks: 1,
         minLevel: 9,
-        minSkills: { 'Traps': 75 },
+        minSkills: { Traps: 75 },
     },
     // PERK_HEAVE_HO
     {
@@ -585,7 +603,8 @@ export const PERKS: PerkDef[] = [
         id: 'friendly_foe',
         name: 'Friendly Foe',
         img: 'art/skilldex/frienfoe.png',
-        description: 'You will always recognize friend from foe: party members are highlighted in a different color than enemies.',
+        description:
+            'You will always recognize friend from foe: party members are highlighted in a different color than enemies.',
         maxRanks: 1,
         minLevel: 6,
         minStats: { PER: 4 },
@@ -599,7 +618,7 @@ export const PERKS: PerkDef[] = [
         maxRanks: 1,
         minLevel: 9,
         minStats: { AGI: 5 },
-        minSkills: { 'Traps': 50 },
+        minSkills: { Traps: 50 },
     },
     // PERK_QUICK_RECOVERY
     {
@@ -616,10 +635,11 @@ export const PERKS: PerkDef[] = [
         id: 'paralyzing_palm',
         name: 'Paralyzing Palm',
         img: 'art/skilldex/hnd2hnd.png',
-        description: 'With Paralyzing Palm, you can paralyze any target when you make a successful hit in hand-to-hand combat.',
+        description:
+            'With Paralyzing Palm, you can paralyze any target when you make a successful hit in hand-to-hand combat.',
         maxRanks: 1,
         minLevel: 18,
-        minSkills: { 'Unarmed': 70 },
+        minSkills: { Unarmed: 70 },
     },
     // PERK_PYROMANIAC
     {
@@ -639,7 +659,7 @@ export const PERKS: PerkDef[] = [
         description: '+10% to the Speech and Barter skills.',
         maxRanks: 1,
         minLevel: 6,
-        minSkills: { 'Speech': 50, 'Barter': 50 },
+        minSkills: { Speech: 50, Barter: 50 },
     },
     // PERK_MASTER_THIEF
     {
@@ -649,7 +669,7 @@ export const PERKS: PerkDef[] = [
         description: '+15% to Lockpick and Steal skills.',
         maxRanks: 1,
         minLevel: 12,
-        minSkills: { 'Lockpick': 80, 'Steal': 80 },
+        minSkills: { Lockpick: 80, Steal: 80 },
     },
     // PERK_SPEAKER
     {
@@ -659,7 +679,7 @@ export const PERKS: PerkDef[] = [
         description: '+20% to the Speech skill.',
         maxRanks: 1,
         minLevel: 9,
-        minSkills: { 'Speech': 50 },
+        minSkills: { Speech: 50 },
     },
     // PERK_THIEF (lower-tier thief perk)
     {
@@ -678,6 +698,6 @@ export const PERKS: PerkDef[] = [
         description: '+20% to the Barter skill.',
         maxRanks: 1,
         minLevel: 6,
-        minSkills: { 'Barter': 40 },
+        minSkills: { Barter: 40 },
     },
 ]

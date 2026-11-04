@@ -21,24 +21,38 @@
 //   endgame/deathEndings.ts — selection + filename helpers
 //   endgame/slideRender.ts  — slide rendering primitives + overlay
 
-import { showConfirm } from './ui_dialog.js'
-import { Scripting } from './scripting.js'
-import globalState from './globalState.js'
+import { returnToMainMenu } from './mainMenuReturn.js'
+import { showConfirm } from './uiDialog.js'
+import * as Scripting from './scripting.js'
+import { services } from './state/services.js'
 import { getFileJSON, getMessage } from './util.js'
 import { dbg, dbgWarn } from './logger.js'
-import { createOverlay, removeOverlay, showStaticSlide, showPanningSlide, showCredits } from './endgame/slideRender.js'
+import {
+    createOverlay,
+    removeOverlay,
+    showDeathScreen,
+    showStaticSlide,
+    showPanningSlide,
+    showCredits,
+} from './endgame/slideRender.js'
 import { getDeathEndingFileName, setupDeathEnding, DEATH_REASON_DEATH } from './endgame/deathEndings.js'
 
-export { EndgameDeathEnding, DEATH_REASON_DEATH, DEATH_REASON_TIMEOUT, setupDeathEnding, getDeathEndingFileName } from './endgame/deathEndings.js'
+export {
+    EndgameDeathEnding,
+    DEATH_REASON_DEATH,
+    DEATH_REASON_TIMEOUT,
+    setupDeathEnding,
+    getDeathEndingFileName,
+} from './endgame/deathEndings.js'
 
 // CE: endgame.h EndgameEnding struct
 interface EndgameEnding {
     gvar: number
     value: number
     artNum: number
-    imagePath: string | null  // pre-baked by tools/convertEndgame.py
+    imagePath: string | null // pre-baked by tools/convertEndgame.py
     voiceOverBaseName: string
-    direction: number          // 1 = left→right, -1 = right→left
+    direction: number // 1 = left→right, -1 = right→left
 }
 
 // CE art_num 327 = the wide panning background (endgame.cc:221, 316)
@@ -65,11 +79,11 @@ export async function playSlideshow(): Promise<void> {
         endings = getFileJSON('lut/endgame.json') as EndgameEnding[]
     } catch (_e) {
         dbgWarn('endgame', 'lut/endgame.json not found — skipping slideshow')
-        await showContinueDialog()
+        await playMovie()
         return
     }
 
-    globalState.audioEngine.stopMusic()
+    services.audioEngine.stopMusic()
 
     const overlay = createOverlay()
 
@@ -85,22 +99,18 @@ export async function playSlideshow(): Promise<void> {
 
     removeOverlay()
 
-    // CE: endgamePlaySlideshow → endgamePlayMovie → endgameEndingHandleContinuePlaying
-    const wantsContinue = await showContinueDialog()
-    if (!wantsContinue) {
-        // CE: _game_user_wants_to_quit = 2 (main game loop exits)
-        dbg('endgame', 'player chose to quit — reloading page')
-        location.reload()
-    }
+    // CE scripts.cc scriptsHandleRequests (SCRIPT_REQUEST_ENDGAME): endgamePlaySlideshow,
+    // then endgamePlayMovie — akiss, the credits and the continue dialog
+    await playMovie()
 }
 
 // CE: endgame.cc:234-258 endgamePlayMovie (0x43F810)
 // 1. Load akiss music  2. Wait 3s  3. creditsOpen("credits.txt")  4. Continue dialog
 export async function playMovie(): Promise<void> {
     // CE: soundLoad/speechPlay("akiss.acm") before 3-second delay
-    const music = globalState.audioEngine.playSound('music/akiss')
+    const music = services.audioEngine.playSound('music/akiss')
 
-    await new Promise(r => setTimeout(r, 3000))
+    await new Promise((r) => setTimeout(r, 3000))
 
     const overlay = createOverlay()
     await showCredits(overlay)
@@ -113,8 +123,8 @@ export async function playMovie(): Promise<void> {
 
     const wantsContinue = await showContinueDialog()
     if (!wantsContinue) {
-        dbg('endgame', 'player chose to quit — reloading page')
-        location.reload()
+        dbg('endgame', 'player chose to quit — back to the main menu')
+        returnToMainMenu()
     }
 }
 
@@ -132,16 +142,14 @@ export function dudeDeathScene(): void {
     setupDeathEnding(DEATH_REASON_DEATH)
     playDeathEnding()
         .catch((e: unknown) => dbgWarn('endgame', 'death scene error: ' + String(e)))
-        .then(() => location.reload())
+        .then(() => returnToMainMenu())
 }
 
 export async function playDeathEnding(): Promise<void> {
     const selected = getDeathEndingFileName()
-    const baseName = selected.startsWith('narrator/')
-        ? selected.slice('narrator/'.length)
-        : selected
+    const baseName = selected.startsWith('narrator/') ? selected.slice('narrator/'.length) : selected
     const overlay = createOverlay()
-    // CE ref: main.cc:390 — DEATH.FRM is interface art #309, blitted as the death background
-    await showStaticSlide('art/intrface/death.png', baseName, overlay)
+    // CE ref: main.cc:390 showDeath — DEATH.FRM (interface art #309) with the text block
+    await showDeathScreen(baseName, overlay)
     removeOverlay()
 }

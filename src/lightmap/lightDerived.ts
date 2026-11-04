@@ -27,11 +27,11 @@ limitations under the License.
 // lightingDebug() in the browser console to see where this mode and the
 // literal 'dh2'/CE-derived mode disagree for the current map.
 
-import globalState from "../globalState.js"
-import { Obj } from "../object.js"
-import { Point } from "../geometry.js"
-import { hexNeighbors, hexDistance } from "../geometry.js"
-import { toTileNum } from "../tile.js"
+import { world } from '../state/world.js'
+import { Obj } from '../object.js'
+import { Point } from '../geometry.js'
+import { hexNeighbors, hexDistance } from '../geometry.js'
+import { toTileNum } from '../tile.js'
 
 export type LightWriter = (tileNum: number, intensity: number) => void
 
@@ -107,7 +107,7 @@ export function obj_adjust_light_derived(obj: Obj, addLight: LightWriter): void 
             }
 
             let tileBlocksLight = false
-            for (const curObj of globalState.gMap.objectsAtPosition(cell)) {
+            for (const curObj of world.gMap!.objectsAtPosition(cell)) {
                 if (!curObj.pro) continue
                 if ((curObj.flags & 1) !== 0) continue // internal flag, same skip as literal mode
                 if (!(curObj.flags & 0x20000000 /* OBJECT_LIGHT_THRU */)) {

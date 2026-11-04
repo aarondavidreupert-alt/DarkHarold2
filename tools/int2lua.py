@@ -8,7 +8,7 @@ each one into a readable Lua file that the DarkHarold2 Lua script backend
 (src/lua/) runs in place of the bytecode VM (src/vm.ts). The output keeps the
 script's own variable and procedure names (they are stored in the .int
 identifier table) and calls the same intrinsics as the VM bridge
-(src/vm_bridge.ts), under their SSL names.
+(src/vmBridge.ts), under their SSL names.
 
 Bytecode layout and opcode semantics follow fallout2-ce:
   interpreter.cc  programCreateByName / opPushBase / opIf / opWhile / opCall /
@@ -41,7 +41,7 @@ import sys
 
 # ---------------------------------------------------------------------------
 # Intrinsic table: opcode -> (ssl name, argc, pushes a result)
-# Mirrors src/vm_bridge.ts bridgeOpMap (`--check-bridge` verifies it).
+# Mirrors src/vmBridge.ts bridgeOpMap (`--check-bridge` verifies it).
 # ---------------------------------------------------------------------------
 
 INTRINSICS = {
@@ -168,6 +168,48 @@ INTRINSICS = {
     0x8239: ("scan_array", 2, True),
     0x8256: ("array_key", 2, True),
     0x8257: ("arrayexpr", 2, True),
+    # sfall functions added 2026-10-25 (SCR-12; Script methods in src/scripting.ts)
+    0x8156: ("read_byte", 1, True),
+    0x8163: ("get_year", 0, True),
+    0x816C: ("key_pressed", 1, True),
+    0x8170: ("in_world_map", 0, True),
+    0x8171: ("force_encounter", 1, False),
+    0x8229: ("force_encounter_with_flags", 2, False),
+    0x8193: ("active_hand", 0, True),
+    0x81B3: ("get_uptime", 0, True),
+    0x81DF: ("get_bodypart_hit_modifier", 1, True),
+    0x81E0: ("set_bodypart_hit_modifier", 2, False),
+    0x81EB: ("get_ini_string", 1, True),
+    0x820D: ("list_begin", 1, True),
+    0x820E: ("list_next", 1, True),
+    0x820F: ("list_end", 1, False),
+    0x8210: ("sfall_ver_major", 0, True),
+    0x8211: ("sfall_ver_minor", 0, True),
+    0x8212: ("sfall_ver_build", 0, True),
+    0x821C: ("get_mouse_x", 0, True),
+    0x821D: ("get_mouse_y", 0, True),
+    0x821E: ("get_mouse_buttons", 0, True),
+    0x8220: ("get_screen_width", 0, True),
+    0x8221: ("get_screen_height", 0, True),
+    0x8224: ("create_message_window", 1, False),
+    0x8228: ("get_attack_type", 0, True),
+    0x8237: ("atoi", 1, True),
+    0x824B: ("tile_under_cursor", 0, True),
+    0x824E: ("substr", 3, True),
+    0x824F: ("strlen", 1, True),
+    0x826B: ("message_str_game", 2, True),
+    0x8274: ("art_exists", 1, True),
+    0x8279: ("sfall_func3", 4, True),
+    0x827A: ("sfall_func4", 5, True),
+    0x827B: ("sfall_func5", 6, True),
+    0x827C: ("sfall_func6", 7, True),
+    # sfall's typed math: raw ops in src/vm.ts, Lua helpers in src/lua/prelude.ts
+    0x81EC: ("sqrt", 1, True),
+    0x8238: ("atof", 1, True),
+    0x8253: ("typeof", 1, True),
+    0x8263: ("power", 2, True),
+    0x8267: ("round", 1, True),
+    0x827F: ("udiv", 2, True),
     # other sfall functions the Unofficial Patch uses (CE sfall_opcodes.cc handlers)
     0x81ED: ("abs", 1, True),                        # op_abs
     0x81AC: ("get_ini_setting", 1, True),            # op_get_ini_setting
@@ -445,7 +487,7 @@ LUA_KEYWORDS = {
 # Names the runtime defines for the generated code; a script identifier with one
 # of these names is renamed like a Lua keyword.
 RUNTIME_NAMES = {"div", "mod", "AND", "OR", "b2i", "floor", "import", "export", "entry", "call", "exit",
-                 "recursion_guard"}
+                 "recursion_guard", "sqrt", "atof", "typeof", "power", "round", "udiv"}
 
 
 # ---------------------------------------------------------------------------
@@ -1009,7 +1051,11 @@ class Call(Expr):
     def lua(self):
         if self.is_builtin_var:
             return self.name
-        return "%s(%s)" % (lua_name(self.name), ", ".join(value(a).lua() for a in self.args))
+        # An intrinsic keeps its own name: the prelude defines sqrt, atof, typeof, power, round
+        # and udiv under exactly those names. lua_name's RUNTIME_NAMES suffix is for the script's
+        # own variables and procedures that would shadow them; only a Lua keyword is renamed.
+        name = self.name + "_" if self.name in LUA_KEYWORDS else self.name
+        return "%s(%s)" % (name, ", ".join(value(a).lua() for a in self.args))
 
 
 class Raw(Expr):
@@ -1550,7 +1596,7 @@ class ProcDecompiler:
         """sslc compiles `x += 1` on an imported variable as `push_int <identifier
         offset>; fetch_external`: CE opFetchExternalVariable /
         opStoreExternalVariable read the name as programGetIdentifier(
-        value.integerValue) whatever the value's type (src/vm_bridge.ts varName
+        value.integerValue) whatever the value's type (src/vmBridge.ts varName
         does the same). A constant that is not an identifier offset stays an
         error."""
         if isinstance(n, Const) and not n.is_float and n.value in self.f.identifiers:
@@ -2048,7 +2094,7 @@ def write_report(path, rows):
 
 
 def check_bridge(bridge_path):
-    """Compare INTRINSICS against src/vm_bridge.ts; returns a list of differences."""
+    """Compare INTRINSICS against src/vmBridge.ts; returns a list of differences."""
     import re
     lines = open(bridge_path, encoding="utf-8").read().splitlines()
     src = "\n".join(l for l in lines if not l.strip().startswith("//"))
@@ -2057,7 +2103,7 @@ def check_bridge(bridge_path):
         op = int(m.group(1), 16)
         want = (m.group(2), int(m.group(3)), m.group(4) != "false")
         if INTRINSICS.get(op) != want:
-            diffs.append("0x%04X: table %r, vm_bridge.ts %r" % (op, INTRINSICS.get(op), want))
+            diffs.append("0x%04X: table %r, vmBridge.ts %r" % (op, INTRINSICS.get(op), want))
     return diffs
 
 
@@ -2067,7 +2113,7 @@ def main(argv=None):
     ap.add_argument("-o", "--out", help="output directory (default: print to stdout)")
     ap.add_argument("--report", metavar="TSV", help="write the variable list (names and their sources) to TSV")
     ap.add_argument("--check-bridge", metavar="VM_BRIDGE_TS",
-                    help="verify the intrinsic table against src/vm_bridge.ts and exit")
+                    help="verify the intrinsic table against src/vmBridge.ts and exit")
     args = ap.parse_args(argv)
 
     if args.check_bridge:

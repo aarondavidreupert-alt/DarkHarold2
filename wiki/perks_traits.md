@@ -1,7 +1,7 @@
 # Perks & Traits — DarkHarold2 Reference
 
 > Ground-truth: `raw/fallout2-ce/src/perk.cc`, `perk_defs.h`, `trait.cc`, `trait_defs.h`  
-> DH2 impl: `src/perks.ts` (barrel; `src/perks/{perks.data,perks}.ts`), `src/ui_character.ts` (barrel; `src/ui_character/*.ts`), `src/combat.ts` (barrel; `src/combat/*.ts`), `src/player.ts`, `src/object.ts` (barrel; `src/object/*.ts`), `src/scripting.ts`, `src/vm_bridge.ts`
+> DH2 impl: `src/perks.ts` (barrel; `src/perks/{perks.data,perks}.ts`), `src/uiCharacter.ts` (barrel; `src/uiCharacter/*.ts`), `src/combat.ts` (barrel; `src/combat/*.ts`), `src/player.ts`, `src/object.ts` (barrel; `src/object/*.ts`), `src/scripting.ts`, `src/vmBridge.ts`
 
 ---
 
@@ -17,7 +17,7 @@ Traits are selected during **character creation** only (max 2). They provide tra
 - `traitGetStatModifier(trait)` in `trait.cc` — returns stat delta for each selected trait; called inside `critterGetStat` chain
 - `traitGetSkillModifier(traits[], skill)` in `trait.cc:284` — returns skill delta; called inside `skillGetValue`
 
-**DH2 Storage:** `Player.traits: string[]` (names as in `TRAIT_DESCRIPTIONS`, `src/ui_character/descriptions.ts`), set at character creation and by Mutate! (`Player.setTraits`).
+**DH2 Storage:** `Player.traits: string[]` (names as in `TRAIT_DESCRIPTIONS`, `src/uiCharacter/descriptions.ts`), set at character creation and by Mutate! (`Player.setTraits`).
 
 **DH2 Live vs Applied:** skills read the traits live (`traitGetSkillModifier` in `src/skills.ts`; `Critter.getSkill` and the character screen pass the dude's traits since 2026-10-24 — before, only the creator did, known_bugs PA6). The derived-stat parts of `traitGetStatModifier` are applied live in `Player.getStat` (`src/player.ts`: AP, AC, Melee, Carry, Sequence, Healing Rate, Critical Chance, Better Criticals, DR Radiation/Poison); only the SPECIAL parts (Gifted +1 all, Bruiser ST +2, Small Frame AG +1) are kept on the base stats and swapped by `setTraits` — equivalent, since CE's `critterGetBaseStatWithTraitModifier` adds them to the base.
 
@@ -144,12 +144,12 @@ Generated from `perk.cc` / `perk_defs.h` / `perk.msg` (2026-10-18). "stat N" is 
 | 14 | `PERK_SHARPSHOOTER` | Sharpshooter | 1 | 9 | PE≥7, IN≥6 | — | combat/hitChance.ts |
 | 15 | `PERK_SILENT_RUNNING` | Silent Running | 1 | 6 | AG≥6 | Sneak≥50 | object/Critter.ts |
 | 16 | `PERK_SURVIVALIST` | Survivalist | 1 | 3 | EN≥6, IN≥6 | Outdoorsman≥40 | skills.ts |
-| 17 | `PERK_MASTER_TRADER` | Master Trader | 1 | 12 | CH≥7 | Barter≥75 | ui_barter/screen.ts |
+| 17 | `PERK_MASTER_TRADER` | Master Trader | 1 | 12 | CH≥7 | Barter≥75 | uiBarter/screen.ts |
 | 18 | `PERK_EDUCATED` | Educated | 3 | 6 | IN≥6 | — | perks/perks.ts, player.ts |
 | 19 | `PERK_HEALER` | Healer | 2 | 3 | PE≥7, IN≥5, AG≥6 | First Aid≥40 | skillUse.ts |
 | 20 | `PERK_FORTUNE_FINDER` | Fortune Finder | 1 | 6 | LK≥8 | — | worldmap/encounters.ts |
-| 21 | `PERK_BETTER_CRITICALS` | Better Criticals | 1 | 9 | PE≥6, AG≥4, LK≥6; stat 16 +20/rank | — | combat/Combat.ts, player.ts, proto_types.ts, scripting.ts, skills.ts, statIds.ts |
-| 22 | `PERK_EMPATHY` | Empathy | 1 | 6 | PE≥7, IN≥5 | — | ui_dialogue.ts |
+| 21 | `PERK_BETTER_CRITICALS` | Better Criticals | 1 | 9 | PE≥6, AG≥4, LK≥6; stat 16 +20/rank | — | combat/Combat.ts, player.ts, protoTypes.ts, scripting.ts, skills.ts, statIds.ts |
+| 22 | `PERK_EMPATHY` | Empathy | 1 | 6 | PE≥7, IN≥5 | — | uiDialogue.ts |
 | 23 | `PERK_SLAYER` | Slayer | 1 | 24 | ST≥8, AG≥8 | Unarmed≥80 | combat/Combat.ts |
 | 24 | `PERK_SNIPER` | Sniper | 1 | 24 | PE≥8, AG≥8 | Small Guns≥80 | combat/Combat.ts |
 | 25 | `PERK_SILENT_DEATH` | Silent Death | 1 | 18 | AG≥10 | Sneak≥80 AND Unarmed≥80 | combat/Combat.ts |
@@ -175,11 +175,11 @@ Generated from `perk.cc` / `perk_defs.h` / `perk.msg` (2026-10-18). "stat N" is 
 | 45 | `PERK_SCOUT` | Scout | 1 | 3 | PE≥7 | — | worldmap/Worldmap.ts, worldmap/encounters.ts |
 | 46 | `PERK_MYSTERIOUS_STRANGER` | Mysterious Stranger | 1 | 9 | LK≥4 | — | — |
 | 47 | `PERK_RANGER` | Ranger | 1 | 6 | PE≥6 | — | skills.ts, worldmap/encounters.ts |
-| 48 | `PERK_QUICK_POCKETS` | Quick Pockets | 1 | 3 | AG≥5 | — | ui_inventory/panel.ts |
+| 48 | `PERK_QUICK_POCKETS` | Quick Pockets | 1 | 3 | AG≥5 | — | uiInventory/panel.ts |
 | 49 | `PERK_SMOOTH_TALKER` | Smooth Talker | 3 | 3 | IN≥4 | — | scripting.ts |
 | 50 | `PERK_SWIFT_LEARNER` | Swift Learner | 3 | 3 | IN≥4 | — | player.ts |
 | 51 | `PERK_TAG` | Tag! | 1 | 12 | — | — | perks/perks.ts |
-| 52 | `PERK_MUTATE` | Mutate! | 1 | 9 | — | — | ui_character/perkModal.ts |
+| 52 | `PERK_MUTATE` | Mutate! | 1 | 9 | — | — | uiCharacter/perkModal.ts |
 | 53 | `PERK_NUKA_COLA_ADDICTION` | Nuka-Cola Reliance | ∞ (−1) | — | — | — | — |
 | 54 | `PERK_BUFFOUT_ADDICTION` | Buffout Reliance | ∞ (−1) | — | Δ ST-2, EN-2, AG-3 | — | — |
 | 55 | `PERK_MENTATS_ADDICTION` | Mentats Reliance | ∞ (−1) | — | Δ IN-3, AG-2 | — | — |
@@ -302,7 +302,7 @@ Bonus stat layer `+= statModifier`; `HERE_AND_NOW` grants the XP to the next lev
 
 ## 5. Character Creation
 
-- Max **2 traits** (`TRAITS_MAX_SELECTED_COUNT`), enforced in `ui_character/creator.ts`; Mutate! swaps one later (`ui_character/perkModal.ts` runMutate, CE `perkDialogHandleMutatePerk`).
+- Max **2 traits** (`TRAITS_MAX_SELECTED_COUNT`), enforced in `uiCharacter/creator.ts`; Mutate! swaps one later (`uiCharacter/perkModal.ts` runMutate, CE `perkDialogHandleMutatePerk`).
 - Tag! (CE 51) adds a 4th tag slot without the +20 (`SkillSet.hasTagPerk`, set by `applyPerk`).
 - Books (`_obj_use_book`, `object/Obj.ts` useBook): +(100 − skill)/10 per read, ×1.5 with Comprehension, 3600 × (11 − INT) game seconds.
 

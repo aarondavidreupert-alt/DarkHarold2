@@ -1,3 +1,10 @@
+// Fallout 2's light table, intensityColorTable[256][256] of CE color.cc: for palette colour c and
+// light level i (0..255, intensity / 512), the palette index of c darkened (i < 128) or lightened.
+// A memory dump taken over from DarkFO (cleanup_audit CA29). It equals what CE's
+// _setIntensityTables / _setIntensityTableColor build from color.pal and lut/colorTable.json
+// (_colorTable): rows 0 and 229-255 are 0 because those color.pal entries are out of range
+// (_mappedColor 0). The 160 values after 256 * 256 are unrelated memory and unused.
+// Checked by test/lighting.test.mjs.
 globalThis.intensityColorTable /* 65696 */ = [
 0x0, 
 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 

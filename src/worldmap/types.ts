@@ -26,14 +26,14 @@ export interface Square {
     // CE ref: worldmap.cc:1956 — three frequency slots: [0]=morning, [1]=afternoon, [2]=night
     frequencies: string[] // [morning, afternoon, night]
     encounterType: string
-    difficulty: number
-    state: number // WORLDMAP_UNDISCOVERED etc (TODO: make an enum)
+    difficulty: number | null
+    state: number | null // WORLDMAP_UNDISCOVERED etc (TODO: make an enum)
 }
 
 export interface WorldmapPlayer {
     x: number
     y: number
-    target: Point
+    target: Point | null
     // CE ref: worldmap.h — wmGenData.isInCar / wmGenData.carFuel (CAR_FUEL_MAX=80000).
     isInCar: boolean
     carFuel: number

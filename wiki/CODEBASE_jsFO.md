@@ -39,7 +39,7 @@ jsFO/
 | `src/core/GameState.js` | Central game state object | `src/globalState.ts` |
 | `src/core/assets.js` | FRM → canvas image loading | `src/images.ts`, `tools/frmpixels.py` |
 | `src/core/rendering.js` | Canvas 2D sprite/font blitting (`blitFRM`, `blitFontString`) | `src/webglrenderer.ts` (WebGL 2.0) |
-| `src/core/vm.js` | Script bytecode VM — very primitive | `src/vm.ts`, `src/vm_bridge.ts` |
+| `src/core/vm.js` | Script bytecode VM — very primitive | `src/vm.ts`, `src/vmBridge.ts` |
 | `src/core/geometry.js` | Hex geometry utilities | `src/geometry.ts` |
 | `src/core/map_objects.js` | Object type definitions | `src/object.ts` |
 | `src/core/interface.js` | UI panels | `src/ui*.ts` modules |

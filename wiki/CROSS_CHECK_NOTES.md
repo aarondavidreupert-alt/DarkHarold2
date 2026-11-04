@@ -24,7 +24,7 @@ Performed 2026-05-31.
 - `src/scripting.ts`: spot-checked `critter_heal` (line 978), `play_sfx` (line 1798),
   `gfade_out` (line 1691), `gfade_in` (line 1708), `using_skill` (line 790),
   `do_check` (line 818), `inven_cmds` (line 846)
-- `src/vm_bridge.ts`: confirmed wiring of 0x80E8, 0x80A3, 0x8136, 0x8137
+- `src/vmBridge.ts`: confirmed wiring of 0x80E8, 0x80A3, 0x8136, 0x8137
 
 ### file_formats.md
 

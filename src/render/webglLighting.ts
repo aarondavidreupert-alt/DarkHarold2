@@ -1,8 +1,9 @@
 import { hexFromScreen } from '../geometry.js'
-import globalState from '../globalState.js'
+import { view } from '../state/view.js'
+import { assets } from '../state/assets.js'
 import * as GameTime from '../gametime.js'
-import { Lighting } from '../lighting.js'
-import { Lightmap } from '../lightmap.js'
+import * as Lighting from '../lighting.js'
+import * as Lightmap from '../lightmap.js'
 import { getZoom, SCREEN_HEIGHT, SCREEN_WIDTH, TileMap } from '../renderer.js'
 import { tileToScreen, TILE_HEIGHT, TILE_WIDTH } from '../tile.js'
 import { getFileJSON } from '../util.js'
@@ -25,8 +26,7 @@ WebGLRenderer.prototype.renderLitFloorCPU = function (tileMap: TileMap, useColor
     // initialize color tables if necessary (TODO: hack, should be initialized elsewhere)
     if (useColorTable) {
         if (Lighting.colorLUT === null) {
-            Lighting.colorLUT = getFileJSON('lut/color_lut.json')
-            Lighting.colorRGB = getFileJSON('lut/color_rgb.json')
+            Lighting.setColorTables(getFileJSON('lut/color_lut.json'), getFileJSON('lut/color_rgb.json'))
         }
     }
 
@@ -39,7 +39,7 @@ WebGLRenderer.prototype.renderLitFloorCPU = function (tileMap: TileMap, useColor
     // day/night on walls but no per-tile spotlight brightening.
     const tileData = this.tileDataBuffer
     for (let i = 0; i < 40000; i++) {
-        tileData[i] = Math.round(Math.min(Lightmap.tile_intensity[i], 65536) / 65536.0 * 255)
+        tileData[i] = Math.round((Math.min(Lightmap.tile_intensity[i], 65536) / 65536.0) * 255)
     }
     gl.activeTexture(gl.TEXTURE5)
     gl.bindTexture(gl.TEXTURE_2D, this.tileIntensityTexture)
@@ -55,7 +55,10 @@ WebGLRenderer.prototype.renderLitFloorCPU = function (tileMap: TileMap, useColor
     const ambientCPU = GameTime.getAmbientLightNormalized()
     gl.uniform1f(this.uAmbient, ambientCPU)
     if (ambientCPU !== this.lastLoggedAmbient) {
-        dbg('renderer', `[lighting/cpu] u_ambient = ${ambientCPU.toFixed(3)} (hour ${GameTime.getHour()}:${String(GameTime.getMinute()).padStart(2,'0')})`)
+        dbg(
+            'renderer',
+            `[lighting/cpu] u_ambient = ${ambientCPU.toFixed(3)} (hour ${GameTime.getHour()}:${String(GameTime.getMinute()).padStart(2, '0')})`,
+        )
         this.lastLoggedAmbient = ambientCPU
     }
 
@@ -95,10 +98,10 @@ WebGLRenderer.prototype.renderLitFloorCPU = function (tileMap: TileMap, useColor
 
             const scr = tileToScreen(i, j)
             if (
-                scr.x + TILE_WIDTH < globalState.cameraPosition.x ||
-                scr.y + TILE_HEIGHT < globalState.cameraPosition.y ||
-                scr.x >= globalState.cameraPosition.x + viewWCPU ||
-                scr.y >= globalState.cameraPosition.y + viewHCPU
+                scr.x + TILE_WIDTH < view.cameraPosition.x ||
+                scr.y + TILE_HEIGHT < view.cameraPosition.y ||
+                scr.x >= view.cameraPosition.x + viewWCPU ||
+                scr.y >= view.cameraPosition.y + viewHCPU
             ) {
                 continue
             }
@@ -138,7 +141,7 @@ WebGLRenderer.prototype.renderLitFloorCPU = function (tileMap: TileMap, useColor
             for (let y = 0; y < 36; y++) {
                 for (let x = 0; x < 80; x++) {
                     if (isTriangleLit) {
-                        intensity_ = framebuffer[160 + 80 * y + x]
+                        intensity_ = framebuffer![160 + 80 * y + x]
                     } else {
                         // uniformly lit
                         intensity_ = Lighting.vertices[3]
@@ -157,8 +160,8 @@ WebGLRenderer.prototype.renderLitFloorCPU = function (tileMap: TileMap, useColor
             // draw
             gl.uniform2f(
                 this.litOffsetLocation,
-                (scr.x - globalState.cameraPosition.x) * zCPU,
-                (scr.y - globalState.cameraPosition.y) * zCPU
+                (scr.x - view.cameraPosition.x) * zCPU,
+                (scr.y - view.cameraPosition.y) * zCPU,
             )
             gl.drawArrays(gl.TRIANGLES, 0, 6)
         }
@@ -181,7 +184,7 @@ WebGLRenderer.prototype.renderLitFloorGPU = function (tileMap: TileMap) {
     // Upload tile_intensity as 200×200 R8 (uint8, 0-255) — R8 always supports LINEAR filtering
     const tileData = this.tileDataBuffer
     for (let i = 0; i < 40000; i++) {
-        tileData[i] = Math.round(Math.min(Lightmap.tile_intensity[i], 65536) / 65536.0 * 255)
+        tileData[i] = Math.round((Math.min(Lightmap.tile_intensity[i], 65536) / 65536.0) * 255)
     }
     gl.activeTexture(gl.TEXTURE5)
     gl.bindTexture(gl.TEXTURE_2D, this.tileIntensityTexture)
@@ -196,8 +199,8 @@ WebGLRenderer.prototype.renderLitFloorGPU = function (tileMap: TileMap) {
 
 WebGLRenderer.prototype.renderFloorToFBO = function (tileMap: TileMap): void {
     const gl = this.gl
-    const cameraX = globalState.cameraPosition.x
-    const cameraY = globalState.cameraPosition.y
+    const cameraX = view.cameraPosition.x
+    const cameraY = view.cameraPosition.y
     const z = getZoom()
 
     // Skip re-rendering if FBO is still valid (camera hasn't moved, same tilemap, zoom unchanged)
@@ -272,7 +275,7 @@ WebGLRenderer.prototype.renderFloorToFBO = function (tileMap: TileMap): void {
                 gl.activeTexture(gl.TEXTURE7)
                 gl.bindTexture(gl.TEXTURE_2D, this.getCycleMaskTex(img))
                 gl.activeTexture(gl.TEXTURE0)
-                const cm = globalState.cycleMasks[img]
+                const cm = assets.cycleMasks[img]
                 if (cm === undefined || cm !== null) hasCycling = true // pending or cycling
                 lastTexture = img
             }
@@ -317,11 +320,14 @@ WebGLRenderer.prototype.compositeFloorWithLighting = function (): void {
     const ambientGPU = GameTime.getAmbientLightNormalized()
     gl.uniform1f(this.uAmbient, ambientGPU)
     if (ambientGPU !== this.lastLoggedAmbient) {
-        dbg('renderer', `[lighting/gpu] u_ambient = ${ambientGPU.toFixed(3)} (hour ${GameTime.getHour()}:${String(GameTime.getMinute()).padStart(2,'0')})`)
+        dbg(
+            'renderer',
+            `[lighting/gpu] u_ambient = ${ambientGPU.toFixed(3)} (hour ${GameTime.getHour()}:${String(GameTime.getMinute()).padStart(2, '0')})`,
+        )
         this.lastLoggedAmbient = ambientGPU
     }
     gl.uniform2f(this.litScaleLocation, SCREEN_WIDTH, SCREEN_HEIGHT)
-    gl.uniform2f(this.uCamera, globalState.cameraPosition.x, globalState.cameraPosition.y)
+    gl.uniform2f(this.uCamera, view.cameraPosition.x, view.cameraPosition.y)
     // Zoom tells the lighting shader how to recover world coords from
     // gl_FragCoord — `world = camera + gl_FragCoord / (dpr * zoom)`.
     if (this.uFloorLightZoom) gl.uniform1f(this.uFloorLightZoom, getZoom())

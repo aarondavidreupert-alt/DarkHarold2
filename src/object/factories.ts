@@ -25,21 +25,21 @@ import { Door, Item, Scenery, WeaponObj } from './items.js'
 // Creates an object of a relevant type from a Prototype ID and an optional Script ID
 export function createObjectWithPID(pid: number, sid?: number) {
     const pidType = (pid >> 24) & 0xff
-    if (pidType == 1) {
+    if (pidType === 1) {
         // critter
         return Critter.fromPID(pid, sid)
-    } else if (pidType == 0) {
+    } else if (pidType === 0) {
         // item
         const pro = loadPRO(pid, pid & 0xffff)
-        if (pro && pro.extra && pro.extra.subType == 3) {
+        if (pro && pro.extra && pro.extra.subType === 3) {
             return WeaponObj.fromPID(pid, sid)
         } else {
             return Item.fromPID(pid, sid)
         }
-    } else if (pidType == 2) {
+    } else if (pidType === 2) {
         // scenery
         const pro = loadPRO(pid, pid & 0xffff)
-        if (pro && pro.extra && pro.extra.subType == 0) {
+        if (pro && pro.extra && pro.extra.subType === 0) {
             return Door.fromPID(pid, sid)
         } else {
             return Scenery.fromPID(pid, sid)
@@ -53,21 +53,21 @@ export function objFromMapObject(mobj: any, deserializing = false) {
     const pid = mobj.pid
     const pidType = (pid >> 24) & 0xff
 
-    if (pidType == 1) {
+    if (pidType === 1) {
         // critter
         return Critter.fromMapObject(mobj, deserializing)
-    } else if (pidType == 0) {
+    } else if (pidType === 0) {
         // item
         const pro = mobj.pro || loadPRO(pid, pid & 0xffff)
-        if (pro && pro.extra && pro.extra.subType == 3) {
+        if (pro && pro.extra && pro.extra.subType === 3) {
             return WeaponObj.fromMapObject(mobj, deserializing)
         } else {
             return Item.fromMapObject(mobj, deserializing)
         }
-    } else if (pidType == 2) {
+    } else if (pidType === 2) {
         // scenery
         const pro = mobj.pro || loadPRO(pid, pid & 0xffff)
-        if (pro && pro.extra && pro.extra.subType == 0) {
+        if (pro && pro.extra && pro.extra.subType === 0) {
             return Door.fromMapObject(mobj, deserializing)
         } else {
             return Scenery.fromMapObject(mobj, deserializing)

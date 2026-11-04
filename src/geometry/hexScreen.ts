@@ -20,8 +20,8 @@ limitations under the License.
 // geometry constants
 export const HEX_GRID_SIZE = 200 // hex grid is 200x200
 
-export const HEX_WIDTH = 32;
-export const HEX_HEIGHT = 16;
+export const HEX_WIDTH = 32
+export const HEX_HEIGHT = 16
 
 export interface Point {
     x: number
@@ -42,8 +42,8 @@ export interface BoundingBox {
 }
 
 export function hexToScreen(x: number, y: number): Point {
-    var sx = 4816 - ((((x + 1) >> 1) << 5) + ((x >> 1) << 4) - (y << 4))
-    var sy = 12 * (x >> 1) + y * 12 + 11
+    const sx = 4816 - ((((x + 1) >> 1) << 5) + ((x >> 1) << 4) - (y << 4))
+    const sy = 12 * (x >> 1) + y * 12 + 11
 
     return { x: sx, y: sy }
 }
@@ -56,7 +56,7 @@ function axialToOffset(i: number, j: number): Point {
     const sy = 11 + 12 * j
     const hx = 150.0416667 - (sx / 32 - sy / 24)
     const col = Math.round(hx)
-    const cy = ((((col % 2) + 2) % 2) < 0.5) ? -75.9375 : -75.4375
+    const cy = ((col % 2) + 2) % 2 < 0.5 ? -75.9375 : -75.4375
     const hy = sx / 64 + sy / 16 + cy
     return { x: col, y: Math.round(hy) }
 }
@@ -68,12 +68,23 @@ function axialToOffset(i: number, j: number): Point {
 // centre moves smoothly sub-tile instead of snapping on tile arrival. §9.
 export function worldToHexBarycentric(wx: number, wy: number): { x: number; y: number; w: number }[] {
     const aj = (wy - 11) / 12
-    const ai = ((wx - 4816) - 16 * aj) / 32
-    const i0 = Math.floor(ai), j0 = Math.floor(aj)
-    const fi = ai - i0, fj = aj - j0
-    const corners: [number, number, number][] = (fi + fj <= 1)
-        ? [[i0, j0, 1 - fi - fj], [i0 + 1, j0, fi], [i0, j0 + 1, fj]]
-        : [[i0 + 1, j0 + 1, fi + fj - 1], [i0 + 1, j0, 1 - fj], [i0, j0 + 1, 1 - fi]]
+    const ai = (wx - 4816 - 16 * aj) / 32
+    const i0 = Math.floor(ai),
+        j0 = Math.floor(aj)
+    const fi = ai - i0,
+        fj = aj - j0
+    const corners: [number, number, number][] =
+        fi + fj <= 1
+            ? [
+                  [i0, j0, 1 - fi - fj],
+                  [i0 + 1, j0, fi],
+                  [i0, j0 + 1, fj],
+              ]
+            : [
+                  [i0 + 1, j0 + 1, fi + fj - 1],
+                  [i0 + 1, j0, 1 - fj],
+                  [i0, j0 + 1, 1 - fi],
+              ]
     const out: { x: number; y: number; w: number }[] = []
     for (const [i, j, w] of corners) {
         if (w <= 1e-4) continue
@@ -122,9 +133,9 @@ export function hexIsToRightOf(a: Point, b: Point): boolean {
  * @return float 3d cartesian coordinates
  */
 export function pixelToCube(point: Point): Point3 {
-    let x = point.x / HEX_WIDTH - point.y / 3 / (HEX_HEIGHT / 2);
-    let z = point.y / (HEX_HEIGHT * 3 / 4);
-    return { x, y: -x - z, z };
+    const x = point.x / HEX_WIDTH - point.y / 3 / (HEX_HEIGHT / 2)
+    const z = point.y / ((HEX_HEIGHT * 3) / 4)
+    return { x, y: -x - z, z }
 }
 
 /**
@@ -145,26 +156,23 @@ export function pixelToCube(point: Point): Point3 {
  * @return int 3d hexagonal coordinates
  */
 export function cubeRound(cube: Point3): Point3 {
-    let round = {
+    const round = {
         x: Math.round(cube.x),
         y: Math.round(cube.y),
-        z: Math.round(cube.z)
-    };
+        z: Math.round(cube.z),
+    }
 
-    let diff = {
+    const diff = {
         x: Math.abs(round.x - cube.x),
         y: Math.abs(round.y - cube.y),
-        z: Math.abs(round.z - cube.z)
-    };
+        z: Math.abs(round.z - cube.z),
+    }
 
-    if (diff.x > diff.y && diff.x > diff.z)
-        round.x = -round.y - round.z;
-    else if (diff.y > diff.z)
-        round.y = -round.x - round.z;
-    else
-        round.z = -round.x - round.y;
+    if (diff.x > diff.y && diff.x > diff.z) round.x = -round.y - round.z
+    else if (diff.y > diff.z) round.y = -round.x - round.z
+    else round.z = -round.x - round.y
 
-    return round;
+    return round
 }
 
 /**
@@ -174,11 +182,11 @@ export function cubeRound(cube: Point3): Point3 {
  * @returns int 2d hexagonal offset coordinates
  */
 export function сubeRoundToHex(cubeRound: Point3): Point {
-    let x = (cubeRound.x - 150) * (-1);
-    let isEvenX = !(cubeRound.x & 1);
-    let y = (cubeRound.z + (cubeRound.x - Number(isEvenX)) / 2 - 75) | 0;
+    const x = (cubeRound.x - 150) * -1
+    const isEvenX = !(cubeRound.x & 1)
+    const y = (cubeRound.z + (cubeRound.x - Number(isEvenX)) / 2 - 75) | 0
 
-    return { x, y };
+    return { x, y }
 }
 
 /**

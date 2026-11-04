@@ -2,7 +2,7 @@
 
 > Last audited: 2026-10-18 — travel loop, fog of war and random encounters ported from CE (known_bugs C55)
 > CE sources: `raw/fallout2-ce/src/worldmap.cc` (`wmWorldMapFunc`, `wmConfigInit`, `wmParseTerrainTypes`, `wmParseSubTileInfo`, `wmParseEncounterTableIndex`, `wmParseEncounterSubEncStr`, `wmReadEncBaseType`, `wmParseEncBaseSubTypeStr`, `wmParseItemType`, `wmRndEncounterOccurred`, `wmRndEncounterPick`, `wmSetupRandomEncounter`, `wmSetupCritterObjs`, `wmSetupRndNextTileNumInit`, `wmSetupRndNextTileNum`, `wmEvalTileNumForPlacement`, `wmPartyWalkingStep`, `wmPartyInitWalking`, `wmGameTimeIncrement`, `wmCarUseGas`, `wmEvalConditional`, `wmAreaIsKnown`, `wmAreaVisitedState`, `wmAreaMarkVisited`, `wmAreaMarkVisitedState`, `wmAreaSetVisibleState`, `wmMapIsKnown`, `wmMapMarkVisited`, `wmAreaSetWorldPos`, `wmGetPartyCurArea`, `wmTeleportToArea`, `wmGrabTileWalkMask`, `wmSubTileMarkRadiusVisited`, `wmBlinkRndEncounterIcon`), `raw/fallout2-ce/src/worldmap.h`, `raw/fallout2-ce/src/map.cc` (`mapHandleTransition`), `raw/fallout2-ce/src/interpreter_extra.cc`
-> DH2 sources: `src/worldmap/parser.ts` (`parseWorldmap`, `parseSquare`), `src/worldmap/encounterData.ts` (CE encounter parsers), `src/worldmap/encounters.ts` (roll, pick, setup), `src/worldmap/Worldmap.ts` (travel loop, fog, areas, car), `src/encounters/conditionLang.ts` (conditions), `src/data.ts`, `src/scripting.ts`, `src/vm_bridge.ts`, `src/map/GameMap.ts` (`attemptPlacement`), `src/map/pathfinder.ts`
+> DH2 sources: `src/worldmap/parser.ts` (`parseWorldmap`, `parseSquare`), `src/worldmap/encounterData.ts` (CE encounter parsers), `src/worldmap/encounters.ts` (roll, pick, setup), `src/worldmap/Worldmap.ts` (travel loop, fog, areas, car), `src/encounters/conditionLang.ts` (conditions), `src/data.ts`, `src/scripting.ts`, `src/vmBridge.ts`, `src/map/GameMap.ts` (`attemptPlacement`), `src/map/pathfinder.ts`
 > Data files: `data/data/worldmap.txt`, `data/data/city.txt`
 
 ---
@@ -611,6 +611,45 @@ if (chance >= frequency) return 0;  // no encounter
 - Easy: modifier = 1 → `frequency = 24` → ~24% encounter rate
 - Normal: `frequency = 25` → ~25% encounter rate
 - Hard: modifier = 1 → `frequency = 26` → ~26% encounter rate
+
+**Real time vs. game time — why DH2 changes two things (2026-10-31).** CE ties two clocks to the
+machine:
+
+- **Travel:** `wmWorldMapFunc` takes one `wmPartyWalkingStep` group per pass of its loop and adds
+  `wmGameTimeIncrement(18000)` (30 game minutes) per pass. CE caps the loop at 60 fps
+  (`sharedFpsLimiter`), so at 60 fps the party walks ~60 px and ~30 game hours per real second. Game time
+  per pixel is fixed (30 minutes a step; slow terrain skips steps but not the time), but how fast that
+  passes in real time follows the frame rate — the original exe, without the cap, ran at whatever speed
+  the machine managed.
+- **Encounter rolls:** `wmRndEncounterOccurred` rolls at most once per 1500 ms of `getTicks()` — real
+  time. At 60 fps that is 90 frames, ~45 game hours between rolls; at 30 fps ~22 game hours. So the
+  number of rolls per distance and per game day depends on the frame rate: a fast machine gets half the
+  encounters of a slow one on the same trip. Play-testing found DH2 at 60 fps with half the encounters
+  the player remembered; a run at ~30 fps (a town map loaded behind the world map) felt right.
+
+DH2 therefore has two `[dh2]` options (`fallout2.cfg`; `Config.engine`):
+
+| Key | Default (DH2) | 0 = CE | Effect |
+|---|---|---|---|
+| `worldmap_fps=<steps/s>` | 30 | one step group per frame | travel at a fixed number of step groups per real second, whatever the frame rate; game time and car fuel go with the steps, so per distance they stay CE's |
+| `encounter_interval=<game hours>` | 24 | one roll per 1.5 s of real time | one roll per N game hours of walking, so per distance and per game day the rolls no longer depend on the machine |
+
+With both defaults a roll comes every ~1.6 s of walking (24 game hours = 48 steps at 30 a second) and
+about once a game day, as the original felt on the machines of its time. The chance per roll is
+unchanged (the square's `worldmap.txt` value, see above).
+
+**DH2 option (not in CE):** `[dh2] encounter_rate=<percent>` in `fallout2.cfg` (`Config.engine.encounterRate`,
+default 100 = CE) scales `frequency` after the difficulty modifier, inside the same `0 < frequency < 100`
+branch (Forced and None squares are unchanged), capped at 100. On the Arroyo / Klamath / Den squares
+(Rare 4 %, Uncommon 12 %) one roll a game day gives an encounter about every 10 game days there;
+`encounter_rate=200` halves that. Added 2026-10-31 at the user's request.
+
+**Measuring it (DH2 console, `play.html#dev` or `[dh2] dev_console=1`):** `encounterLog()` logs every roll
+with the game date and time, and since the previous roll the real seconds, pixels, game hours and fps;
+`encounterStats()` prints the world map fps, travel speed, rolls, skipped rolls and expected vs. actual
+encounters as one JSON line (`resetEncounterStats()` restarts the count; counters in
+`src/worldmap/debugStats.ts`). `setWalkSpeed(x)` (1 = as configured) multiplies the travel speed and the
+game time with it.
 
 ### 8.4 Encounter Table Selection (`wmRndEncounterPick`)
 

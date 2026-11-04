@@ -27,14 +27,14 @@ export function cycleTime(): number {
 // for cycling; all others are stored as 0 (no cycle).
 
 export interface CycleMask {
-    data: Uint8Array  // (paletteIndex - 228) per pixel; 0 = not a cycling pixel
+    data: Uint8Array // (paletteIndex - 228) per pixel; 0 = not a cycling pixel
     width: number
     height: number
 }
 
 // Returns a group code 1-26 for palette indices 229-254, else 0.
 function cycleCode(palIdx: number): number {
-    return (palIdx >= 229 && palIdx <= 254) ? palIdx - 228 : 0
+    return palIdx >= 229 && palIdx <= 254 ? palIdx - 228 : 0
 }
 
 async function decompressZlib(data: Uint8Array): Promise<Uint8Array> {
@@ -56,7 +56,10 @@ async function decompressZlib(data: Uint8Array): Promise<Uint8Array> {
     for (const c of chunks) total += c.length
     const out = new Uint8Array(total)
     let off = 0
-    for (const c of chunks) { out.set(c, off); off += c.length }
+    for (const c of chunks) {
+        out.set(c, off)
+        off += c.length
+    }
     return out
 }
 
@@ -88,21 +91,23 @@ export async function parsePNGCycleMask(url: string): Promise<CycleMask | null> 
     for (let i = 0; i < 8; i++) if (bytes[i] !== sig[i]) return null
 
     let pos = 8
-    let width = 0, height = 0, colorType = -1
+    let width = 0,
+        height = 0,
+        colorType = -1
     const idatParts: Uint8Array[] = []
 
     while (pos + 12 <= bytes.length) {
         const len = view.getUint32(pos, false)
-        const type = String.fromCharCode(bytes[pos+4], bytes[pos+5], bytes[pos+6], bytes[pos+7])
+        const type = String.fromCharCode(bytes[pos + 4], bytes[pos + 5], bytes[pos + 6], bytes[pos + 7])
         const data = bytes.slice(pos + 8, pos + 8 + len)
         pos += 12 + len
 
         if (type === 'IHDR') {
-            width  = view.getUint32(8, false)  // position 8 from file start is wrong; use data
-            width  = (data[0] << 24 | data[1] << 16 | data[2] << 8 | data[3]) >>> 0
-            height = (data[4] << 24 | data[5] << 16 | data[6] << 8 | data[7]) >>> 0
+            width = view.getUint32(8, false) // position 8 from file start is wrong; use data
+            width = ((data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3]) >>> 0
+            height = ((data[4] << 24) | (data[5] << 16) | (data[6] << 8) | data[7]) >>> 0
             colorType = data[9]
-            if (colorType !== 3) return null  // only indexed PNGs have palette-indexed pixels
+            if (colorType !== 3) return null // only indexed PNGs have palette-indexed pixels
         } else if (type === 'IDAT') {
             idatParts.push(data)
         } else if (type === 'IEND') {
@@ -117,7 +122,10 @@ export async function parsePNGCycleMask(url: string): Promise<CycleMask | null> 
     for (const c of idatParts) totalLen += c.length
     const idat = new Uint8Array(totalLen)
     let off = 0
-    for (const c of idatParts) { idat.set(c, off); off += c.length }
+    for (const c of idatParts) {
+        idat.set(c, off)
+        off += c.length
+    }
 
     let raw: Uint8Array
     try {
@@ -130,7 +138,7 @@ export async function parsePNGCycleMask(url: string): Promise<CycleMask | null> 
     const mask = new Uint8Array(width * height)
     let hasCycle = false
     const prev = new Uint8Array(width)
-    let rp = 0  // read position in raw
+    let rp = 0 // read position in raw
 
     for (let y = 0; y < height; y++) {
         if (rp >= raw.length) break
@@ -146,12 +154,24 @@ export async function parsePNGCycleMask(url: string): Promise<CycleMask | null> 
 
             let v: number
             switch (filter) {
-                case 0: v = r; break
-                case 1: v = (r + a) & 0xff; break
-                case 2: v = (r + b) & 0xff; break
-                case 3: v = (r + ((a + b) >> 1)) & 0xff; break
-                case 4: v = (r + paeth(a, b, c)) & 0xff; break
-                default: v = r; break
+                case 0:
+                    v = r
+                    break
+                case 1:
+                    v = (r + a) & 0xff
+                    break
+                case 2:
+                    v = (r + b) & 0xff
+                    break
+                case 3:
+                    v = (r + ((a + b) >> 1)) & 0xff
+                    break
+                case 4:
+                    v = (r + paeth(a, b, c)) & 0xff
+                    break
+                default:
+                    v = r
+                    break
             }
             row[x] = v
 

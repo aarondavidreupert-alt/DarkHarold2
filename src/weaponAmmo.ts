@@ -24,6 +24,9 @@ limitations under the License.
 // field `rounds` is CE's burstRounds, not the loaded ammo.)
 
 import type { Obj } from './object.js'
+import { getAmbientLight } from './gametime.js'
+import { uiLog } from './messageLog.js'
+import { getMessage } from './util.js'
 
 const isWeapon = (w: Obj | null | undefined): w is Obj => !!w && w.subtype === 'weapon' && !!w.pro?.extra
 const isAmmo = (a: Obj | null | undefined): boolean => !!a && a.subtype === 'ammo' && !!a.pro?.extra
@@ -32,7 +35,7 @@ const isAmmo = (a: Obj | null | undefined): boolean => !!a && a.subtype === 'amm
 // object.cc:455 clamps a negative map value to 0. Map/save values win when present.
 export function initWeaponAmmo(w: Obj, quantity?: number, typePid?: number): void {
     if (!isWeapon(w)) return
-    const extra = w.pro.extra
+    const extra = w.pro!.extra
     if (w.ammoQuantity === undefined) w.ammoQuantity = quantity ?? extra.maxAmmo ?? 0
     if (w.ammoTypePid === undefined) w.ammoTypePid = typePid ?? extra.ammoPID ?? -1
     if (w.ammoQuantity! < 0) w.ammoQuantity = 0
@@ -42,7 +45,7 @@ export function initWeaponAmmo(w: Obj, quantity?: number, typePid?: number): voi
 // rounds in an ammo stack's top box (a full box when not set).
 export function ammoGetQuantity(w: Obj | null | undefined): number {
     if (isWeapon(w)) return w.ammoQuantity ?? 0
-    if (isAmmo(w)) return (w as Obj).ammoQuantity ?? ammoGetCapacity(w)
+    if (isAmmo(w)) return (w as unknown as Obj).ammoQuantity ?? ammoGetCapacity(w)
     return 0
 }
 export function ammoSetQuantity(w: Obj, quantity: number): void {
@@ -53,8 +56,8 @@ export function ammoSetQuantity(w: Obj, quantity: number): void {
 
 // CE item.cc ammoGetCapacity — a weapon's ammoCapacity, an ammo box's quantity.
 export function ammoGetCapacity(w: Obj | null | undefined): number {
-    if (isWeapon(w)) return w.pro.extra.maxAmmo ?? 0
-    if (isAmmo(w)) return Math.max(1, (w as Obj).pro.extra.quantity ?? 1)
+    if (isWeapon(w)) return w.pro!.extra.maxAmmo ?? 0
+    if (isAmmo(w)) return Math.max(1, (w as unknown as Obj).pro!.extra.quantity ?? 1)
     return 0
 }
 
@@ -105,7 +108,7 @@ export function weaponSetAmmoTypePid(w: Obj, pid: number): void {
 
 // CE item.cc weaponGetBurstRounds — proto burstRounds (proto.py names it `rounds`).
 export function weaponGetBurstRounds(w: Obj | null | undefined): number {
-    return isWeapon(w) ? (w.pro.extra.rounds ?? 0) : 0
+    return isWeapon(w) ? (w.pro!.extra.rounds ?? 0) : 0
 }
 
 const PROTO_ID_SOLAR_SCORCHER = 390
@@ -116,7 +119,7 @@ const LIGHT_INTENSITY_MAX = 65536
 // handled by the caller, which owns the message.)
 export function weaponCanBeReloadedWith(w: Obj, ammo: Obj | null | undefined): boolean {
     if (!isWeapon(w) || !ammo || ammo.subtype !== 'ammo' || !ammo.pro?.extra) return false
-    if ((w.pro.extra.caliber ?? -1) !== (ammo.pro.extra.caliber ?? -2)) return false
+    if ((w.pro!.extra.caliber ?? -1) !== (ammo.pro.extra.caliber ?? -2)) return false
     if (ammoGetQuantity(w) !== 0 && weaponGetAmmoTypePid(w) !== ammo.pid) return false
     return true
 }
@@ -170,12 +173,33 @@ export function ammoUseTopBox(ammo: Obj, inventory: Obj[]): void {
 // type that fits. Returns -1 when the weapon is full or there is nothing to load.
 export function weaponAttemptReload(w: Obj, inventory: Obj[]): number {
     if (ammoGetQuantity(w) >= ammoGetCapacity(w)) return -1
-    const ammo = inventory.find((a) => a.subtype === 'ammo' && a.pid === weaponGetAmmoTypePid(w) && weaponCanBeReloadedWith(w, a))
-        ?? inventory.find((a) => weaponCanBeReloadedWith(w, a))
+    // CE: the Solar Scorcher skips the ammo search; weaponReload(weapon, NULL) fills it
+    // to capacity above 95% ambient light, else item.msg 500.
+    if (isSolarScorcher(w)) {
+        if (!solarScorcherCanRecharge(getAmbientLight())) {
+            uiLog(getMessage('item', 500) ?? 'There is not enough light to recharge this item.')
+            return -1
+        }
+        ammoSetQuantity(w, ammoGetCapacity(w))
+        return 0
+    }
+    const ammo =
+        inventory.find(
+            (a) => a.subtype === 'ammo' && a.pid === weaponGetAmmoTypePid(w) && weaponCanBeReloadedWith(w, a),
+        ) ?? inventory.find((a) => weaponCanBeReloadedWith(w, a))
     if (!ammo) return -1
     const rc = weaponReload(w, ammo)
     if (rc === 0) ammoUseTopBox(ammo, inventory)
     return rc === -1 ? -1 : 0
+}
+
+// CE item.cc weaponCanBeUnloaded: a weapon with a magazine holding rounds of a known ammo
+// type (not the Solar Scorcher)
+export function weaponCanBeUnloaded(w: Obj | null | undefined): boolean {
+    if (!w || !isWeapon(w)) return false
+    if (ammoGetCapacity(w) <= 0 || ammoGetQuantity(w) <= 0) return false
+    if (isSolarScorcher(w)) return false
+    return weaponGetAmmoTypePid(w) !== -1
 }
 
 // First inventory ammo that fits (CE _item_w_try_reload / inventory search).

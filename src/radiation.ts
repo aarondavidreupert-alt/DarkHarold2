@@ -21,13 +21,15 @@ limitations under the License.
 //   radiationEventProcess()    (critter.cc:695)  — damage event, schedules 7-day recovery
 // Only the player (gDude) accumulates radiation in CE.
 
-import { Events } from './events.js'
-import globalState from './globalState.js'
+import * as Events from './events.js'
+import { world } from './state/world.js'
 import { dbg } from './logger.js'
 import type { Critter } from './object.js'
-import { Scripting } from './scripting.js'
+import * as Scripting from './scripting.js'
 import { critterKill } from './critter/lifecycle.js'
-import { uiLog, updateIndicatorBar } from './ui_hud.js'
+import { updateIndicatorBar } from './hudRefresh.js'
+import { uiLog } from './messageLog.js'
+import { showAlert } from './uiDialog.js'
 import { getMessage, getRandomInt } from './util.js'
 
 const TICKS_PER_HOUR = 36000 // CE GAME_TIME_TICKS_PER_HOUR (10 ticks/s)
@@ -60,7 +62,7 @@ function miscMsg(id: number): string | null {
 }
 
 function isPlayer(obj: Critter): boolean {
-    return obj === globalState.player
+    return obj === world.player
 }
 
 // CE critter.cc:412 critterAdjustRadiation
@@ -69,14 +71,16 @@ export function critterAdjustRadiation(obj: Critter, amount: number): void {
 
     if (amount > 0) {
         const resist = obj.getStat('DR Radiation')
-        amount -= Math.trunc(resist * amount / 100)
+        amount -= Math.trunc((resist * amount) / 100)
     }
 
     if (amount > 0) {
         obj.radiated = true // CE: proto->critter.data.flags |= CRITTER_RADIATED
 
         const hands = [obj.leftHand, obj.rightHand]
-        const geiger = hands.find((it) => it && (it.pid === PROTO_ID_GEIGER_COUNTER_I || it.pid === PROTO_ID_GEIGER_COUNTER_II))
+        const geiger = hands.find(
+            (it) => it && (it.pid === PROTO_ID_GEIGER_COUNTER_I || it.pid === PROTO_ID_GEIGER_COUNTER_II),
+        )
         if (geiger && geiger.miscOn === true) {
             // 1009 "The geiger counter is clicking wildly." / 1008 "...is clicking."
             const msg = miscMsg(amount > 5 ? 1009 : 1008)
@@ -110,7 +114,13 @@ function parseRadiationEvent(userdata: any): { level: number; isHealing: boolean
 
 function scheduleRadiationEvent(obj: Critter, ticks: number, level: number, isHealing: boolean): void {
     const userdata = `${RADIATION_EVENT_TAG}${level}:${isHealing ? 1 : 0}`
-    Scripting.timeEventList.push({ obj, ticks, userdata, fn: () => radiationEventProcess(obj, level, isHealing), leaveMap: 'keep' })
+    Scripting.timeEventList.push({
+        obj,
+        ticks,
+        userdata,
+        fn: () => radiationEventProcess(obj, level, isHealing),
+        leaveMap: 'keep',
+    })
 }
 
 // Re-arm a radiation event read from a save (saveload.ts). Returns false if `userdata`
@@ -163,23 +173,33 @@ function processRads(obj: Critter, level: number, isHealing: boolean): void {
 
     for (let i = 0; i < RADIATION_EFFECT_STATS.length; i++) {
         const delta = modifier * row[i]
-        if (delta !== 0) obj.stats.modifyBonus(RADIATION_EFFECT_STATS[i], delta) // CE critterSetBonusStat
+        if (delta === 0) continue
+        if (RADIATION_EFFECT_STATS[i] === 'HP') {
+            // CE critterSetBonusStat(STAT_CURRENT_HIT_POINTS) → critterAdjustHitPoints: current HP
+            // moves by the delta, capped at Max HP (the death check follows below)
+            obj.stats.setBase('HP', Math.min(obj.getStat('Max HP'), obj.getStat('HP') + delta))
+        } else {
+            obj.stats.modifyBonus(RADIATION_EFFECT_STATS[i], delta) // CE critterSetBonusStat
+        }
     }
 
     // SFALL fix kept by CE: removing the effects can never kill.
     if (!isHealing && !obj.dead) {
         for (let i = 0; i < RADIATION_EFFECT_PRIMARY_STAT_COUNT; i++) {
-            if (obj.stats.get(RADIATION_EFFECT_STATS[i]) < 1) { // PRIMARY_STAT_MIN
-                critterKill(obj)
+            if (obj.stats.get(RADIATION_EFFECT_STATS[i]) < 1) {
+                // PRIMARY_STAT_MIN
+                critterKill(obj, undefined, false)
                 break
             }
         }
-        if (!obj.dead && obj.getStat('HP') <= 0) critterKill(obj)
+        if (!obj.dead && obj.getStat('HP') <= 0) critterKill(obj, undefined, false) // CE critterKill: no destroy_p_proc
     }
 
     if (obj.dead && isPlayer(obj)) {
-        const msg = miscMsg(1006) // "You have died from radiation sickness."
-        if (msg) uiLog(msg)
+        // CE critter.cc:620 → game.cc gameShowDeathDialog: misc.msg 1006 "You have died from
+        // radiation sickness." in a dialog box, before the death screen
+        const msg = miscMsg(1006)
+        if (msg) void showAlert(msg)
     }
 }
 
