@@ -61,6 +61,7 @@ export {
     uiDrawWeapon,
     uiUpdateAmmoBar,
     uiStartCombat,
+    uiWhenCombatPanelOpen,
     uiEndCombat,
     uiEndButtonsGreenLights,
     uiEndButtonsRedLights,

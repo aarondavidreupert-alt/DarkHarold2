@@ -30,6 +30,7 @@ import type {
     uiSetDialogueReply,
     uiShowCombatHover,
     uiStartCombat,
+    uiWhenCombatPanelOpen,
     uiStartDialogue,
     uiWorldMap,
     uiWorldMapShowArea,
@@ -55,6 +56,7 @@ export interface UiPort {
     uiSetDialogueReply: typeof uiSetDialogueReply
     uiShowCombatHover: typeof uiShowCombatHover
     uiStartCombat: typeof uiStartCombat
+    uiWhenCombatPanelOpen: typeof uiWhenCombatPanelOpen
     uiStartDialogue: typeof uiStartDialogue
     uiSteal: typeof uiSteal
     uiWorldMap: typeof uiWorldMap

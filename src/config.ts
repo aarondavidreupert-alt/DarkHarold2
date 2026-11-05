@@ -93,6 +93,9 @@ export const Config = {
         // [dh2] elevation_fade: 1 (default, DH2) — a short fade from black on stairs, ladders,
         // elevators and script elevation changes; 0 — CE mapSetElevation's instant switch
         elevationFade: true,
+        // [dh2] fullscreen_exit_button: 1 (default) — the Fullscreen button stays in fullscreen as
+        // "Exit Fullscreen"; 0 — hidden in fullscreen (Esc leaves it), shown again outside
+        fullscreenExitButton: true,
         // [dh2] worldmap_entry: 'exit' (default, DH2) — a town entered from the world map
         // without its own entrance tile starts the party at the map's world-map exit grid;
         // 'ce' — the map header's start (map.cc mapLoad). See src/map/worldmapEntry.ts.
@@ -228,6 +231,10 @@ export const Config = {
         // refusal from the merchant; 'ce' — inventory.cc _barter_attempt_transaction's
         // inventry.msg 28 "No, your offer is not good enough."
         barterRunningItem: 'dh2' as 'ce' | 'dh2',
+        // [dh2] combat_start: 'dh2' (default) — the first turn (an attacker's blow) runs while
+        // the HUD's combat panel slides open; 'ce' — combat.cc _combat_begin →
+        // interfaceBarEndButtonsShow(true) opens the panel first (it blocks), then the turns start
+        combatStart: 'dh2' as 'ce' | 'dh2',
         soundsEnabled: true,
         musicEnabled: true,
         speechEnabled: true,

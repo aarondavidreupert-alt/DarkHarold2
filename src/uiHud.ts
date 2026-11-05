@@ -601,6 +601,23 @@ export function uiEndButtonsClearLights(): void {
     if (el) el.style.display = 'none'
 }
 
+// [dh2] combat_start=ce: the turns wait for the panel (CE interfaceBarEndButtonsShow blocks)
+let _endAnimOpenWaiters: (() => void)[] = []
+export function uiWhenCombatPanelOpen(cb: () => void): void {
+    if (_endAnimFrame === END_ANIM_FRAMES - 1 && _endAnimTimer === null) {
+        cb()
+        return
+    }
+    _endAnimOpenWaiters.push(cb)
+}
+function runEndAnimOpenWaiters(): void {
+    const waiters = _endAnimOpenWaiters
+    _endAnimOpenWaiters = []
+    for (const w of waiters) {
+        w()
+    }
+}
+
 export function uiStartCombat(): void {
     uiState.cursorMode = 'attack'
     // CE ref: interface.cc interfaceBarEndButtonsShow / RenderRedLights:
@@ -617,6 +634,7 @@ export function uiStartCombat(): void {
         // Combat disabled for the player's whole first turn).
         if (world.combat?.inPlayerTurn) uiEndButtonsGreenLights()
         else uiEndButtonsRedLights()
+        runEndAnimOpenWaiters()
     })
     const player = world.player!
     drawHP(player.getStat('HP'))

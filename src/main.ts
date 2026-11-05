@@ -207,6 +207,8 @@ window.onload = async function () {
         })
         document.addEventListener('fullscreenchange', () => {
             fullscreenBtn.textContent = document.fullscreenElement ? 'Exit Fullscreen' : 'Fullscreen'
+            // [dh2] fullscreen_exit_button=0: no button in fullscreen (Esc leaves it)
+            fullscreenBtn.style.display = document.fullscreenElement && !Config.ui.fullscreenExitButton ? 'none' : ''
         })
     }
 

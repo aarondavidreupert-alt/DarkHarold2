@@ -953,7 +953,21 @@ export class Combat {
             message: 'Combat started',
         })
 
-        world.combat.nextTurn()
+        // [dh2] combat_start=ce: CE _combat_begin opens the HUD's combat panel (blocking)
+        // before the first turn; DH2 (default) starts the turn as the panel slides open
+        const combat = world.combat
+        if (Config.engine.combatStart === 'ce' && !window.__test?.fastMode) {
+            combat.inPlayerTurn = false // no player action while the panel opens
+            uiPort.uiWhenCombatPanelOpen(() => {
+                if (world.combat !== combat) {
+                    return
+                }
+                combat.nextTurn()
+                world.gMap!.updateMap()
+            })
+            return
+        }
+        combat.nextTurn()
         world.gMap!.updateMap()
     }
 

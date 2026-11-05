@@ -217,6 +217,16 @@ export function applyCfg(cfg: CfgSections): void {
     //   barter_running_item=dh2|ce    a running item in a barter offer: its own refusal (default) or CE's 28
     const br = dh2['barter_running_item']?.trim().toLowerCase()
     if (br === 'ce' || br === 'dh2') Config.engine.barterRunningItem = br
+    //   combat_start=dh2|ce           the first turn runs as the combat panel opens (default) or after it (CE)
+    const cst = dh2['combat_start']?.trim().toLowerCase()
+    if (cst === 'ce' || cst === 'dh2') {
+        Config.engine.combatStart = cst
+    }
+    //   fullscreen_exit_button=1|0    the Exit Fullscreen button in fullscreen (default) or none (Esc)
+    const feb = int(dh2['fullscreen_exit_button'])
+    if (feb !== null) {
+        Config.ui.fullscreenExitButton = feb !== 0
+    }
     //   scroll_mode=dh2|ce            edge / arrow-key scrolling: smooth (default) or CE 32 × 24 px steps
     const sm = dh2['scroll_mode']?.trim().toLowerCase()
     if (sm === 'ce' || sm === 'dh2') Config.ui.scrollMode = sm

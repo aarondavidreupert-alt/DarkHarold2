@@ -130,6 +130,12 @@ talk_mode=dh2
 ; counter or Stealth Boy): dh2 = the merchant says what is wrong with it, ce = CE's
 ; "No, your offer is not good enough."
 barter_running_item=dh2
+; combat start: dh2 = the first blow lands while the HUD's combat panel slides open,
+; ce = CE: the panel opens first, then the turns start
+combat_start=dh2
+; 1 = the Fullscreen button reads "Exit Fullscreen" in fullscreen, 0 = it is hidden there
+; (Esc leaves fullscreen; the button shows again outside)
+fullscreen_exit_button=1
 ; map scrolling at the screen edge and with the arrow keys: dh2 = smooth, ce = CE's
 ; 32 x 24 px steps
 scroll_mode=dh2
