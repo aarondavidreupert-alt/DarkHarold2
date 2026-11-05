@@ -99,6 +99,11 @@ uniform sampler2D u_eggTex;        // texture unit 6
 uniform int u_outlineMode;
 uniform vec3 u_outlineColor;
 uniform float u_outlineAlpha; // separate fill-alpha vs border-alpha draws share this; set per-draw in webglDraw.ts
+// u_outlineMode 2: the border only (CE objectDrawOutline draws the outline pixels, never the
+// sprite, in the post-roof pass). The quad is drawn shifted by one pixel; a fragment is a
+// border pixel when the shifted sprite is opaque there and the unshifted sprite is not.
+// u_outlineShift = that one-pixel shift in frame UV (dx / frameWidth, dy / frameHeight).
+uniform vec2 u_outlineShift;
 
 varying vec2 v_texCoord;
 
@@ -337,6 +342,17 @@ void main() {
     if (cycCode > 0) {
         int palIdx = cycCode + 228;  // 229..254
         texel.rgb = cycleColor(palIdx, u_cycleTime);
+    }
+
+    if (u_outlineMode == 2) {
+        vec2 n = v_texCoord + u_outlineShift; // the unshifted sprite at this pixel
+        float own = 0.0;
+        if (n.x >= 0.0 && n.x <= 1.0 && n.y >= 0.0 && n.y <= 1.0) {
+            own = texture2D(u_image, vec2((n.x + u_frame) / u_numFrames, (n.y + u_row) / u_numRows)).a;
+        }
+        bool edge = texel.a > 0.5 && own <= 0.5;
+        gl_FragColor = vec4(u_outlineColor, edge ? u_outlineAlpha : 0.0);
+        return;
     }
 
     if (u_outlineMode == 1) {

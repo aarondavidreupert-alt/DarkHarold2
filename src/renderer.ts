@@ -299,14 +299,6 @@ export class Renderer {
             this.renderOutlinePass(this.objects)
         }
 
-        // DH2 fix: re-stamp the player on top of the outline pass so NPC
-        // combat-outline fills (post-roof) never visually cover the player
-        // character. CE never drew player outlines so this case didn't arise
-        // there; refreshHighlights() already excludes isPlayer from outlines.
-        if (Config.ui.showObjects && world.inCombat && world.player) {
-            this.renderObject(world.player)
-        }
-
         if (Config.ui.showCursor && uiState.cursorMode === 'move') {
             // CE ref: object.cc:862 _obj_render_post_roof — the hex cursor is a flat object
             // whose paletted outline (game_mouse.cc:1973) is drawn in the post-roof

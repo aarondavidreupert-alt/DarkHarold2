@@ -712,6 +712,15 @@ WebGLRenderer.prototype.renderObject = function (obj: Obj): void {
         renderInfo.cell,
         /*lit*/ true,
     )
+    renderOutlineFill(
+        this,
+        obj,
+        (renderInfo.x - view.cameraPosition.x) * z,
+        (renderInfo.y - view.cameraPosition.y) * z,
+        renderInfo.uniformFrameWidth * z,
+        renderInfo.uniformFrameHeight * z,
+        renderInfo.cell,
+    )
 
     if (egg || stealth || trans) {
         const gl = this.gl
@@ -799,7 +808,6 @@ WebGLRenderer.prototype.renderOutlinePass = function (objs: Obj[]): void {
     const gl = this.gl
     if (!this.uOutlineMode || !this.uOutlineColor || !this.uOutlineAlpha) return
     const z = getZoom()
-    const fillAlpha = getOutlineFillAlpha()
     const borderAlpha = getOutlineBorderAlpha()
 
     for (const obj of objs) {
@@ -813,8 +821,12 @@ WebGLRenderer.prototype.renderOutlinePass = function (objs: Obj[]): void {
         const w = renderInfo.uniformFrameWidth * z
         const h = renderInfo.uniformFrameHeight * z
 
-        if (borderAlpha > 0) {
-            gl.uniform1i(this.uOutlineMode, 1)
+        // Only the border pixels (mode 2): the sprite itself stays where the normal object
+        // pass drew it, so a critter in front still covers one behind (before, a punch-out
+        // redrew the whole sprite here, over everything — and the player was then redrawn
+        // over everything to undo that, covering critters in front of them).
+        if (borderAlpha > 0 && this.uOutlineShift) {
+            gl.uniform1i(this.uOutlineMode, 2)
             gl.uniform3f(this.uOutlineColor, color[0], color[1], color[2])
             gl.uniform1f(this.uOutlineAlpha, borderAlpha)
             for (const [dx, dy] of [
@@ -823,25 +835,40 @@ WebGLRenderer.prototype.renderOutlinePass = function (objs: Obj[]): void {
                 [0, -1],
                 [0, 1],
             ]) {
+                gl.uniform2f(this.uOutlineShift, dx / renderInfo.uniformFrameWidth, dy / renderInfo.uniformFrameHeight)
                 this.renderFrame(obj.art, baseX + dx * z, baseY + dy * z, w, h, renderInfo.cell, /*lit*/ false)
             }
-
-            // Punch-out: restore the interior to the normal sprite so only
-            // the border stamps' protruding edge remains visible.
-            gl.uniform1i(this.uOutlineMode, 0)
-            this.renderFrame(obj.art, baseX, baseY, w, h, renderInfo.cell, /*lit*/ true)
-        }
-
-        if (fillAlpha > 0) {
-            gl.uniform1i(this.uOutlineMode, 1)
-            gl.uniform3f(this.uOutlineColor, color[0], color[1], color[2])
-            gl.uniform1f(this.uOutlineAlpha, fillAlpha)
-            this.renderFrame(obj.art, baseX, baseY, w, h, renderInfo.cell, /*lit*/ false)
+            gl.uniform2f(this.uOutlineShift, 0, 0)
         }
 
         gl.uniform1i(this.uOutlineMode, 0)
         gl.uniform1f(this.uOutlineAlpha, 1.0)
     }
+}
+
+// DH2 outline fill (Config.ui.outlineFillAlpha; CE has none): a tint over the sprite, drawn
+// right after it in the normal object pass, so whatever stands in front covers it too.
+function renderOutlineFill(
+    r: WebGLRenderer,
+    obj: Obj,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    cell: FrameCell,
+): void {
+    const fillAlpha = getOutlineFillAlpha()
+    if (!obj.outline || fillAlpha <= 0 || !r.uOutlineMode || !r.uOutlineColor || !r.uOutlineAlpha) {
+        return
+    }
+    const gl = r.gl
+    const color = OUTLINE_COLORS[obj.outline] ?? OUTLINE_COLORS.red
+    gl.uniform1i(r.uOutlineMode, 1)
+    gl.uniform3f(r.uOutlineColor, color[0], color[1], color[2])
+    gl.uniform1f(r.uOutlineAlpha, fillAlpha)
+    r.renderFrame(obj.art, x, y, w, h, cell, /*lit*/ false)
+    gl.uniform1i(r.uOutlineMode, 0)
+    gl.uniform1f(r.uOutlineAlpha, 1.0)
 }
 
 WebGLRenderer.prototype.renderFrame = function (

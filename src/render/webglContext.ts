@@ -83,6 +83,7 @@ export class WebGLRenderer extends Renderer {
     uOutlineMode: WebGLUniformLocation | null = null
     uOutlineColor: WebGLUniformLocation | null = null
     uOutlineAlpha: WebGLUniformLocation | null = null
+    uOutlineShift: WebGLUniformLocation | null = null
     uObjectBaseY: WebGLUniformLocation | null = null
     uObjectBaseX: WebGLUniformLocation | null = null // 'flat' mode: fixed tile-centre X; <0 = per-fragment
     uObjectSmoothPx: WebGLUniformLocation | null = null // '*-smooth' blur kernel radius (world px); 0 = off
@@ -507,6 +508,7 @@ export class WebGLRenderer extends Renderer {
         this.uOutlineMode = gl.getUniformLocation(this.tileShader, 'u_outlineMode')
         this.uOutlineColor = gl.getUniformLocation(this.tileShader, 'u_outlineColor')
         this.uOutlineAlpha = gl.getUniformLocation(this.tileShader, 'u_outlineAlpha')
+        this.uOutlineShift = gl.getUniformLocation(this.tileShader, 'u_outlineShift')
         if (this.uOutlineMode) gl.uniform1i(this.uOutlineMode, 0)
         if (this.uOutlineAlpha) gl.uniform1f(this.uOutlineAlpha, 1.0)
         this.uObjectBaseY = gl.getUniformLocation(this.tileShader, 'u_objectBaseY')
