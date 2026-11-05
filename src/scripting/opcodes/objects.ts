@@ -401,6 +401,12 @@ export const objectsOpcodes = {
         // value releases the override and lets the time-of-day curve
         // take back over on the next map load.
         GameTime.setLightLevelOverride(level)
+        // [dh2] day_night_cycle: the curve runs on maps whose script sets the light from the
+        // clock (outdoors: the Lighting macro reads game_time_hour); a fixed level (a cave's
+        // set_light_level(50), an interior's none) stays as in CE all day
+        if (this._readHour && world.gMap?.mapScript === this) {
+            GameTime.markClockLitMap()
+        }
     },
     obj_set_light_level(this: Script, obj: Obj, intensity: number, distance: number) {
         // CE ref: interpreter_extra.cc:3071 opSetObjectLightLevel calls objectSetLight()

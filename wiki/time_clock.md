@@ -306,7 +306,7 @@ the per-tile average of object lights — there is no clock-driven curve.
 
 ### DH2 day/night curve (option)
 
-`Config.engine.dayNightCycle` (fallout2.cfg `[dh2] day_night_cycle`, console `setDayNightCycle`) adds a clock-driven curve (`gametime.ts`): night floor 0.35 × MAX from 22:00 to 04:00, full light 08:00–18:00, linear ramps between; the shader uses the darker of the curve and the script-set ambient light. It is a DH2 addition (on by default); with it off, lighting is CE's (scripts only).
+`Config.engine.dayNightCycle` (fallout2.cfg `[dh2] day_night_cycle`, console `setDayNightCycle`) adds a clock-driven curve (`gametime.ts`): night floor 0.35 × MAX from 22:00 to 04:00, full light 08:00–18:00, linear ramps between; the shader uses the darker of the curve and the script-set ambient light. The curve runs only on a map whose map script sets the light from the clock (a `set_light_level` after reading `game_time_hour`, i.e. the outdoor Lighting macro; `markClockLitMap`, cleared on map load): caves, vaults and interiors keep their fixed script level (or full light) day and night, as in CE (2026-11-06, known_bugs CA93). It is a DH2 addition (on by default); with it off, lighting is CE's (scripts only).
 
 ---
 

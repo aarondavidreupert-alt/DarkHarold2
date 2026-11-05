@@ -193,6 +193,13 @@ export function advanceHours(hours: number): void {
 //   00-04 night · 04-08 dawn ramp · 08-18 day · 18-22 dusk ramp · 22-24 night
 
 let ambientIntensity = LIGHT_INTENSITY_MAX
+// The curve only on a map whose script sets the light from the clock (set at its first such
+// set_light_level, cleared on every map load): underground and interior maps keep the level
+// their script sets — or full light — around the clock, as in CE.
+let clockLitMap = false
+export function markClockLitMap(): void {
+    clockLitMap = true
+}
 
 const LIGHT_CURVE: { hour: number; intensity: number }[] = [
     { hour: 0, intensity: LIGHT_CURVE_NIGHT_FLOOR },
@@ -229,7 +236,7 @@ function setAmbientIntensity(intensity: number): void {
 
 // Ambient light intensity in Fallout 2's 0..65536 range.
 export function getAmbientLight(): number {
-    if (!Config.engine.dayNightCycle) return ambientIntensity
+    if (!Config.engine.dayNightCycle || !clockLitMap) return ambientIntensity
     const curve = curveAt(getHour() + getMinute() / 60) + nightVisionBonus()
     return Math.min(Math.min(LIGHT_INTENSITY_MAX, curve), ambientIntensity)
 }
@@ -266,5 +273,6 @@ export function setLightLevelOverride(level0to100: number): void {
 
 // CE ref: map.cc:927 — ambient light resets to maximum on every map load.
 export function clearLightLevelOverride(): void {
+    clockLitMap = false
     setAmbientIntensity(LIGHT_INTENSITY_MAX)
 }

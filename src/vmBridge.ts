@@ -59,7 +59,10 @@ const builtinVars: { [name: string]: (script: Scripting.Script) => any } = {
     self_obj: (s) => s.self_obj,
     combat_is_initialized: () => (world.inCombat ? 1 : 0), // CE: interpreter_extra.cc opCombatIsInitialized → isInCombat()
     get_month: () => GameTime.getDate().month + 1, // 1-indexed
-    game_time_hour: () => GameTime.getHourMilitary(), // CE: 100*hour+min (scripts.cc:332 gameTimeGetHour)
+    game_time_hour: (s) => {
+        s._readHour = true // [dh2] day_night_cycle: a map script that lights by the clock (gametime.ts)
+        return GameTime.getHourMilitary() // CE: 100*hour+min (scripts.cc:332 gameTimeGetHour)
+    },
     game_time: () => Math.max(1, world.gameTickTime), // CE: interpreter_extra.cc opGetGameTime → gameTimeGetTime() (live)
     game_time_in_seconds: () => GameTime.getTotalSeconds(), // CE: interpreter_extra.cc:2277 opGetGameTimeInSeconds → ticks/10
     get_day: () => GameTime.getDate().day, // day of month

@@ -109,7 +109,9 @@ ambient brightness instead (both CE and DH2: `max(ambient, tileIntensity)`).
 
 - **Map enter** (`src/scripting.ts:2161`): `GameTime.clearLightLevelOverride()`
   clears any script-set override, mirroring CE's reset on map load.
-- **Day/night curve** (`src/gametime.ts:181-188`, DH2-only):
+- **Day/night curve** (`src/gametime.ts:181-188`, DH2-only; only on maps whose map script
+  sets the light from `game_time_hour` — underground and interior maps keep their fixed level,
+  known_bugs CA93):
 
   ```
   LIGHT_CURVE_NIGHT_FLOOR ≈ 35 %

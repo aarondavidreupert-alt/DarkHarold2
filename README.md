@@ -219,7 +219,7 @@ the wiki tracker is the source of truth.
 - **Hover readout** is a DOM overlay rather than a cursor blit, and isn't shown for non-critter targets (CI18).
 - **Action menu** opens on a command-mode left click instead of CE's held left button, and a move-cursor click uses what is under it (MOUSE-01 / 02); `[dh2] mouse_mode=ce` gives CE's clicks. The mouse wheel zooms instead of scrolling (C42 / C43; `[dh2] mouse_wheel=ce` scrolls). Map scrolling is smooth (`scroll_mode=ce`: CE's steps), Talk walks up to the critter first (`talk_mode=ce`: CE talks within 9 hexes in sight), and saves have unlimited slots (`save_slots=ce`: CE's ten).
 - **Pip-Boy** — no idle screensaver (cosmetic).
-- **Day / night** — DH2 adds a smooth day/night light curve by default; `[dh2] day_night_cycle=0` gives CE's script-only lighting (GTC10).
+- **Day / night** — DH2 adds a smooth day/night light curve by default on maps whose script lights them by the clock (outdoors; caves and interiors keep their fixed light as in CE); `[dh2] day_night_cycle=0` gives CE's script-only lighting (GTC10).
 - **Skill use** — no black palette fade around First Aid / Doctor / Repair (cosmetic).
 - **Browser limits** — preferences can't be written back to `fallout2.cfg` (CI5, localStorage instead); mouse sensitivity is stored but the browser owns pointer speed.
 - **Script fixes** — the decompiled Lua repairs a Black Isle script bug where the sources make the intent clear (so far one: Redding's caravan guards are given their rifle as caps, L7); a deliberate deviation from the shipped scripts and CE, marked in the generated Lua, listed in [`wiki/lua_scripts.md`](wiki/lua_scripts.md) → "Script fixes", off with `[dh2] script_fixes=0`.

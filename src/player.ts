@@ -25,7 +25,7 @@ import { services } from './state/services.js'
 import { Critter, createObjectWithPID, Obj, WeaponObj } from './object.js'
 import { centerCamera } from './renderer.js'
 import { fromTileNum } from './tile.js'
-import { drawHP } from './hudRefresh.js'
+import { drawHP, updateIndicatorBar } from './hudRefresh.js'
 import { uiWorldMap } from './ui.js'
 import { uiLog } from './messageLog.js'
 
@@ -318,6 +318,7 @@ export class Player extends Critter {
             this.stats.modifyBase('Level', 1)
             currentLevel++
             this.levelUpAvailable = true // CE stat.cc:764 DUDE_STATE_LEVEL_UP_AVAILABLE
+            updateIndicatorBar() // CE dudeEnableState → indicatorBarRefresh: LEVEL lights at once
 
             services.audioEngine.playSfxByName('levelup')
             // CE stat.cc:757 — stat.msg 600 "You have gone up a level."

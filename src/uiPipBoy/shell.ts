@@ -29,7 +29,7 @@ import { makePanelDraggable } from '../uiDrag.js'
 import { getMessage } from '../util.js'
 import { showAlert } from '../uiDialog.js'
 import { mapCanRestHere } from '../data.js'
-import { setIndicatorBarHidden, updateIndicatorBar } from '../uiHud.js'
+import { drawHP, setIndicatorBarHidden, updateIndicatorBar } from '../uiHud.js'
 import { gameMovieIsSeen, MOVIE_VSUIT } from '../gameMovie.js'
 import type { Critter } from '../object.js'
 
@@ -245,6 +245,10 @@ function addHealth(): void {
         if (!c || c.type !== 'critter' || c.dead) continue
         const hp = Math.min(c.getStat('HP') + c.getStat('Healing Rate'), c.getStat('Max HP'))
         c.stats.setBase('HP', hp)
+    }
+    // CE critterAdjustHp → interfaceRenderHitPoints: the HUD counter follows each heal
+    if (world.player) {
+        drawHP(world.player.getStat('HP'))
     }
     updateIndicatorBar()
 }

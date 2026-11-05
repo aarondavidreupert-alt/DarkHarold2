@@ -719,6 +719,7 @@ export const sfallLists = new Map<number, { objects: any[]; next: number }>()
 export class Script {
     // Stuff we hacked in
     _didOverride = false // Did the procedure call override the default action?
+    _readHour = false // the script has read game_time_hour (DH2 day/night curve, gametime.ts)
 
     scriptName!: string
     lvars!: { [lvar: number]: any }
