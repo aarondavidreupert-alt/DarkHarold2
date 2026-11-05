@@ -18,7 +18,7 @@ limitations under the License.
 // Triggered by showCharacterScreen() when player.pendingPerkPick is true.
 
 import { makePanelDraggable } from '../uiDrag.js'
-import { font2, font3 } from '../uiFont.js'
+import { CE_COLOR, font1, font2, font3 } from '../uiFont.js'
 import { getValidPerks, getPerkRank, applyPerk } from '../perks.js'
 import { PERK_IMG, SKILL_TEXTS, SKILL_IMG, SKILLS, TRAIT_TEXTS, TRAIT_IMG, TRAITS } from './descriptions.js'
 import { getMessage } from '../util.js'
@@ -193,23 +193,61 @@ function showPickList(
         const titleEl = document.createElement('div')
         Object.assign(titleEl.style, { position: 'absolute', left: '49px', top: '14px', pointerEvents: 'none' })
         font3.onLoad(() => {
-            titleEl.appendChild(font3.renderText(title))
+            titleEl.appendChild(font3.renderText(title, CE_COLOR.label))
         })
         box.appendChild(titleEl)
     }
 
-    // ── Left panel: scrollable perk list ─────────────────────────────────────
+    // ── Left panel: the list ─────────────────────────────────────────────────
+    // CE perkDialogDrawPerks: the list rect (45,43) 192×129, 11 lines of font 101, a line
+    // every lineHeight + 2 px; the selected line yellow (32747), the others green (992).
+    const LIST_LINES = 11
+    const lineStep = (): number => font1.lineHeight + 2
     const listEl = document.createElement('div')
     Object.assign(listEl.style, {
         position: 'absolute',
-        left: '40px',
-        top: '38px',
-        width: '200px',
-        height: '150px',
+        left: '45px',
+        top: '43px',
+        width: '192px',
+        height: LIST_LINES * lineStep() + 'px',
         overflowY: 'auto',
+        scrollbarWidth: 'none', // the DH2 bar below instead of the browser's (white) one
         backgroundColor: 'transparent',
     })
     box.appendChild(listEl)
+
+    // Scroll bar (DH2, as the save / load list's): a thin track right of the list, the thumb in
+    // the list green; a click on the track jumps there. CE scrolls with the keys only.
+    const track = document.createElement('div')
+    Object.assign(track.style, {
+        position: 'absolute',
+        left: '239px',
+        top: '43px',
+        width: '4px',
+        height: LIST_LINES * lineStep() + 'px',
+        background: CE_COLOR.dimGreen,
+    })
+    const thumb = document.createElement('div')
+    Object.assign(thumb.style, { position: 'absolute', left: '0', width: '4px', background: CE_COLOR.green })
+    track.appendChild(thumb)
+    box.appendChild(track)
+    const updateTrack = (): void => {
+        const total = listEl.scrollHeight
+        const visible = listEl.clientHeight
+        track.style.display = total > visible ? 'block' : 'none'
+        if (total <= visible) {
+            return
+        }
+        const h = track.clientHeight
+        thumb.style.height = Math.max(8, Math.round((h * visible) / total)) + 'px'
+        thumb.style.top = Math.round((h * listEl.scrollTop) / total) + 'px'
+    }
+    listEl.addEventListener('scroll', updateTrack)
+    track.addEventListener('mousedown', (e) => {
+        e.stopPropagation()
+        const r = track.getBoundingClientRect()
+        listEl.scrollTop = (listEl.scrollHeight * (e.clientY - r.top)) / (r.height || 1) - listEl.clientHeight / 2
+    })
 
     // ── Right panel: info card ────────────────────────────────────────────────
     // Title (font2, black — mirrors showCharacterScreen cardTitleEl exactly)
@@ -331,7 +369,7 @@ function showPickList(
         zIndex: '1',
     })
     font3.onLoad(() => {
-        doneLblEl.appendChild(font3.renderText('DONE'))
+        doneLblEl.appendChild(font3.renderText('DONE', CE_COLOR.label)) // CE 18979, as every window's
     })
     box.appendChild(doneLblEl)
 
@@ -370,7 +408,7 @@ function showPickList(
         zIndex: '1',
     })
     font3.onLoad(() => {
-        cancelLblEl.appendChild(font3.renderText('CANCEL'))
+        cancelLblEl.appendChild(font3.renderText('CANCEL', CE_COLOR.label))
     })
     box.appendChild(cancelLblEl)
 
@@ -390,29 +428,24 @@ function showPickList(
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            padding: '1px 3px',
+            height: lineStep() + 'px',
+            lineHeight: lineStep() + 'px',
+            overflow: 'hidden',
             cursor: 'pointer',
             fontSize: '0.68em',
-            color: '#3cf800',
-            backgroundColor: def.name === selectedPerk ? 'rgba(0,255,0,0.2)' : 'transparent',
+            color: def.name === selectedPerk ? CE_COLOR.highlight : CE_COLOR.green,
         })
 
         const nameSpan = document.createElement('span')
         nameSpan.textContent = def.name
 
+        // CE: "(rank)" at x 207, in the line's colour
         const rankSpan = document.createElement('span')
         rankSpan.textContent = def.label ?? ''
-        Object.assign(rankSpan.style, { color: '#70A070', fontSize: '0.9em' })
 
         row.appendChild(nameSpan)
         row.appendChild(rankSpan)
 
-        row.onmouseenter = () => {
-            if (selectedPerk !== def.name) row.style.backgroundColor = 'rgba(0,255,0,0.1)'
-        }
-        row.onmouseleave = () => {
-            row.style.backgroundColor = selectedPerk === def.name ? 'rgba(0,255,0,0.2)' : 'transparent'
-        }
         // CE perkDialogHandleInput: a click on the line already selected is DONE
         row.onclick = () => {
             if (selectedPerk === def.name) {
@@ -430,7 +463,7 @@ function showPickList(
         const def = validPerks[Math.max(0, Math.min(validPerks.length - 1, i))]
         selectedPerk = def.name
         listEl.querySelectorAll<HTMLElement>('[data-perk]').forEach((el) => {
-            el.style.backgroundColor = el.dataset.perk === def.name ? 'rgba(0,255,0,0.2)' : 'transparent'
+            el.style.color = el.dataset.perk === def.name ? CE_COLOR.highlight : CE_COLOR.green
             if (el.dataset.perk === def.name) el.scrollIntoView({ block: 'nearest' })
         })
         showCard(def)
@@ -473,4 +506,5 @@ function showPickList(
 
     overlay.appendChild(box)
     document.body.appendChild(overlay)
+    updateTrack()
 }

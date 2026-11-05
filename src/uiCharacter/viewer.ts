@@ -805,6 +805,7 @@ export function showCharacterScreen() {
         playerSkillOpts.traits = player.traits
         for (const skill of SKILLS) openingBaseSkills[skill] = newSkillSet.getBase(skill)
         redrawStatsSkills()
+        folderView?.refresh() // the Perks folder lists the new perk (CE characterEditorDrawFolders)
     }
     if (player.pendingPerkPick) {
         showPerkModal(player, syncFromPlayer)
