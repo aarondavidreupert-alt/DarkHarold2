@@ -214,7 +214,16 @@ let lastPointedObject: Obj | null = null
 function scheduleArrowHover(): void {
     uiState.showLookCursor = false
     if (uiState.commandModeTimer !== null) clearTimeout(uiState.commandModeTimer)
+    // CE: the action menu runs its own loop (gameMouseActionMenu…), the cursor gets no action
+    // icon while it is open — a hover over the menu put a second binoculars beside it
+    if (uiState.uiMode === UIMode.contextMenu) {
+        uiState.commandModeTimer = null
+        return
+    }
     uiState.commandModeTimer = window.setTimeout(() => {
+        if (uiState.uiMode === UIMode.contextMenu) {
+            return
+        }
         const hoverObj = getObjectUnderCursor((_: Obj) => true)
         // CE gameMouseRefresh (ARROW, after the 250 ms rest): with item_highlight an item under
         // the cursor gets OUTLINE_TYPE_ITEM

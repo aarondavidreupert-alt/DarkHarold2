@@ -136,6 +136,12 @@ export function uiPrimaryAction(obj: Obj): void {
 
 export function uiContextMenu(obj: Obj, evt: any) {
     uiState.uiMode = UIMode.contextMenu
+    // the hover's action icon goes while the menu is open (it shows its own)
+    if (uiState.commandModeTimer !== null) {
+        clearTimeout(uiState.commandModeTimer)
+        uiState.commandModeTimer = null
+    }
+    uiState.showLookCursor = false
 
     function button(obj: Obj, action: string, onclick: (() => void) | undefined = undefined) {
         return makeEl('div', {
