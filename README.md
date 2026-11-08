@@ -463,6 +463,19 @@ __eventLog              // the full array
 __eventLog.length       // number of entries recorded so far
 ```
 
+## Save Files
+
+Saves are kept in the browser's IndexedDB, so they stay with that browser profile. To move one to
+another browser or machine, or attach it to a bug report, use the console:
+
+```js
+exportSave()                  // the newest save → <name>.dh2save.json
+exportSave("tttt")            // the newest save with that name (a number picks the save id)
+importSave()                  // pick a .json file, store it as a new save and load it
+importSave(false)             // store it only; it shows in the Load Game list
+importSave("saves/tttt.json") // read it from a URL instead of a file picker
+```
+
 ### Tiers
 
 | Tier         | Fields included                                                                 | Use case                          |
@@ -518,7 +531,7 @@ The DH2 console commands — `skipTemple()`, `revealWorldmap()`, `giveCar()`, `b
 `lightingDebug()`, `setEggMode()`, `setDevKeys()`, the other `set...()` switches and the
 `debugGlobalState` / `debugRenderer` / `debugLightmap` handles — are only registered when the URL hash
 has `dev`: `play.html#dev`, or with other hash keys `play.html#script_backend=lua&dev`
-(`src/devConsole/`), or on every start with `dev_console=1` in the `[dh2]` section of `fallout2.cfg`. `exportEventLog()` / `__eventLog` (Combat Log) and `globalState`, `Config`,
+(`src/devConsole/`), or on every start with `dev_console=1` in the `[dh2]` section of `fallout2.cfg`. `exportEventLog()` / `__eventLog` (Combat Log), `exportSave()` / `importSave()` (Save Files) and `globalState`, `Config`,
 `Scripting` are always there.
 
 World map: `encounterLog()` prints one line per random-encounter roll (square, chance, roll, result;

@@ -300,6 +300,7 @@ Saved since 2026-10-25 (CE parity audit): the preferences (`preferences`, CE han
 | Gap | Note |
 |-----|------|
 | Storage | IndexedDB records instead of SAVE.DAT + MAPS/*.SAV — same content, not file-compatible with CE saves |
+| Save files | DH2 addition: the console commands `exportSave()` / `importSave()` (`src/devConsole/saveFiles.ts`) write one IndexedDB record to a `.dh2save.json` file and store one back as a new save (`saveload.ts putSave`), to move saves between browsers or attach them to bug reports |
 | Unvisited maps | Load fresh from `maps/*.json` — the same as CE, which loads them from the master .MAP |
 
 Everything the former table listed (MVARs, kill counts, worldmap, event queue, automap, `is_loading_game`, the slot UI — `uiSaveLoad.ts` is CE's LOADSAVE screen) is implemented. <!-- audited: 2026-10-18 -->
