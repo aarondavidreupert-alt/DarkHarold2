@@ -359,6 +359,23 @@ export function save(name: string, slot = -1, callback?: (id: number) => void): 
     )
 }
 
+// DH2 addition (no CE equivalent): store a save that came from outside the database (a file
+// written by the importSave() console command) as a new entry; its old id is dropped.
+export function putSave(save: SaveGame, callback?: (id: number) => void): void {
+    const entry: SaveGame = { ...save }
+    delete entry.id
+    let savedId = -1
+    withTransaction(
+        (trans) => {
+            const req = trans.objectStore('saves').put(entry)
+            req.onsuccess = () => {
+                savedId = Number(req.result)
+            }
+        },
+        () => callback?.(savedId),
+    )
+}
+
 // DH2 addition (CE has no delete): remove a saved game from the database.
 export function deleteSave(id: number, callback?: () => void): void {
     withTransaction((trans) => {
