@@ -201,60 +201,90 @@ GameMap.prototype.loadMap = function (
         // Previously loaded; load from dirty map cache
         dbg('map', `[Main] Loading map ${mapName} from dirty map cache`)
 
-        Events.emit('loadMapPre')
+        const enterCached = () => {
+            Events.emit('loadMapPre')
 
-        const map = world.dirtyMapCache[mapName]
-        // the scripts start in doEnterNewMap (CE scriptsExecStartProc), after their LVARs are back
-        Scripting.setDeferObjectStart(true)
-        this.deserialize(map)
-        mapLoadSavedAging(this)
+            const map = world.dirtyMapCache[mapName]
+            // the scripts start in doEnterNewMap (CE scriptsExecStartProc), after their LVARs are back
+            Scripting.setDeferObjectStart(true)
+            this.deserialize(map)
+            mapLoadSavedAging(this)
 
-        // Set position and orientation
-        if (startingPosition !== undefined) {
-            world.player!.position = startingPosition
+            // Set position and orientation
+            if (startingPosition !== undefined) {
+                world.player!.position = startingPosition
+            }
+            // Use default map starting position
+            else {
+                world.player!.position = map.mapObj.startPosition
+            }
+
+            world.player!.orientation = map.mapObj.startOrientation
+
+            // Set elevation: none / -1 is the map header's (CE map.cc mapLoad: gEnteringElevation
+            // == -1 → gMapHeader.enteringElevation); out of bounds clamps to it as well
+            const headerElev = Number(this.mapObj.startElevation) || 0
+            const requestedElev =
+                startingElevation === undefined || startingElevation < 0 ? headerElev : Number(startingElevation) || 0
+            const safeElev = this.mapObj.levels[requestedElev]
+                ? requestedElev
+                : this.mapObj.levels[headerElev]
+                  ? headerElev
+                  : 0
+            if (safeElev !== requestedElev) {
+                dbgWarn(
+                    'map',
+                    `loadMap (dirty cache): starting elevation ${requestedElev} out of bounds (map has ${this.numLevels} levels), using ${safeElev}`,
+                )
+            }
+            this.currentElevation = world.currentElevation = safeElev
+
+            // Change to our new elevation (sets up map state)
+            this.changeElevation(this.currentElevation, false, true)
+
+            // Enter map
+            this.doEnterNewMap(false)
+
+            // Change elevation again — no script update: doEnterNewMap already ran CE
+            // mapLoad's one scriptsExecMapUpdateProc
+            this.changeElevation(this.currentElevation, false, false)
+
+            // Done
+            this.playMapMusic()
+            dbg('map', `[Main] Loaded from dirty map cache`)
+            loadedCallback && loadedCallback()
+
+            world.player?.updateNativeLook() // CE map.cc:999
+            Events.emit('loadMapPost')
         }
-        // Use default map starting position
-        else {
-            world.player!.position = map.mapObj.startPosition
+
+        // The map's images, as loadNewMap loads them: a cached map visited in an earlier
+        // session (a loaded save's dirty maps) has none in this page yet, so its tiles and
+        // sprites were skipped as untextured — black floor. Same isLoading gate as loadNewMap
+        // and saveload.ts load(); the map is entered once they are in.
+        let mapImages: string[]
+        try {
+            mapImages = getFileJSON('maps/' + mapName + '.images.json') ?? []
+        } catch {
+            mapImages = []
         }
-
-        world.player!.orientation = map.mapObj.startOrientation
-
-        // Set elevation: none / -1 is the map header's (CE map.cc mapLoad: gEnteringElevation
-        // == -1 → gMapHeader.enteringElevation); out of bounds clamps to it as well
-        const headerElev = Number(this.mapObj.startElevation) || 0
-        const requestedElev =
-            startingElevation === undefined || startingElevation < 0 ? headerElev : Number(startingElevation) || 0
-        const safeElev = this.mapObj.levels[requestedElev]
-            ? requestedElev
-            : this.mapObj.levels[headerElev]
-              ? headerElev
-              : 0
-        if (safeElev !== requestedElev) {
-            dbgWarn(
-                'map',
-                `loadMap (dirty cache): starting elevation ${requestedElev} out of bounds (map has ${this.numLevels} levels), using ${safeElev}`,
-            )
+        const toLoad = mapImages.filter((img) => assets.images[img] === undefined)
+        if (toLoad.length === 0) {
+            enterCached()
+            return
         }
-        this.currentElevation = world.currentElevation = safeElev
-
-        // Change to our new elevation (sets up map state)
-        this.changeElevation(this.currentElevation, false, true)
-
-        // Enter map
-        this.doEnterNewMap(false)
-
-        // Change elevation again — no script update: doEnterNewMap already ran CE
-        // mapLoad's one scriptsExecMapUpdateProc
-        this.changeElevation(this.currentElevation, false, false)
-
-        // Done
-        this.playMapMusic()
-        dbg('map', `[Main] Loaded from dirty map cache`)
-        loadedCallback && loadedCallback()
-
-        world.player?.updateNativeLook() // CE map.cc:999
-        Events.emit('loadMapPost')
+        dbg('map', `[Main] loading ${toLoad.length} images for cached map ${mapName}`)
+        globalState.isLoading = true
+        assets.loadingAssetsTotal = toLoad.length
+        assets.loadingAssetsLoaded = 0
+        assets.loadingLoadedCallback = enterCached
+        for (const img of toLoad) {
+            ensureCycleMask(img)
+            heart.graphics.newImage(img + '.png', (r: HTMLImageElement) => {
+                assets.images[img] = r
+                assets.loadingAssetsLoaded++
+            })
+        }
     } else {
         dbg('map', `[Main] Loading map ${mapName} from clean load`)
         this.loadNewMap(mapName, startingPosition, startingElevation, loadedCallback)
