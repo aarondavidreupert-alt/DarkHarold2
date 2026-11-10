@@ -86,6 +86,7 @@ export const SERIALIZED_CRITTER_PROPS = [
     'addictions',
     'addictedState',
     'customAiOverrides',
+    'holstered',
 ]
 
 export class Critter extends Obj {
@@ -137,6 +138,11 @@ export class Critter extends Obj {
 
     isPlayer = false // Is this critter the player character?
     dead = false // Is this critter dead?
+    // CE: the critter's FID carries its own weapon code, apart from what is in its hands — a
+    // map critter drawn unarmed (…a? art) with a knife flagged OBJECT_IN_LEFT_HAND walks
+    // about unarmed until it is wielded (inven_wield, the AI) or attacks (actions.cc
+    // _action_attack → animationRegisterTakeOutWeapon). True while the hand item isn't drawn.
+    holstered = false
     perks: string[] = [] // List of acquired perks
     nextIdleAnimTime = 0 // performance.now() after which the next idle cycle begins; 0 = uninitialised
     critDeath = false // a critical with DAM_DEAD hit this critter (criticalEffects 'death'); critterDamage kills it
@@ -263,6 +269,13 @@ export class Critter extends Obj {
                 obj.anim = 'dead'
             } else {
                 obj.stats.setBase('HP', Math.min(hp, obj.getStat('Max HP')))
+            }
+        }
+
+        if (!deserializing && !obj.isPlayer && typeof mobj.art === 'string' && mobj.art.slice(-2, -1) === 'a') {
+            obj.holstered = true // the map's FID is unarmed
+            if (!obj.dead && obj.anim !== 'dead') {
+                obj.art = obj.getAnimation('idle') // init() drew the hand item
             }
         }
 

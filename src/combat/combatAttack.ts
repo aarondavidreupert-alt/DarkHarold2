@@ -4,7 +4,7 @@
 // (wiki/code_quality.md Q16).
 
 import type { Combat } from './Combat.js'
-import { ANIM, CHARACTER_SOUND_EFFECT, playCharAnimSfx, sfxBuildWeaponName } from '../sfxNames.js'
+import { ANIM, CHARACTER_SOUND_EFFECT, critterWeaponCode, playCharAnimSfx, sfxBuildWeaponName } from '../sfxNames.js'
 import { ANIM_KICK_LEG, critterDamage, isHitFromFront, unarmedAttackAnim } from '../critter.js'
 import { AudioEngine } from '../audio.js'
 import { Critter, Obj, createObjectWithPID } from '../object.js'
@@ -500,6 +500,21 @@ export const combatAttackMethods = {
         // busy with an animation (a dodge, a hit from the last burst) shows this attack's
         // reaction. Not a dead or knocked-down one (their lying art would be reset).
         if (target !== obj && !target.dead && !target.isKnockedDown && target.inAnim()) target.clearAnim()
+
+        // CE actions.cc _action_attack: a weapon whose code the attacker's FID lacks is taken out
+        // first (animationRegisterTakeOutWeapon) — an NPC that walked about unarmed with it
+        if (obj.holstered) {
+            obj.holstered = false
+            if (critterWeaponCode(obj) > 0 && obj.hasAnimation('weapon-draw') && !obj.inAnim()) {
+                playCharAnimSfx(obj, ANIM.takeOut, critterWeaponCode(obj))
+                obj.staticAnimation('weapon-draw', () => {
+                    obj.clearAnim()
+                    this.attack(obj, target, region, callback)
+                })
+                return
+            }
+            obj.setIdleArt?.()
+        }
 
         let weaponObj = obj.equippedWeapon
         // CE combat_ai.cc _ai_pick_hit_mode: an item that isn't ITEM_TYPE_WEAPON — the Shiv

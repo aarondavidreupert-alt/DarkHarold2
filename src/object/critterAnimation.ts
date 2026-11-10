@@ -160,7 +160,7 @@ Critter.prototype.getAnimation = function (this: Critter, anim: string): string 
         // CE buildFid keeps the fid's weapon code (the wielded weapon's animation code);
         // without that FRM, the unarmed one.
         const id = Number(anim.slice(5))
-        const held = this.equippedWeapon
+        const held = this.holstered ? null : this.equippedWeapon
         const weaponCode = held && held.pid !== undefined ? (held.pro?.extra?.animCode ?? 0) : 0
         const armed = weaponCode ? artGetCode(id, weaponCode) : null
         if (armed && assets.imageInfo![base + armed[0] + armed[1]] !== undefined) return base + armed[0] + armed[1]
@@ -168,8 +168,8 @@ Critter.prototype.getAnimation = function (this: Critter, anim: string): string 
         return code ? base + code[0] + code[1] : base + 'aa'
     }
 
-    // try weapon animation first
-    const weaponObj = this.equippedWeapon
+    // try weapon animation first (not while the weapon isn't drawn: Critter.holstered)
+    const weaponObj = this.holstered ? null : this.equippedWeapon
     if (weaponObj !== null && Config.engine.doUseWeaponModel === true) {
         if (!weaponObj.weapon) {
             throw Error()

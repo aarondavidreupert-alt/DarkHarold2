@@ -249,6 +249,11 @@ WebGLRenderer.prototype.renderRoof = function (roof: TileMap, hideSet?: Set<stri
                 dbg('renderer', 'skipping roof tile without a texture: ' + img)
                 continue
             }
+            // the tile's own colour-cycle mask (unit 7, as drawTileMap): without it the roof used
+            // whatever mask the last sprite left bound — a burning barrel's flames cycled on
+            // every roof tile
+            gl.activeTexture(gl.TEXTURE7)
+            gl.bindTexture(gl.TEXTURE_2D, this.getCycleMaskTex(img))
             gl.activeTexture(gl.TEXTURE0)
             gl.bindTexture(gl.TEXTURE_2D, texture)
 

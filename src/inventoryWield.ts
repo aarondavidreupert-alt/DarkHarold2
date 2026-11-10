@@ -73,8 +73,12 @@ export function invenWield(c: Critter, item: Obj, hand: Hand, animate = false): 
             ((item.flags ?? 0) & ~OBJECT_IN_ANY_HAND) |
             (hand === 'rightHand' ? OBJECT_IN_RIGHT_HAND : OBJECT_IN_LEFT_HAND)
     }
-    const wasDrawn = hand === scriptHand(c) && critterWeaponCode(c) > 0
+    const wasDrawn = hand === scriptHand(c) && critterWeaponCode(c) > 0 && !c.holstered
     a[hand] = item
+    // CE _invenWieldFunc sets the FID's weapon code
+    if (hand === scriptHand(c)) {
+        c.holstered = false
+    }
     if (hand === scriptHand(c)) c.setIdleArt?.()
     refreshStealthState(c) // item.cc stealthBoyTurnOn
     if (c.isPlayer) uiDrawWeapon()
