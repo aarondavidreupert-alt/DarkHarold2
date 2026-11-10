@@ -35,6 +35,7 @@ import { services } from '../state/services.js'
 import * as Lightmap from '../lightmap.js'
 import { dbg, dbgWarn } from '../logger.js'
 import { Critter, deserializeObj, Obj, zsortMap, zsortObject } from '../object.js'
+import { critterKill } from '../critter.js'
 import { centerCamera } from '../renderer.js'
 import { computeMapContentBounds, computeObjectContentBounds, computeScrollBlockerBounds } from '../render/camera.js'
 import * as Scripting from '../scripting.js'
@@ -826,6 +827,22 @@ export class GameMap {
             }),
         )
         this.lastVisitTime = obj.lastVisitTime ?? 0
+        // CE critterIsDead is HP <= 0 (there is no separate flag). A critter saved with HP
+        // at or below 0 but without DH2's `dead` flag (saves written while a kill was
+        // lost) stood up again with 0 HP — "Dead" on examine, yet walking and fighting,
+        // and killing it again could hang the combat. It comes back as a corpse: the
+        // kill_critter path (no animation, no destroy_p_proc, no XP).
+        for (const level of this.objects) {
+            for (const o of level) {
+                if (o instanceof Critter && !o.isPlayer && !o.dead && o.stats.getBase('HP') <= 0) {
+                    dbgWarn(
+                        'map',
+                        `[Deserialize] ${o.name} (${o.uid}) has ${o.stats.getBase('HP')} HP: restored as dead`,
+                    )
+                    critterKill(o, undefined, false)
+                }
+            }
+        }
         // Restore spatials: re-load scripts from names, then reapply saved LVARs.
         // FO2-CE ref: map.cc mapLoad — spatials are always re-initialized from map data
         if (Array.isArray(obj.spatials)) {
