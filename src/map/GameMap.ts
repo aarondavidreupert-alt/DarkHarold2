@@ -16,7 +16,7 @@ limitations under the License.
 
 import { pathfinderFindPathPoints } from './pathfinder.js'
 import { Config } from '../config.js'
-import { getCurrentMapInfo } from '../data.js'
+import { getCurrentMapInfo, mapIndexOf } from '../data.js'
 import * as Events from '../events.js'
 import {
     hexDistance,
@@ -815,7 +815,10 @@ export class GameMap {
 
     deserialize(obj: SerializedMap): void {
         this.name = obj.name
-        this.mapID = obj.mapID
+        // the maps.txt index by name, as mapLoad (saves before 2026-11-10 hold the stale header
+        // value, e.g. denbus2's -1)
+        const byName = mapIndexOf(obj.name)
+        this.mapID = byName >= 0 ? byName : obj.mapID
         this.numLevels = obj.numLevels
         this.mapObj = obj.mapObj
         this.mapScript = obj.mapScript ? Scripting.deserializeScript(obj.mapScript) : null

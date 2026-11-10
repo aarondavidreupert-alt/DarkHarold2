@@ -214,6 +214,7 @@ function captureScreenshot(): string | undefined {
 function gatherSaveData(name: string): SaveGame {
     // Saves the game and returns the savegame
 
+    Scripting.markMapSaved() // CE lsgPerformSaveGame → mapSaveInGame(false): MAP_SAVED
     const curMap = world.gMap!.serialize()
 
     const p = world.player

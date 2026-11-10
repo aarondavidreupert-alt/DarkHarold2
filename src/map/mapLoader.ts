@@ -20,7 +20,7 @@ limitations under the License.
 
 import { ensureCycleMask } from '../images.js'
 import { Config } from '../config.js'
-import { lookupMapName, mapDeadBodiesAge } from '../data.js'
+import { lookupMapName, mapDeadBodiesAge, mapIndexOf } from '../data.js'
 import { itemDropAll } from '../critter.js'
 import * as Events from '../events.js'
 import { Point } from '../geometry.js'
@@ -194,6 +194,7 @@ GameMap.prototype.loadMap = function (
     if (Config.engine.doSaveDirtyMaps && this.name !== null && this.objects !== null) {
         // if a map is already loaded, save it to the dirty map cache before loading
         dbg('map', `[Main] Serializing map ${this.name} and committing to dirty map cache`)
+        Scripting.markMapSaved() // CE mapSaveInGame: MAP_SAVED
         world.dirtyMapCache[this.name] = this.serialize()
     }
 
@@ -360,7 +361,11 @@ GameMap.prototype.loadNewMap = function (
         return
     }
     this.mapObj = map
-    this.mapID = map.mapID
+    // CE map.cc mapLoad: gMapHeader.index = wmMapMatchNameToIdx(gMapHeader.name) — the
+    // maps.txt index by name; the .MAP header's own field is stale (denbus2 has -1, so every
+    // Den script saw cur_map_index -1 there: Lara's gang never counted itself)
+    const byName = mapIndexOf(this.name)
+    this.mapID = byName >= 0 ? byName : map.mapID
     this.numLevels = (map.levels ?? []).length
 
     // none / -1: the map header's entering elevation (CE map.cc mapLoad); one the map

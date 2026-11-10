@@ -101,6 +101,11 @@ export let mapVars: any = null
 export let currentMapID: number | null = null
 let currentMapObject: Script | null = null
 export let mapFirstRun = true
+/** CE map.cc mapSaveInGame: gMapHeader.flags |= MAP_SAVED — the map is being left or the
+ *  game saved, so METARULE_FIRST_RUN is 0 from now on (until another map is entered). */
+export function markMapSaved(): void {
+    mapFirstRun = false
+}
 // CE loadsave.cc _loadingGame / _isLoadingGame — set while a saved game's map runs
 // its start / map_enter / map_update procs (GameMap.runLoadGameProcs).
 export let loadingGame = false
@@ -1198,7 +1203,10 @@ export function updateMap(mapScript: Script, objects: Obj[], elevation: number) 
 
 function updateMapScripts(mapScript: Script, objects: Obj[]) {
     gameObjects = objects
-    mapFirstRun = false
+    // (mapFirstRun stays: CE's METARULE_FIRST_RUN is the map header's MAP_SAVED bit, set only
+    // when the map is saved — markMapSaved. Clearing it here, a drug an addict used in its
+    // map_enter_p_proc (_obj_use_item_on → scriptsExecMapUpdateProc) made the rest of the
+    // Den's critters skip their first-visit setup: the gangs' home tiles and counters.)
 
     if (mapScript) {
         if (mapScript.map_update_p_proc !== undefined) {
