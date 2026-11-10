@@ -975,17 +975,6 @@ export function init(): void {
         setTargetImage('art/intrface/hotspot1.png', true)
     }
 
-    // Keyboard scroll
-    document.addEventListener('keydown', _onWMKeyDown)
-    document.addEventListener('keyup', _onWMKeyUp)
-
-    // Mouse-edge scroll — track cursor position relative to #worldMapWorld
-    const $worldMapWorld = document.getElementById('worldMapWorld')
-    if ($worldMapWorld) {
-        $worldMapWorld.addEventListener('mousemove', _onWMMouseMove)
-        $worldMapWorld.addEventListener('mouseleave', _onWMMouseLeave)
-    }
-
     // Apply initial pan so the map starts centred on the player
     applyPan(worldmapPlayer.x - VIEW_W / 2, worldmapPlayer.y - VIEW_H / 2)
 
@@ -1014,6 +1003,22 @@ function _onWMMouseLeave(): void {
     _mouseEdge = { left: false, right: false, top: false, bottom: false }
 }
 
+// Keyboard and mouse-edge scrolling, on every open: stop() takes them off when the world map
+// closes (once they were added only by init(), so after the first visit nothing scrolled)
+function addPanListeners(): void {
+    document.removeEventListener('keydown', _onWMKeyDown)
+    document.removeEventListener('keyup', _onWMKeyUp)
+    document.addEventListener('keydown', _onWMKeyDown)
+    document.addEventListener('keyup', _onWMKeyUp)
+    const $worldMapWorld = document.getElementById('worldMapWorld')
+    if ($worldMapWorld) {
+        $worldMapWorld.removeEventListener('mousemove', _onWMMouseMove)
+        $worldMapWorld.removeEventListener('mouseleave', _onWMMouseLeave)
+        $worldMapWorld.addEventListener('mousemove', _onWMMouseMove)
+        $worldMapWorld.addEventListener('mouseleave', _onWMMouseLeave)
+    }
+}
+
 export function start() {
     // one frame loop: opening the world map again while it runs (an exit grid and a script
     // both asking, a second exit-grid hex) started a second loop — travel at double speed —
@@ -1021,6 +1026,11 @@ export function start() {
     // (the clock racing 30 minutes a frame until that walk ran out)
     clearTimeout(worldmapTimer)
     running = true
+    addPanListeners()
+    // CE wmInterfaceInit: the view opens centred on the party
+    if (worldmapPlayer) {
+        applyPan(worldmapPlayer.x - VIEW_W / 2, worldmapPlayer.y - VIEW_H / 2)
+    }
     markCarLeftInEncounter()
     resetEncounterTimer() // CE wmInterfaceInit: wmLastRndTime = getTicks()
     partyHealTime = 0
