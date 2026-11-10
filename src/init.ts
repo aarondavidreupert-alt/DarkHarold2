@@ -24,6 +24,7 @@ import {
     MOVIE_ELDER,
     MOVIE_INTRO,
     MOVIE_IPLOGO,
+    setGameMovieSkipAll,
 } from './gameMovie.js'
 import { Config } from './config.js'
 import * as CriticalEffects from './criticalEffects.js'
@@ -45,6 +46,12 @@ import { hideSplash, waitForSplashClick } from './splash.js'
 import { sfallIniGetString } from './sfallIni.js'
 
 // sfall ddraw.ini [Misc] SkipOpeningMovies (0 / 1 / 2), else Config.ui.skipOpeningMovies
+/** play.html#novid (or #...&novid, e.g. #dev&novid): no movies at all — the opening logos,
+ *  the elder, the scripted ones (each counts as seen at once). DH2 test switch, not CE. */
+export function noMoviesRequested(): boolean {
+    return /(?:^#|&)novid(?:&|$)/.test(location.hash)
+}
+
 export function skipOpeningMoviesLevel(): number {
     const v = parseInt(sfallIniGetString('ddraw.ini|Misc|SkipOpeningMovies') ?? '', 10)
     return !isNaN(v) ? v : Config.ui.skipOpeningMovies ? 1 : 0
@@ -62,6 +69,10 @@ export function initialMapName(): string {
 }
 
 export function initGame() {
+    if (noMoviesRequested()) {
+        setGameMovieSkipAll(true)
+    }
+
     // initialize player
     world.player = new Player()
 
@@ -162,7 +173,7 @@ export function initGame() {
         if (crawlParam) {
             hideSplash()
             // nothing: autocrawler.ts starts the crawl once the map has loaded
-        } else if (skipOpeningMoviesLevel() >= 1 || takeMainMenuReturn()) {
+        } else if (skipOpeningMoviesLevel() >= 1 || noMoviesRequested() || takeMainMenuReturn()) {
             hideSplash()
             showMainMenu()
         } else {

@@ -17,7 +17,11 @@ import { fromTileNum } from '../../tile.js'
 import { world } from '../../state/world.js'
 import { isWithinPerception } from '../../perception.js'
 import { skillRoll } from '../../skillUse.js'
-import { uiDrawWeapon } from '../../hudRefresh.js'
+import { drawHP, uiDrawWeapon } from '../../hudRefresh.js'
+import { services } from '../../state/services.js'
+import { uiLog } from '../../messageLog.js'
+import { DAM_DEAD } from '../../combat/results.js'
+import { combatDisplayMethods } from '../../combat/combatDisplay.js'
 import { updateIndicatorBar } from '../../hudRefresh.js'
 import {
     DAMAGE_TYPE_NAMES,
@@ -579,9 +583,33 @@ export const critterOpcodes = {
                 amount -= Math.trunc(((obj.getStat('DR ' + damageType) + obj.getArmorDR(damageType)) * amount) / 100)
             if (amount < 0) amount = 0
         }
+        // actionDamage: reg_anim_clear(defender) — the walk stops (the goo in the Toxic Caves
+        // hits mid-step) so the hit animation plays; the punch sound "whc1xxx1"
+        if (animate) {
+            obj.clearAnim()
+            services.audioEngine?.playSfxByName('whc1xxx1', obj)
+        }
+        // _report_dmg → _combat_display before _apply_damage: "You were hit for 2 hit points."
+        // (", and were killed" when it is lethal; attackComputeDeathFlags)
+        // the two message helpers only read combat.msg (no Combat state), so they are called
+        // on their method object
+        const display = combatDisplayMethods as unknown as {
+            damageAmountDescription(c: Critter, damage: number): string
+            damageFlagsDescription(flags: number, c: Critter): string
+        }
+        const lethal = !obj.dead && amount >= obj.getStat('HP')
+        uiLog(
+            display.damageAmountDescription(obj, amount) +
+                (lethal ? display.damageFlagsDescription(DAM_DEAD, obj) : '') +
+                '.',
+        )
         critterDamage(obj, amount, this.self_obj as Critter, true, animate, damageType, undefined, {
             scriptDamage: true,
         })
+        // _apply_damage → interfaceRenderHitPoints
+        if (obj.isPlayer) {
+            drawHP(obj.getStat('HP'))
+        }
     },
     // CE opCritterHeal → critter.cc critterAdjustHitPoints: HP + amount, capped at max;
     // at 0 or below (a negative amount) the critter dies. Returns 0.

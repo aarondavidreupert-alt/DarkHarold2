@@ -44,6 +44,11 @@ function busy(): boolean {
     )
 }
 
+/** The screen is black for a map change (before the fade-in starts). */
+export function isMapFadeBlack(): boolean {
+    return !!overlay && overlay.style.opacity === '1'
+}
+
 /** Black at once (isoDisable / wmFadeOut). */
 export function beginMapFade(): void {
     if (typeof document === 'undefined') return

@@ -669,18 +669,19 @@ html, body {
   left: 120px; top: 80px;
   width: 94px; height: 33px;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
+/* CE inventory.cc:5926 — "ALL" in font 103, centred, 4 px down the button art */
 #moveMultAllText {
-  font-family: 'VT323', monospace;
-  font-size: 16px;
-  color: #FCFC7C;
+  position: absolute;
+  left: 0; right: 0; top: 4px;
+  display: flex;
+  justify-content: center;
   pointer-events: none;
-  line-height: 1;
 }
+#moveMultAllText .fo-down { display: none !important; }
+#moveMultAllBtn:active #moveMultAllText .fo-up { display: none !important; }
+#moveMultAllBtn:active #moveMultAllText .fo-down { display: inline-block !important; }
 
 /* CE ref: inventory.cc:5876 — DONE text+dot from x=5 to x=125, y=124–146 */
 #moveMultDoneBtn {

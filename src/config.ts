@@ -18,6 +18,7 @@ export type DragWindow =
     | 'saveLoad'
     | 'perks'
     | 'dialogBox'
+    | 'preferences'
 export const DRAG_WINDOWS: DragWindow[] = [
     'inventory',
     'character',
@@ -35,6 +36,7 @@ export const DRAG_WINDOWS: DragWindow[] = [
     'saveLoad',
     'perks',
     'dialogBox',
+    'preferences',
 ]
 
 export const Config = {

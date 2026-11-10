@@ -73,6 +73,8 @@ function buildPrefsPanel(): HTMLElement {
         userSelect: 'none',
     })
 
+    makePanelDraggable(panel, 'preferences') // DH2 (CE windows are fixed), like the other windows
+
     // All refresh callbacks — called by Default button to redraw every control.
     const refreshFns: Array<() => void> = []
 
@@ -616,13 +618,12 @@ function buildPrefsPanel(): HTMLElement {
     label(font3, 'BRIGHTNESS LEVEL', 384, 369)
     label(font3, 'MOUSE SENSITIVITY', 384, 420)
 
-    // Button labels: active font after _UpdateThing loop is 101→font1.
-    // CE ref: preferences.cc lines 1040-1050. Msg #120 DEFAULT, #4 DONE, #121 CANCEL.
-    // Buttons (lilredup) at y=450; text at y=449 (1 px above button top).
-    // Text is to the RIGHT of its red-dot button (decorative bullet + label layout).
-    label(font1, 'DEFAULT', 43, 449)
-    label(font1, 'DONE', 169, 449)
-    label(font1, 'CANCEL', 283, 449)
+    // Button labels: still font 103 (set before the column titles; the _UpdateThing loop
+    // that switches to 101 runs after). CE ref: preferences.cc preferencesWindowInit,
+    // msg #120 DEFAULT, #4 DONE, #121 CANCEL at y=449, right of their red-dot buttons.
+    label(font3, 'DEFAULT', 43, 449)
+    label(font3, 'DONE', 169, 449)
+    label(font3, 'CANCEL', 283, 449)
 
     // "Affect player speed": fontSetCurrent(101)→font1; CE buffer offset y=72, x=405. Msg #122.
     label(font1, 'Affect player speed', 405, 72)

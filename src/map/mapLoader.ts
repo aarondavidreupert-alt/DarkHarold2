@@ -483,7 +483,12 @@ GameMap.prototype.loadNewMap = function (
     load('art/intrface/actarrow')
     load('art/intrface/acrshair')
     load('art/intrface/crossuse')
+    // the primary-action icons the arrow shows after a 250 ms rest (uiContextMenu.ts
+    // primaryActionIcon, CE gameMouseRefresh): look, talk (critters), use / get, rotate (dude)
     load('art/intrface/lookn')
+    load('art/intrface/talkn')
+    load('art/intrface/usegetn')
+    load('art/intrface/rotaten')
     load('art/intrface/scrnorth')
     load('art/intrface/scrsouth')
     load('art/intrface/screast')

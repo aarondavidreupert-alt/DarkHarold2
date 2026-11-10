@@ -205,6 +205,7 @@ drag_moveItems=1
 drag_saveLoad=1
 drag_perks=1
 drag_dialogBox=1
+drag_preferences=1
 ; debug readouts at the top of the screen (mouse hex, tile, light, camera, bbox; combat turn)
 debug_overlay=0
 ; fps counter

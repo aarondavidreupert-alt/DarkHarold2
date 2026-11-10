@@ -39,6 +39,7 @@ import { dbg } from './logger.js'
 import { Obj } from './object.js'
 import { hexToTile, tileFromScreen } from './tile.js'
 import { Config } from './config.js'
+import { waitCursorShown } from './waitCursor.js'
 import { WindowFrame } from './ui.js'
 import { Font } from './formats/fon.js'
 import * as Lightmap from './lightmap.js'
@@ -427,7 +428,8 @@ export class Renderer {
         }
 
         // Render Fallout-authentic cursor overlay — must be last so it's never occluded
-        {
+        // (not while the wait cursor stands in for it: waitCursor.ts)
+        if (!waitCursorShown()) {
             const rawX = mousePos[0]
             const rawY = mousePos[1]
             const PAD = Config.ui.scrollPadding

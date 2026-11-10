@@ -534,6 +534,10 @@ has `dev`: `play.html#dev`, or with other hash keys `play.html#script_backend=lu
 (`src/devConsole/`), or on every start with `dev_console=1` in the `[dh2]` section of `fallout2.cfg`. `exportEventLog()` / `__eventLog` (Combat Log), `exportSave()` / `importSave()` (Save Files) and `globalState`, `Config`,
 `Scripting` are always there.
 
+`play.html#novid` (or `#dev&novid`) starts without any movie: no logos or intro before the main
+menu, no elder after character creation, and the scripted movies count as seen at once — for
+testing (`src/init.ts noMoviesRequested`).
+
 World map: `encounterLog()` prints one line per random-encounter roll (square, chance, roll, result;
 `encounterLog(false)` stops it), `encounterStats()` prints the counters as one line of JSON to copy
 (world map fps, walking seconds, travel px/s, game hours per walking second, rolls, skipped rolls,

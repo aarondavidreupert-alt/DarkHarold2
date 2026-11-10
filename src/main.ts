@@ -48,6 +48,7 @@ import {
     registerEventLogCommands,
     registerSaveFileCommands,
 } from './devConsole.js'
+import { initWaitCursor } from './waitCursor.js'
 import './autocrawler.js'
 import './mapFade.js' // black screen over map changes (CE isoDisable / wmFadeOut)
 
@@ -68,6 +69,7 @@ function miscHealingItemUse(item: import('./object.js').Obj, user: import('./obj
 
 registerEventLogCommands()
 registerSaveFileCommands() // exportSave() / importSave(): saves to and from .json files
+initWaitCursor() // the spinning planet while a map loads (CE MOUSE_CURSOR_WAIT_PLANET)
 
 /** The files the engine reads synchronously while it starts and loads the first map, prefetched
  *  at boot (fileCache.ts, wiki/code_quality.md Q13). A file missing here still loads, with a

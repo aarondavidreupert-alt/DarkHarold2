@@ -187,7 +187,7 @@ export function applyCfg(cfg: CfgSections): void {
     //   drag_windows=0          no window can be dragged (default 1)
     //   drag_<window>=0|1       per window: inventory, character, characterCreator, options,
     //                           skilldex, pipboy, automap, loot, dialogue, dialogueReview,
-    //                           elevator, calledShot, moveItems, saveLoad, perks, dialogBox
+    //                           elevator, calledShot, moveItems, saveLoad, perks, dialogBox, preferences
     const dw = int(dh2['drag_windows'])
     if (dw !== null) Config.ui.dragWindows = dw !== 0
     const dh2Lower: { [k: string]: string } = {}

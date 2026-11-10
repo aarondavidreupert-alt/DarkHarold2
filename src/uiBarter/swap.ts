@@ -58,6 +58,21 @@ function setWindowTitle(msg: number, fallback: string): void {
     const $title = $id('moveMultTitle')
     clearEl($title)
     new FoText(font3, getMessage('inventry', msg) ?? fallback, '#a59c18').appendTo($title)
+    setAllLabel()
+}
+
+// CE inventoryQuantityWindowInit: the ALL button's label, inventry.msg 22 in font 103,
+// centred, 4 px down the 94x33 button art — _colorTable[21091] up, [18977] pressed
+function setAllLabel(): void {
+    const $all = $id('moveMultAllText')
+    clearEl($all)
+    const text = getMessage('inventry', 22) ?? 'ALL'
+    const up = new FoText(font3, text, '#a59c18')
+    up.elem.classList.add('fo-up')
+    up.appendTo($all)
+    const down = new FoText(font3, text, '#908808')
+    down.elem.classList.add('fo-down')
+    down.appendTo($all)
 }
 
 // CE ref: inventory.cc:5816-5866 — plus at (200,46) 16×12, minus at (200,58) 17×12.
