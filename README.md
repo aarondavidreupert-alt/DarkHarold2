@@ -121,6 +121,7 @@ Pre-audited summaries of CE behaviour with DH2 gaps already identified. Trust th
 | 54 | [`wiki/cleanup_audit.md`](wiki/cleanup_audit.md) | 2026-10-26 codebase hygiene audit: dead code, debug console (`play.html#dev`), stale docs; SAFE items fixed, RISKY items open |
 | 55 | [`wiki/code_quality.md`](wiki/code_quality.md) | Code quality vs modern standards (2026-10-27): type safety, import cycle, sync I/O, tests / CI, toolchain; phased fixing plan Q1–Q17 |
 | 56 | [`wiki/planning_archive.md`](wiki/planning_archive.md) | The early (spring 2026) planning documents, formerly `docs/planning/*.docx`, as text; superseded |
+| 57 | [`wiki/action_recorder.md`](wiki/action_recorder.md) | Action recorder (on by default), replays, save history, save sizes, save files, bug reports: user guide and file formats |
 
 ### 🐛 Known issues & roadmap
 
@@ -469,7 +470,7 @@ Saves are kept in the browser's IndexedDB, so they stay with that browser profil
 another browser or machine, or attach it to a bug report, use the console:
 
 ```js
-exportSave()                  // the newest save → <name>.dh2save.json
+exportSave()                  // the newest save → <name>_<date>_<time>.dh2save.json (the save's own date)
 exportSave("tttt")            // the newest save with that name (a number picks the save id)
 importSave()                  // pick a .json file, store it as a new save and load it
 importSave(false)             // store it only; it shows in the Load Game list
@@ -489,6 +490,9 @@ importSave("saves/tttt.json") // read it from a URL instead of a file picker
 The event log is serialised into the save game. When a save is loaded, `globalState.eventLog` is restored from the file, so the full fight history is available even after a page reload. Saves written before the `eventLog` field was introduced are loaded cleanly (the log starts empty).
 
 ## Bug Reports
+
+The full guide to the recorder, replays, save files, sizes and bug reports:
+[wiki/action_recorder.md](wiki/action_recorder.md).
 
 One file with everything needed to look at a bug and replay it (console, every page load):
 
@@ -512,7 +516,7 @@ there (or `replayHistory("bug: <note>")` the whole chain).
 
 Records what you do while play-testing — one compact entry per action — so a session can be
 replayed later as an automated test run that reports where the game first behaves differently.
-DH2 test tooling (no CE equivalent).
+DH2 test tooling (no CE equivalent). User guide: [wiki/action_recorder.md](wiki/action_recorder.md).
 
 **Automatic (`[dh2] record_actions=1`, the default):** nothing to start or stop. Every save load
 and every NEW GAME starts a piece of recording, and every save stores the piece up to that moment

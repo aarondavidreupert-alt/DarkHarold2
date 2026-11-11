@@ -23,9 +23,14 @@ function newest(saves: SaveGame[]): SaveGame | undefined {
     return saves.reduce<SaveGame | undefined>((a, b) => (!a || b.timestamp > a.timestamp ? b : a), undefined)
 }
 
+// <name>_<date>.dh2save.json: the save's own date and time, so exports of two saves with the same
+// name (or of one save that was overwritten later) never get the same file name
 function fileName(save: SaveGame): string {
     const base = save.name.replace(/[^\w.-]+/g, '_') || 'save'
-    return `${base}.dh2save.json`
+    const d = new Date(save.timestamp)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${pad(d.getHours())}-${pad(d.getMinutes())}-${pad(d.getSeconds())}`
+    return `${base}_${stamp}.dh2save.json`
 }
 
 async function exportSave(which?: string | number): Promise<void> {
