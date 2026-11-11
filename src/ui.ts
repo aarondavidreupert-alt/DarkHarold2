@@ -353,12 +353,26 @@ export function initUI() {
         }
     }
 
+    // CE inventory.cc inventoryOpenTrade (MOUSE_EVENT_WHEEL, ~5267-5330): the wheel over
+    // each of the four trade lists moves that list's item offset by one, the same offset
+    // as its scroll buttons. The barter and companion-trade screens keep that offset and
+    // set the buttons' onclick, so a notch presses the button. Pixel scrolling (scrollTop)
+    // here fought the offset: every redraw rebuilt the list and lost the wheel's position,
+    // and a button offset left the wheel less to scroll, so the wheel fell short of the end.
+    function wheelPressesButtons($el: HTMLElement, upId: string, downId: string) {
+        $el.onwheel = (e: WheelEvent) => {
+            e.preventDefault()
+            if (e.deltaY === 0) return
+            $id(e.deltaY > 0 ? downId : upId).click()
+        }
+    }
+
     // inventoryBoxList scroll wiring lives in uiInventory.ts → initInventory()
 
-    makeScrollable($id('barterBoxInventoryLeft'))
-    makeScrollable($id('barterBoxInventoryRight'))
-    makeScrollable($id('barterBoxLeft'))
-    makeScrollable($id('barterBoxRight'))
+    wheelPressesButtons($id('barterBoxInventoryLeft'), 'barterScrollLeftUp', 'barterScrollLeftDown')
+    wheelPressesButtons($id('barterBoxInventoryRight'), 'barterScrollRightUp', 'barterScrollRightDown')
+    wheelPressesButtons($id('barterBoxLeft'), 'barterOfferScrollLeftUp', 'barterOfferScrollLeftDown')
+    wheelPressesButtons($id('barterBoxRight'), 'barterOfferScrollRightUp', 'barterOfferScrollRightDown')
     makeScrollable($id('lootBoxLeft'))
     makeScrollable($id('lootBoxRight'))
     makeScrollable($id('worldMapLabels'))

@@ -489,10 +489,15 @@ export class Player extends Critter {
                         )
                         Events.emit('mapTransition', exitMapID) // CE mapHandleTransition → wmTeleportToArea
                     } else if (position) {
-                        // same map, another elevation: no reload
+                        // same map, another elevation: no reload. CE objectSetLocation sets the
+                        // dude's tile first, then mapSetElevation → _partyMemberSyncPosition
+                        // places the party around it (map.cc:383) — the new tile and rotation
+                        // must be in place before changeElevation's placeParty, or the party
+                        // lands at the old tile's coordinates on the new elevation (in rock).
+                        world.player!.position = position
+                        world.player!.orientation = rotation
                         gMap!.changeElevation(startingElevation, true)
                         world.player!.move(position)
-                        world.player!.orientation = rotation
                         centerCamera(world.player!.position)
                     }
                 }
