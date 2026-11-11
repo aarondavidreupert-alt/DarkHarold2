@@ -499,6 +499,17 @@ did). A replay calls `setReplaying(true)`: nothing records, and the current piec
 piece's replay sets the GVARs / MVARs back to the snapshot's after loading it (a game load reruns
 map_enter_p_proc with the load flag; artemple's script counts entries in GVAR 104). The cached-map
 load path (`mapLoader.ts` enterCached with every image already loaded) now notifies too.
+**Whole chain in every save.** `notifyGameLoaded` passes the loaded save; the recorder's history for
+the new piece is that save's `history` plus its `recording` (or, for a save without one, a root
+piece: no actions, `start` = the save, `end` = the game as the load left it). The added piece is
+packed in the background (`packJson`: JSON → CompressionStream gzip → base64) and appended as a
+chunk; older chunks are copied as strings, never re-packed. `save()` stores `history`
+(`SaveHistory { chunks, pending?, count, minutes }`). `replayHistory` unpacks the chunks
+(`historyPieces`) and replays each piece from its `start`, else its real parent save, else the
+replayed state: after a root piece that is the root save itself (its replay ran the load procedures
+on top), after any other piece the game at its end — the moment the next piece's parent save was
+made. Checked (2026-11-11): base → second → third → fourth, then base / second / third deleted:
+`replayHistory('fourth')` replays all four pieces with 0 divergences, as with the saves present.
 `devConsole/gameSize.ts`: `gameSize()` / `saveSize()`. `devConsole/bugReport.ts`: `exportBugReport(note)`
 packs the game now (a save with its piece), its parent saves (up to 8, by `parent` refs), the
 console log (errors / warnings captured from page load) and settings into one `.dh2bug.json.gz`;

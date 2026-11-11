@@ -518,8 +518,10 @@ DH2 test tooling (no CE equivalent).
 and every NEW GAME starts a piece of recording, and every save stores the piece up to that moment
 (the save's `recording` field: the actions since the save loaded before it, or since NEW GAME with
 a snapshot of the first map). After a page reload you just load a save; the next piece starts
-there. The chain of parent saves goes back to NEW GAME, so a save knows its whole history as long
-as those saves still exist. `record_actions=0` is CE: no recording, and the RNG keeps its one seed
+there. Every save also carries **its whole chain** (`history`): every earlier piece back to the
+start — NEW GAME, a `startRecording()` snapshot, or the first save that was loaded without a
+recording (that save itself becomes the start) — gzip-compressed, so it does not depend on the
+earlier saves: overwrite or delete them and the history is still complete. `record_actions=0` is CE: no recording, and the RNG keeps its one seed
 (the recorder reseeds it before every action).
 
 The console commands are registered on every page load:
@@ -527,7 +529,7 @@ The console commands are registered on every page load:
 ```js
 recordingStatus()             // what is being recorded now (from which save, how many actions, size)
 replaySave("name")            // load the save's parent, replay its piece, compare with the save
-replayHistory("name")         // every piece from NEW GAME (or the oldest parent still here) to the save
+replayHistory("name")         // the save's whole chain, oldest piece first, from that save alone
 gameSize()                    // the game as a save would store it now, by part (maps, recording, ...)
 saveSize()                    // every stored save with its size and the recording's share
 saveSize("name")              // one save by part (a number picks the save id)
@@ -541,8 +543,10 @@ replayRecording()             // replay __recording; report on the console and a
 downloadReplayReport()        // the last replay's report as JSON
 ```
 
-`exportSave()` exports a save with its recording; the parent save is a separate file (or use
-`exportRecording({ save })`).
+`exportSave()` exports a save with its recording and its whole history. `replayHistory` starts each
+piece from its own snapshot, else from its real parent save while that is still stored, else from
+the state the replay of the piece before ended in (the moment that save was made);
+`replayHistory("name", { useSaves: false })` never uses the stored saves.
 
 Headless, on both script backends (needs the extracted game data, like the story crawler):
 
@@ -574,8 +578,10 @@ the replay runs the recorded frames at the recorded times (a frame-time track: a
 as drift, not a divergence (`replayRecording(rec, { tileTolerance: 0 })` for exact). A `load`
 entry replays only where that save exists (move it with `exportSave()` / `importSave()`).
 
-**Size:** an hour of play at 30 fps with ~2,400 actions adds ~430 KB to a save (half of it the
-frame-time track); a piece that starts at a load names its parent save and carries nothing else.
+**Size:** an hour of play at 30 fps with ~2,400 actions adds ~430 KB to a save while it is the
+current piece (half of it the frame-time track); once a load ends it, it moves into the history
+compressed (~4:1 for the actions, the chain's start snapshot ~90 KB). A long playthrough's history
+grows by roughly 100 KB per hour of play in every save.
 A NEW GAME or `startRecording()` piece carries its start snapshot (a save of the current map and
 every changed map, ~1.4 MB as JSON in Arroyo; ~0.7 MB at NEW GAME in Arroyo's temple). Saves
 themselves are ~1.4 MB and grow with every map you change; `gameSize()` / `saveSize()` show where

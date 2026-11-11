@@ -240,6 +240,59 @@ export function decodeFrameTimes(text: string): number[] {
     return out
 }
 
+// ─── A save's history ───────────────────────────────────────────────────────
+
+/** Every piece before a save's own `recording`, oldest first, back to the chain's start (the first
+ *  piece has a `start`). Stored as gzip + base64 chunks of `Recording[]` JSON: a chunk is made once,
+ *  when its piece ends at a load, and every later save copies the strings as they are. `pending`
+ *  holds pieces not compressed yet (a save made in the moment after a load). */
+export interface SaveHistory {
+    chunks: string[]
+    pending?: Recording[]
+    /** pieces in all */
+    count: number
+    /** play time in all, minutes */
+    minutes: number
+}
+
+function toBase64(bytes: Uint8Array): string {
+    let s = ''
+    for (let i = 0; i < bytes.length; i += 0x8000) {
+        s += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
+    }
+    return btoa(s)
+}
+
+/** JSON → gzip → base64 (CompressionStream: no library). */
+export async function packJson(value: unknown): Promise<string> {
+    const stream = new Blob([JSON.stringify(value)]).stream().pipeThrough(new CompressionStream('gzip'))
+    return toBase64(new Uint8Array(await new Response(stream).arrayBuffer()))
+}
+
+export async function unpackJson<T>(packed: string): Promise<T> {
+    const bytes = Uint8Array.from(atob(packed), (c) => c.charCodeAt(0))
+    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))
+    return JSON.parse(await new Response(stream).text()) as T
+}
+
+export function isSaveHistory(v: unknown): v is SaveHistory {
+    const h = v as Partial<SaveHistory> | null
+    return !!h && Array.isArray(h.chunks)
+}
+
+/** A history's pieces, oldest first. */
+export async function historyPieces(history: SaveHistory | undefined): Promise<Recording[]> {
+    if (!history) {
+        return []
+    }
+    const out: Recording[] = []
+    for (const chunk of history.chunks) {
+        out.push(...(await unpackJson<Recording[]>(chunk)))
+    }
+    out.push(...(history.pending ?? []))
+    return out
+}
+
 export function isRecording(v: unknown): v is Recording {
     const r = v as Partial<Recording> | null
     return !!r && r.format === RECORDING_FORMAT && Array.isArray(r.entries) && (!!r.start || !!r.parent)

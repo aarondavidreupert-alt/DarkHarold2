@@ -86,6 +86,10 @@ export interface SaveGame {
     // since the save loaded before (or NEW GAME) up to this save — src/autocrawler/recording.ts
     // Recording, with `parent` naming that save. Older saves and record_actions=0: none.
     recording?: Record<string, unknown>
+    // ...and every piece before that one, back to the chain's start (NEW GAME, a startRecording()
+    // snapshot, or the first save loaded without a recording): gzip + base64 chunks, oldest first
+    // (src/autocrawler/recording.ts SaveHistory). A save carries its whole history this way.
+    history?: Record<string, unknown>
 
     player: { position: Point; orientation: number; inventory: SerializedObj[] }
     party: SerializedObj[]
@@ -341,9 +345,12 @@ export function debugSave(): void {
 export function save(name: string, slot = -1, callback?: (id: number) => void): void {
     recordAction({ t: 'save', n: name })
     const save = gatherSaveData(name)
-    const recording = recordingForSave() // the action recorder's piece up to here (none when off)
-    if (recording) {
-        save.recording = recording
+    const recorded = recordingForSave() // the action recorder's piece and history (none when off)
+    if (recorded) {
+        save.recording = recorded.recording
+        if (recorded.history) {
+            save.history = recorded.history
+        }
     }
 
     const dirtyMapNames = Object.keys(world.dirtyMapCache)
@@ -657,7 +664,10 @@ export function load(id: number): void {
                 dbg('saveload', '[SaveLoad] Finished loading map %s', savedMap.name)
                 endMapFade()
                 // the action recorder starts a new piece here (it names this save as its parent)
-                notifyGameLoaded({ name: save.name, timestamp: save.timestamp })
+                notifyGameLoaded(
+                    { name: save.name, timestamp: save.timestamp },
+                    save as unknown as Record<string, unknown>,
+                )
             }
 
             const changingMap = world.gMap?.name !== save.currentMap

@@ -16,7 +16,8 @@
 //   importRecording()           pick a file, .gz or .json (or importRecording('url'))
 //   replayRecording()           replay __recording (or the one passed) and report divergences
 //   replaySave('name')          replay a save's piece: load its parent save, replay, compare with it
-//   replayHistory('name')       every piece back to NEW GAME (or to a parent save that is gone)
+//   replayHistory('name')       the save's whole history (it carries every piece back to the
+//                               chain's start), oldest first
 //   downloadReplayReport()      the last replay's report as JSON
 //   __recording                 the current piece, else the last one stopped or imported
 //
@@ -38,6 +39,10 @@ import {
 import { getLastReplayReport, loadSnapshot, runReplay, type ReplayOptions, type ReplayReport } from '../autocrawler.js'
 import {
     encodeFrameTime,
+    historyPieces,
+    isSaveHistory,
+    packJson,
+    type SaveHistory,
     entrySeed,
     gvarDelta,
     gvarHash,
@@ -83,6 +88,8 @@ let lastDraws = 0
 // its first map is in)
 let pendingManual: { start: SaveGame; seed?: number } | null = null
 let pendingNewGame = false
+// every piece before the current one, back to the chain's start (what a save stores as `history`)
+let history: SaveHistory = { chunks: [], count: 0, minutes: 0 }
 
 // entries that don't reseed the RNG: map loads (reseeded when the load ends, below), and a
 // Move Items quantity / timer (asked for inside an action that already reseeded)
@@ -186,8 +193,10 @@ function beginPiece(
     origin: 'load' | 'newGame' | 'manual',
     from: { start?: SaveGame; parent?: SaveRef },
     seed?: number,
+    before: SaveHistory = { chunks: [], count: 0, minutes: 0 },
 ): void {
     const s = seed ?? (Date.now() % 0x7ffffffe) + 1
+    history = before
     current = {
         format: RECORDING_FORMAT,
         version: RECORDING_VERSION,
@@ -276,7 +285,7 @@ function onMapReady(): void {
 }
 
 /** A save finished loading: a new piece starts here (its parent is that save). */
-function onGameLoaded(save: SaveRef): void {
+function onGameLoaded(ref: SaveRef, loaded?: Record<string, unknown>): void {
     if (isReplaying()) {
         return
     }
@@ -288,7 +297,78 @@ function onGameLoaded(save: SaveRef): void {
         pendingManual = null
         beginPiece('manual', { start }, seed)
     } else if (Config.engine.recordActions) {
-        beginPiece('load', { parent: { name: save.name, timestamp: save.timestamp } })
+        beginPiece('load', { parent: { name: ref.name, timestamp: ref.timestamp } }, undefined, historyAfter(loaded))
+    }
+}
+
+/** The history a piece starting at `loaded` continues: the save's own history plus its piece (or,
+ *  for a save without one, the save itself as the chain's start). The new piece is compressed in
+ *  the background; a save made before that stores it as `pending`. */
+function historyAfter(loaded: Record<string, unknown> | undefined): SaveHistory {
+    if (!loaded) {
+        return { chunks: [], count: 0, minutes: 0 }
+    }
+    const save = loaded as unknown as SaveGame
+    const base: SaveHistory = isSaveHistory(save.history) ? save.history : { chunks: [], count: 0, minutes: 0 }
+    const piece = save.recording && isRecording(save.recording) ? save.recording : rootPiece(save)
+    const h: SaveHistory = {
+        chunks: base.chunks.slice(),
+        pending: [...(base.pending ?? []), piece],
+        count: base.count + 1,
+        minutes: base.minutes + (piece.end?.ms ?? 0) / 60000,
+    }
+    const toPack = h.pending!
+    void packJson(toPack).then((chunk) => {
+        if (h.pending === toPack) {
+            h.chunks.push(chunk)
+            h.pending = undefined
+        }
+    })
+    return h
+}
+
+/** A save loaded without a recording (older, or made with record_actions=0) starts the chain: a piece
+ *  with no actions whose start is the save itself, and whose end is the game as the load left it
+ *  (after the load procedures — where the next piece starts; called at the end of the load). */
+function rootPiece(save: SaveGame): Recording {
+    const start: SaveGame = { ...save }
+    delete start.id
+    delete start.screenshot
+    delete start.recording
+    delete start.history
+    return {
+        format: RECORDING_FORMAT,
+        version: RECORDING_VERSION,
+        created: new Date(save.timestamp).toISOString(),
+        backend: Config.scripting.backend,
+        seed: 1,
+        origin: 'load',
+        start,
+        startTick: save.gameTickTime ?? 0,
+        frames: '',
+        entries: [],
+        end: {
+            ms: 0,
+            f: 0,
+            k: 0,
+            mp: world.gMap?.name ?? save.currentMap,
+            el: world.currentElevation,
+            pl: playerTile(),
+            gvHash: gvarHash(gvarSnapshot()),
+        },
+    }
+}
+
+/** The history as a save stores it (none before the chain has more than this piece). */
+function historyForSave(): SaveHistory | undefined {
+    if (history.count === 0) {
+        return undefined
+    }
+    return {
+        chunks: history.chunks.slice(),
+        ...(history.pending ? { pending: history.pending.slice() } : {}),
+        count: history.count,
+        minutes: Math.round(history.minutes * 10) / 10,
     }
 }
 
@@ -342,6 +422,7 @@ export async function withStart(rec: Recording): Promise<Recording | null> {
     const start: SaveGame = { ...parent }
     delete start.id
     delete start.recording
+    delete start.history
     return { ...rec, start }
 }
 
@@ -537,40 +618,65 @@ async function replaySave(which?: string | number, options: ReplayOptions = {}):
     return replayRecording(save.recording, options)
 }
 
-/** Every piece from NEW GAME (or the oldest parent still here) to this save, oldest first. */
-async function replayHistory(which?: string | number, options: ReplayOptions = {}): Promise<ReplayReport[]> {
-    const chain: SaveGame[] = []
-    let save = await findSave(which)
-    while (save?.recording && isRecording(save.recording)) {
-        chain.unshift(save)
-        const parent: SaveRef | undefined = save.recording.parent
-        if (!parent) {
-            break
-        }
-        const next = await findSaveByRef(parent)
-        if (!next) {
-            console.log(`[Recorder] the history stops at '${save.name}': its parent save '${parent.name}' is gone`)
-            break
-        }
-        save = next
+/** A save's whole history, oldest piece first, from the save alone: its `history` and its own
+ *  piece. Each piece starts from its own snapshot, else its real parent save while it is still
+ *  stored (`{ useSaves: false }`: never), else the state the replay of the piece before ended in —
+ *  as if that moment had been saved and loaded. */
+async function replayHistory(
+    which?: string | number,
+    options: ReplayOptions & { useSaves?: boolean } = {},
+): Promise<ReplayReport[]> {
+    const save = await findSave(which)
+    if (!save) {
+        console.log(`[Recorder] no save ${which === undefined ? '' : JSON.stringify(which)}`)
+        return []
     }
-    if (chain.length === 0) {
-        console.log('[Recorder] no recorded history for that save')
+    const pieces = await historyPieces(isSaveHistory(save.history) ? save.history : undefined)
+    if (save.recording && isRecording(save.recording)) {
+        pieces.push(save.recording)
+    }
+    if (pieces.length === 0) {
+        console.log(`[Recorder] save '${save.name}' has no recorded history`)
         return []
     }
     const reports: ReplayReport[] = []
-    for (const s of chain) {
-        console.log(`[Recorder] history ${reports.length + 1}/${chain.length}: up to save '${s.name}'`)
-        const report = await replayRecording(s.recording as unknown as Recording, options)
-        if (report) {
-            reports.push(report)
+    let replayed: SaveGame | null = null // the state the last piece's replay ended in
+    for (let i = 0; i < pieces.length; i++) {
+        const piece = pieces[i]
+        let rec: Recording | null = null
+        let from = 'its snapshot'
+        if (piece.start) {
+            rec = piece
+        } else {
+            const real = options.useSaves !== false && piece.parent ? await findSaveByRef(piece.parent) : undefined
+            if (real) {
+                rec = await withStart(piece)
+                from = `save '${real.name}'`
+            } else if (replayed) {
+                rec = { ...piece, start: replayed }
+                from = 'the replayed state'
+            }
         }
-        if (options.stopOnDivergence && report?.firstDivergence) {
+        if (!rec) {
+            console.log(
+                `[Recorder] history ${i + 1}/${pieces.length}: no start (its parent save is gone, nothing replayed before)`,
+            )
+            break
+        }
+        console.log(`[Recorder] history ${i + 1}/${pieces.length}: ${describe(piece)}, from ${from}`)
+        const report = await runReplay(rec, options)
+        reports.push(report)
+        // what the next piece's parent save held: a chain's start with no actions is that save
+        // itself (its replay ran the load procedures on top); else the game at the end of this
+        // piece, the moment that save was made
+        replayed =
+            piece.entries.length === 0 && piece.start ? piece.start : snapshotNow(piece.parent?.name ?? 'replayed')
+        if (options.stopOnDivergence && report.firstDivergence) {
             break
         }
     }
     const diverging = reports.filter((r) => r.divergences.length > 0).length
-    console.log(`[Recorder] history: ${reports.length} pieces replayed, ${diverging} with divergences`)
+    console.log(`[Recorder] history: ${reports.length}/${pieces.length} pieces replayed, ${diverging} with divergences`)
     return reports
 }
 
@@ -584,7 +690,17 @@ export function registerRecorderCommands(): void {
             endPiece() // the replay replaces this game
         }
     })
-    setSaveRecordingProvider(() => pieceSoFar() as unknown as Record<string, unknown> | null)
+    setSaveRecordingProvider(() => {
+        const piece = pieceSoFar()
+        if (!piece) {
+            return null
+        }
+        const h = historyForSave()
+        return {
+            recording: piece as unknown as Record<string, unknown>,
+            ...(h ? { history: h as unknown as Record<string, unknown> } : {}),
+        }
+    })
 
     devWindow.recordingStatus = recordingStatus
     devWindow.startRecording = startRecording

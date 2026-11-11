@@ -34,6 +34,7 @@ interface SizeReport {
     parts: { [part: string]: number }
     maps: { [map: string]: number }
     recording?: { total: number; entries: number; frames: number; start: number; count: number; minutes: number }
+    history?: { total: number; pieces: number; minutes: number; pending: number }
 }
 
 function sizeReport(save: SaveGame): SizeReport {
@@ -58,6 +59,16 @@ function sizeReport(save: SaveGame): SizeReport {
             minutes: (rec.end?.ms ?? 0) / 60000,
         }
     }
+    const hist = save.history as
+        { chunks?: string[]; pending?: unknown[]; count?: number; minutes?: number } | undefined
+    if (hist) {
+        report.history = {
+            total: sizeOf(hist),
+            pieces: hist.count ?? 0,
+            minutes: hist.minutes ?? 0,
+            pending: hist.pending?.length ?? 0,
+        }
+    }
     return report
 }
 
@@ -80,6 +91,13 @@ function printReport(title: string, r: SizeReport): void {
                 `frame times ${formatKB(x.frames)}${x.start ? `, start snapshot ${formatKB(x.start)}` : ''}`,
         )
     }
+    if (r.history) {
+        const h = r.history
+        lines.push(
+            `  history: ${h.pieces} earlier pieces over ${h.minutes.toFixed(1)} min back to the chain's start, ` +
+                `${formatKB(h.total)} (compressed${h.pending ? `; ${h.pending} not yet` : ''})`,
+        )
+    }
     console.log(lines.join('\n'))
 }
 
@@ -93,9 +111,12 @@ function gameSize(): SizeReport | null {
         return null
     }
     delete save.screenshot
-    const recording = recordingForSave()
-    if (recording) {
-        save.recording = recording
+    const recorded = recordingForSave()
+    if (recorded) {
+        save.recording = recorded.recording
+        if (recorded.history) {
+            save.history = recorded.history
+        }
     }
     const r = sizeReport(save)
     printReport('the game now', r)
@@ -121,6 +142,7 @@ async function saveSize(which?: string | number): Promise<SizeReport | SizeRepor
                         ({ s, r }) =>
                             `  #${String(s.id).padEnd(4)} ${s.name.slice(0, 24).padEnd(24)} ${formatKB(r.total).padStart(9)}` +
                             (r.recording ? `   recording ${formatKB(r.recording.total)}` : '') +
+                            (r.history ? ` + history ${formatKB(r.history.total)} (${r.history.pieces} pieces)` : '') +
                             (r.total > LARGE_SAVE ? '  (large)' : ''),
                     )
                     .join('\n'),

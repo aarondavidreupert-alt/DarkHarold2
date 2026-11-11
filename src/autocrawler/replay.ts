@@ -171,7 +171,9 @@ export async function loadSnapshot(save: SaveGame, pause = false): Promise<boole
         }
     })
     try {
-        const id = await new Promise<number>((resolve) => putSave({ ...save, recording: undefined }, resolve))
+        const id = await new Promise<number>((resolve) =>
+            putSave({ ...save, recording: undefined, history: undefined }, resolve),
+        )
         load(id)
         const ok = await waitReal(() => loaded && !globalState.isLoading, 60000)
         deleteSave(id)

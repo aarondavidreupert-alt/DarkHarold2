@@ -65,12 +65,13 @@ export interface SaveRef {
     timestamp: number
 }
 
-const gameLoaded = listenerSet<[SaveRef]>()
+const gameLoaded = listenerSet<[SaveRef, Record<string, unknown> | undefined]>()
 /** A save finished loading (saveload.ts load(), the end of applyState: map_enter / load procs ran,
- *  the game is about to run again) — where a recording piece starts. */
+ *  the game is about to run again) — where a recording piece starts. `save` is the save itself
+ *  (its recording and history continue in the new piece's history). */
 export const addGameLoadedListener = gameLoaded.add
-export function notifyGameLoaded(save: SaveRef): void {
-    gameLoaded.notify(save)
+export function notifyGameLoaded(ref: SaveRef, save?: Record<string, unknown>): void {
+    gameLoaded.notify(ref, save)
 }
 
 const newGame = listenerSet<[]>()
@@ -106,13 +107,18 @@ export function isReplaying(): boolean {
     return replaying
 }
 
-// What a save stores of the recording (saveload.ts save(): `save.recording`): the piece since the
-// last load / NEW GAME, up to this moment. Set by the recorder.
-let saveRecordingProvider: (() => Record<string, unknown> | null) | null = null
-export function setSaveRecordingProvider(p: (() => Record<string, unknown> | null) | null): void {
+/** What a save stores of the recording (saveload.ts save()): `recording`, the piece since the last
+ *  load / NEW GAME up to this moment, and `history`, every piece before it back to the chain's
+ *  start (compressed). Set by the recorder. */
+export interface SaveRecording {
+    recording: Record<string, unknown>
+    history?: Record<string, unknown>
+}
+let saveRecordingProvider: (() => SaveRecording | null) | null = null
+export function setSaveRecordingProvider(p: (() => SaveRecording | null) | null): void {
     saveRecordingProvider = p
 }
-export function recordingForSave(): Record<string, unknown> | null {
+export function recordingForSave(): SaveRecording | null {
     return saveRecordingProvider ? saveRecordingProvider() : null
 }
 
