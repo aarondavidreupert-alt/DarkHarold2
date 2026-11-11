@@ -17,6 +17,7 @@ limitations under the License.
 // World Map module state, constants, DOM lifecycle, and travel loop —
 // carved out of worldmap.ts. See wiki/ts-split-refactor.md §10.
 
+import { recordAction } from '../actionLog.js'
 import { scriptsCheckGameEvents } from '../gameTick.js'
 import * as Events from '../events.js'
 import { areaContainingMap, loadAreas, lookupMapName, mapIsSaved, type Area } from '../data.js'
@@ -789,7 +790,8 @@ function setTargetImage(url: string, isHotspot: boolean): void {
 // visited (visitedState 2) that has town-map art (mapFid); otherwise the map of the first
 // open entrance (wmAreaFindFirstValidMap — entrance 0 is opened when none is) loads at its
 // map header's start (mapLoadById), and the area becomes visited.
-function enterArea(area: Area): void {
+export function enterArea(area: Area): void {
+    recordAction({ t: 'wmArea', id: area.id })
     if ((area.visitedState ?? 0) === 2 && area.mapArt) {
         uiPort.uiWorldMapShowArea(area)
         return
@@ -1090,7 +1092,8 @@ export function areaIdContainingMap(mapName: string): number {
 // every area enters map 0 (Desert Encounter 1, whatever the terrain). In the car the
 // party gets out; the car stays in the area containing that map (Area 26 "Random"),
 // whose map script places it.
-function enterWilderness(): void {
+export function enterWilderness(): void {
+    recordAction({ t: 'wmWild' })
     const mapName = lookupMapName(0)
     if (!mapName) return
     dbg('worldmap', `[Worldmap] party marker outside any area → map 0 (${mapName})`)
@@ -1184,7 +1187,8 @@ export function revealAll(): void {
     refreshAreaMarkers()
 }
 
-function partyInitWalking(x: number, y: number): void {
+export function partyInitWalking(x: number, y: number): void {
+    recordAction({ t: 'wmWalk', x, y })
     if (instantTravel && worldmapPlayer) {
         worldmapPlayer.x = x
         worldmapPlayer.y = y

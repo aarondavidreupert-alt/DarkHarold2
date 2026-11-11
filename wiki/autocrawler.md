@@ -460,3 +460,49 @@ call.
 - `src/game/combat.cc` — `_combat`, `_combat_turn`, `_combat_input`:
   confirms the turn-based loop where player input is polled between turns;
   our `nextTurn()` maps to `_combat_turn_run`.
+
+---
+
+## 9. Replay of action recordings (2026-11-11)
+
+`src/devConsole/recorder.ts` records a play session (README → "Action Recorder");
+`src/autocrawler/replay.ts` (`autoCrawler.runReplay`, `replayRecording()`,
+`npm run storycrawl -- --replay <file>`) replays it. The format is in `src/autocrawler/recording.ts`.
+
+**Hooks.** The input paths call `recordAction()` (`src/actionLog.ts`, a leaf module with no imports,
+so no import cycles; a no-op unless recording) with what the player asked for, before it runs:
+`playerUse` (walk / use / skill, with the click's hex, run choice and Ctrl), `playerKeyAttack`,
+the action menu (`uiContextMenu.ts` `objectActions`), `usePendingItemOn`, `dialogueReply`, the barter
+screen (`bMove` / `bOffer` / `bEnd`), the inventory window (`inv`, `invMove`), `uiGetAmount` (an
+`amount` entry after the action that asked), combat start / end turn / end combat / hit mode / swap
+hands, the world map (`partyInitWalking`, `enterArea`, `enterWilderness`, `enterAreaEntrance`),
+`save` / `load`. `notifyMapReady()` (end of a map load, before `map_enter_p_proc`; after a save's
+map is restored) gives a `map` entry and renames the map's objects; `notifyFrame()` (each logical
+frame, `heart.ts`) feeds the frame-time track.
+
+**Entry.** `{ t, ms, f, k, pl, el?, mp?, gv?, cb?, rn?, wx?, wy?, ...payload }`: milliseconds and
+frames since the start, game ticks since the start, player tile, elevation / map when changed, the
+GVARs changed since the entry before, in combat, random draws since the entry before (information),
+the party's world-map position. Objects are `o: "pid@tile[:elevation][~n]"` (`ObjectLabels`: named
+where they stood when the map finished loading, later objects where they are first referenced; the
+player is `dude`), items `ip: pid`.
+
+**Replay.** Loads the start snapshot (`loadSnapshot`: `putSave` + `load`, as the recorder's start
+did), pauses the frame loop and replaces `performance.now()` with a virtual clock: each step is one
+frame at the recorded frame time (`frames`: 0.1 ms, two base-64 characters a frame). Before each
+entry: step to its frame; wait for the window it needs (dialogue, barter, called shot, world map at
+the recorded party position) or, for a combat entry, the player's idle turn; a wait past the
+recorded frame moves the frame offset (map loads re-sync the same way); check map, elevation,
+player tile, combat, GVARs; reseed the RNG (`entrySeed(seed, index)`), pin `gameTickTime`, preset
+the recorded Move Items quantities (`setAmountOverrides`), and run the action through the same
+function the input handler called. The report lists every divergence (`{ i, t, what, recorded,
+replayed }`) and the first one; `stopOnDivergence` ends there.
+
+**Limits.** Time read inside a frame is not recorded (the game reads `performance.now()` many times
+a frame; real time moves between the reads, the virtual clock does not), so critter heartbeats can
+draw a few more or fewer random numbers between two actions and a walk can end a hex off. The
+per-action reseed keeps that from building up; tile differences within `tileTolerance` (default 1)
+count as `tileDrift`. Checked headless (Arroyo, 2026-11-11): walks, talk with four dialogue picks,
+and a fight (attack button, attack, end turn) replay with 0 divergences on both backends; walks
+give an occasional one-hex drift. Not hooked yet: the loot / steal / companion-trade windows, the
+character screen, Pip-Boy rest, explosive timers.

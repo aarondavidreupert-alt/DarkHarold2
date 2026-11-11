@@ -18,7 +18,13 @@ limitations under the License.
 // proposals" §8.
 
 export { makeDropTarget, makeDraggable } from './uiInventory/dragdrop.js'
-export { closeInventory, initInventory, showInventory, showInventoryUseOn } from './uiInventory/panel.js'
+export {
+    closeInventory,
+    initInventory,
+    runInventoryItemAction,
+    showInventory,
+    showInventoryUseOn,
+} from './uiInventory/panel.js'
 export {
     drawBagView,
     examineToLog,

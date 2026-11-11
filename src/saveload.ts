@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { notifyMapReady, recordAction } from './actionLog.js'
 import { restoreAutomap, SavedAutomap, serializeAutomap } from './automapData.js'
 import { killCounts } from './critter.js'
 import { SCREEN_HEIGHT, SCREEN_WIDTH } from './renderer.js'
@@ -211,7 +212,8 @@ function captureScreenshot(): string | undefined {
     return shot
 }
 
-function gatherSaveData(name: string): SaveGame {
+/** The game as a save, without storing it (also the action recorder's start snapshot). */
+export function gatherSaveData(name: string): SaveGame {
     // Saves the game and returns the savegame
 
     Scripting.markMapSaved() // CE lsgPerformSaveGame → mapSaveInGame(false): MAP_SAVED
@@ -332,6 +334,7 @@ export function debugSave(): void {
 }
 
 export function save(name: string, slot = -1, callback?: (id: number) => void): void {
+    recordAction({ t: 'save', n: name })
     const save = gatherSaveData(name)
 
     const dirtyMapNames = Object.keys(world.dirtyMapCache)
@@ -395,6 +398,7 @@ export function load(id: number): void {
             const savedMap = save.savedMaps[save.currentMap]
 
             dbg('saveload', "[SaveLoad] Loading save #%d ('%s') from %s", id, save.name, formatSaveDate(save))
+            recordAction({ t: 'load', n: save.name, ts: save.timestamp })
 
             // Apply the save state. Called directly (same-location) or after
             // images finish loading (cross-location) via the isLoading gate.
@@ -628,6 +632,7 @@ export function load(id: number): void {
 
                 // CE mapLoad during a game load: start / map_enter / map_update with
                 // _loadingGame set (metarule 22), then the map music.
+                notifyMapReady() // the action recorder names the restored map's objects
                 Scripting.ensureDudeScript() // obj_dude with its saved LVARs (setPendingDudeLvars)
                 world.gMap!.runLoadGameProcs()
 

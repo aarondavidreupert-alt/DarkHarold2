@@ -15,8 +15,9 @@
 import { addFloatMessage } from './floatText.js'
 import { ammoGetCapacity, ammoGetQuantity, ammoSetQuantity, weaponGetBurstRounds } from './weaponAmmo.js'
 import { heart } from './heart.js'
+import { recordAction } from './actionLog.js'
 import { toTileNum } from './tile.js'
-import { hexDirectionTo, hexFromScreen, hexNeighbors, hexDistance, hexInDirection } from './geometry.js'
+import { hexDirectionTo, hexFromScreen, hexNeighbors, hexDistance, hexInDirection, type Point } from './geometry.js'
 import { world } from './state/world.js'
 import { uiState } from './state/uiState.js'
 import { view } from './state/view.js'
@@ -240,12 +241,39 @@ export function cancelSkillTargeting(): void {
     if (cnv) cnv.style.cursor = ''
 }
 
-export function playerUse(obj: Obj | null) {
-    const mousePos = heart.mouse.getPosition()
-    // Undo zoom when mapping screen pixels to world coordinates, then hex.
-    const z = getZoom()
-    const mouseHex = hexFromScreen(mousePos[0] / z + view.cameraPosition.x, mousePos[1] / z + view.cameraPosition.y)
+/** What a replayed click had (src/autocrawler/replay.ts): the hex under the mouse, and Shift's
+ *  run choice / Ctrl as recorded, instead of the live mouse and keys. */
+export interface PlayerUseReplay {
+    hex: Point
+    run?: boolean
+    ctrl?: boolean
+}
+
+export function playerUse(obj: Obj | null, replay?: PlayerUseReplay) {
+    let mouseHex: Point
+    if (replay) {
+        mouseHex = replay.hex
+    } else {
+        const mousePos = heart.mouse.getPosition()
+        // Undo zoom when mapping screen pixels to world coordinates, then hex.
+        const z = getZoom()
+        mouseHex = hexFromScreen(mousePos[0] / z + view.cameraPosition.x, mousePos[1] / z + view.cameraPosition.y)
+    }
     const who = <Critter>obj
+    const ctrl = replay ? !!replay.ctrl : ctrlHeld
+    // the action recorder (actionLog.ts; a no-op unless recording)
+    const rec = recordAction(
+        uiState.uiMode === UIMode.useSkill
+            ? { t: 'skill', s: uiState.skillMode, o: obj, h: toTileNum(mouseHex) }
+            : { t: obj ? 'use' : 'walk', o: obj, h: toTileNum(mouseHex), ctrl: ctrl || undefined },
+    )
+    const runFor = (tile: number): boolean => {
+        const run = replay?.run !== undefined ? replay.run : moveClickRuns(tile)
+        if (rec) {
+            rec.run = run
+        }
+        return run
+    }
 
     if (uiState.uiMode === UIMode.useSkill) {
         const skill = uiState.skillMode
@@ -341,9 +369,11 @@ export function playerUse(obj: Obj | null) {
             // CE animation.cc _check_move: Ctrl held keeps the AP for one attack in the
             // current hit mode; nothing left over, no move
             let maxWalkingDist = world.player!.AP!.getAvailableMoveAP()
-            if (ctrlHeld) maxWalkingDist -= currentAttackAPCost()
+            if (ctrl) {
+                maxWalkingDist -= currentAttackAPCost()
+            }
             if (maxWalkingDist <= 0) return
-            const run = moveClickRuns(toTileNum(mouseHex))
+            const run = runFor(toTileNum(mouseHex))
             if (run) world.player!.stopSneakToRun() // CE _dude_run
             if (!world.player!.walkTo(mouseHex, run, undefined, maxWalkingDist)) {
                 dbg('map', '[Main] cannot walk there')
@@ -371,7 +401,7 @@ export function playerUse(obj: Obj | null) {
         // CE _check_move: without interrupt_walk the walk isn't cleared, so the new one
         // (ANIMATION_REQUEST_RESERVED on a busy dude) doesn't start
         if (!Config.engine.interruptWalk && (world.player!.anim === 'walk' || world.player!.anim === 'run')) return
-        const run = moveClickRuns(toTileNum(mouseHex))
+        const run = runFor(toTileNum(mouseHex))
         if (run) world.player!.stopSneakToRun() // CE _dude_run
         if (!world.player!.walkTo(mouseHex, run)) {
             dbg('map', '[Main] cannot walk there')
@@ -440,6 +470,7 @@ export function playerUse(obj: Obj | null) {
                         ? who.getAnimation('called-shot')
                         : 'art/critters/hmjmpsna'
                     uiPort.uiCalledShot(art, who, (region: string) => {
+                        recordAction({ t: 'region', r: region })
                         if (world.player!.AP!.getAvailableCombatAP() < attackAPCost) {
                             uiLog(getProtoMsg(700)!)
                         } else {
@@ -466,6 +497,7 @@ export function playerUse(obj: Obj | null) {
                     dbg('combat', '[Combat] called-shot art: %s', art)
 
                     uiPort.uiCalledShot(art, who, (region: string) => {
+                        recordAction({ t: 'region', r: region })
                         const calledAPCost = attackAPCost
                         if (world.player!.AP!.getAvailableCombatAP() < calledAPCost) {
                             uiLog(getProtoMsg(700)!) // "You don't have enough action points."
@@ -552,6 +584,42 @@ export function playerUse(obj: Obj | null) {
             3,
             obj.isLadder && obj.pro?.extra?.subType === 3 ? hexInDirection(obj.position, 2) : undefined,
         )
+    }
+}
+
+/** The attack hotkey ([Controls] attack): attack the living combatant on `mouseHex` with the
+ *  current hit mode, in the player's turn (also the action recorder's replay). */
+export function playerKeyAttack(mouseHex: Point): void {
+    recordAction({ t: 'attackKey', h: toTileNum(mouseHex) })
+    if (!world.inCombat || !world.combat!.inPlayerTurn || world.player!.anim !== 'idle') {
+        dbg('combat', "[Main] can't do that yet")
+        return
+    }
+
+    const kbWeapon = world.player!.equippedWeapon
+    const kbP = world.player
+    const kbAPCost =
+        kbWeapon === null
+            ? unarmedAPCost(kbP!, currentUnarmed(kbP!).mode, false)
+            : kbWeapon.weapon!.getAttackAPCost(kbP!, undefined, kbWeapon.weapon!.isCalled())
+
+    if (world.player!.AP!.getAvailableCombatAP() < kbAPCost) {
+        uiLog(getProtoMsg(700)!)
+        return
+    }
+
+    for (let i = 0; i < world.combat!.combatants.length; i++) {
+        if (
+            world.combat!.combatants[i].position.x === mouseHex.x &&
+            world.combat!.combatants[i].position.y === mouseHex.y &&
+            !world.combat!.combatants[i].dead
+        ) {
+            world.player!.AP!.subtractCombatAP(kbAPCost)
+            drawAP(world.player!.AP!.getAvailableCombatAP(), world.player!.AP!.getTotalMaxAP(), world.player!.AP!.move)
+            dbg('combat', '[Combat] attack key pressed')
+            world.combat!.attack(world.player!, world.combat!.combatants[i])
+            break
+        }
     }
 }
 

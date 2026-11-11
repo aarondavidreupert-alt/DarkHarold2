@@ -10,6 +10,7 @@ import { assetUrl } from './modAssets.js'
    Thank you for using heart.js! :-)
 */
 import { dbgWarn } from './logger.js'
+import { notifyFrame } from './actionLog.js'
 
 type MouseButton = 'l' | 'm' | 'r' | 'unknown'
 
@@ -266,6 +267,9 @@ class Heart {
     // the story crawler drives scripts step by step. DH2 test tooling, not CE.
     paused = false
 
+    // Debug: logical frames run so far (the action recorder's clock, src/devConsole/recorder.ts)
+    frames = 0
+
     // Run one logical frame without re-scheduling requestAnimationFrame.
     // Used by debug.step() and the AutoCrawler so that repeated synthetic
     // ticks do not accumulate parallel rAF loops.
@@ -277,6 +281,8 @@ class Heart {
         if (heart._frameAccum >= heart._targetTickTime!) {
             heart._frameAccum -= heart._targetTickTime!
             heart._numFrames++
+            heart.frames++
+            notifyFrame() // the action recorder's frame-time track (a no-op unless recording)
             heart._frameAccum = Math.min(heart._frameAccum, heart._targetTickTime!)
 
             const deltaFPSTime = time - heart._lastFPSTime

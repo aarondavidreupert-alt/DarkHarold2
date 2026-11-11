@@ -36,12 +36,9 @@ import {
 import { objLookAt } from './examine.js'
 import * as Scripting from './scripting.js'
 import { uiContextMenu, uiHideContextMenu, uiLoot, uiWorldMap } from './ui.js'
-import { drawAP } from './hudRefresh.js'
 import { uiLog } from './messageLog.js'
 import { UIMode } from './uiMode.js'
-import { getProtoMsg } from './util.js'
 import { Config } from './config.js'
-import { currentUnarmed, unarmedAPCost } from './unarmed.js'
 import { closePipBoy } from './uiPipBoy.js'
 import { gameHandleKey } from './hotkeys.js'
 import { closeInventory } from './uiInventory.js'
@@ -49,8 +46,10 @@ import { automapKey, closeAutomap } from './uiAutomap.js'
 import { lootKey } from './uiLoot.js'
 import { approachToTalk } from './talkApproach.js'
 import { elevatorKey } from './uiElevator.js'
-import { playerUse, playerAttackDoor, cancelSkillTargeting } from './playerUse.js'
+import { playerUse, playerAttackDoor, cancelSkillTargeting, playerKeyAttack } from './playerUse.js'
 import { primaryActionIcon, uiPrimaryAction } from './uiContextMenu.js'
+import { recordAction } from './actionLog.js'
+import { toTileNum } from './tile.js'
 
 // Tile inspector — build a structured, copy-pasteable dump of everything the
 // debug tooling knows about the hex tile under the cursor: its lighting, the
@@ -381,13 +380,17 @@ export function installInputHandlers(): void {
                     // CE combat.cc _combat_attack_this out of combat: _combat with the dude as the
                     // attacker — the fight starts on his turn and the attack is its first action
                     if (!world.inCombat && !(target as any).dead) {
+                        recordAction({ t: 'combat', dude: true })
                         Combat.start(world.player!)
                         if (!world.inCombat) return
                     }
                     playerUse(target)
                 } else {
                     const door = getObjectUnderCursor((o: Obj) => true)
-                    if (door?.isDoor) playerAttackDoor(door)
+                    if (door?.isDoor) {
+                        recordAction({ t: 'attackDoor', o: door })
+                        playerAttackDoor(door)
+                    }
                 }
             } else if (uiState.uiMode === UIMode.useSkill) {
                 playerUse(getObjectUnderCursor((_: Obj) => true))
@@ -586,6 +589,7 @@ export function installInputHandlers(): void {
                 // scripting.ts's gsay_end() instead of being a separate
                 // pre-dialogue screen.
                 if (critter._script && critter._script.talk_p_proc !== undefined) {
+                    recordAction({ t: 'act', a: 'talk', o: critter })
                     // CE ref: actions.cc:1832-1860 actionTalk — walks the
                     // player to the NPC (registers a run-to animation) before
                     // the dialogue callback fires, unless already close.
@@ -612,47 +616,16 @@ export function installInputHandlers(): void {
             }
         }
         if (isKey(k, 'moveTo')) {
+            recordAction({ t: 'walkKey', h: toTileNum(mouseHex) })
             world.player!.walkTo(mouseHex)
         }
         if (isKey(k, 'runTo')) {
+            recordAction({ t: 'walkKey', h: toTileNum(mouseHex), run: true })
             world.player!.stopSneakToRun() // CE _dude_run
             world.player!.walkTo(mouseHex, true)
         }
         if (isKey(k, 'attack')) {
-            if (!world.inCombat || !world.combat!.inPlayerTurn || world.player!.anim !== 'idle') {
-                dbg('combat', "[Main] can't do that yet")
-                return
-            }
-
-            const kbWeapon = world.player!.equippedWeapon
-            const kbP = world.player
-            const kbAPCost =
-                kbWeapon === null
-                    ? unarmedAPCost(kbP!, currentUnarmed(kbP!).mode, false)
-                    : kbWeapon.weapon!.getAttackAPCost(kbP!, undefined, kbWeapon.weapon!.isCalled())
-
-            if (world.player!.AP!.getAvailableCombatAP() < kbAPCost) {
-                uiLog(getProtoMsg(700)!)
-                return
-            }
-
-            for (let i = 0; i < world.combat!.combatants.length; i++) {
-                if (
-                    world.combat!.combatants[i].position.x === mouseHex.x &&
-                    world.combat!.combatants[i].position.y === mouseHex.y &&
-                    !world.combat!.combatants[i].dead
-                ) {
-                    world.player!.AP!.subtractCombatAP(kbAPCost)
-                    drawAP(
-                        world.player!.AP!.getAvailableCombatAP(),
-                        world.player!.AP!.getTotalMaxAP(),
-                        world.player!.AP!.move,
-                    )
-                    dbg('combat', '[Combat] attack key pressed')
-                    world.combat!.attack(world.player!, world.combat!.combatants[i])
-                    break
-                }
-            }
+            playerKeyAttack(mouseHex)
         }
 
         if (isKey(k, 'playerToTargetRaycast')) {

@@ -1,4 +1,5 @@
 import * as Events from './events.js'
+import { recordAction } from './actionLog.js'
 import { activeAssetMods, assetLayer, assetUrl } from './modAssets.js'
 import * as GlobalScripts from './sfallGlobalScripts.js'
 import { isPartyMemberPid } from './party.js'
@@ -579,6 +580,13 @@ export function getScriptName(id: number): string {
 
 export function dialogueReply(id: number): void {
     const f = scriptingState.dialogueOptionProcs[id]
+    // the action recorder (actionLog.ts): the option, the speaker's script and the option's text
+    recordAction({
+        t: 'dlg',
+        opt: id,
+        s: (scriptingState.currentDialogueObject as any)?._script?.scriptName,
+        x: String(scriptingState.dialogueOptionTexts[id] ?? '').slice(0, 24),
+    })
     // CE ref: game_dialog.cc:2040-2044 _gdProcessChoice — records the
     // chosen option's text onto the most recent review entry, before
     // running its callback (which may clear/replace state).

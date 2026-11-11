@@ -41,6 +41,7 @@ import { uiQuickLoad, uiQuickSave, uiSaveLoad } from './uiSaveLoad.js'
 import { getVolumeValue, savePreferences } from './uiOptions/preferences.js'
 import { swapHands, cycleActiveItemAction } from './ui.js'
 import { assetUrl } from './modAssets.js'
+import { recordAction } from './actionLog.js'
 
 const click = () => services.audioEngine?.playSfxByName?.('ib1p1xx1')
 
@@ -206,10 +207,12 @@ export function gameHandleKey(e: KeyboardEvent, cycleMouseMode: MouseModeCycler)
     // combat.cc _combat_input (the player's turn)
     if (inCombat && world.combat?.inPlayerTurn) {
         if (key === ' ') {
+            recordAction({ t: 'endTurn' })
             world.combat.nextTurn()
             return true
         }
         if (key === 'Enter') {
+            recordAction({ t: 'endCombat' })
             world.combat.attemptEnd()
             return true
         }

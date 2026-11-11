@@ -234,7 +234,7 @@ All UI files render to DOM elements over the WebGL canvas.
 | `src/images.ts` | `lazyLoadImage`: async image cache; `artExists()`: Promise-based existence check |
 | `src/util.ts` | General helpers: file fetch, dice rolls, `BinaryReader`, `parseIni`, skill roll, etc. (261 lines) |
 | `src/geometry.ts` | Barrel — hex/isometric geometry utilities; split into `geometry/hexScreen.ts` (projection + cube/round helpers) and `geometry/hexGrid.ts` (topology, lines, bbox predicates) |
-| `src/devConsole.ts` | Barrel — DH2 developer console commands (`setEggMode()`, `lightingDebug()`, `blackBar()`, `giveCar()`, ...) in `devConsole/{register,toggles,lighting,egg}.ts`, registered for `play.html#dev` only; `devConsole/eventLog.ts` (`exportEventLog()`, `__eventLog`) on every load |
+| `src/devConsole.ts` | Barrel — DH2 developer console commands (`setEggMode()`, `lightingDebug()`, `blackBar()`, `giveCar()`, ...) in `devConsole/{register,toggles,lighting,egg}.ts`, registered for `play.html#dev` only; `devConsole/eventLog.ts` (`exportEventLog()`, `__eventLog`) on every load; `devConsole/recorder.ts`: the action recorder (`startRecording()` / `stopRecording()` / `exportRecording()` / `importRecording()` / `replayRecording()`, every load; hooks via `src/actionLog.ts`) |
 | `src/debug.ts` | Dev/cheat console utilities: `debug.addXP`, `debug.teleport`, etc. — active when `Config.engine.debug = true` (79 lines) |
 | `src/formats/fon.ts` | FON bitmap font binary parser |
 | `src/formats/struct.js` | Binary struct unpacker (Python-style format strings) |
@@ -373,7 +373,7 @@ present and functional in the current source:
 
 | File | Purpose |
 |------|---------|
-| `src/autocrawler.ts` | Barrel — automated test harness; split into `autocrawler/{types,shared,dialogue,combat,maps,report}.ts`. `runMapCrawler()`, `runDialogueCrawler()`, `runCombatCrawler()` — smoke-test all maps; download JSON report of failures |
+| `src/autocrawler.ts` | Barrel — automated test harness; split into `autocrawler/{types,shared,dialogue,combat,maps,story,report,recording,replay}.ts`; `runReplay()` replays an action recording (`recording.ts` format) and reports where it diverges. `runMapCrawler()`, `runDialogueCrawler()`, `runCombatCrawler()` — smoke-test all maps; download JSON report of failures |
 | `src/automapData.ts` | IndexedDB persistence for automap (replaces 5 MB localStorage limit) |
 | `wiki/autocrawler.md` | Usage docs, URL auto-start (`?crawl=maps\|dialogue\|combat`), report JSON schema |
 

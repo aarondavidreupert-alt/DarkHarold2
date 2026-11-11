@@ -47,6 +47,7 @@ import {
     registerDevConsole,
     registerEventLogCommands,
     registerSaveFileCommands,
+    registerRecorderCommands,
 } from './devConsole.js'
 import { initWaitCursor } from './waitCursor.js'
 import './autocrawler.js'
@@ -69,6 +70,7 @@ function miscHealingItemUse(item: import('./object.js').Obj, user: import('./obj
 
 registerEventLogCommands()
 registerSaveFileCommands() // exportSave() / importSave(): saves to and from .json files
+registerRecorderCommands() // startRecording() / exportRecording() / replayRecording(): action recorder
 initWaitCursor() // the spinning planet while a map loads (CE MOUSE_CURSOR_WAIT_PLANET)
 
 /** The files the engine reads synchronously while it starts and loads the first map, prefetched

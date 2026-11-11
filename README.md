@@ -488,6 +488,51 @@ importSave("saves/tttt.json") // read it from a URL instead of a file picker
 
 The event log is serialised into the save game. When a save is loaded, `globalState.eventLog` is restored from the file, so the full fight history is available even after a page reload. Saves written before the `eventLog` field was introduced are loaded cleanly (the log starts empty).
 
+## Action Recorder
+
+Records what you do while play-testing — one compact entry per action — so the session can be
+replayed later as an automated test run that reports where the game first behaves differently.
+DH2 test tooling (no CE equivalent); the console commands are registered on every page load:
+
+```js
+startRecording()              // reloads the game as it is (a snapshot) and records from there
+startRecording({ seed: 7 })   // the same with a chosen RNG seed
+stopRecording()               // prints the entry count, the length and the size
+exportRecording()             // download as <map>_<date>.dh2rec.json.gz ({ gzip: false } for plain JSON)
+importRecording()             // pick a .gz / .json file (or importRecording("url")); becomes __recording
+replayRecording()             // replay __recording; report on the console and autoCrawler.getLastReplayReport()
+downloadReplayReport()        // the last replay's report as JSON
+```
+
+Headless, on both script backends (needs the extracted game data, like the story crawler):
+
+```bash
+npm run storycrawl -- --replay my_session.dh2rec.json.gz [--backends vm,lua] [--stop]
+```
+
+**What is recorded:** walk / run targets (tile), using an object, talk / look / pick up / use /
+loot / push from the action menu (objects by `pid@tile` where they stood when the map loaded),
+skill use, use item on, dialogue option picks (option, speaker's script, option text), barter
+moves / Offer / Talk, inventory actions and slot moves, every Move Items quantity, combat start,
+attacks, called-shot regions, hit mode, swap hands, end turn / end combat, world map walking,
+area and entrance picks, save and load. Each entry also notes the frame, the game tick, the
+player's tile, the map / elevation when they changed and the GVARs that changed since the entry
+before — the per-step check. Not recorded yet: the loot / steal / companion-trade windows, the
+character screen (level-ups, perks), Pip-Boy rest and explosive timers.
+
+**Determinism:** the recording starts with a load of the snapshot (the replay starts with the same
+load), the RNG is reseeded before every action (and when a map finishes loading) from the
+recording's seed, the game loop's own schedule restarts at the start (`resetLoopSchedule`), and
+the replay runs the recorded frames at the recorded times (a frame-time track: animations and the
+10 Hz game tick run on real time) while it pins the game clock to each entry's tick. Time read
+*inside* a frame is not recorded, so a walk can end a hex off: a player tile within one hex counts
+as drift, not a divergence (`replayRecording(rec, { tileTolerance: 0 })` for exact). A `load`
+entry replays only where that save exists (move it with `exportSave()` / `importSave()`).
+
+**Size:** the start snapshot is a save of the current map and every changed map (~1.4 MB as JSON
+in Arroyo). An hour of play at 30 fps with ~2,400 actions adds ~430 KB (half of it the frame-time
+track) — about 1.8 MB plain, about 0.2 MB as the default `.gz` export.
+
 ## FAQ
 
 **Note**: This section has been copied from `README.md` of DarkFO, the answers don't represent opinions of the current maintainer
@@ -644,6 +689,12 @@ No DevTools interaction needed.
 To run on a specific map, call the function manually from the console after load (see below).
 
 #### Console commands
+
+**Replay an action recording (README → "Action Recorder"):**
+
+```js
+const report = await autoCrawler.runReplay(__recording, { stopOnDivergence: true })
+```
 
 **Crawl all talkable NPCs on the current map:**
 

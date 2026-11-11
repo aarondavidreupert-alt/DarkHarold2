@@ -18,6 +18,7 @@ limitations under the License.
 // view), plus the area label list down the right side.
 
 import { getMessage } from './util.js'
+import { recordAction } from './actionLog.js'
 import { world } from './state/world.js'
 import { uiState } from './state/uiState.js'
 import { services } from './state/services.js'
@@ -146,30 +147,7 @@ export function uiWorldMapShowArea(area: Area) {
         const $entranceEl = makeEl('div', { classes: ['worldmapEntrance'] })
         const $hotspot = makeEl('div', { classes: ['worldmapEntranceHotspot'] })
 
-        $hotspot.onclick = () => {
-            const mapName = lookupMapNameFromLookup(entrance.mapLookupName)
-            dbg('worldmap', `[Worldmap] hotspot → ${mapName} (via ${entrance.mapLookupName})`)
-            // CE ref: worldmap.cc:3061-3078 — entering a local map while in car:
-            // sets isInCar=false and records currentCarAreaId = currentAreaId.
-            // The town's map script then places the car (create_object_sid) when
-            // car_current_town matches — see wiki/car_system.md.
-            if (Worldmap.getIsInCar()) {
-                Worldmap.setIsInCar(false)
-                Worldmap.setCarAreaId(area.id)
-                dbg('worldmap', `car parked at area ${area.id} (${area.name})`)
-            }
-            // CE worldmap.cc wmTownMapFunc → map.cc mapSetEnteringLocation(entrance elevation,
-            // tile, rotation); -1 (most city.txt entrances) is the map header's start (mapLoad)
-            const own = entrance.elevation >= 0 && entrance.tileNum >= 0
-            setWorldmapEntryPending(!own) // [dh2] worldmap_entry (map/worldmapEntry.ts)
-            world.gMap!.loadMap(
-                mapName!,
-                own ? fromTileNum(entrance.tileNum) : undefined,
-                own ? entrance.elevation : undefined,
-            )
-            if (own && Number.isFinite(entrance.orientation)) world.player!.orientation = entrance.orientation
-            uiCloseWorldMap()
-        }
+        $hotspot.onclick = () => enterAreaEntrance(area, area.entrances.indexOf(entrance))
 
         $entranceEl.appendChild($hotspot)
         // CE wmTownMapInit: the label is worldmap.msg 200 + 10 * area + entrance index
@@ -188,6 +166,35 @@ export function uiWorldMapShowArea(area: Area) {
         // aligns with its rendered position on the FRM background image.
         makeEntrance(entrance, entrance.x - WM_VIEW_X, entrance.y - WM_VIEW_Y)
     }
+}
+
+/** A town map's entrance (the hotspot's click; also the action recorder's replay). */
+export function enterAreaEntrance(area: Area, index: number): void {
+    const entrance = area.entrances[index]
+    if (!entrance) {
+        return
+    }
+    recordAction({ t: 'wmEnter', id: area.id, en: index })
+    const mapName = lookupMapNameFromLookup(entrance.mapLookupName)
+    dbg('worldmap', `[Worldmap] hotspot → ${mapName} (via ${entrance.mapLookupName})`)
+    // CE ref: worldmap.cc:3061-3078 — entering a local map while in car:
+    // sets isInCar=false and records currentCarAreaId = currentAreaId.
+    // The town's map script then places the car (create_object_sid) when
+    // car_current_town matches — see wiki/car_system.md.
+    if (Worldmap.getIsInCar()) {
+        Worldmap.setIsInCar(false)
+        Worldmap.setCarAreaId(area.id)
+        dbg('worldmap', `car parked at area ${area.id} (${area.name})`)
+    }
+    // CE worldmap.cc wmTownMapFunc → map.cc mapSetEnteringLocation(entrance elevation,
+    // tile, rotation); -1 (most city.txt entrances) is the map header's start (mapLoad)
+    const own = entrance.elevation >= 0 && entrance.tileNum >= 0
+    setWorldmapEntryPending(!own) // [dh2] worldmap_entry (map/worldmapEntry.ts)
+    world.gMap!.loadMap(mapName!, own ? fromTileNum(entrance.tileNum) : undefined, own ? entrance.elevation : undefined)
+    if (own && Number.isFinite(entrance.orientation)) {
+        world.player!.orientation = entrance.orientation
+    }
+    uiCloseWorldMap()
 }
 
 function uiWorldMapLabels() {

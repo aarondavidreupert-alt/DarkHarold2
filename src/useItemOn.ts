@@ -19,6 +19,7 @@ limitations under the License.
 // game_mouse.cc:1019) and proto_instance.cc _obj_use_item_on /
 // _protinst_use_item_on / _protinst_default_use_item.
 
+import { recordAction } from './actionLog.js'
 import { useDrug } from './drugs.js'
 import { hexDistance, hexNeighbors } from './geometry.js'
 import { world } from './state/world.js'
@@ -69,6 +70,9 @@ export function cancelUseItemOn(): void {
 // under the cursor (in combat only with 2 AP), then back to the move cursor either way.
 export function usePendingItemOn(target: Obj | null): void {
     const item = pendingItem
+    if (item) {
+        recordAction({ t: 'useOn', item, o: target })
+    }
     pendingItem = null
     uiState.cursorMode = 'move'
     const player = world.player as unknown as Critter
