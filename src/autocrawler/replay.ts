@@ -13,7 +13,7 @@
 //   replayRecording()                     (console; src/devConsole/recorder.ts)
 //   npm run storycrawl -- --replay x.dh2rec.json   (headless, both backends)
 
-import { getReplayControl, setMapReadyListener } from '../actionLog.js'
+import { addGameLoadedListener, addMapReadyListener, getReplayControl, setReplaying } from '../actionLog.js'
 import { Combat } from '../combat.js'
 import { resetLoopSchedule } from '../gameTick.js'
 import globalState from '../globalState.js'
@@ -159,21 +159,25 @@ function waitReal(pred: () => boolean, timeoutMs: number): Promise<boolean> {
     })
 }
 
-/** Store `save` for a moment, load it and wait until the game runs again (the recorder's start
- *  and the replay's). */
-export async function loadSnapshot(save: SaveGame): Promise<boolean> {
+/** Store `save` for a moment, load it and wait until the game runs again (the recorder's manual
+ *  start and the replay's). With `pause` the frame loop stops the moment the load ends (the end of
+ *  saveload.ts applyState, where the recorder starts a piece), so the replay starts at that point. */
+export async function loadSnapshot(save: SaveGame, pause = false): Promise<boolean> {
     let loaded = false
-    setMapReadyListener(() => {
+    const remove = addGameLoadedListener(() => {
         loaded = true
+        if (pause) {
+            heart.paused = true
+        }
     })
     try {
-        const id = await new Promise<number>((resolve) => putSave(save, resolve))
+        const id = await new Promise<number>((resolve) => putSave({ ...save, recording: undefined }, resolve))
         load(id)
         const ok = await waitReal(() => loaded && !globalState.isLoading, 60000)
         deleteSave(id)
         return ok
     } finally {
-        setMapReadyListener(null)
+        remove()
     }
 }
 
@@ -266,11 +270,31 @@ export async function runReplay(rec: Recording, options: ReplayOptions = {}): Pr
         )
     }
 
-    if (!(await loadSnapshot(rec.start))) {
+    if (!rec.start) {
+        report.stopped = 'the recording has no start (a save piece: replaySave() finds its parent save)'
+        return finish(report, started)
+    }
+    const prevPaused = heart.paused
+    setReplaying(true) // nothing records; the recorder's current piece ends
+    if (!(await loadSnapshot(rec.start, true))) {
+        setReplaying(false)
+        heart.paused = prevPaused
         report.stopped = 'the start snapshot did not load'
         return finish(report, started)
     }
 
+    // a NEW GAME piece began without a load; loading its snapshot ran the map's load procedures
+    // (map_enter_p_proc on a game load: some scripts count the entries in a GVAR), so the variables
+    // go back to the snapshot's
+    if (rec.origin === 'newGame') {
+        const gvars = rec.start.playerState?.gvars
+        if (gvars) {
+            Scripting.setGlobalVars({ ...gvars })
+        }
+        if (rec.start.mvars !== undefined) {
+            Scripting.setMapVars(JSON.parse(JSON.stringify(rec.start.mvars)))
+        }
+    }
     const labels = new ObjectLabels()
     labels.reset()
     randomSeedExact(entrySeed(rec.seed, -1))
@@ -289,7 +313,7 @@ export async function runReplay(rec: Recording, options: ReplayOptions = {}): Pr
     let lastDraws = randomDraws
 
     // a map finished loading: label its objects and reseed, as the recorder did for the next 'map' entry
-    setMapReadyListener(() => {
+    const removeMapReady = addMapReadyListener(() => {
         labels.reset()
         mapLoads++
         let j = cursor
@@ -306,7 +330,6 @@ export async function runReplay(rec: Recording, options: ReplayOptions = {}): Pr
         calledShot = callback ?? null
         realCalledShot(art, target, callback)
     }
-    const prevPaused = heart.paused
     heart.paused = true
     let mapEntriesSeen = 0
 
@@ -649,7 +672,8 @@ export async function runReplay(rec: Recording, options: ReplayOptions = {}): Pr
             report.stopped = `diverged at entry ${report.firstDivergence.i}`
         }
     } finally {
-        setMapReadyListener(null)
+        removeMapReady()
+        setReplaying(false)
         setAmountOverrides([])
         setTimerOverrides([])
         uiPort.uiCalledShot = realCalledShot

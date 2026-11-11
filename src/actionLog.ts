@@ -3,7 +3,7 @@
 // The input paths (playerUse, the action menu, dialogue options, barter, inventory, combat
 // buttons, world map travel, save / load) call recordAction() with what the player asked for,
 // before it is carried out. Nothing happens unless a recorder installed a sink
-// (src/devConsole/recorder.ts: startRecording()), so game behaviour is unchanged.
+// (src/devConsole/recorder.ts: on by default with [dh2] record_actions=1, or startRecording()).
 //
 // This module is a leaf on purpose: it imports nothing, so every input module can call it
 // without adding an import cycle. Objects are passed as they are (field `o`, `item`); the
@@ -16,10 +16,9 @@ export interface ActionEntry {
 }
 
 type Sink = (entry: ActionEntry) => ActionEntry | null
-type MapReadyListener = () => void
+type Listener = () => void
 
 let sink: Sink | null = null
-let mapReadyListener: MapReadyListener | null = null
 
 /** Install (or with null remove) the recorder. */
 export function setActionSink(s: Sink | null): void {
@@ -36,25 +35,85 @@ export function recordAction(entry: ActionEntry): ActionEntry | null {
     return sink ? sink(entry) : null
 }
 
-/** Called when a map finished loading (before map_enter_p_proc) or a save was restored: the
- *  recorder / replayer name the map's objects by where they stand at this point. */
-export function setMapReadyListener(l: MapReadyListener | null): void {
-    mapReadyListener = l
+function listenerSet<A extends unknown[]>() {
+    const set = new Set<(...args: A) => void>()
+    return {
+        /** add a listener; returns its remover */
+        add(l: (...args: A) => void): () => void {
+            set.add(l)
+            return () => set.delete(l)
+        },
+        notify(...args: A): void {
+            for (const l of [...set]) {
+                l(...args)
+            }
+        },
+    }
 }
 
+const mapReady = listenerSet<[]>()
+/** A map finished loading (before map_enter_p_proc) or a save's map was restored: the recorder
+ *  and the replay name the map's objects by where they stand at this point. */
+export const addMapReadyListener = mapReady.add
 export function notifyMapReady(): void {
-    mapReadyListener?.()
+    mapReady.notify()
 }
 
-let frameListener: (() => void) | null = null
+/** A save to come back to: its name and timestamp (the save's id differs between browsers). */
+export interface SaveRef {
+    name: string
+    timestamp: number
+}
+
+const gameLoaded = listenerSet<[SaveRef]>()
+/** A save finished loading (saveload.ts load(), the end of applyState: map_enter / load procs ran,
+ *  the game is about to run again) — where a recording piece starts. */
+export const addGameLoadedListener = gameLoaded.add
+export function notifyGameLoaded(save: SaveRef): void {
+    gameLoaded.notify(save)
+}
+
+const newGame = listenerSet<[]>()
+/** NEW GAME: the character is made and the first map is about to load (init.ts startNewGame). */
+export const addNewGameListener = newGame.add
+export function notifyNewGame(): void {
+    newGame.notify()
+}
+
+let frameListener: Listener | null = null
 
 /** Called at the start of every logical frame (heart.ts): the recorder notes its time. */
-export function setFrameListener(l: (() => void) | null): void {
+export function setFrameListener(l: Listener | null): void {
     frameListener = l
 }
 
 export function notifyFrame(): void {
     frameListener?.()
+}
+
+let replaying = false
+const replayStart = listenerSet<[]>()
+/** A replay (src/autocrawler/replay.ts) is running: nothing records, and the recording piece of
+ *  the game the replay replaces ends. */
+export const addReplayStartListener = replayStart.add
+export function setReplaying(on: boolean): void {
+    replaying = on
+    if (on) {
+        replayStart.notify()
+    }
+}
+export function isReplaying(): boolean {
+    return replaying
+}
+
+// What a save stores of the recording (saveload.ts save(): `save.recording`): the piece since the
+// last load / NEW GAME, up to this moment. Set by the recorder.
+let saveRecordingProvider: (() => Record<string, unknown> | null) | null = null
+export function setSaveRecordingProvider(p: (() => Record<string, unknown> | null) | null): void {
+    saveRecordingProvider = p
+}
+export function recordingForSave(): Record<string, unknown> | null {
+    return saveRecordingProvider ? saveRecordingProvider() : null
 }
 
 /** How the replay (src/autocrawler/replay.ts) runs an entry of a window it doesn't import:

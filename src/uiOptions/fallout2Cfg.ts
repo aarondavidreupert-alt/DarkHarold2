@@ -138,6 +138,11 @@ export function applyCfg(cfg: CfgSections): void {
     //   script_backend=vm   run the .int bytecode
     const sb = (dh2['script_backend'] ?? '').trim().toLowerCase()
     if (sb === 'lua' || sb === 'vm') Config.scripting.backend = sb
+    //   record_actions=0  no action recorder (default 1: saves keep the actions since the load before)
+    const ra = int(dh2['record_actions'])
+    if (ra !== null) {
+        Config.engine.recordActions = ra !== 0
+    }
     //   script_fixes=0  the decompiled scripts keep the original bugs (default 1, SCRIPT_FIXES)
     const sf = int(dh2['script_fixes'])
     if (sf !== null) Config.scripting.scriptFixes = sf !== 0

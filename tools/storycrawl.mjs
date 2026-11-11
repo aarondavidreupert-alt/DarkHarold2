@@ -125,7 +125,7 @@ async function replay(base, backend, recording) {
         const page = await browser.newPage({ viewport: { width: 800, height: 600 } })
         const errors = []
         page.on('pageerror', (e) => errors.push(e.message))
-        await page.goto(`${base}play.html?${recording.start.currentMap}#script_backend=${backend}&dev`)
+        await page.goto(`${base}play.html?${recording.start?.currentMap ?? "arvillag"}#script_backend=${backend}&dev`)
         await page.waitForFunction(
             () =>
                 window.globalState &&

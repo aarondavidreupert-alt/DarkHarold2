@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { notifyMapReady, recordAction } from './actionLog.js'
+import { notifyGameLoaded, notifyMapReady, recordAction, recordingForSave } from './actionLog.js'
 import { restoreAutomap, SavedAutomap, serializeAutomap } from './automapData.js'
 import { killCounts } from './critter.js'
 import { SCREEN_HEIGHT, SCREEN_WIDTH } from './renderer.js'
@@ -81,6 +81,11 @@ export interface SaveGame {
     // In-game tick counter (Fallout 2 ticks, 10 per second). Missing on
     // older saves, so the loader tolerates `undefined`.
     gameTickTime?: number
+
+    // DH2 action recorder ([dh2] record_actions, src/devConsole/recorder.ts): the player's actions
+    // since the save loaded before (or NEW GAME) up to this save — src/autocrawler/recording.ts
+    // Recording, with `parent` naming that save. Older saves and record_actions=0: none.
+    recording?: Record<string, unknown>
 
     player: { position: Point; orientation: number; inventory: SerializedObj[] }
     party: SerializedObj[]
@@ -336,6 +341,10 @@ export function debugSave(): void {
 export function save(name: string, slot = -1, callback?: (id: number) => void): void {
     recordAction({ t: 'save', n: name })
     const save = gatherSaveData(name)
+    const recording = recordingForSave() // the action recorder's piece up to here (none when off)
+    if (recording) {
+        save.recording = recording
+    }
 
     const dirtyMapNames = Object.keys(world.dirtyMapCache)
     dbg(
@@ -647,6 +656,8 @@ export function load(id: number): void {
                 Scripting.startSfallGlobalScripts() // CE loadsave.cc: sfall_gl_scr_exec_start_proc
                 dbg('saveload', '[SaveLoad] Finished loading map %s', savedMap.name)
                 endMapFade()
+                // the action recorder starts a new piece here (it names this save as its parent)
+                notifyGameLoaded({ name: save.name, timestamp: save.timestamp })
             }
 
             const changingMap = world.gMap?.name !== save.currentMap

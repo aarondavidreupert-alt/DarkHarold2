@@ -11,6 +11,7 @@ import { heart } from '../heart.js'
 import { Obj } from '../object.js'
 import * as Scripting from '../scripting.js'
 import type { SaveGame } from '../saveload.js'
+import type { SaveRef } from '../actionLog.js'
 import { world } from '../state/world.js'
 import { toTileNum } from '../tile.js'
 
@@ -49,8 +50,13 @@ export interface Recording {
     backend: string
     /** the RNG seed; each entry reseeds with entrySeed(seed, index) just before its action */
     seed: number
-    /** the game when the recording started (a save, never stored in IndexedDB until replayed) */
-    start: SaveGame
+    /** the game when the recording started (a save, never stored in IndexedDB until replayed):
+     *  NEW GAME and startRecording() pieces; a piece that starts at a load names its save instead */
+    start?: SaveGame
+    /** the save this piece starts from (a load; [dh2] record_actions): replaySave() loads it */
+    parent?: SaveRef
+    /** how the piece started */
+    origin?: 'load' | 'newGame' | 'manual'
     startTick: number
     /** every logical frame's time since the frame before, in 0.1 ms (encodeFrameTime): animations,
      *  the 10 Hz game tick and idle timers run on real time, so the replay runs the recorded
@@ -236,5 +242,5 @@ export function decodeFrameTimes(text: string): number[] {
 
 export function isRecording(v: unknown): v is Recording {
     const r = v as Partial<Recording> | null
-    return !!r && r.format === RECORDING_FORMAT && Array.isArray(r.entries) && !!r.start
+    return !!r && r.format === RECORDING_FORMAT && Array.isArray(r.entries) && (!!r.start || !!r.parent)
 }

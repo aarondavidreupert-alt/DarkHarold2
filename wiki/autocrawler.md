@@ -486,6 +486,21 @@ entry it has no case for through `getReplayControl`. `notifyMapReady()` (end of 
 map is restored) gives a `map` entry and renames the map's objects; `notifyFrame()` (each logical
 frame, `heart.ts`) feeds the frame-time track.
 
+**Automatic pieces** (`[dh2] record_actions=1`, default). `saveload.ts` load() ends with
+`notifyGameLoaded({ name, timestamp })` (after the load procs, as the game is about to run again):
+the recorder ends the piece it had and begins one whose `parent` is that save. `init.ts`
+startNewGame calls `notifyNewGame()`; at the first map's `notifyMapReady` the recorder queues a
+microtask (after the load callback ran map_enter_p_proc) and begins a piece with a snapshot of the
+game as `start`. `save()` stores `recordingForSave()` — the piece so far with its end state — as
+`save.recording`. `replaySave` resolves `parent` to the stored save (by name and timestamp) and runs
+the piece with it as `start`; the end check is the state the save was made in. `replayHistory`
+follows the parents back and replays each piece (each starts with its own load, as the player's
+did). A replay calls `setReplaying(true)`: nothing records, and the current piece ends. A NEW GAME
+piece's replay sets the GVARs / MVARs back to the snapshot's after loading it (a game load reruns
+map_enter_p_proc with the load flag; artemple's script counts entries in GVAR 104). The cached-map
+load path (`mapLoader.ts` enterCached with every image already loaded) now notifies too.
+`devConsole/gameSize.ts`: `gameSize()` / `saveSize()`.
+
 **Entry.** `{ t, ms, f, k, pl, el?, mp?, gv?, cb?, rn?, wx?, wy?, ...payload }`: milliseconds and
 frames since the start, game ticks since the start, player tile, elevation / map when changed, the
 GVARs changed since the entry before, in combat, random draws since the entry before (information),
@@ -512,5 +527,7 @@ count as `tileDrift`. Checked headless (Arroyo, 2026-11-11): walks, talk with fo
 and a fight (attack button, attack, end turn) replay with 0 divergences on both backends; walks
 give an occasional one-hex drift. A second session (perk pick, character screen Done, a ten-minute
 rest, loot Take All / Done, a steal attempt that gets caught, dynamite with its timer set) replays
-with 0 divergences. Companion trade is hooked but untested (no companion in Arroyo); bags opened
+with 0 divergences. Automatic mode (2026-11-11): save, load (a piece starts), walk, save, page
+reload, `replaySave` 0 divergences; a second piece and `replayHistory` 0 divergences (1 hex drift);
+NEW GAME through the main menu, a few walks, save, `replaySave` 0 divergences. Companion trade is hooked but untested (no companion in Arroyo); bags opened
 inside the loot / steal windows are not recorded.

@@ -490,19 +490,39 @@ The event log is serialised into the save game. When a save is loaded, `globalSt
 
 ## Action Recorder
 
-Records what you do while play-testing — one compact entry per action — so the session can be
+Records what you do while play-testing — one compact entry per action — so a session can be
 replayed later as an automated test run that reports where the game first behaves differently.
-DH2 test tooling (no CE equivalent); the console commands are registered on every page load:
+DH2 test tooling (no CE equivalent).
+
+**Automatic (`[dh2] record_actions=1`, the default):** nothing to start or stop. Every save load
+and every NEW GAME starts a piece of recording, and every save stores the piece up to that moment
+(the save's `recording` field: the actions since the save loaded before it, or since NEW GAME with
+a snapshot of the first map). After a page reload you just load a save; the next piece starts
+there. The chain of parent saves goes back to NEW GAME, so a save knows its whole history as long
+as those saves still exist. `record_actions=0` is CE: no recording, and the RNG keeps its one seed
+(the recorder reseeds it before every action).
+
+The console commands are registered on every page load:
 
 ```js
-startRecording()              // reloads the game as it is (a snapshot) and records from there
+recordingStatus()             // what is being recorded now (from which save, how many actions, size)
+replaySave("name")            // load the save's parent, replay its piece, compare with the save
+replayHistory("name")         // every piece from NEW GAME (or the oldest parent still here) to the save
+gameSize()                    // the game as a save would store it now, by part (maps, recording, ...)
+saveSize()                    // every stored save with its size and the recording's share
+saveSize("name")              // one save by part (a number picks the save id)
+startRecording()              // a piece from a snapshot of the game now (reloaded at once), also with record_actions=0
 startRecording({ seed: 7 })   // the same with a chosen RNG seed
-stopRecording()               // prints the entry count, the length and the size
-exportRecording()             // download as <map>_<date>.dh2rec.json.gz ({ gzip: false } for plain JSON)
+stopRecording()               // end the current piece (it becomes __recording); the next load / NEW GAME starts one
+exportRecording()             // download __recording as <map>_<date>.dh2rec.json.gz ({ gzip: false } for plain JSON)
+exportRecording({ save: "name" }) // a save's piece, with its parent save packed in (replays anywhere)
 importRecording()             // pick a .gz / .json file (or importRecording("url")); becomes __recording
 replayRecording()             // replay __recording; report on the console and autoCrawler.getLastReplayReport()
 downloadReplayReport()        // the last replay's report as JSON
 ```
+
+`exportSave()` exports a save with its recording; the parent save is a separate file (or use
+`exportRecording({ save })`).
 
 Headless, on both script backends (needs the extracted game data, like the story crawler):
 
@@ -524,8 +544,9 @@ that changed since the entry before — the per-step check. Opening and closing 
 nothing (inventory, Pip-Boy, skilldex) is not an entry; bags opened inside the loot / steal
 windows are not recorded.
 
-**Determinism:** the recording starts with a load of the snapshot (the replay starts with the same
-load), the RNG is reseeded before every action (and when a map finishes loading) from the
+**Determinism:** a piece starts at the end of a load (the replay starts with the same load of the
+parent save, or of the snapshot; a NEW GAME piece's replay then sets the GVARs and map variables
+back to the snapshot's, since its load ran the map's load procedures once more), the RNG is reseeded before every action (and when a map finishes loading) from the
 recording's seed, the game loop's own schedule restarts at the start (`resetLoopSchedule`), and
 the replay runs the recorded frames at the recorded times (a frame-time track: animations and the
 10 Hz game tick run on real time) while it pins the game clock to each entry's tick. Time read
@@ -533,9 +554,12 @@ the replay runs the recorded frames at the recorded times (a frame-time track: a
 as drift, not a divergence (`replayRecording(rec, { tileTolerance: 0 })` for exact). A `load`
 entry replays only where that save exists (move it with `exportSave()` / `importSave()`).
 
-**Size:** the start snapshot is a save of the current map and every changed map (~1.4 MB as JSON
-in Arroyo). An hour of play at 30 fps with ~2,400 actions adds ~430 KB (half of it the frame-time
-track) — about 1.8 MB plain, about 0.2 MB as the default `.gz` export.
+**Size:** an hour of play at 30 fps with ~2,400 actions adds ~430 KB to a save (half of it the
+frame-time track); a piece that starts at a load names its parent save and carries nothing else.
+A NEW GAME or `startRecording()` piece carries its start snapshot (a save of the current map and
+every changed map, ~1.4 MB as JSON in Arroyo; ~0.7 MB at NEW GAME in Arroyo's temple). Saves
+themselves are ~1.4 MB and grow with every map you change; `gameSize()` / `saveSize()` show where
+the bytes are and mark a save over 20 MB. An exported recording is gzip by default (~20:1).
 
 ## FAQ
 

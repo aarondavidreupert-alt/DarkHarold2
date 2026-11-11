@@ -143,6 +143,10 @@ scroll_mode=dh2
 mouse_wheel=zoom
 ; 1 = a short fade from black when the elevation changes (DH2), 0 = CE's instant switch
 elevation_fade=1
+; 1 = the action recorder runs all the time: each save keeps your actions since the load
+; (or NEW GAME) before it, replayable as a test run (console: replaySave(), saveSize());
+; the random numbers are reseeded before every action. 0 = CE: no recording, one seed
+record_actions=1
 ; combat outlines: dh2 = red hostile, green team, blue for neutrals (seen through walls);
 ; ce = CE: red / green by team for critters in the line of fire, a dim outline for those
 ; out of sight within Perception x 5 hexes, none farther

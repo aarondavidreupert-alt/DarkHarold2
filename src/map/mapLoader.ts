@@ -18,6 +18,7 @@ limitations under the License.
 // Split out of map.ts. See wiki/ts-split-refactor.md → "Per-file split
 // proposals" §9.
 
+import { notifyMapReady } from '../actionLog.js'
 import { ensureCycleMask } from '../images.js'
 import { Config } from '../config.js'
 import { lookupMapName, mapDeadBodiesAge, mapIndexOf } from '../data.js'
@@ -271,6 +272,7 @@ GameMap.prototype.loadMap = function (
         }
         const toLoad = mapImages.filter((img) => assets.images[img] === undefined)
         if (toLoad.length === 0) {
+            notifyMapReady() // the action recorder (as finishLoadingIfReady does when images load)
             enterCached()
             return
         }
