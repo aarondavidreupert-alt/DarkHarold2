@@ -476,7 +476,13 @@ the action menu (`uiContextMenu.ts` `objectActions`), `usePendingItemOn`, `dialo
 screen (`bMove` / `bOffer` / `bEnd`), the inventory window (`inv`, `invMove`), `uiGetAmount` (an
 `amount` entry after the action that asked), combat start / end turn / end combat / hit mode / swap
 hands, the world map (`partyInitWalking`, `enterArea`, `enterWilderness`, `enterAreaEntrance`),
-`save` / `load`. `notifyMapReady()` (end of a map load, before `map_enter_p_proc`; after a save's
+`save` / `load`, the loot window (`lMove` / `lTakeAll` / `lDone`), steal (`stMove`, `stDone`),
+companion trade (`ctMove` / `ctOffer` / `ctEnd`), the perk dialog (`perk`, `perkTag`, `perkTraits`,
+`perkBack`), the character screen (`charClose`: what Done / Cancel leaves on the dude), the Pip-Boy
+rest (`rest`), `uiGetTimer` (a `timer` entry, like `amount`). Windows the replay does not import
+register a handler per entry type (`setReplayControl` in `actionLog.ts`): the loot, steal and trade
+windows while they are open, the perk dialog, character screen and rest once; the replay runs an
+entry it has no case for through `getReplayControl`. `notifyMapReady()` (end of a map load, before `map_enter_p_proc`; after a save's
 map is restored) gives a `map` entry and renames the map's objects; `notifyFrame()` (each logical
 frame, `heart.ts`) feeds the frame-time track.
 
@@ -504,5 +510,7 @@ draw a few more or fewer random numbers between two actions and a walk can end a
 per-action reseed keeps that from building up; tile differences within `tileTolerance` (default 1)
 count as `tileDrift`. Checked headless (Arroyo, 2026-11-11): walks, talk with four dialogue picks,
 and a fight (attack button, attack, end turn) replay with 0 divergences on both backends; walks
-give an occasional one-hex drift. Not hooked yet: the loot / steal / companion-trade windows, the
-character screen, Pip-Boy rest, explosive timers.
+give an occasional one-hex drift. A second session (perk pick, character screen Done, a ten-minute
+rest, loot Take All / Done, a steal attempt that gets caught, dynamite with its timer set) replays
+with 0 divergences. Companion trade is hooked but untested (no companion in Arroyo); bags opened
+inside the loot / steal windows are not recorded.

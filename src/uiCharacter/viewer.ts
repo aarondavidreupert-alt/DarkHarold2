@@ -19,6 +19,7 @@ limitations under the License.
 // (getCharacterWindow / closeCharacterScreen). The new-game creator lives
 // in creator.ts; the level-up perk picker lives in perkModal.ts.
 
+import { recordAction, setReplayControl } from '../actionLog.js'
 import { Config } from '../config.js'
 import * as Events from '../events.js'
 import { world } from '../state/world.js'
@@ -113,6 +114,54 @@ export function closeCharacterScreen(): void {
     }
 }
 
+// The action recorder (actionLog.ts): what the character screen leaves on the dude when it closes
+// (Done: the edits; Cancel: the state it opened with) — the replay sets the same.
+type CharacterState = {
+    editorLastLevel: number
+    perks: string[]
+    traits: string[]
+    pendingPerkPick: boolean
+    baseStats: { [stat: string]: number }
+    bonusStats: { [stat: string]: number }
+    baseSkills: { [skill: string]: number }
+    tagged: string[]
+    skillPoints: number
+    hasTagPerk: boolean
+}
+function characterState(from?: CharacterState): CharacterState {
+    const p = world.player!
+    const s = from ?? {
+        editorLastLevel: p.editorLastLevel,
+        perks: p.perks,
+        traits: p.traits ?? [],
+        pendingPerkPick: p.pendingPerkPick,
+        baseStats: p.stats.baseStats,
+        bonusStats: p.stats.bonusStats,
+        baseSkills: p.skills.baseSkills,
+        tagged: p.skills.tagged,
+        skillPoints: p.skills.skillPoints,
+        hasTagPerk: p.skills.hasTagPerk,
+    }
+    return JSON.parse(JSON.stringify(s))
+}
+setReplayControl('charClose', (e) => {
+    const p = world.player!
+    const s = e as unknown as CharacterState
+    p.levelUpAvailable = false // CE characterEditorShow
+    p.editorLastLevel = s.editorLastLevel
+    p.perks = s.perks.slice()
+    p.traits = s.traits.slice()
+    p.pendingPerkPick = s.pendingPerkPick
+    p.stats.baseStats = { ...s.baseStats }
+    p.stats.bonusStats = { ...s.bonusStats }
+    p.skills.baseSkills = { ...s.baseSkills }
+    p.skills.tagged = s.tagged.slice() as typeof p.skills.tagged
+    p.skills.skillPoints = s.skillPoints
+    p.skills.hasTagPerk = s.hasTagPerk
+    updateIndicatorBar()
+    Events.emit('statsChanged')
+})
+
 // ── showCharacterScreen() ─────────────────────────────────────────────────────
 // In-game read-only view — behavior identical to original.
 
@@ -137,6 +186,7 @@ export function showCharacterScreen() {
         hasTagPerk: player.skills.hasTagPerk,
     }
     const cancel = () => {
+        recordAction({ t: 'charClose', how: 'cancel', ...characterState(saved) })
         player.editorLastLevel = saved.editorLastLevel
         player.perks = saved.perks
         player.traits = saved.traits
@@ -786,6 +836,7 @@ export function showCharacterScreen() {
         }
 
         dbg('object', '[CharScreen] Changes saved.')
+        recordAction({ t: 'charClose', how: 'done', ...characterState() })
         updateIndicatorBar()
         closeCharacterScreen()
     })

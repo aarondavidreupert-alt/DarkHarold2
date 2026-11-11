@@ -515,10 +515,14 @@ loot / push from the action menu (objects by `pid@tile` where they stood when th
 skill use, use item on, dialogue option picks (option, speaker's script, option text), barter
 moves / Offer / Talk, inventory actions and slot moves, every Move Items quantity, combat start,
 attacks, called-shot regions, hit mode, swap hands, end turn / end combat, world map walking,
-area and entrance picks, save and load. Each entry also notes the frame, the game tick, the
-player's tile, the map / elevation when they changed and the GVARs that changed since the entry
-before — the per-step check. Not recorded yet: the loot / steal / companion-trade windows, the
-character screen (level-ups, perks), Pip-Boy rest and explosive timers.
+area and entrance picks, save and load, the loot window (moves, Take All, Done), steal / plant
+attempts, companion-trade moves / Offer / Talk, perk picks (with the Tag! and Mutate! follow-up
+picks), what the character screen keeps on Done / Cancel (skills, tags, skill points, SPECIAL,
+perks, traits), the Pip-Boy rest option and explosive timer settings. Each entry also notes the
+frame, the game tick, the player's tile, the map / elevation when they changed and the GVARs
+that changed since the entry before — the per-step check. Opening and closing windows that change
+nothing (inventory, Pip-Boy, skilldex) is not an entry; bags opened inside the loot / steal
+windows are not recorded.
 
 **Determinism:** the recording starts with a load of the snapshot (the replay starts with the same
 load), the RNG is reseeded before every action (and when a map finishes loading) from the

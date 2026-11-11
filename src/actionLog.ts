@@ -56,3 +56,28 @@ export function setFrameListener(l: (() => void) | null): void {
 export function notifyFrame(): void {
     frameListener?.()
 }
+
+/** How the replay (src/autocrawler/replay.ts) runs an entry of a window it doesn't import:
+ *  the window registers a handler for its entry types while it is open (the loot, steal and
+ *  companion-trade windows) or once (the perk dialog, the character screen, the Pip-Boy rest);
+ *  the handler gets the recorded entry (items as `ip`, their PID). */
+export type ReplayControl = (entry: ActionEntry) => unknown
+
+const replayControls = new Map<string, ReplayControl>()
+
+export function setReplayControl(type: string, control: ReplayControl | null): void {
+    if (control) {
+        replayControls.set(type, control)
+    } else {
+        replayControls.delete(type)
+    }
+}
+
+export function getReplayControl(type: string): ReplayControl | undefined {
+    return replayControls.get(type)
+}
+
+/** The index of the first item with PID `pid` in `list` (-1: none), for replay controls. */
+export function indexOfPid(list: readonly { pid?: number }[], pid: unknown): number {
+    return list.findIndex((o) => o.pid === pid)
+}

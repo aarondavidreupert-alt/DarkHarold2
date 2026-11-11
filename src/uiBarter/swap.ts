@@ -317,7 +317,24 @@ function promptAmount(item: Obj): Promise<number> {
  * time drawn as m:ss in BIGNUM digits at (133,64) and no ALL button. Resolves to the
  * seconds, or -1 on cancel. CE ref: inventory.cc:5584, :5743, :5534 _draw_amount.
  */
+// Replay: the timer settings the recorded player chose, instead of asking
+let timerQueue: number[] = []
+export function setTimerOverrides(seconds: number[]): void {
+    timerQueue = seconds.slice()
+}
+
+/** The Set Timer window; the choice goes to the action recorder (actionLog.ts) as a `timer`. */
 export function uiGetTimer(item: Obj): Promise<number> {
+    if (timerQueue.length > 0) {
+        return Promise.resolve(timerQueue.shift()!)
+    }
+    return promptTimer(item).then((seconds) => {
+        recordAction({ t: 'timer', n: seconds })
+        return seconds
+    })
+}
+
+function promptTimer(item: Obj): Promise<number> {
     const DIALOG_W = 259
     const DIALOG_H = 162
     const MIN = 10,

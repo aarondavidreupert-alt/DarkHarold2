@@ -13,7 +13,7 @@
 //   replayRecording()                     (console; src/devConsole/recorder.ts)
 //   npm run storycrawl -- --replay x.dh2rec.json   (headless, both backends)
 
-import { setMapReadyListener } from '../actionLog.js'
+import { getReplayControl, setMapReadyListener } from '../actionLog.js'
 import { Combat } from '../combat.js'
 import { resetLoopSchedule } from '../gameTick.js'
 import globalState from '../globalState.js'
@@ -29,7 +29,7 @@ import { fromTileNum } from '../tile.js'
 import { hexDistance } from '../geometry.js'
 import { cycleActiveItemAction, swapHands } from '../ui.js'
 import { activeBarter } from '../uiBarter.js'
-import { setAmountOverrides } from '../uiBarter/swap.js'
+import { setAmountOverrides, setTimerOverrides } from '../uiBarter/swap.js'
 import { performObjectAction, type ObjectActionName } from '../uiContextMenu.js'
 import { inventoryList, uiMoveSlot } from '../uiInventory/dragdrop.js'
 import { closeInventory, runInventoryItemAction, showInventory } from '../uiInventory.js'
@@ -195,7 +195,18 @@ const NEEDS_UI: { [t: string]: UIMode } = {
     wmArea: UIMode.worldMap,
     wmWild: UIMode.worldMap,
     wmEnter: UIMode.worldMap,
+    lMove: UIMode.loot,
+    lTakeAll: UIMode.loot,
+    lDone: UIMode.loot,
+    stMove: UIMode.loot,
+    stDone: UIMode.loot,
+    ctMove: UIMode.barter,
+    ctOffer: UIMode.barter,
+    ctEnd: UIMode.barter,
 }
+
+/** Entries that only answer a question the action before them asked (the quantity, the timer). */
+const ANSWERS = new Set(['amount', 'timer'])
 
 function findItem(pid: unknown, slot?: unknown): Obj | null {
     const p = world.player as any
@@ -514,8 +525,16 @@ export async function runReplay(rec: Recording, options: ReplayOptions = {}): Pr
                 load(id)
                 break
             }
-            default:
-                diverge(i, e.t, 'unknown entry type', e.t, null)
+            default: {
+                // a window's own entries (loot, steal, companion trade, the perk dialog, the
+                // character screen, the Pip-Boy rest): the handler it registered (actionLog.ts)
+                const control = getReplayControl(e.t)
+                if (control) {
+                    await control(e)
+                } else {
+                    diverge(i, e.t, 'no handler (the window is not open)', e.t, null)
+                }
+            }
         }
     }
 
@@ -523,9 +542,10 @@ export async function runReplay(rec: Recording, options: ReplayOptions = {}): Pr
         for (; cursor < rec.entries.length; cursor++) {
             const i = cursor
             const e = rec.entries[i]
-            if (e.t === 'amount') {
+            // a quantity / timer: given to the action before it (setAmountOverrides, setTimerOverrides)
+            if (ANSWERS.has(e.t)) {
                 continue
-            } // given to the action before it (setAmountOverrides)
+            }
             if (e.t === 'map') {
                 mapEntriesSeen++
                 const ok = await stepUntil(
@@ -591,10 +611,12 @@ export async function runReplay(rec: Recording, options: ReplayOptions = {}): Pr
                 world.gameTickTime = rec.startTick + e.k
             }
             const amounts: number[] = []
-            for (let j = i + 1; j < rec.entries.length && rec.entries[j].t === 'amount'; j++) {
-                amounts.push(rec.entries[j].n as number)
+            const timers: number[] = []
+            for (let j = i + 1; j < rec.entries.length && ANSWERS.has(rec.entries[j].t); j++) {
+                ;(rec.entries[j].t === 'amount' ? amounts : timers).push(rec.entries[j].n as number)
             }
             setAmountOverrides(amounts)
+            setTimerOverrides(timers)
             try {
                 await perform(i, e)
             } catch (err) {
@@ -629,6 +651,7 @@ export async function runReplay(rec: Recording, options: ReplayOptions = {}): Pr
     } finally {
         setMapReadyListener(null)
         setAmountOverrides([])
+        setTimerOverrides([])
         uiPort.uiCalledShot = realCalledShot
         useVirtualClock(false)
         heart.paused = prevPaused

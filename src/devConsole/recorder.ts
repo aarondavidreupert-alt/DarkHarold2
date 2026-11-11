@@ -72,7 +72,7 @@ let lastDraws = 0
 
 // entries that don't reseed the RNG: map loads (reseeded when the load ends, below), and a
 // Move Items quantity (asked for inside an action that already reseeded)
-const NO_RESEED = new Set(['map', 'amount'])
+const NO_RESEED = new Set(['map', 'amount', 'timer'])
 
 function makeEntry(t: string): RecordedEntry {
     const rec = current!

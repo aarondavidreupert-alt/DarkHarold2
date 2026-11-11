@@ -18,6 +18,7 @@ limitations under the License.
 // tab dispatcher, public open/close/toggle. Split out of uiPipBoy.ts.
 // See wiki/ts-split-refactor.md → "Per-file split proposals" §12.
 
+import { recordAction, setReplayControl } from '../actionLog.js'
 import * as Events from '../events.js'
 import { world } from '../state/world.js'
 import { uiState } from '../state/uiState.js'
@@ -415,24 +416,11 @@ function toggleWaitMenu(): void {
     for (let option = 0; option < count; option++) {
         const row = makeListItem(getMessage('pipboy', 302 + option) ?? `Rest option ${option + 1}`, async () => {
             if (isRestAnimating) return
-            isRestAnimating = true
-            restCancelled = false
-            restBail = false
+            recordAction({ t: 'rest', opt: option }) // the action recorder (actionLog.ts)
             for (const r of rows) r.style.color = '#3cf800' // CE _colorTable[992]
             row.style.color = '#fcfc7c' // 32747
-            services.audioEngine?.playSfxByName?.('ib1p1xx1')
-            const stopCursor = pipBoyContainer ? waitWatchCursor(pipBoyContainer) : () => {}
-            try {
-                await restFor(option)
-            } finally {
-                stopCursor()
-            }
-            services.audioEngine?.playSfxByName?.('ib2lu1x1')
+            await runRest(option)
             row.style.color = '#3cf800'
-            isRestAnimating = false
-            renderRestClock()
-            // CE _proc_bail_flag: an event during the rest closes the Pip-Boy
-            if (restBail && pipBoyContainer) closePipBoy()
         })
         rows.push(row)
         content.appendChild(row)
@@ -441,6 +429,32 @@ function toggleWaitMenu(): void {
     screen.appendChild(content)
     renderRestClock()
 }
+
+/** One rest option (pipboy.msg 302 + `option`): the watch cursor, the rest, then the Pip-Boy
+ *  closes if an event cut it short (also the action recorder's replay of a `rest` entry). */
+async function runRest(option: number): Promise<void> {
+    if (isRestAnimating) {
+        return
+    }
+    isRestAnimating = true
+    restCancelled = false
+    restBail = false
+    services.audioEngine?.playSfxByName?.('ib1p1xx1')
+    const stopCursor = pipBoyContainer ? waitWatchCursor(pipBoyContainer) : () => {}
+    try {
+        await restFor(option)
+    } finally {
+        stopCursor()
+    }
+    services.audioEngine?.playSfxByName?.('ib2lu1x1')
+    isRestAnimating = false
+    renderRestClock()
+    // CE _proc_bail_flag: an event during the rest closes the Pip-Boy
+    if (restBail && pipBoyContainer) {
+        closePipBoy()
+    }
+}
+setReplayControl('rest', (e) => runRest(e.opt as number))
 
 async function restFor(duration: number): Promise<void> {
     if (duration === 0) await pipboyRest(0, 10, 0)
