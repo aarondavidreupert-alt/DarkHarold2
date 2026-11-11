@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { notifyNewGame } from './actionLog.js'
 import { gameReset } from './gameReset.js'
 import { randomSeedPrerandom } from './random.js'
 import {
@@ -143,6 +144,7 @@ export function initGame() {
         void gameMoviePlay(MOVIE_ELDER, GAME_MOVIE_STOP_MUSIC).then(() => {
             randomSeedPrerandom(-1)
             requestGlobalScriptsStart() // sfall: after the new game's map has loaded
+            notifyNewGame() // the action recorder starts from the first map ([dh2] record_actions)
             world.gMap!.loadMap('artemple')
         })
     }

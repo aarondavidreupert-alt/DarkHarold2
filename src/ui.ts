@@ -176,12 +176,14 @@ function uiInit() {
 // initCharacterScreen() has moved to uiCharacter.ts as showCharacterScreen().
 
 import { $id } from './uiDom.js'
+import { recordAction } from './actionLog.js'
 // Preserve the existing public surface (worldmap.ts and uiOptions.ts read
 // these via `from './ui.js'`).
 export { showv, hidev, makeEl } from './uiDom.js'
 
 // CE interface.cc interfaceBarSwapHands — the B key and the change-hand button.
 export function swapHands(): void {
+    recordAction({ t: 'hands' })
     const p = world.player as any
     const player = world.player
     const nextHand: 'leftHand' | 'rightHand' = p.activeHand === 'leftHand' ? 'rightHand' : 'leftHand'
@@ -197,6 +199,7 @@ export function swapHands(): void {
 // CE interface.cc interfaceCycleItemAction — the N key and a right-click on the item
 // button: a weapon's modes, or the unarmed hand's punch / kick moves.
 export function cycleActiveItemAction(): void {
+    recordAction({ t: 'hitMode' })
     const wep = world.player!.equippedWeapon
     if (!wep || !wep.weapon) {
         const player = world.player!
@@ -295,7 +298,10 @@ export function initUI() {
         if (!Config.engine.doCombat) {
             return
         }
-        if (!world.inCombat) Combat.start()
+        if (!world.inCombat) {
+            recordAction({ t: 'combat' })
+            Combat.start()
+        }
         uiState.cursorMode = 'attack'
         world.combat?.refreshHighlights()
     }
@@ -312,6 +318,7 @@ export function initUI() {
                 return
             }
             dbg('combat', '[Combat] player turn ended')
+            recordAction({ t: 'endTurn' })
             world.combat!.nextTurn()
         }
     }
@@ -319,6 +326,7 @@ export function initUI() {
     $id('endCombatButton').onclick = () => {
         // CE combat.cc combatAttemptEnd
         if (world.inCombat) {
+            recordAction({ t: 'endCombat' })
             world.combat!.attemptEnd()
         }
     }

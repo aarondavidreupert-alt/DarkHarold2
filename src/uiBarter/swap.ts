@@ -18,6 +18,7 @@ limitations under the License.
 // loot screen. Split out of uiBarter.ts. See wiki/ts-split-refactor.md
 // → "Per-file split proposals" §21.
 
+import { recordAction } from '../actionLog.js'
 import { Obj } from '../object.js'
 import { $id, clearEl } from '../uiDom.js'
 import { services } from '../state/services.js'
@@ -126,7 +127,24 @@ function drawBignumDigits(ctx: CanvasRenderingContext2D, bignum: HTMLImageElemen
  * inventoryQuantityWindowInit, :5534 _draw_amount.
  * Resolves to the chosen quantity, or 0 on cancel.
  */
+// Replay (src/autocrawler/replay.ts): the quantities the recorded player chose, instead of asking
+let amountQueue: number[] = []
+export function setAmountOverrides(amounts: number[]): void {
+    amountQueue = amounts.slice()
+}
+
+/** The Move Items window; the choice goes to the action recorder (actionLog.ts) as an `amount`. */
 export function uiGetAmount(item: Obj): Promise<number> {
+    if (amountQueue.length > 0) {
+        return Promise.resolve(Math.min(amountQueue.shift()!, Math.max(1, item.amount)))
+    }
+    return promptAmount(item).then((n) => {
+        recordAction({ t: 'amount', n })
+        return n
+    })
+}
+
+function promptAmount(item: Obj): Promise<number> {
     const DIALOG_W = 259
     const DIALOG_H = 162
 
@@ -299,7 +317,24 @@ export function uiGetAmount(item: Obj): Promise<number> {
  * time drawn as m:ss in BIGNUM digits at (133,64) and no ALL button. Resolves to the
  * seconds, or -1 on cancel. CE ref: inventory.cc:5584, :5743, :5534 _draw_amount.
  */
+// Replay: the timer settings the recorded player chose, instead of asking
+let timerQueue: number[] = []
+export function setTimerOverrides(seconds: number[]): void {
+    timerQueue = seconds.slice()
+}
+
+/** The Set Timer window; the choice goes to the action recorder (actionLog.ts) as a `timer`. */
 export function uiGetTimer(item: Obj): Promise<number> {
+    if (timerQueue.length > 0) {
+        return Promise.resolve(timerQueue.shift()!)
+    }
+    return promptTimer(item).then((seconds) => {
+        recordAction({ t: 'timer', n: seconds })
+        return seconds
+    })
+}
+
+function promptTimer(item: Obj): Promise<number> {
     const DIALOG_W = 259
     const DIALOG_H = 162
     const MIN = 10,

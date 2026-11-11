@@ -17,6 +17,8 @@ limitations under the License.
 // FO2-CE ref: editor.cc — level-up perk picker modal.
 // Triggered by showCharacterScreen() when player.pendingPerkPick is true.
 
+import { recordAction, setReplayControl } from '../actionLog.js'
+import { world } from '../state/world.js'
 import { makePanelDraggable } from '../uiDrag.js'
 import { CE_COLOR, font1, font2, font3 } from '../uiFont.js'
 import { getValidPerks, getPerkRank, applyPerk } from '../perks.js'
@@ -62,6 +64,7 @@ export function showPerkModal(player: any, onChange: () => void = () => {}): voi
     // CE perkDialogShow: backing out of the Tag! / Mutate! follow-up dialog takes the
     // perk back (perkRemove), so a perk can be picked again.
     const takeBack = (name: string) => () => {
+        recordAction({ t: 'perkBack', n: name })
         const i = player.perks.lastIndexOf(name)
         if (i !== -1) player.perks.splice(i, 1)
         if (name === 'Tag!') player.skills.hasTagPerk = false
@@ -72,6 +75,7 @@ export function showPerkModal(player: any, onChange: () => void = () => {}): voi
         null,
         items,
         (name) => {
+            recordAction({ t: 'perk', n: name })
             const hadTag = getPerkRank(player, 'Tag!') > 0
             applyPerk(player, name)
             onChange()
@@ -85,6 +89,26 @@ export function showPerkModal(player: any, onChange: () => void = () => {}): voi
         'No eligible perks.',
     )
 }
+
+// The action recorder's replay (actionLog.ts): the picks above, on the dude, as the dialog made
+// them (the character screen's Done / Cancel entry then sets what the screen kept).
+setReplayControl('perk', (e) => applyPerk(world.player!, String(e.n)))
+setReplayControl('perkTag', (e) => {
+    const p = world.player!
+    p.skills.tagged = [...p.skills.tagged.slice(0, 3), e.sk as (typeof p.skills.tagged)[number]]
+})
+setReplayControl('perkTraits', (e) => world.player!.setTraits(e.traits as string[]))
+setReplayControl('perkBack', (e) => {
+    const p = world.player!
+    const i = p.perks.lastIndexOf(String(e.n))
+    if (i !== -1) {
+        p.perks.splice(i, 1)
+    }
+    if (e.n === 'Tag!') {
+        p.skills.hasTagPerk = false
+    }
+    p.pendingPerkPick = true
+})
 
 // CE character_editor.cc perkDialogHandleTagPerk — PICK A NEW TAG SKILL (editor.msg 155)
 // from the untagged skills; it becomes the 4th tag (gCharacterEditorTempTaggedSkills[3]).
@@ -100,6 +124,7 @@ function runTagPick(player: any, onChange: () => void, onCancel: () => void): vo
         getMessage('editor', 155) ?? 'PICK A NEW TAG SKILL',
         options,
         (sk) => {
+            recordAction({ t: 'perkTag', sk })
             player.skills.tagged = [...player.skills.tagged.slice(0, 3), sk]
             onChange()
         },
@@ -120,6 +145,7 @@ function runMutate(player: any, onChange: () => void, onCancel: () => void): voi
             getMessage('editor', 153) ?? 'PICK A NEW TRAIT',
             options,
             (t) => {
+                recordAction({ t: 'perkTraits', traits: [...kept, t] })
                 player.setTraits([...kept, t])
                 onChange()
             },

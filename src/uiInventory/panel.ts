@@ -17,6 +17,7 @@ limitations under the License.
 // Inventory panel — split out of uiInventory.ts. See
 // wiki/ts-split-refactor.md → "Per-file split proposals" §8.
 
+import { recordAction } from '../actionLog.js'
 import { Config } from '../config.js'
 import { beginUseItemOn, usePendingItemOn } from '../useItemOn.js'
 import { ammoGetCapacity, ammoGetQuantity, ammoSplitOff, weaponGetAmmoTypePid } from '../weaponAmmo.js'
@@ -71,6 +72,14 @@ function onStatsChangedRefresh(): void {
 // CE inventory.cc inventoryOpenUseItemOn — the action menu's Inventory icon: the next
 // item clicked is used on this object (2 AP in combat), and the window closes.
 let useOnTarget: Obj | null = null
+
+// The open inventory window's item-menu action (look / use / drop / equip_left / equip_right /
+// equip_armor / unequip / unload) on `obj` in `slot` (inventory or a hand / armor slot), for the
+// action recorder's replay; null while the window was never opened.
+let inventoryItemAction: ((obj: Obj, slot: string, action: string) => Promise<void>) | null = null
+export function runInventoryItemAction(obj: Obj, slot: string, action: string): Promise<void> | null {
+    return inventoryItemAction ? inventoryItemAction(obj, slot, action) : null
+}
 
 export function showInventoryUseOn(target: Obj): void {
     useOnTarget = target
@@ -572,9 +581,17 @@ export function showInventory(useOn = false) {
 
     type ItemAction =
         'cancel' | 'look' | 'use' | 'drop' | 'equip_left' | 'equip_right' | 'equip_armor' | 'unequip' | 'unload'
+    let inDropItem = false
+    // replay (src/autocrawler/replay.ts): the open window's item-menu actions
+    inventoryItemAction = (obj, slot, action) =>
+        action === 'drop' ? dropItem(obj, slot) : Promise.resolve(itemAction(obj, slot, action as ItemAction))
 
     function itemAction(obj: Obj, slot: string, action: ItemAction) {
         const playerAny = world.player as any
+        // the action recorder (actionLog.ts); Look / Cancel change nothing, Drop records in dropItem
+        if (action !== 'look' && action !== 'cancel' && !inDropItem) {
+            recordAction({ t: 'inv', a: action, item: obj, sl: slot })
+        }
         switch (action) {
             case 'look':
                 showItemInfo(obj)
@@ -675,9 +692,15 @@ export function showInventory(useOn = false) {
 
     // The Drop action (item menu, and [dh2] inventory_drag_drop)
     async function dropItem(obj: Obj, slot: string) {
+        recordAction({ t: 'inv', a: 'drop', item: obj, sl: slot }) // a quantity follows as `amount`
         // CE ref: inventory.cc:4909 — quantity dialog for drop when amount > 1.
         if (obj.amount <= 1) {
-            itemAction(obj, slot, 'drop')
+            inDropItem = true
+            try {
+                itemAction(obj, slot, 'drop')
+            } finally {
+                inDropItem = false
+            }
             return
         }
         const wanted = await uiGetAmount(obj)

@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { notifyGameLoaded, notifyMapReady, recordAction, recordingForSave } from './actionLog.js'
 import { restoreAutomap, SavedAutomap, serializeAutomap } from './automapData.js'
 import { killCounts } from './critter.js'
 import { SCREEN_HEIGHT, SCREEN_WIDTH } from './renderer.js'
@@ -80,6 +81,15 @@ export interface SaveGame {
     // In-game tick counter (Fallout 2 ticks, 10 per second). Missing on
     // older saves, so the loader tolerates `undefined`.
     gameTickTime?: number
+
+    // DH2 action recorder ([dh2] record_actions, src/devConsole/recorder.ts): the player's actions
+    // since the save loaded before (or NEW GAME) up to this save — src/autocrawler/recording.ts
+    // Recording, with `parent` naming that save. Older saves and record_actions=0: none.
+    recording?: Record<string, unknown>
+    // ...and every piece before that one, back to the chain's start (NEW GAME, a startRecording()
+    // snapshot, or the first save loaded without a recording): gzip + base64 chunks, oldest first
+    // (src/autocrawler/recording.ts SaveHistory). A save carries its whole history this way.
+    history?: Record<string, unknown>
 
     player: { position: Point; orientation: number; inventory: SerializedObj[] }
     party: SerializedObj[]
@@ -211,7 +221,8 @@ function captureScreenshot(): string | undefined {
     return shot
 }
 
-function gatherSaveData(name: string): SaveGame {
+/** The game as a save, without storing it (also the action recorder's start snapshot). */
+export function gatherSaveData(name: string): SaveGame {
     // Saves the game and returns the savegame
 
     Scripting.markMapSaved() // CE lsgPerformSaveGame → mapSaveInGame(false): MAP_SAVED
@@ -332,7 +343,15 @@ export function debugSave(): void {
 }
 
 export function save(name: string, slot = -1, callback?: (id: number) => void): void {
+    recordAction({ t: 'save', n: name })
     const save = gatherSaveData(name)
+    const recorded = recordingForSave() // the action recorder's piece and history (none when off)
+    if (recorded) {
+        save.recording = recorded.recording
+        if (recorded.history) {
+            save.history = recorded.history
+        }
+    }
 
     const dirtyMapNames = Object.keys(world.dirtyMapCache)
     dbg(
@@ -395,6 +414,7 @@ export function load(id: number): void {
             const savedMap = save.savedMaps[save.currentMap]
 
             dbg('saveload', "[SaveLoad] Loading save #%d ('%s') from %s", id, save.name, formatSaveDate(save))
+            recordAction({ t: 'load', n: save.name, ts: save.timestamp })
 
             // Apply the save state. Called directly (same-location) or after
             // images finish loading (cross-location) via the isLoading gate.
@@ -628,6 +648,7 @@ export function load(id: number): void {
 
                 // CE mapLoad during a game load: start / map_enter / map_update with
                 // _loadingGame set (metarule 22), then the map music.
+                notifyMapReady() // the action recorder names the restored map's objects
                 Scripting.ensureDudeScript() // obj_dude with its saved LVARs (setPendingDudeLvars)
                 world.gMap!.runLoadGameProcs()
 
@@ -642,6 +663,11 @@ export function load(id: number): void {
                 Scripting.startSfallGlobalScripts() // CE loadsave.cc: sfall_gl_scr_exec_start_proc
                 dbg('saveload', '[SaveLoad] Finished loading map %s', savedMap.name)
                 endMapFade()
+                // the action recorder starts a new piece here (it names this save as its parent)
+                notifyGameLoaded(
+                    { name: save.name, timestamp: save.timestamp },
+                    save as unknown as Record<string, unknown>,
+                )
             }
 
             const changingMap = world.gMap?.name !== save.currentMap

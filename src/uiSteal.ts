@@ -25,6 +25,7 @@ limitations under the License.
 // session ends so a later real loot session isn't left pointing at stale
 // steal-session state).
 
+import { indexOfPid, recordAction, setReplayControl } from './actionLog.js'
 import { world } from './state/world.js'
 import { uiState } from './state/uiState.js'
 import { Critter, itemIsHidden, Obj } from './object.js'
@@ -72,6 +73,16 @@ export function uiSteal(thief: Critter, target: Critter): void {
     const targetBags: Obj[] = []
     const thiefList = () => (thiefBags.length ? thiefBags[thiefBags.length - 1].inventory : thief.inventory)
     const targetList = () => (targetBags.length ? targetBags[targetBags.length - 1].inventory : target.inventory)
+    // the action recorder's replay (actionLog.ts): a steal / plant attempt, Done
+    setReplayControl('stMove', (e) => {
+        const list = e.plant ? thiefList() : targetList()
+        const item = list[indexOfPid(list, e.ip)]
+        if (!item) {
+            throw new Error(`no item ${String(e.ip)} to ${e.plant ? 'plant' : 'steal'}`)
+        }
+        return attemptSteal(item, !!e.plant)
+    })
+    setReplayControl('stDone', () => endSteal())
 
     function drawInventory($el: HTMLElement, who: 'l' | 'r', objects: Obj[]) {
         clearEl($el)
@@ -132,6 +143,8 @@ export function uiSteal(thief: Critter, target: Critter): void {
     function endSteal() {
         if (ended) return
         ended = true
+        setReplayControl('stMove', null)
+        setReplayControl('stDone', null)
 
         // CE ref: inventory.cc:4470 — no bonus XP if caught, or vs. a party member.
         if (!caught && stealingXp > 0 && !world.gParty.isPartyMember(target)) {
@@ -161,6 +174,7 @@ export function uiSteal(thief: Critter, target: Critter): void {
         const toList = isPlanting ? targetList() : thiefList()
         const toBag = isPlanting ? targetBags[targetBags.length - 1] : thiefBags[thiefBags.length - 1]
         const to: Obj = toBag ?? (isPlanting ? target : thief)
+        recordAction({ t: 'stMove', item, plant: isPlanting || undefined }) // a quantity follows as `amount`
         stealCount += 1
         const wantedAmount = item.amount > 1 ? await uiGetAmount(item) : 1
         if (wantedAmount <= 0) return
@@ -213,7 +227,10 @@ export function uiSteal(thief: Critter, target: Critter): void {
         attemptSteal(item)
     })
 
-    $id('lootBoxDoneButton').onclick = () => endSteal()
+    $id('lootBoxDoneButton').onclick = () => {
+        recordAction({ t: 'stDone' })
+        endSteal()
+    }
 
     drawSteal()
 }

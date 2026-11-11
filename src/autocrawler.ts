@@ -5,6 +5,7 @@
 //   autoCrawler.runDialogueCrawler('artemple') // load map then crawl
 //   autoCrawler.runCombatCrawler()
 //   autoCrawler.runStoryCrawler()             // story maps, every dialogue path, VM-vs-Lua trace
+//   autoCrawler.runReplay(recording)           // replay an action recording (startRecording())
 //   autoCrawler.downloadReport()               // download lastReport (no arg needed)
 //   autoCrawler.downloadReport(report)         // download a specific report
 //   autoCrawler.lastReport                     // access last completed report
@@ -18,6 +19,8 @@
 //   combat.ts   — runCombatCrawler + crawlOneCritter
 //   maps.ts     — runMapCrawler + discoverMapNames + crawlOneMap
 //   story.ts    — runStoryCrawler: deterministic dialogue-path crawl, VM-vs-Lua comparison
+//   recording.ts — the action recording format (devConsole/recorder.ts records it)
+//   replay.ts   — runReplay: replays a recording, reports where it diverges
 //   report.ts   — buildReport, printSummary, downloadReport
 
 import { Config } from './config.js'
@@ -27,6 +30,7 @@ import { runCombatCrawler } from './autocrawler/combat.js'
 import { runDialogueCrawler } from './autocrawler/dialogue.js'
 import { runMapCrawler } from './autocrawler/maps.js'
 import { runStoryCrawler } from './autocrawler/story.js'
+import { getLastReplayReport, runReplay } from './autocrawler/replay.js'
 import { downloadReport } from './autocrawler/report.js'
 import { getLastReport, listHostileCritters, listTalkableNPCs, waitFor } from './autocrawler/shared.js'
 
@@ -37,6 +41,8 @@ export { runMapCrawler } from './autocrawler/maps.js'
 export { runStoryCrawler, STORY_MAPS } from './autocrawler/story.js'
 export type { StoryReport, StoryMapResult, StoryOptions } from './autocrawler/story.js'
 export { downloadReport } from './autocrawler/report.js'
+export { getLastReplayReport, loadSnapshot, runReplay } from './autocrawler/replay.js'
+export type { ReplayDivergence, ReplayOptions, ReplayReport } from './autocrawler/replay.js'
 export { listTalkableNPCs, listHostileCritters } from './autocrawler/shared.js'
 export type {
     DialogueStatus,
@@ -60,6 +66,8 @@ if (typeof window !== 'undefined' && Config.engine.debug) {
         runCombatCrawler,
         runMapCrawler,
         runStoryCrawler,
+        runReplay,
+        getLastReplayReport,
         listTalkableNPCs,
         listHostileCritters,
         downloadReport,

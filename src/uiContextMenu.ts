@@ -38,6 +38,7 @@ import { UIMode } from './uiMode.js'
 import { $id, clearEl, makeEl } from './uiDom.js'
 import { elevatorSpatialFor } from './elevatorUse.js'
 import { Config } from './config.js'
+import { recordAction } from './actionLog.js'
 import { approachToTalk } from './talkApproach.js'
 import { pathfinderFindPath } from './map/pathfinder.js'
 
@@ -58,8 +59,36 @@ export function uiHideContextMenu() {
     $id('itemContextMenu').style.visibility = 'hidden'
 }
 
-// The actions behind the menu's icons (and CE's click actions, uiPrimaryAction).
+// The actions behind the menu's icons (and CE's click actions, uiPrimaryAction). The ones that
+// act in the world go to the action recorder first (actionLog.ts; a no-op unless recording); the
+// inventory and skill icons only open a window, whose pick is recorded where it is made.
 function objectActions(obj: Obj) {
+    const actions = rawObjectActions(obj)
+    const recorded = (name: ObjectActionName) => () => {
+        recordAction({ t: 'act', a: name, o: obj })
+        actions[name]()
+    }
+    return {
+        ...actions,
+        look: recorded('look'),
+        talk: recorded('talk'),
+        use: recorded('use'),
+        pickUp: recorded('pickUp'),
+        rotate: recorded('rotate'),
+        loot: recorded('loot'),
+        push: recorded('push'),
+        elevator: recorded('elevator'),
+    }
+}
+
+export type ObjectActionName = 'look' | 'talk' | 'use' | 'pickUp' | 'rotate' | 'loot' | 'push' | 'elevator'
+
+/** Replay (src/autocrawler/replay.ts): an action-menu action, as a click on its icon runs it. */
+export function performObjectAction(obj: Obj, name: ObjectActionName): void {
+    rawObjectActions(obj)[name]()
+}
+
+function rawObjectActions(obj: Obj) {
     const player = world.player as Critter
     return {
         // CE: LOOK → _obj_examine (proto_instance.cc _obj_examine_func)
@@ -106,11 +135,23 @@ function objectActions(obj: Obj) {
         // CE actionPickUp: a container that can't be picked up is opened
         pickUp: () => {
             if (obj.canPickUp) obj.pickup(player)
-            else objectActions(obj).use()
+            else {
+                rawObjectActions(obj).use()
+            }
         },
         rotate: () => {
             player.orientation = (player.orientation! + 1) % 6
         }, // objectRotateClockwise
+        loot: () => uiLootWalk(obj), // _action_loot_container
+        push: () => actionPush(player, obj as Critter),
+        // [dh2] elevator_use: walk into the elevator, which runs its spatial script as
+        // stepping in does (DH2 addition; CE has no Use on elevators)
+        elevator: () => {
+            const spatial = elevatorSpatialFor(obj)
+            if (spatial) {
+                player.walkTo({ ...spatial.position }, false)
+            }
+        },
     }
 }
 
@@ -127,7 +168,9 @@ export function uiPrimaryAction(obj: Obj): void {
         } else if (objActionCanTalkTo(c)) {
             if (world.inCombat) a.look()
             else a.talk()
-        } else uiLootWalk(c)
+        } else {
+            a.loot()
+        }
     } else if (obj.type === 'scenery') {
         if (obj.canUse) a.use()
         else a.look()
@@ -177,7 +220,7 @@ export function uiContextMenu(obj: Obj, evt: any) {
     })
     const player = world.player as Critter
     const add = (action: string, fn?: () => void) => $menu.appendChild(button(obj, action, fn))
-    const { look, inventory, skill, talk, use, pickUp, rotate } = objectActions(obj)
+    const { look, inventory, skill, talk, use, pickUp, rotate, loot, push, elevator } = objectActions(obj)
 
     // CE game_mouse.cc gameMouseHandleActionMenu — the icons per object type
     const critter = obj.type === 'critter' ? (obj as Critter) : null
@@ -197,24 +240,20 @@ export function uiContextMenu(obj: Obj, evt: any) {
             if (objActionCanTalkTo(critter)) {
                 if (!world.inCombat) add('talk', talk)
             } else if ((critterProtoFlags(critter) & CRITTER_NO_STEAL) === 0) {
-                add('use', () => uiLootWalk(critter)) // _action_loot_container
+                add('use', loot) // _action_loot_container
             }
-            if (actionCheckPush(player, critter)) add('push', () => actionPush(player, critter))
+            if (actionCheckPush(player, critter)) {
+                add('push', push)
+            }
         }
         add('look', look)
         add('inventory', inventory)
         add('skill', skill)
     } else if (obj.type === 'scenery') {
         if (obj.canUse) add('use', use)
-        else {
-            // [dh2] elevator_use: walk into the elevator, which runs its spatial script as
-            // stepping in does (DH2 addition; CE has no Use on elevators)
-            const spatial = elevatorSpatialFor(obj)
-            if (spatial)
-                add('use', () => {
-                    player.walkTo({ ...spatial.position }, false)
-                })
-        }
+        else if (elevatorSpatialFor(obj)) {
+            add('use', elevator)
+        } // [dh2] elevator_use (rawObjectActions)
         add('look', look)
         add('inventory', inventory)
         add('skill', skill)

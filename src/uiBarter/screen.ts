@@ -17,6 +17,7 @@ limitations under the License.
 // Barter screen — split out of uiBarter.ts. See wiki/ts-split-refactor.md
 // → "Per-file split proposals" §21.
 
+import { recordAction } from '../actionLog.js'
 import { world } from '../state/world.js'
 import { uiState } from '../state/uiState.js'
 import { assets } from '../state/assets.js'
@@ -152,6 +153,12 @@ export interface BarterControl {
     put(side: 'player' | 'merchant', item: Obj, amount: number): void
     /** the Offer button; true if the trade went through */
     offer(): boolean
+    /** a drag (action recorder replay): `data` is the list letter (p/m/l/r) and index */
+    move(data: string, where: 'left' | 'right' | 'leftInv' | 'rightInv'): Promise<void>
+    /** the lists a drag reads from: p / m the inventories (an open bag's contents), l / r the tables */
+    list(which: 'p' | 'm' | 'l' | 'r'): Obj[]
+    /** the Talk button: back to the dialogue */
+    end(): void
 }
 export let activeBarter: BarterControl | null = null
 
@@ -397,6 +404,9 @@ export function uiBarterMode(merchant: Critter) {
             else uiSwapItem(workingMerchantInventory, item, merchantBarterTable, amount)
         },
         offer: () => offer(),
+        move: (data, where) => uiBarterMove(data, where),
+        list: (which) => ({ p: playerList(), m: merchantList(), l: playerBarterTable, r: merchantBarterTable })[which],
+        end: () => uiEndBarterMode(),
     }
 
     function drawInventory($el: HTMLElement, who: 'p' | 'm' | 'l' | 'r', objects: Obj[], scroll: number = 0) {
@@ -491,6 +501,7 @@ export function uiBarterMode(merchant: Critter) {
             // table -> same table
             return
         }
+        recordAction({ t: 'bMove', item: obj, fl: data[0], w: where }) // a quantity follows as `amount`
         const amount = obj.amount > 1 ? await uiGetAmount(obj) : 1
         // back into an open bag: CE _drop_into_container's room check (inventry.msg 26)
         const toBag =
@@ -522,8 +533,12 @@ export function uiBarterMode(merchant: Critter) {
         uiBarterMove(data, 'rightInv')
     })
 
-    $id('barterTalkButton').onclick = uiEndBarterMode
+    $id('barterTalkButton').onclick = () => {
+        recordAction({ t: 'bEnd' })
+        uiEndBarterMode()
+    }
     $id('barterOfferButton').onclick = () => {
+        recordAction({ t: 'bOffer' })
         offer()
     }
     // CE inventoryOpenTrade keys: T talk (back to the dialogue), M make the offer
@@ -531,9 +546,15 @@ export function uiBarterMode(merchant: Critter) {
     barterKeyHandler = (e: KeyboardEvent) => {
         if (uiState.uiMode !== UIMode.barter) return
         const k = e.key.toLowerCase()
-        if (k === 't') uiEndBarterMode()
-        else if (k === 'm') offer()
-        else return
+        if (k === 't') {
+            recordAction({ t: 'bEnd' })
+            uiEndBarterMode()
+        } else if (k === 'm') {
+            recordAction({ t: 'bOffer' })
+            offer()
+        } else {
+            return
+        }
         e.preventDefault()
     }
     window.addEventListener('keydown', barterKeyHandler)

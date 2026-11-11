@@ -17,6 +17,7 @@ limitations under the License.
 // Loot screen: two-column inventory view (player on the left, container or
 // dead critter on the right) with drag-and-drop and a "take all" button.
 
+import { indexOfPid, recordAction, setReplayControl } from './actionLog.js'
 import { world } from './state/world.js'
 import { uiState } from './state/uiState.js'
 import { dbg } from './logger.js'
@@ -45,6 +46,9 @@ import { appendItemSlot, $id, clearEl, showv, hidev, off, makeEl } from './uiDom
 
 function uiEndLoot() {
     uiState.uiMode = UIMode.none
+    for (const t of ['lMove', 'lTakeAll', 'lDone']) {
+        setReplayControl(t, null)
+    }
 
     hidev($id('lootBox'))
     off($id('lootBoxLeft'), 'drop dragenter dragover')
@@ -58,6 +62,7 @@ function uiEndLoot() {
  */
 export function initLoot(): void {
     $id('lootBoxDoneButton').onclick = () => {
+        recordAction({ t: 'lDone' })
         uiEndLoot()
     }
 }
@@ -89,6 +94,16 @@ export function uiLoot(object: Obj) {
     const rightBags: Obj[] = []
     const leftList = () => (leftBags.length ? leftBags[leftBags.length - 1].inventory : world.player!.inventory)
     const rightList = () => (rightBags.length ? rightBags[rightBags.length - 1].inventory : object.inventory)
+    // the action recorder's replay (actionLog.ts): this window's moves, Take All and Done
+    setReplayControl('lMove', (e) => {
+        const idx = indexOfPid(e.fl === 'l' ? leftList() : rightList(), e.ip)
+        if (idx < 0) {
+            throw new Error(`no item ${String(e.ip)} on the ${String(e.fl)} side`)
+        }
+        return uiLootMove(`${String(e.fl)}${idx}`, e.w as 'left' | 'right')
+    })
+    setReplayControl('lTakeAll', () => takeAll())
+    setReplayControl('lDone', () => uiEndLoot())
 
     async function uiLootMove(data: string /* "l"|"r" */, where: 'left' | 'right') {
         dbg('inventory', `[Loot] move ${data} to ${where}`)
@@ -114,6 +129,7 @@ export function uiLoot(object: Obj) {
             return
         }
 
+        recordAction({ t: 'lMove', item: obj, fl: data[0], w: where }) // a quantity follows as `amount`
         const wantedAmount = obj.amount > 1 ? await uiGetAmount(obj) : 1
         // CE ref: item.cc itemAttemptAdd — enforce STAT_CARRY_WEIGHT on the receiving critter.
         const toBag = where === 'left' ? leftBags[leftBags.length - 1] : rightBags[rightBags.length - 1]
@@ -199,6 +215,10 @@ export function uiLoot(object: Obj) {
     // CE inventoryOpenLooting KEY_UPPERCASE_A (the TAKE ALL button sends it too): everything
     // or nothing — the target's whole inventory weight against the room left, else inventry.msg 31
     $id('lootBoxTakeAllButton').onclick = () => {
+        recordAction({ t: 'lTakeAll' })
+        takeAll()
+    }
+    function takeAll(): void {
         dbg('inventory', '[Loot] take all')
         const player = world.player!
         if (object.getInventoryWeight() > player.getStat('Carry') - player.getInventoryWeight()) {

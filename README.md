@@ -121,6 +121,7 @@ Pre-audited summaries of CE behaviour with DH2 gaps already identified. Trust th
 | 54 | [`wiki/cleanup_audit.md`](wiki/cleanup_audit.md) | 2026-10-26 codebase hygiene audit: dead code, debug console (`play.html#dev`), stale docs; SAFE items fixed, RISKY items open |
 | 55 | [`wiki/code_quality.md`](wiki/code_quality.md) | Code quality vs modern standards (2026-10-27): type safety, import cycle, sync I/O, tests / CI, toolchain; phased fixing plan Q1–Q17 |
 | 56 | [`wiki/planning_archive.md`](wiki/planning_archive.md) | The early (spring 2026) planning documents, formerly `docs/planning/*.docx`, as text; superseded |
+| 57 | [`wiki/action_recorder.md`](wiki/action_recorder.md) | Action recorder (on by default), replays, save history, save sizes, save files, bug reports: user guide and file formats |
 
 ### 🐛 Known issues & roadmap
 
@@ -469,7 +470,7 @@ Saves are kept in the browser's IndexedDB, so they stay with that browser profil
 another browser or machine, or attach it to a bug report, use the console:
 
 ```js
-exportSave()                  // the newest save → <name>.dh2save.json
+exportSave()                  // the newest save → <name>_<date>_<time>.dh2save.json (the save's own date)
 exportSave("tttt")            // the newest save with that name (a number picks the save id)
 importSave()                  // pick a .json file, store it as a new save and load it
 importSave(false)             // store it only; it shows in the Load Game list
@@ -487,6 +488,108 @@ importSave("saves/tttt.json") // read it from a URL instead of a file picker
 ### Persistence
 
 The event log is serialised into the save game. When a save is loaded, `globalState.eventLog` is restored from the file, so the full fight history is available even after a page reload. Saves written before the `eventLog` field was introduced are loaded cleanly (the log starts empty).
+
+## Bug Reports
+
+The full guide to the recorder, replays, save files, sizes and bug reports:
+[wiki/action_recorder.md](wiki/action_recorder.md).
+
+One file with everything needed to look at a bug and replay it (console, every page load):
+
+```js
+exportBugReport("the guard walks through the wall")       // the game now → dh2bug_<note>_<date>.dh2bug.json.gz
+exportBugReport("...", { save: "name" })                  // the same for a stored save
+importBugReport()                                         // pick a .dh2bug file (or importBugReport("url"))
+```
+
+The bundle holds the game at that moment as a save (with its action recording since the load
+before), the parent saves the recording goes back through (up to 8), the last 300 console errors
+and warnings (captured from page load, uncaught errors and rejected promises too), the combat
+event log (inside the save), the settings that change behaviour (script backend, script fixes,
+mods, `record_actions`, mouse / talk mode, ...) and the browser. About 70–80 KB gzipped per save in
+it. `importBugReport()` prints the note and the errors, stores the game as a save named
+`bug: <note>` (load it to stand where the report was made), stores the parent saves under their
+own names, and makes the recording `__recording`: `replayRecording()` replays the actions that led
+there (or `replayHistory("bug: <note>")` the whole chain).
+
+## Action Recorder
+
+Records what you do while play-testing — one compact entry per action — so a session can be
+replayed later as an automated test run that reports where the game first behaves differently.
+DH2 test tooling (no CE equivalent). User guide: [wiki/action_recorder.md](wiki/action_recorder.md).
+
+**Automatic (`[dh2] record_actions=1`, the default):** nothing to start or stop. Every save load
+and every NEW GAME starts a piece of recording, and every save stores the piece up to that moment
+(the save's `recording` field: the actions since the save loaded before it, or since NEW GAME with
+a snapshot of the first map). After a page reload you just load a save; the next piece starts
+there. Every save also carries **its whole chain** (`history`): every earlier piece back to the
+start — NEW GAME, a `startRecording()` snapshot, or the first save that was loaded without a
+recording (that save itself becomes the start) — gzip-compressed, so it does not depend on the
+earlier saves: overwrite or delete them and the history is still complete. `record_actions=0` is CE: no recording, and the RNG keeps its one seed
+(the recorder reseeds it before every action).
+
+The console commands are registered on every page load:
+
+```js
+recordingStatus()             // what is being recorded now (from which save, how many actions, size)
+replaySave("name")            // load the save's parent, replay its piece, compare with the save
+replayHistory("name")         // the save's whole chain, oldest piece first, from that save alone
+gameSize()                    // the game as a save would store it now, by part (maps, recording, ...)
+saveSize()                    // every stored save with its size and the recording's share
+saveSize("name")              // one save by part (a number picks the save id)
+startRecording()              // a piece from a snapshot of the game now (reloaded at once), also with record_actions=0
+startRecording({ seed: 7 })   // the same with a chosen RNG seed
+stopRecording()               // end the current piece (it becomes __recording); the next load / NEW GAME starts one
+exportRecording()             // download __recording as <map>_<date>.dh2rec.json.gz ({ gzip: false } for plain JSON)
+exportRecording({ save: "name" }) // a save's piece, with its parent save packed in (replays anywhere)
+importRecording()             // pick a .gz / .json file (or importRecording("url")); becomes __recording
+replayRecording()             // replay __recording; report on the console and autoCrawler.getLastReplayReport()
+downloadReplayReport()        // the last replay's report as JSON
+```
+
+`exportSave()` exports a save with its recording and its whole history. `replayHistory` starts each
+piece from its own snapshot, else from its real parent save while that is still stored, else from
+the state the replay of the piece before ended in (the moment that save was made);
+`replayHistory("name", { useSaves: false })` never uses the stored saves.
+
+Headless, on both script backends (needs the extracted game data, like the story crawler):
+
+```bash
+npm run storycrawl -- --replay my_session.dh2rec.json.gz [--backends vm,lua] [--stop]
+```
+
+**What is recorded:** walk / run targets (tile), using an object, talk / look / pick up / use /
+loot / push from the action menu (objects by `pid@tile` where they stood when the map loaded),
+skill use, use item on, dialogue option picks (option, speaker's script, option text), barter
+moves / Offer / Talk, inventory actions and slot moves, every Move Items quantity, combat start,
+attacks, called-shot regions, hit mode, swap hands, end turn / end combat, world map walking,
+area and entrance picks, save and load, the loot window (moves, Take All, Done), steal / plant
+attempts, companion-trade moves / Offer / Talk, perk picks (with the Tag! and Mutate! follow-up
+picks), what the character screen keeps on Done / Cancel (skills, tags, skill points, SPECIAL,
+perks, traits), the Pip-Boy rest option and explosive timer settings. Each entry also notes the
+frame, the game tick, the player's tile, the map / elevation when they changed and the GVARs
+that changed since the entry before — the per-step check. Opening and closing windows that change
+nothing (inventory, Pip-Boy, skilldex) is not an entry; bags opened inside the loot / steal
+windows are not recorded.
+
+**Determinism:** a piece starts at the end of a load (the replay starts with the same load of the
+parent save, or of the snapshot; a NEW GAME piece's replay then sets the GVARs and map variables
+back to the snapshot's, since its load ran the map's load procedures once more), the RNG is reseeded before every action (and when a map finishes loading) from the
+recording's seed, the game loop's own schedule restarts at the start (`resetLoopSchedule`), and
+the replay runs the recorded frames at the recorded times (a frame-time track: animations and the
+10 Hz game tick run on real time) while it pins the game clock to each entry's tick. Time read
+*inside* a frame is not recorded, so a walk can end a hex off: a player tile within one hex counts
+as drift, not a divergence (`replayRecording(rec, { tileTolerance: 0 })` for exact). A `load`
+entry replays only where that save exists (move it with `exportSave()` / `importSave()`).
+
+**Size:** an hour of play at 30 fps with ~2,400 actions adds ~430 KB to a save while it is the
+current piece (half of it the frame-time track); once a load ends it, it moves into the history
+compressed (~4:1 for the actions, the chain's start snapshot ~90 KB). A long playthrough's history
+grows by roughly 100 KB per hour of play in every save.
+A NEW GAME or `startRecording()` piece carries its start snapshot (a save of the current map and
+every changed map, ~1.4 MB as JSON in Arroyo; ~0.7 MB at NEW GAME in Arroyo's temple). Saves
+themselves are ~1.4 MB and grow with every map you change; `gameSize()` / `saveSize()` show where
+the bytes are and mark a save over 20 MB. An exported recording is gzip by default (~20:1).
 
 ## FAQ
 
@@ -644,6 +747,12 @@ No DevTools interaction needed.
 To run on a specific map, call the function manually from the console after load (see below).
 
 #### Console commands
+
+**Replay an action recording (README → "Action Recorder"):**
+
+```js
+const report = await autoCrawler.runReplay(__recording, { stopOnDivergence: true })
+```
 
 **Crawl all talkable NPCs on the current map:**
 

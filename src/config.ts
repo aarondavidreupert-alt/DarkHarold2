@@ -225,6 +225,12 @@ export const Config = {
         // [dh2] talk_mode: 'dh2' (default) — the dude walks up to everyone he talks to; 'ce' —
         // actions.cc actionTalk: from where he stands when under 9 hexes and in sight (talkApproach.ts)
         talkMode: 'dh2' as 'ce' | 'dh2',
+        // [dh2] record_actions: 1 (default, DH2 test tooling) — the action recorder runs all the
+        // time (src/devConsole/recorder.ts): each save keeps the player's actions since the load /
+        // NEW GAME before it, replayable with replaySave(); the RNG is reseeded from the
+        // recording's seed before every action (CE seeds once, random.cc randomInit). 0 — CE: no
+        // recording, one seed (startRecording() still records on demand).
+        recordActions: true,
         // fallout2.cfg [system] interrupt_walk (CE default 1): 0 — a move click while the dude
         // is still walking is ignored (CE _check_move only clears the walk when it is on)
         interruptWalk: true,

@@ -43,6 +43,7 @@ import { uiPort } from './uiPort.js'
 import { UIMode } from './uiMode.js'
 import * as Endgame from './endgame.js'
 import * as GameTime from './gametime.js'
+import { notifyMapReady } from './actionLog.js'
 import { Config } from './config.js'
 import { pollGameMode } from './sfallHooks.js'
 import {
@@ -72,6 +73,18 @@ let gameEndingTriggered = false
 
 // Tracks the last elapsed-day count for midnight event detection (GTC5)
 let lastMidnightDay = -1
+
+/** Debug (the action recorder and its replay, src/autocrawler/replay.ts; no CE equivalent):
+ *  restart the loop's own schedule — the round-robin critter cursor, the critter-loop and
+ *  real-time map-update clocks, the next map update, the 10 Hz tick — as at a map load, so a
+ *  recording and its replay start from the same schedule (none of it is in a save). */
+export function resetLoopSchedule(): void {
+    critterScriptCursor = -1
+    critterLoopLast = -1
+    lastRealTimeMapUpdate = -1
+    nextMapUpdateTick = world.gameTickTime + 600
+    globalState.lastGameTick = window.performance.now()
+}
 
 // CE ref: scripts.cc:405 gameTimeEventProcess — midnight queue event.
 // Exported so game_time_advance (scripting.ts) can fire it synchronously for
@@ -124,6 +137,7 @@ export function finishLoadingIfReady(): boolean {
     if (!globalState.isLoading) return true
     if (assets.loadingAssetsLoaded !== assets.loadingAssetsTotal) return false
     globalState.isLoading = false
+    notifyMapReady() // the action recorder names the map's objects (before map_enter_p_proc)
     if (assets.loadingLoadedCallback) {
         assets.loadingLoadedCallback()
     }

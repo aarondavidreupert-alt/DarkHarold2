@@ -18,6 +18,7 @@ limitations under the License.
 // uiInventory.ts. See wiki/ts-split-refactor.md → "Per-file split
 // proposals" §8.
 
+import { recordAction } from '../actionLog.js'
 import { updateHandFlareLight } from '../object.js'
 import { ammoSplitOff, ammoUseTopBox, weaponCanBeReloadedWith, weaponReload } from '../weaponAmmo.js'
 import { world } from '../state/world.js'
@@ -129,6 +130,13 @@ function inventoryMoveHookCancels(target: string, item: Obj | null, replaced: Ob
 // TODO: Rewrite this sanely (and not directly modify the player object's properties...)
 export async function uiMoveSlot(data: string, target: string) {
     const playerUnsafe = world.player as any
+    // the action recorder (actionLog.ts): the item and where it goes (`d`: list index or slot)
+    recordAction({
+        t: 'invMove',
+        item: data[0] === 'i' ? inventoryList()[parseInt(data.slice(1))] : playerUnsafe[data],
+        d: data[0] === 'i' ? 'i' : data,
+        to: target,
+    })
     const oldArmor = playerUnsafe.armor ?? null
     let obj = null
 

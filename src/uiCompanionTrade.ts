@@ -33,6 +33,7 @@ limitations under the License.
 // barter screen (uiBarter/screen.ts) since the only thing that differs is
 // the accept-check and the amount readout (weight instead of $).
 
+import { indexOfPid, recordAction, setReplayControl } from './actionLog.js'
 import { world } from './state/world.js'
 import { uiState } from './state/uiState.js'
 import { relinkTradedHands, tradeHeldAside } from './inventoryWield.js'
@@ -63,6 +64,9 @@ import { assetUrl } from './modAssets.js'
 // Control — game_dialog.cc:3757-3762 confirms Trade-from-Control just sets
 // _dialogue_switch_mode=2, the same state barter-from-dialogue uses).
 function uiEndCompanionTrade(): void {
+    for (const t of ['ctMove', 'ctOffer', 'ctEnd']) {
+        setReplayControl(t, null)
+    }
     stopBarterPortraitAnimation()
     const $barterBox = $id('barterBox')
     $barterBox.style.pointerEvents = 'none'
@@ -231,6 +235,7 @@ export function uiCompanionTrade(companion: Critter): void {
         }[where]
         if (to === from) return
 
+        recordAction({ t: 'ctMove', item: obj, fl: data[0], w: where }) // a quantity follows as `amount`
         const amount = obj.amount > 1 ? await uiGetAmount(obj) : 1
         // back into an open bag: CE _drop_into_container's room check (inventry.msg 26)
         const toBag =
@@ -261,8 +266,30 @@ export function uiCompanionTrade(companion: Critter): void {
         uiMove(data, 'rightInv')
     })
 
-    $id('barterTalkButton').onclick = uiEndCompanionTrade
-    $id('barterOfferButton').onclick = offer
+    $id('barterTalkButton').onclick = () => {
+        recordAction({ t: 'ctEnd' })
+        uiEndCompanionTrade()
+    }
+    $id('barterOfferButton').onclick = () => {
+        recordAction({ t: 'ctOffer' })
+        offer()
+    }
+    // the action recorder's replay (actionLog.ts): this window's moves, Offer and Talk
+    const lists = (): { [k: string]: Obj[] } => ({
+        p: playerList(),
+        m: companionList(),
+        l: playerBarterTable,
+        r: companionBarterTable,
+    })
+    setReplayControl('ctMove', (e) => {
+        const idx = indexOfPid(lists()[String(e.fl)] ?? [], e.ip)
+        if (idx < 0) {
+            throw new Error(`no item ${String(e.ip)} in list ${String(e.fl)}`)
+        }
+        return uiMove(`${String(e.fl)}${idx}`, e.w as 'left' | 'right' | 'leftInv' | 'rightInv')
+    })
+    setReplayControl('ctOffer', () => offer())
+    setReplayControl('ctEnd', () => uiEndCompanionTrade())
 
     // CE ref: inventory.cc:1086-1225 — outer-inventory scroll buttons, one
     // item per click, clamped so there's always at least one item visible.

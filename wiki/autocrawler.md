@@ -460,3 +460,90 @@ call.
 - `src/game/combat.cc` — `_combat`, `_combat_turn`, `_combat_input`:
   confirms the turn-based loop where player input is polled between turns;
   our `nextTurn()` maps to `_combat_turn_run`.
+
+---
+
+## 9. Replay of action recordings (2026-11-11)
+
+`src/devConsole/recorder.ts` records a play session (README → "Action Recorder");
+`src/autocrawler/replay.ts` (`autoCrawler.runReplay`, `replayRecording()`,
+`npm run storycrawl -- --replay <file>`) replays it. The format is in `src/autocrawler/recording.ts`.
+
+**Hooks.** The input paths call `recordAction()` (`src/actionLog.ts`, a leaf module with no imports,
+so no import cycles; a no-op unless recording) with what the player asked for, before it runs:
+`playerUse` (walk / use / skill, with the click's hex, run choice and Ctrl), `playerKeyAttack`,
+the action menu (`uiContextMenu.ts` `objectActions`), `usePendingItemOn`, `dialogueReply`, the barter
+screen (`bMove` / `bOffer` / `bEnd`), the inventory window (`inv`, `invMove`), `uiGetAmount` (an
+`amount` entry after the action that asked), combat start / end turn / end combat / hit mode / swap
+hands, the world map (`partyInitWalking`, `enterArea`, `enterWilderness`, `enterAreaEntrance`),
+`save` / `load`, the loot window (`lMove` / `lTakeAll` / `lDone`), steal (`stMove`, `stDone`),
+companion trade (`ctMove` / `ctOffer` / `ctEnd`), the perk dialog (`perk`, `perkTag`, `perkTraits`,
+`perkBack`), the character screen (`charClose`: what Done / Cancel leaves on the dude), the Pip-Boy
+rest (`rest`), `uiGetTimer` (a `timer` entry, like `amount`). Windows the replay does not import
+register a handler per entry type (`setReplayControl` in `actionLog.ts`): the loot, steal and trade
+windows while they are open, the perk dialog, character screen and rest once; the replay runs an
+entry it has no case for through `getReplayControl`. `notifyMapReady()` (end of a map load, before `map_enter_p_proc`; after a save's
+map is restored) gives a `map` entry and renames the map's objects; `notifyFrame()` (each logical
+frame, `heart.ts`) feeds the frame-time track.
+
+**Automatic pieces** (`[dh2] record_actions=1`, default). `saveload.ts` load() ends with
+`notifyGameLoaded({ name, timestamp })` (after the load procs, as the game is about to run again):
+the recorder ends the piece it had and begins one whose `parent` is that save. `init.ts`
+startNewGame calls `notifyNewGame()`; at the first map's `notifyMapReady` the recorder queues a
+microtask (after the load callback ran map_enter_p_proc) and begins a piece with a snapshot of the
+game as `start`. `save()` stores `recordingForSave()` — the piece so far with its end state — as
+`save.recording`. `replaySave` resolves `parent` to the stored save (by name and timestamp) and runs
+the piece with it as `start`; the end check is the state the save was made in. `replayHistory`
+follows the parents back and replays each piece (each starts with its own load, as the player's
+did). A replay calls `setReplaying(true)`: nothing records, and the current piece ends. A NEW GAME
+piece's replay sets the GVARs / MVARs back to the snapshot's after loading it (a game load reruns
+map_enter_p_proc with the load flag; artemple's script counts entries in GVAR 104). The cached-map
+load path (`mapLoader.ts` enterCached with every image already loaded) now notifies too.
+**Whole chain in every save.** `notifyGameLoaded` passes the loaded save; the recorder's history for
+the new piece is that save's `history` plus its `recording` (or, for a save without one, a root
+piece: no actions, `start` = the save, `end` = the game as the load left it). The added piece is
+packed in the background (`packJson`: JSON → CompressionStream gzip → base64) and appended as a
+chunk; older chunks are copied as strings, never re-packed. `save()` stores `history`
+(`SaveHistory { chunks, pending?, count, minutes }`). `replayHistory` unpacks the chunks
+(`historyPieces`) and replays each piece from its `start`, else its real parent save, else the
+replayed state: after a root piece that is the root save itself (its replay ran the load procedures
+on top), after any other piece the game at its end — the moment the next piece's parent save was
+made. Checked (2026-11-11): base → second → third → fourth, then base / second / third deleted:
+`replayHistory('fourth')` replays all four pieces with 0 divergences, as with the saves present.
+`devConsole/gameSize.ts`: `gameSize()` / `saveSize()`. `devConsole/bugReport.ts`: `exportBugReport(note)`
+packs the game now (a save with its piece), its parent saves (up to 8, by `parent` refs), the
+console log (errors / warnings captured from page load) and settings into one `.dh2bug.json.gz`;
+`importBugReport()` stores the saves (parents under their own names, so the piece's `parent`
+resolves) and sets `__recording` — checked in a fresh browser profile: the piece replays with 0
+divergences.
+
+**Entry.** `{ t, ms, f, k, pl, el?, mp?, gv?, cb?, rn?, wx?, wy?, ...payload }`: milliseconds and
+frames since the start, game ticks since the start, player tile, elevation / map when changed, the
+GVARs changed since the entry before, in combat, random draws since the entry before (information),
+the party's world-map position. Objects are `o: "pid@tile[:elevation][~n]"` (`ObjectLabels`: named
+where they stood when the map finished loading, later objects where they are first referenced; the
+player is `dude`), items `ip: pid`.
+
+**Replay.** Loads the start snapshot (`loadSnapshot`: `putSave` + `load`, as the recorder's start
+did), pauses the frame loop and replaces `performance.now()` with a virtual clock: each step is one
+frame at the recorded frame time (`frames`: 0.1 ms, two base-64 characters a frame). Before each
+entry: step to its frame; wait for the window it needs (dialogue, barter, called shot, world map at
+the recorded party position) or, for a combat entry, the player's idle turn; a wait past the
+recorded frame moves the frame offset (map loads re-sync the same way); check map, elevation,
+player tile, combat, GVARs; reseed the RNG (`entrySeed(seed, index)`), pin `gameTickTime`, preset
+the recorded Move Items quantities (`setAmountOverrides`), and run the action through the same
+function the input handler called. The report lists every divergence (`{ i, t, what, recorded,
+replayed }`) and the first one; `stopOnDivergence` ends there.
+
+**Limits.** Time read inside a frame is not recorded (the game reads `performance.now()` many times
+a frame; real time moves between the reads, the virtual clock does not), so critter heartbeats can
+draw a few more or fewer random numbers between two actions and a walk can end a hex off. The
+per-action reseed keeps that from building up; tile differences within `tileTolerance` (default 1)
+count as `tileDrift`. Checked headless (Arroyo, 2026-11-11): walks, talk with four dialogue picks,
+and a fight (attack button, attack, end turn) replay with 0 divergences on both backends; walks
+give an occasional one-hex drift. A second session (perk pick, character screen Done, a ten-minute
+rest, loot Take All / Done, a steal attempt that gets caught, dynamite with its timer set) replays
+with 0 divergences. Automatic mode (2026-11-11): save, load (a piece starts), walk, save, page
+reload, `replaySave` 0 divergences; a second piece and `replayHistory` 0 divergences (1 hex drift);
+NEW GAME through the main menu, a few walks, save, `replaySave` 0 divergences. Companion trade is hooked but untested (no companion in Arroyo); bags opened
+inside the loot / steal windows are not recorded.
