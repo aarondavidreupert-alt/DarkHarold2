@@ -540,7 +540,38 @@ export class GameMap {
         services.audioEngine.playMusic(music)
     }
 
+    // Tile → objects index for the current elevation, alive only inside withTileIndex().
+    // objectsAtPosition scans every object on the level; a light bake calls it for each
+    // tile each light reaches, which on maps of ~3000 objects cost seconds per map load.
+    private _tileIndex: Map<number, Obj[]> | null = null
+
+    private static tileKey(p: Point): number {
+        return (p.y + 1000) * 4000 + (p.x + 1000)
+    }
+
+    /** Run `fn` with objectsAtPosition answered from an index built once. Only for work
+     *  that neither moves, adds nor removes objects meanwhile (the light bake), or the
+     *  index would be stale. Nested calls reuse the outer index. */
+    withTileIndex<T>(fn: () => T): T {
+        if (this._tileIndex) return fn()
+        const index = new Map<number, Obj[]>()
+        for (const obj of this.getObjects()) {
+            if (!obj.position) continue
+            const key = GameMap.tileKey(obj.position)
+            const list = index.get(key)
+            if (list) list.push(obj)
+            else index.set(key, [obj])
+        }
+        this._tileIndex = index
+        try {
+            return fn()
+        } finally {
+            this._tileIndex = null
+        }
+    }
+
     objectsAtPosition(position: Point): Obj[] {
+        if (this._tileIndex) return (this._tileIndex.get(GameMap.tileKey(position)) ?? []).slice()
         return this.getObjects().filter((obj: Obj) => obj.position.x === position.x && obj.position.y === position.y)
     }
 
