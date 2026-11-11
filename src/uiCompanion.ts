@@ -42,6 +42,7 @@ import { getUiContainer } from './uiContainer.js'
 import { UIMode } from './uiMode.js'
 import { font1, font3 } from './uiFont.js'
 import { FoText } from './ui/foText.js'
+import { CE_COLOR } from './ui/fontCore.js'
 import { AiPacket, aiGetRunAwayMode, Disposition, findCompanionPacketForDisposition } from './aiPackets.js'
 import {
     CustomAiCategory,
@@ -603,7 +604,7 @@ export function uiCompanionCustomize(companion: Critter): void {
                     false,
                     false,
                     () =>
-                        uiCustomCategoryPicker(companion, btn.category, btn.label, () => {
+                        uiCustomCategoryPicker(companion, btn.category, btn.label, value, () => {
                             redraw()
                         }),
                 ),
@@ -648,6 +649,7 @@ function uiCustomCategoryPicker(
     companion: Critter,
     category: CustomAiCategory,
     title: string,
+    currentValue: unknown,
     onDone: () => void,
 ): void {
     const overlay = makeOverlay()
@@ -667,35 +669,48 @@ function uiCustomCategoryPicker(
         onDone()
     }
 
-    panel.appendChild(makeLabel(20, 10, title, '#ffff80'))
+    // CE _gdCustomSelect: the title in font 103, colour 18979, at (40, 15)
+    const titleWrap = document.createElement('div')
+    Object.assign(titleWrap.style, { position: 'absolute', left: '40px', top: '15px', pointerEvents: 'none', lineHeight: '0' })
+    new FoText(font3, title, CE_COLOR.label).appendTo(titleWrap)
+    panel.appendChild(titleWrap)
 
+    // CE _gdCustomSelectRedraw: font 101, one line per value from (42, 42), at most
+    // pitch - 84 wide; colour 992 (green), the current value 32747 (yellow), a value
+    // party.txt doesn't list 15855 (grey) — greyed values are refused.
     const options = CUSTOM_OPTIONS[category] as { value: AiPacket[typeof category]; label: string }[]
-    const list = document.createElement('div')
-    Object.assign(list.style, { position: 'absolute', left: '20px', top: '40px', width: W - 40 + 'px' })
-    for (const opt of options) {
-        // CE _gdCustomSelect: values party.txt doesn't list are greyed and refused
+    const lineHeight = font1.lineHeight || 10
+    options.forEach((opt, index) => {
         const allowed = partyMemberSupports(companion, CUSTOM_INI_KEY[category], String(opt.value))
+        const isCurrent = opt.value === currentValue
+        const restColor = !allowed ? '#747474' : isCurrent ? CE_COLOR.highlight : CE_COLOR.green
         const row = document.createElement('div')
-        Object.assign(row.style, { cursor: allowed ? 'pointer' : 'default', padding: '4px 0' })
-        const text = new FoText(font3, opt.label, allowed ? '#c8b466' : '#606060')
+        Object.assign(row.style, {
+            position: 'absolute',
+            left: '42px',
+            top: 42 + lineHeight * index + 'px',
+            width: W - 84 + 'px',
+            height: lineHeight + 'px',
+            lineHeight: '0',
+            cursor: allowed ? 'pointer' : 'default',
+        })
+        const text = new FoText(font1, opt.label, restColor)
         text.appendTo(row)
+        panel.appendChild(row)
         if (!allowed) {
-            list.appendChild(row)
-            continue
+            return
         }
         row.addEventListener('mouseenter', () => {
-            text.color = '#fcfc7c'
+            text.color = CE_COLOR.highlight
         })
         row.addEventListener('mouseleave', () => {
-            text.color = '#c8b466'
+            text.color = restColor
         })
         row.addEventListener('click', () => {
             setCompanionCustomSetting(companion, category, opt.value)
             close()
         })
-        list.appendChild(row)
-    }
-    panel.appendChild(list)
+    })
 
     const keyHandler = (e: KeyboardEvent): void => {
         if (e.key === 'Escape') {
