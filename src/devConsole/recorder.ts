@@ -218,7 +218,7 @@ function beginPiece(
 }
 
 /** The current piece as it stands, with its end state (what a save stores, or stopRecording). */
-function pieceSoFar(): Recording | null {
+export function pieceSoFar(): Recording | null {
     const rec = current
     if (!rec) {
         return null
@@ -292,6 +292,11 @@ function onGameLoaded(save: SaveRef): void {
     }
 }
 
+/** Make `rec` the current __recording (an imported bug report's piece). */
+export function setLastRecording(rec: Recording): void {
+    last = rec
+}
+
 function onNewGame(): void {
     if (current) {
         endPiece()
@@ -317,12 +322,12 @@ export async function findSave(which?: string | number): Promise<SaveGame | unde
     return pool.reduce<SaveGame | undefined>((a, b) => (!a || b.timestamp > a.timestamp ? b : a), undefined)
 }
 
-async function findSaveByRef(ref: SaveRef): Promise<SaveGame | undefined> {
+export async function findSaveByRef(ref: SaveRef): Promise<SaveGame | undefined> {
     return (await listSaves()).find((s) => s.name === ref.name && s.timestamp === ref.timestamp)
 }
 
 /** A piece ready to replay: its own start, or its parent save as the start. */
-async function withStart(rec: Recording): Promise<Recording | null> {
+export async function withStart(rec: Recording): Promise<Recording | null> {
     if (rec.start) {
         return rec
     }

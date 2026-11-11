@@ -499,7 +499,12 @@ did). A replay calls `setReplaying(true)`: nothing records, and the current piec
 piece's replay sets the GVARs / MVARs back to the snapshot's after loading it (a game load reruns
 map_enter_p_proc with the load flag; artemple's script counts entries in GVAR 104). The cached-map
 load path (`mapLoader.ts` enterCached with every image already loaded) now notifies too.
-`devConsole/gameSize.ts`: `gameSize()` / `saveSize()`.
+`devConsole/gameSize.ts`: `gameSize()` / `saveSize()`. `devConsole/bugReport.ts`: `exportBugReport(note)`
+packs the game now (a save with its piece), its parent saves (up to 8, by `parent` refs), the
+console log (errors / warnings captured from page load) and settings into one `.dh2bug.json.gz`;
+`importBugReport()` stores the saves (parents under their own names, so the piece's `parent`
+resolves) and sets `__recording` — checked in a fresh browser profile: the piece replays with 0
+divergences.
 
 **Entry.** `{ t, ms, f, k, pl, el?, mp?, gv?, cb?, rn?, wx?, wy?, ...payload }`: milliseconds and
 frames since the start, game ticks since the start, player tile, elevation / map when changed, the

@@ -488,6 +488,26 @@ importSave("saves/tttt.json") // read it from a URL instead of a file picker
 
 The event log is serialised into the save game. When a save is loaded, `globalState.eventLog` is restored from the file, so the full fight history is available even after a page reload. Saves written before the `eventLog` field was introduced are loaded cleanly (the log starts empty).
 
+## Bug Reports
+
+One file with everything needed to look at a bug and replay it (console, every page load):
+
+```js
+exportBugReport("the guard walks through the wall")       // the game now → dh2bug_<note>_<date>.dh2bug.json.gz
+exportBugReport("...", { save: "name" })                  // the same for a stored save
+importBugReport()                                         // pick a .dh2bug file (or importBugReport("url"))
+```
+
+The bundle holds the game at that moment as a save (with its action recording since the load
+before), the parent saves the recording goes back through (up to 8), the last 300 console errors
+and warnings (captured from page load, uncaught errors and rejected promises too), the combat
+event log (inside the save), the settings that change behaviour (script backend, script fixes,
+mods, `record_actions`, mouse / talk mode, ...) and the browser. About 70–80 KB gzipped per save in
+it. `importBugReport()` prints the note and the errors, stores the game as a save named
+`bug: <note>` (load it to stand where the report was made), stores the parent saves under their
+own names, and makes the recording `__recording`: `replayRecording()` replays the actions that led
+there (or `replayHistory("bug: <note>")` the whole chain).
+
 ## Action Recorder
 
 Records what you do while play-testing — one compact entry per action — so a session can be
