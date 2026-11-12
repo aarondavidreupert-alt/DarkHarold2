@@ -162,8 +162,10 @@ export function uiSaveLoad(isSave: boolean, quick = false, onCancel: (() => void
         )
         .show()
     // DH2's DELETE button; [dh2] save_slots=ce has none (CE loadsave.cc)
+    // on the plate the character editor's name / age / sex boxes put under their DONE
+    // button (donebox.frm, 108x24), behind the button and its label
     if (Config.ui.saveSlots !== 'ce')
-        win.add(
+        win.add(new Widget('art/intrface/donebox.png', { x: 383, y: 319, w: 108, h: 24 })).add(
             new SmallButton(391, 323).onClick(() => {
                 void remove()
             }),

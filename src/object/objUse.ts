@@ -72,7 +72,10 @@ export const objUseMethods = {
                 return true
             }
         }
-        if (this.canUse === false && !this.isContainer) {
+        // CE inventory.cc _inven_action_cursor (GAME_MOUSE_ACTION_MENU_ITEM_USE): a drug goes
+        // straight to _item_d_take_drug; only weapons and misc items need the proto's
+        // can-use flag (_obj_action_can_use). Healing powder has no such flag.
+        if (this.canUse === false && !this.isContainer && this.subtype !== 'drug') {
             dbg('object', "[Object] can't use object")
             return false
         }
