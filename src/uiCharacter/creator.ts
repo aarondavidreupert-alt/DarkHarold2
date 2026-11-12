@@ -539,10 +539,12 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
                 position: 'relative',
                 zIndex: '2',
                 fontSize: '0.9em',
-                color: '#907824',
+                // CE characterEditorEditName → _get_input_str(..., _colorTable[992], ...): green
+                // text and cursor, nothing under it
+                color: '#3cf800',
+                caretColor: '#3cf800',
                 background: 'transparent',
                 border: 'none',
-                borderBottom: '1px solid #806814',
                 fontFamily: 'monospace',
                 outline: 'none',
                 width: '110px',
