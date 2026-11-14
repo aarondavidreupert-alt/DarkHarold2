@@ -536,10 +536,14 @@ export function rebuildLight(): void {
 // Call after map load or elevation change.
 export function bakeStaticLight(): void {
     light_reset()
-    world.gMap!.getObjects().forEach((obj) => {
-        if (obj.type !== 'critter') {
-            obj_adjust_light(obj, false)
-        }
+    const gMap = world.gMap!
+    // the bake looks up the objects on every tile each light reaches: index them once
+    gMap.withTileIndex(() => {
+        gMap.getObjects().forEach((obj) => {
+            if (obj.type !== 'critter') {
+                obj_adjust_light(obj, false)
+            }
+        })
     })
     staticTileIntensity.set(tile_intensity)
 }
