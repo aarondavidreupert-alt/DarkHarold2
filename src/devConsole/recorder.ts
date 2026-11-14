@@ -24,6 +24,7 @@
 // The hooks are in src/actionLog.ts (recordAction(), called from the input paths); this module is
 // the sink that turns each action into a RecordedEntry (src/autocrawler/recording.ts).
 
+import { gameNow } from '../frameClock.js'
 import {
     addGameLoadedListener,
     addMapReadyListener,
@@ -96,7 +97,7 @@ let history: SaveHistory = { chunks: [], count: 0, minutes: 0 }
 const NO_RESEED = new Set(['map', 'amount', 'timer'])
 
 function onFrame(): void {
-    const now = Math.round((performance.now() - startMs) * 10)
+    const now = Math.round((gameNow() - startMs) * 10) // the frame's time, as the logic reads it
     frameChunk += encodeFrameTime(now - lastFrameTenths)
     lastFrameTenths = now
     frameCount++

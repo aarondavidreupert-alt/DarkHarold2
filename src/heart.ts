@@ -11,6 +11,7 @@ import { assetUrl } from './modAssets.js'
 */
 import { dbgWarn } from './logger.js'
 import { notifyFrame } from './actionLog.js'
+import { setFrameTime } from './frameClock.js'
 
 type MouseButton = 'l' | 'm' | 'r' | 'unknown'
 
@@ -282,6 +283,8 @@ class Heart {
             heart._frameAccum -= heart._targetTickTime!
             heart._numFrames++
             heart.frames++
+            // the game logic's clock for this frame (frameClock.ts): every logic read in the frame agrees
+            setFrameTime(window.performance.now())
             notifyFrame() // the action recorder's frame-time track (a no-op unless recording)
             heart._frameAccum = Math.min(heart._frameAccum, heart._targetTickTime!)
 

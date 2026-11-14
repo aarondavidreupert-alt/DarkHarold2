@@ -18,6 +18,7 @@ limitations under the License.
 // Critter.prototype via TypeScript declaration merging. Split out of
 // object.ts per wiki/ts-split-refactor.md §2.
 
+import { gameNow } from '../frameClock.js'
 import { Config } from '../config.js'
 import { directionOfDelta, hexDistance, Point } from '../geometry.js'
 import { randomBetween } from '../random.js'
@@ -300,7 +301,7 @@ Critter.prototype.updateStaticAnim = function (this: Critter): void {
         return
     }
 
-    const time = window.performance.now()
+    const time = gameNow()
     const fps = assets.imageInfo![this.art]?.fps || 10 // CE art.cc artGetFramesPerSecond: 0 → 10
 
     if (time - this.lastFrameTime >= 1000 / fps) {
@@ -357,6 +358,23 @@ Critter.prototype.updateStaticAnim = function (this: Critter): void {
 // plus 0–3 s later (7 s when there was none). The Woodsman encounter's PID 0x10000FA is left out.
 let fidgetLastTime = 0
 let fidgetNextDelay = 0
+
+/** Debug (the action recorder and its replay, gameTick.ts resetLoopSchedule): restart the fidget
+ *  ticker and the dude's idle timer at `now`. Neither is in a save, and the dude object outlives a
+ *  load, so a recording and its replay would otherwise start with different leftovers. */
+export function resetFidgetSchedule(now: number): void {
+    fidgetLastTime = now
+    fidgetNextDelay = 0
+    const dude = world.player
+    if (dude) {
+        dude.nextIdleAnimTime = 0
+        dude.lastFrameTime = now
+        if (!dude.anim || dude.anim === 'idle') {
+            dude.frame = 0
+        }
+    }
+}
+
 function dudeFidget(time: number): void {
     const gMap = world.gMap
     const dude = world.player
@@ -395,7 +413,7 @@ function dudeFidget(time: number): void {
 Critter.prototype.updateLoopingAnim = function (this: Critter): void {
     const info = assets.imageInfo![this.art]
     if (!info || !info.numFrames) return
-    const time = window.performance.now()
+    const time = gameNow()
     dudeFidget(time)
 
     if (this.nextIdleAnimTime === 0) this.nextIdleAnimTime = Infinity // standing still until picked
@@ -467,7 +485,7 @@ Critter.prototype.updateAnim = function (this: Critter): void {
         return
     }
 
-    const time = window.performance.now()
+    const time = gameNow()
     let fps = assets.imageInfo![this.art].fps
     // CE animation.cc animationComputeTicksPerFrame: in combat ANIM_WALK (not running)
     // gets fps += combat_speed (the 0..50 preference, higher is faster); the dude only
@@ -763,7 +781,7 @@ Critter.prototype.staticAnimation = function (
             }
         }
         this.art = newArt
-        this.lastFrameTime = window.performance.now()
+        this.lastFrameTime = gameNow()
         if (reversed) {
             this.frame = assets.imageInfo![newArt].numFrames - 1
             this.anim = 'reverse'

@@ -2,6 +2,7 @@
 // Methods of the Script class (scripting.ts), kept here by topic and installed on its prototype
 // there; vmBridge.ts and the Lua prelude call them as before (wiki/code_quality.md Q16).
 
+import { gameNow } from '../../frameClock.js'
 import type { Script } from '../../scripting.js'
 import { Config } from '../../config.js'
 import * as CriticalEffects from '../../criticalEffects.js'
@@ -335,7 +336,7 @@ export const sfallOpcodes = {
         return world.player?.activeHand === 'rightHand' ? 1 : 0
     },
     get_uptime(this: Script) {
-        return Math.trunc(window.performance.now())
+        return Math.trunc(gameNow())
     },
     // CE op_get_uptime (0x81B3): getTicks
     // CE op_get/set_bodypart_hit_modifier (0x81DF / 0x81E0): hit_location_penalty (negative)

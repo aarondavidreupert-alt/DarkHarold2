@@ -535,6 +535,18 @@ the recorded Move Items quantities (`setAmountOverrides`), and run the action th
 function the input handler called. The report lists every divergence (`{ i, t, what, recorded,
 replayed }`) and the first one; `stopOnDivergence` ends there.
 
+**Per-frame clock (2026-11-14).** The game logic reads `gameNow()` (`src/frameClock.ts`), set by `heart.ts` at the start of each logical
+frame: `tickGame` (10 Hz tick, critter-script loop), critter / object animations, projectile flight, the explosion window, the
+VM's timed procedures, sfall `get_uptime`. The recorder stores that per-frame time (`notifyFrame` reads `gameNow()`); the replay's
+virtual `performance.now()` is what `heart.ts` hands to `setFrameTime`, so a replayed frame's logic sees the recorded time.
+`resetLoopSchedule` also restarts the fidget ticker and the dude's idle timer (`resetFidgetSchedule`). The replay snaps the player
+to the recorded tile within `snapTolerance` (default 2) before each action, keeping a walk under way; stepping to a recorded frame
+never times out (`stepTimeoutMs` is for condition waits); `{ draw: false }` skips drawing (100× faster headless). Checked: fresh
+recordings with hostile ants placed near the player (critter-started combat), replayed with `snapTolerance: 0, tileTolerance: 0`:
+VM 0 divergences, 0 drift, identical random draws; Lua 0 divergences, 0 drift, but in one draw-traced run combat started a few
+frames earlier in the replay (open). The user's den save (recorded before the change) still diverges at entry 18, where a rat
+notices the player earlier in the replay.
+
 **Limits.** Time read inside a frame is not recorded (the game reads `performance.now()` many times
 a frame; real time moves between the reads, the virtual clock does not), so critter heartbeats can
 draw a few more or fewer random numbers between two actions and a walk can end a hex off. The

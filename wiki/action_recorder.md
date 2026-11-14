@@ -160,8 +160,10 @@ test of the history alone.
 |---|---|---|
 | `stopOnDivergence` | `false` | stop at the first difference |
 | `tileTolerance` | `1` | a tile this many hexes off counts as drift, not a divergence (`0` = exact) |
-| `stepTimeoutMs` | `60000` | how long one step may wait for a window, a map load, your turn |
+| `snapTolerance` | `2` | before each action, a player this many hexes or fewer off the recorded tile is put on it (a walk under way keeps its target; `0` = never); counted in `snaps` |
+| `stepTimeoutMs` | `60000` | how long one step may wait for a window, a map load, your turn (stepping to a recorded frame never times out) |
 | `maxDivergences` | `200` | how many differences the report keeps |
+| `draw` | `true` | `false` runs only the frames' logic, not their drawing — a headless replay is then 100× faster |
 
 ```js
 replaySave("name", { stopOnDivergence: true, tileTolerance: 0 })
@@ -305,7 +307,17 @@ For a replay to take the same turns as your game, the recorder
 - restarts the game loop's own timers at the start of a piece,
 - stores every frame's time (0.1 ms) so the replay runs the same frames at the same times —
   animations and the 10 Hz game clock run on real time,
-- pins the game clock to each action's recorded tick.
+- has the game logic read **one time per frame** (`src/frameClock.ts`, `gameNow()`, set by `heart.ts` at
+  the start of each frame): the game tick, the critter-script loop, the critter and object
+  animations, projectile flight, script timers — so a frame's logic depends only on that frame's time,
+  which the recording stores. Drawing (in-between positions, float text, fades) still reads the real
+  clock. In play this changes nothing visible (animation speed and the tick rate measured the same
+  before and after, 2026-11-14),
+- restarts the fidget ticker and the dude's idle timer at the start of a piece (the dude object
+  outlives a load; neither is in a save),
+- pins the game clock to each action's recorded tick,
+- puts you back on the recorded tile when you are a hex or two off (`snapTolerance`), so one hex can
+  never put a later attack out of range.
 
 The reseeding is the one change to the game while recording is on: CE seeds the generator once at
 start-up. The odds are the same; the exact sequence differs. `record_actions=0` gives CE's single
@@ -319,13 +331,17 @@ entries in a GVAR), which the NEW GAME itself never did.
 
 ## 11. Limits and known issues
 
-- **Tile drift.** The game reads the clock many times inside one frame; real time moves between
-  those reads, the replay's clock does not. So a walk can end one hex off. Such tiles count as
-  `tileDrift`, not as divergences (`tileTolerance: 0` to see them all). Because the RNG is reseeded at
-  every action and walk targets are absolute tiles, drift does not build up.
-- **Random draws differ slightly** between actions (`rngDifferences` in the report, for
-  information): critter heartbeats and asset callbacks draw on timing the replay can't reproduce
-  exactly.
+- **Recordings made before 2026-11-14** (before the per-frame clock) were played with the game
+  reading the clock at varying moments inside each frame. A replay can't recreate those moments:
+  walks can end a hex off (snapping corrects that) and a critter can notice you a few frames earlier
+  or later — then a fight starts differently and the replay diverges from there (a real 13-minute
+  session diverged at its second fight this way). Recordings made since replay exactly on the VM
+  backend (0 drift, the same random draws).
+- **Lua backend:** in one of two test runs a critter-started fight began a few frames earlier in the
+  replay than in the recording; the cause is not found yet (script loading is synchronous, and the
+  game logic draws no unseeded random numbers). VM replays were exact in every run.
+- **Random draws** can still differ where something draws on asset-load timing (`rngDifferences` in
+  the report, for information).
 - **A history replayed without its saves** chains each piece from the replayed end of the one
   before; small differences can carry over. With the real saves present each piece starts exact.
 - **World map travel** runs on real-time timers; the replay waits until the party reaches the

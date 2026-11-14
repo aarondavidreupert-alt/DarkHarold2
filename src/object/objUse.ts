@@ -3,6 +3,7 @@
 // item.cc explosives). Methods of the Obj class, moved here verbatim and installed on its
 // prototype by Obj.ts (wiki/code_quality.md Q16).
 
+import { gameNow } from '../frameClock.js'
 import type { Obj } from './Obj.js'
 import {
     ANIM,
@@ -329,7 +330,7 @@ export const objUseMethods = {
             blast()
             return true
         }
-        objState.explosionStarted = performance.now()
+        objState.explosionStarted = gameNow()
         const explosion = createObjectWithPID(makePID(5 /* misc */, 14 /* Explosion */), -1)
         explosion.position = { ...center }
 
