@@ -774,6 +774,14 @@ function getOutlineFillAlpha(): number {
 function getOutlineBorderAlpha(): number {
     return Config.ui.outlineBorderAlpha ?? 0.5
 }
+/** [dh2] outline_through_walls (DH2 outlines only): the fill tint is drawn in the post-roof pass,
+ *  over walls and roofs, instead of right after the sprite. */
+function outlineFillThroughWalls(): boolean {
+    return Config.ui.outlineThroughWalls && Config.ui.combatOutline === 'dh2'
+}
+// The see-through silhouette is stronger than the in-place tint: over a wall it is all there is
+// of the critter.
+const THROUGH_WALLS_FILL_ALPHA = 0.35
 
 // CE ref: object.cc:874 _obj_render_post_roof() — combat outlines (and the
 // item-pickup highlight) are drawn as a flat solid-color silhouette in a
@@ -826,6 +834,16 @@ WebGLRenderer.prototype.renderOutlinePass = function (objs: Obj[]): void {
         const w = renderInfo.uniformFrameWidth * z
         const h = renderInfo.uniformFrameHeight * z
 
+        // [dh2] outline_through_walls: the critter's silhouette in its outline colour, over walls
+        // and roofs — translucent, so a critter standing in front still shows through it (the old
+        // punch-out redrew the whole sprite here and covered it, CA95)
+        if (outlineFillThroughWalls() && getOutlineFillAlpha() > 0) {
+            gl.uniform1i(this.uOutlineMode, 1)
+            gl.uniform3f(this.uOutlineColor, color[0], color[1], color[2])
+            gl.uniform1f(this.uOutlineAlpha, Math.max(getOutlineFillAlpha(), THROUGH_WALLS_FILL_ALPHA))
+            this.renderFrame(obj.art, baseX, baseY, w, h, renderInfo.cell, /*lit*/ false)
+        }
+
         // Only the border pixels (mode 2): the sprite itself stays where the normal object
         // pass drew it, so a critter in front still covers one behind (before, a punch-out
         // redrew the whole sprite here, over everything — and the player was then redrawn
@@ -863,7 +881,15 @@ function renderOutlineFill(
     cell: FrameCell,
 ): void {
     const fillAlpha = getOutlineFillAlpha()
-    if (!obj.outline || fillAlpha <= 0 || !r.uOutlineMode || !r.uOutlineColor || !r.uOutlineAlpha) {
+    // (with outline_through_walls the post-roof pass draws the fill instead)
+    if (
+        !obj.outline ||
+        fillAlpha <= 0 ||
+        outlineFillThroughWalls() ||
+        !r.uOutlineMode ||
+        !r.uOutlineColor ||
+        !r.uOutlineAlpha
+    ) {
         return
     }
     const gl = r.gl

@@ -455,8 +455,13 @@ function explosiveDetonate(obj: Obj, min: number, max: number, failure: boolean,
         gMap.addObject(obj)
     }
     // _queue_do_explosion_: another explosion still running (−2) re-queues it 50 ticks on,
-    // as a plain explosion (no second "inept handling" line)
-    if (!obj.explode(player ?? null, min, max, 3, animate)) scheduleExplosion(obj, 50, false)
+    // as a plain explosion (no second "inept handling" line); else the explosive is gone
+    // (_obj_destroy) — the blast's animation and damage run without it
+    if (!obj.explode(player ?? null, min, max, 3, animate)) {
+        scheduleExplosion(obj, 50, false)
+    } else {
+        gMap.destroyObject(obj)
+    }
 }
 
 // Set the object (door/container) open/closed; returns true if possible, false if not (e.g. locked).

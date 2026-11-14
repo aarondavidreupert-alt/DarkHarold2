@@ -192,6 +192,11 @@ export const Config = {
         // setOutlineBorderAlpha() in the browser console.
         outlineFillAlpha: 0.2,
         outlineBorderAlpha: 0.5,
+        // [dh2] outline_through_walls: 1 (default, DH2) — with combat_outline=dh2 the outlined
+        // critters' colour fill is drawn after walls and roofs, so they show through them as a
+        // tinted silhouette; 0 — the fill stays in depth order (a wall in front hides it) and only
+        // the border shows through, as CE draws its outline (object.cc _obj_render_post_roof).
+        outlineThroughWalls: true,
         // FO2-CE ref: preferences.cc — combat message verbosity
         combatMessages: 'verbose' as 'brief' | 'verbose',
         // FO2-CE ref: preferences.cc — subtitles toggle

@@ -241,6 +241,11 @@ export function applyCfg(cfg: CfgSections): void {
     //   elevation_fade=1|0            a fade on elevation changes (default) or CE's instant switch
     const ef = int(dh2['elevation_fade'])
     if (ef !== null) Config.ui.elevationFade = ef !== 0
+    //   outline_through_walls=1|0     DH2 outlines' colour fill seen through walls (default) or border only
+    const otw = int(dh2['outline_through_walls'])
+    if (otw !== null) {
+        Config.ui.outlineThroughWalls = otw !== 0
+    }
     //   combat_outline=dh2|ce         combat outlines: DH2's (blue neutrals) or CE's line-of-fire rule
     const co = dh2['combat_outline']?.trim().toLowerCase()
     if (co === 'ce' || co === 'dh2') Config.ui.combatOutline = co
