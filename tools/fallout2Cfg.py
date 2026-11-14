@@ -154,7 +154,7 @@ combat_outline=dh2
 ; with combat_outline=dh2: 1 = outlined critters show through walls and roofs as a tinted
 ; silhouette in their outline colour (DH2), 0 = only the outline border shows through, as in CE
 outline_through_walls=1
-; save / load slots: dh2 = any number, always a free one, DELETE removes a save;
+; save / load slots: dh2 = any number, always a free one, DELETE removes a save, NEW starts a new one;
 ; ce = CE's ten slots and no deleting (with more saves, only the first ten are listed)
 save_slots=dh2
 ; walls in front of the player: dh2-egg = CE's egg mask with DH2's occlusion test,
