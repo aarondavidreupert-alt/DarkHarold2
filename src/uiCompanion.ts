@@ -671,7 +671,13 @@ function uiCustomCategoryPicker(
 
     // CE _gdCustomSelect: the title in font 103, colour 18979, at (40, 15)
     const titleWrap = document.createElement('div')
-    Object.assign(titleWrap.style, { position: 'absolute', left: '40px', top: '15px', pointerEvents: 'none', lineHeight: '0' })
+    Object.assign(titleWrap.style, {
+        position: 'absolute',
+        left: '40px',
+        top: '15px',
+        pointerEvents: 'none',
+        lineHeight: '0',
+    })
     new FoText(font3, title, CE_COLOR.label).appendTo(titleWrap)
     panel.appendChild(titleWrap)
 

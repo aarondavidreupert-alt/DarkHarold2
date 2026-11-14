@@ -72,33 +72,10 @@ export const objUseMethods = {
                 return true
             }
         }
-        if (this.canUse === false && !this.isContainer) {
-            dbg('object', "[Object] can't use object")
-            return false
-        }
-
-        // CE _obj_use_container: a locked container — its locked sound and proto.msg 487, and
-        // no script; _obj_use_door: a locked door plays its locked sound, its script decides
-        if (this.locked && (this.isContainer || this.isDoor)) {
-            playOpenSfx(this, SCENERY_SOUND_EFFECT.locked)
-            if (this.isContainer) {
-                if (source?.isPlayer ?? true) uiLog(getProtoMsg(487) ?? 'It is locked.')
-                return false
-            }
-        }
-
-        if (useScript !== false && this._script && this._script.use_p_proc !== undefined) {
-            if (source === undefined) {
-                source = world.player!
-            }
-            if (Scripting.use(this, source!) === true) {
-                dbg('object', '[Object] useObject: overridden by script')
-                return true // script overrided us
-            }
-        } else if (this.script !== undefined && !this._script) {
-            dbgWarn('object', '[Object] used object has script but is not loaded: ' + this.script)
-        }
-
+        // CE inventory.cc inventoryWindowOpenContextMenu, GAME_MOUSE_ACTION_MENU_ITEM_USE: a drug is taken by
+        // its item type (ITEM_TYPE_DRUG → _item_d_take_drug), before and without the "can use" action flag
+        // (_obj_action_can_use, which only weapons and misc items consult) and without use_p_proc. Healing
+        // Powder has no such flag: behind the canUse check below it was never taken.
         if (this.subtype === 'drug') {
             if (source === undefined) source = world.player as Critter
             if (globalState.drugHandler) {
@@ -128,6 +105,35 @@ export const objUseMethods = {
                 }
                 return handled
             }
+        }
+
+        if (this.canUse === false && !this.isContainer) {
+            dbg('object', "[Object] can't use object")
+            return false
+        }
+
+        // CE _obj_use_container: a locked container — its locked sound and proto.msg 487, and
+        // no script; _obj_use_door: a locked door plays its locked sound, its script decides
+        if (this.locked && (this.isContainer || this.isDoor)) {
+            playOpenSfx(this, SCENERY_SOUND_EFFECT.locked)
+            if (this.isContainer) {
+                if (source?.isPlayer ?? true) {
+                    uiLog(getProtoMsg(487) ?? 'It is locked.')
+                }
+                return false
+            }
+        }
+
+        if (useScript !== false && this._script && this._script.use_p_proc !== undefined) {
+            if (source === undefined) {
+                source = world.player!
+            }
+            if (Scripting.use(this, source!) === true) {
+                dbg('object', '[Object] useObject: overridden by script')
+                return true // script overrided us
+            }
+        } else if (this.script !== undefined && !this._script) {
+            dbgWarn('object', '[Object] used object has script but is not loaded: ' + this.script)
         }
 
         // CE ref: proto_instance.cc:1245 — First Aid Kit / Doctor's Bag trigger skills.

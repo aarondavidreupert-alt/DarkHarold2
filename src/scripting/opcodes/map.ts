@@ -140,7 +140,9 @@ export const mapOpcodes = {
             // CE objectSetLocation (object.cc ~1411-1490) moves the dude to the tile before
             // mapSetElevation → _partyMemberSyncPosition, so the party gathers at the new tile
             // (ladders), not at the old tile's coordinates on the new elevation.
-            if (isPlayer) obj.position = fromTileNum(tileNum)
+            if (isPlayer) {
+                obj.position = fromTileNum(tileNum)
+            }
             if (isPlayer) world.gMap!.changeElevationFaded(elevation, true)
             else {
                 const levels: Obj[][] = world.gMap!.objects ?? []

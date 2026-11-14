@@ -362,7 +362,9 @@ export function initUI() {
     function wheelPressesButtons($el: HTMLElement, upId: string, downId: string) {
         $el.onwheel = (e: WheelEvent) => {
             e.preventDefault()
-            if (e.deltaY === 0) return
+            if (e.deltaY === 0) {
+                return
+            }
             $id(e.deltaY > 0 ? downId : upId).click()
         }
     }
