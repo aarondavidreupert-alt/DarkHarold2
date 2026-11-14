@@ -553,14 +553,21 @@ export class GameMap {
      *  that neither moves, adds nor removes objects meanwhile (the light bake), or the
      *  index would be stale. Nested calls reuse the outer index. */
     withTileIndex<T>(fn: () => T): T {
-        if (this._tileIndex) return fn()
+        if (this._tileIndex) {
+            return fn()
+        }
         const index = new Map<number, Obj[]>()
         for (const obj of this.getObjects()) {
-            if (!obj.position) continue
+            if (!obj.position) {
+                continue
+            }
             const key = GameMap.tileKey(obj.position)
             const list = index.get(key)
-            if (list) list.push(obj)
-            else index.set(key, [obj])
+            if (list) {
+                list.push(obj)
+            } else {
+                index.set(key, [obj])
+            }
         }
         this._tileIndex = index
         try {
@@ -571,7 +578,9 @@ export class GameMap {
     }
 
     objectsAtPosition(position: Point): Obj[] {
-        if (this._tileIndex) return (this._tileIndex.get(GameMap.tileKey(position)) ?? []).slice()
+        if (this._tileIndex) {
+            return (this._tileIndex.get(GameMap.tileKey(position)) ?? []).slice()
+        }
         return this.getObjects().filter((obj: Obj) => obj.position.x === position.x && obj.position.y === position.y)
     }
 
