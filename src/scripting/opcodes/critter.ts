@@ -624,7 +624,11 @@ export const critterOpcodes = {
         const newHp = c.getStat('HP') + amount
         c.stats.setBase('HP', Math.min(newHp, maxHp))
         if (newHp <= 0 && !c.dead) critterKill(c, undefined, false)
-        if (c.isPlayer) updateIndicatorBar()
+        if (c.isPlayer) {
+            // CE interpreter_extra.cc opCritterHeal: interfaceRenderHitPoints(true) for the dude
+            drawHP(c.getStat('HP'))
+            updateIndicatorBar()
+        }
         info('critter_heal: ' + obj.name + ' ' + amount + ' HP')
         return 0
     },

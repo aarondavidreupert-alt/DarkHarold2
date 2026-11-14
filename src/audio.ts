@@ -58,6 +58,19 @@ export interface AudioEngine {
     setVolume(channel: 'master' | 'music' | 'sfx' | 'speech', value: number): void
 }
 
+// DH2: a few sound files are recorded louder than their pair. icombat1 (the critters' turn and
+// combat start) is 4.1 dB louder than icombat2 (the player's turn) — RMS -35.7 vs -39.8 dBFS,
+// measured from the shipped files — so it plays at 10^(-4.1/20) = 0.62 to match. CE plays both
+// at full level.
+const SFX_LEVEL: { [stem: string]: number } = {
+    icombat1: 0.62,
+}
+
+function sfxLevel(name: string): number {
+    const stem = (name.split('/').pop() ?? name).replace(/\.[a-z0-9]+$/i, '').toLowerCase()
+    return SFX_LEVEL[stem] ?? 1
+}
+
 export class NullAudioEngine implements AudioEngine {
     playSfx(sfx: string): void {}
     playSfxByName(stem: string): void {}
@@ -189,8 +202,9 @@ export class HTMLAudioEngine implements AudioEngine {
         const node = ctx.createBufferSource()
         node.buffer = buf
         // Route through sfxGainNode → masterGainNode → destination for volume control; an
-        // off-screen source through its own gain first (CE _gsound_compute_relative_volume)
-        const relative = soundSourceVolume(source)
+        // off-screen source through its own gain first (CE _gsound_compute_relative_volume),
+        // times the sound's own level (SFX_LEVEL)
+        const relative = soundSourceVolume(source) * sfxLevel(name)
         if (relative < 1) {
             const gain = ctx.createGain()
             gain.gain.value = relative

@@ -101,6 +101,19 @@ function _hpColorOffset(hp: number): number {
     return NUM_COLOR_WHITE
 }
 
+// DH2 (hudRefresh.syncHudHP, once per frame): start the counter towards the player's HP when it
+// is neither shown nor already being counted to — the usual animated drawHP.
+function syncHP(): void {
+    const p = world.player
+    if (!p || _dispHp === null) {
+        return
+    }
+    const hp = p.getStat('HP')
+    if (hp !== _targetHp) {
+        drawHP(hp)
+    }
+}
+
 export function drawHP(hp: number): void {
     updateIndicatorBar()
 
@@ -739,4 +752,4 @@ export function uiEndCombatAnimationDone(this: HTMLElement): void {
 }
 
 // game logic calls these through hudRefresh.ts, a module without HUD imports
-setHudRefresh({ drawHP, drawAC, drawAP, uiDrawWeapon, updateIndicatorBar })
+setHudRefresh({ drawHP, drawAC, drawAP, uiDrawWeapon, updateIndicatorBar, syncHP })

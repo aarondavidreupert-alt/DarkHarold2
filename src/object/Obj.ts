@@ -170,6 +170,10 @@ export async function useExplosive(obj: Obj, source: Critter): Promise<void> {
 
     // CE _obj_use_item rc 2: one explosive leaves its owner (itemRemove / itemReplace)
     obj = takeOneFromOwner(obj, source)
+    // the inventory window (open while the timer was set) redraws on statsChanged — it drew
+    // itself before the timer dialog closed and would still list the explosive (the weight
+    // it shows changed too)
+    Events.emit('statsChanged')
     // explosiveActivate: the armed proto
     switchItemProto(obj, desc.active)
 
