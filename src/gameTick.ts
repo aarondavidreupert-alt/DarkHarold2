@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { syncHudHP } from './hudRefresh.js'
 import { gameNow } from './frameClock.js'
 import { returnToMainMenu } from './mainMenuReturn.js'
 import * as Events from './events.js'
@@ -152,6 +153,9 @@ export function tickGame(): void {
     } else if (globalState.isLoading && !finishLoadingIfReady()) {
         return
     }
+    // DH2 safety net: the HUD's hit points follow the player's every frame, also in windows
+    // (a dialogue heal) and for any path that missed its drawHP (hudRefresh.syncHudHP)
+    syncHudHP()
 
     // CE game loop: a script's load_map transition, then game state 4 (a script's
     // dialogue_system_enter) opening the dialogue

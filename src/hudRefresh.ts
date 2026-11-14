@@ -9,12 +9,20 @@ interface HudRefresh {
     drawAP(current: number, max: number, freeMove?: number, isPlayerTurn?: boolean): void
     uiDrawWeapon(): void
     updateIndicatorBar(): void
+    syncHP(): void
 }
 
 let hud: HudRefresh | null = null
 
 export function setHudRefresh(impl: HudRefresh): void {
     hud = impl
+}
+
+/** Once per frame (gameTick.ts): the HUD's hit points follow the player's, whatever changed them.
+ *  CE calls interfaceRenderHitPoints at each place that changes the dude's HP; a path that misses
+ *  it (as critter_heal did) left the counter stale until the next redraw. DH2 safety net. */
+export function syncHudHP(): void {
+    hud?.syncHP()
 }
 
 export function drawHP(hp: number): void {
