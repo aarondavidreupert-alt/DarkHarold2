@@ -131,6 +131,21 @@ export function uiQuickLoad(): void {
 }
 
 // onCancel: CE main.cc — the main menu comes back when its LOAD GAME window is cancelled
+// The DONE / CANCEL plates are part of lsgame.frm: the one behind DONE spans (379, 345)–(477, 368).
+// DELETE and NEW get copies of it, cut from the same art, so all four plates match.
+const PLATE_SRC_X = 379
+const PLATE_SRC_Y = 345
+const PLATE_W = 99
+const PLATE_H = 24
+const PLATE_X_LEFT = 379 // over DONE
+const PLATE_X_RIGHT = 484 // over CANCEL (lsgame.frm's CANCEL plate starts at x 484)
+const PLATE_Y_TOP = 317 // 4 px above the DONE / CANCEL row
+function lsgPlate(x: number, y: number): Widget {
+    const plate = new Widget('art/intrface/lsgame.png', { x, y, w: PLATE_W, h: PLATE_H })
+    plate.elem.style.backgroundPosition = `-${PLATE_SRC_X}px -${PLATE_SRC_Y}px`
+    return plate
+}
+
 export function uiSaveLoad(isSave: boolean, quick = false, onCancel: (() => void) | null = null): void {
     quickDone = false
     // CE loadsave.cc lsgSaveGame: _QuickSnapShot before the save window opens.
@@ -161,15 +176,22 @@ export function uiSaveLoad(isSave: boolean, quick = false, onCancel: (() => void
                 .onClick(() => move(1)),
         )
         .show()
-    // DH2's DELETE button; [dh2] save_slots=ce has none (CE loadsave.cc)
-    // on the plate the character editor's name / age / sex boxes put under their DONE
-    // button (donebox.frm, 108x24), behind the button and its label
+    // DH2's DELETE and NEW buttons (none with [dh2] save_slots=ce, as CE loadsave.cc), each on a
+    // copy of the window's own DONE plate, a row above DONE and CANCEL: DELETE over DONE, NEW over
+    // CANCEL. NEW starts a new save on the free slot; the LOAD window shows it inactive.
     if (Config.ui.saveSlots !== 'ce') {
-        win.add(new Widget('art/intrface/donebox.png', { x: 383, y: 319, w: 108, h: 24 })).add(
-            new SmallButton(391, 323).onClick(() => {
-                void remove()
-            }),
-        )
+        win.add(lsgPlate(PLATE_X_LEFT, PLATE_Y_TOP))
+            .add(lsgPlate(PLATE_X_RIGHT, PLATE_Y_TOP))
+            .add(
+                new SmallButton(391, PLATE_Y_TOP + 4).onClick(() => {
+                    void remove()
+                }),
+            )
+            .add(
+                new SmallButton(495, PLATE_Y_TOP + 4).onClick(() => {
+                    void newSave()
+                }),
+            )
     }
     const el = win.elem
     makePanelDraggable(el, 'saveLoad')
@@ -178,7 +200,11 @@ export function uiSaveLoad(isSave: boolean, quick = false, onCancel: (() => void
         addText(el, lsg(isSave ? 102 : 100, isSave ? 'SAVE GAME' : 'LOAD GAME'), 48, 27, font3, CE_COLOR.label)
         addText(el, lsg(104, 'DONE'), 410, 348, font3, CE_COLOR.label)
         addText(el, lsg(105, 'CANCEL'), 515, 348, font3, CE_COLOR.label)
-        if (Config.ui.saveSlots !== 'ce') addText(el, 'DELETE', 410, 322, font3, CE_COLOR.label) // DH2 addition
+        if (Config.ui.saveSlots !== 'ce') {
+            // DH2 additions; NEW only saves, so it is inactive in the LOAD window
+            addText(el, 'DELETE', 410, PLATE_Y_TOP + 3, font3, CE_COLOR.label)
+            addText(el, 'NEW', 515, PLATE_Y_TOP + 3, font3, isSave ? CE_COLOR.label : CE_COLOR.labelPressed)
+        }
     })
 
     // Preview: CE loadsave.cc:479-491 — the slot thumbnail (224x133, drawn 223x132)
@@ -400,6 +426,21 @@ export function uiSaveLoad(isSave: boolean, quick = false, onCancel: (() => void
             load(s.id)
             close()
         }
+    }
+
+    /** NEW (DH2): a new save on the free slot — select it and ask for the description, as DONE on
+     *  an empty slot does; never an overwrite. */
+    async function newSave(): Promise<void> {
+        if (!isSave || busy) {
+            return
+        }
+        let free = slots.indexOf(null)
+        if (free === -1) {
+            slots.push(null)
+            free = slots.length - 1
+        }
+        select(free)
+        await confirm()
     }
 
     async function remove(): Promise<void> {
