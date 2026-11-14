@@ -3,6 +3,7 @@
 // Methods of the Combat class, moved here verbatim and installed on its prototype by Combat.ts
 // (wiki/code_quality.md Q16).
 
+import { gameNow } from '../frameClock.js'
 import type { Combat } from './Combat.js'
 import { Config } from '../config.js'
 import {
@@ -259,9 +260,9 @@ export const combatProjectileMethods = {
             // stays visible for a frame before the projectile is removed (CE hides it in
             // the next animation step).
             let index = 0
-            let last = window.performance.now()
+            let last = gameNow()
             proj.updateAnim = function (this: Obj): void {
-                const now = window.performance.now()
+                const now = gameNow()
                 if (now - last < 1000 / fps) return
                 last = now
                 if (index >= nodes.length) {

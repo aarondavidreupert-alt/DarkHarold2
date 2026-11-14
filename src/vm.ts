@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { gameNow } from './frameClock.js'
 import { transpile } from './transpiler.js'
 import { IntFile } from './intfile.js'
 import { arrayIncludes, BinaryReader } from './util.js'
@@ -99,8 +100,9 @@ const PROC_TIMED = 0x01
 const PROC_CONDITIONAL = 0x02
 const PROC_IMPORTED = 0x04
 
+// script timers (call_at / call_when) run on the game logic's clock (frameClock.ts)
 function nowMs(): number {
-    return typeof performance !== 'undefined' ? performance.now() : Date.now()
+    return gameNow()
 }
 
 // CE Procedure.flags / time / conditionOffset for call_at / call_when (opDelayedCall,

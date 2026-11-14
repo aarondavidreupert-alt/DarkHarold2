@@ -20,6 +20,7 @@ limitations under the License.
 // updateStaticAnim, updateLoopingAnim, updateAnim) are attached to
 // Critter.prototype from ./critterAnimation.ts via TS declaration merging.
 
+import { gameNow } from '../frameClock.js'
 import { SkillSet, StatSet } from '../char.js'
 import { ActionPoints, AI } from '../combat.js'
 import { Config } from '../config.js'
@@ -579,7 +580,7 @@ export class Critter extends Obj {
         this.art = moveArt
         this.animCallback = callback || (() => this.clearAnim())
         this.frame = 0
-        this.lastFrameTime = window.performance.now()
+        this.lastFrameTime = gameNow()
         this.shift = { x: 0, y: 0 }
         const dir = directionOfDelta(this.position.x, this.position.y, path[1][0], path[1][1])
         if (dir == null) {

@@ -62,3 +62,4 @@ export { Critter, SerializedCritter, SERIALIZED_CRITTER_PROPS } from './object/C
 
 // Import for side effects — attaches animation state machine to Critter.prototype.
 import './object/critterAnimation.js'
+export { resetFidgetSchedule } from './object/critterAnimation.js'

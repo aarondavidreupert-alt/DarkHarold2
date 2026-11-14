@@ -52,7 +52,8 @@ import {
 export interface ReplayOptions {
     /** stop at the first divergence (default false: report all, up to maxDivergences) */
     stopOnDivergence?: boolean
-    /** real time a step may wait for its frame / window / map load (default 60 s) */
+    /** real time a step may wait for a window, the player's turn, a map load or the party's
+     *  world-map position (default 60 s); stepping to the recorded frame never times out */
     stepTimeoutMs?: number
     maxDivergences?: number
     /** a player tile this many hexes from the recorded one counts as drift, not a divergence
@@ -60,6 +61,13 @@ export interface ReplayOptions {
      *  clock many times a frame), so a walk can end up a hex off; the walk targets are absolute
      *  and the RNG is reseeded at each action, so drift does not build up. */
     tileTolerance?: number
+    /** before each action, a player this many hexes or fewer from the recorded tile is put on it
+     *  (default 2; 0 = never): the walk animation's 3-or-4-frame cadence depends on time read
+     *  inside a frame, so a replayed walk falls a hex behind now and then, and one hex decides
+     *  whether a later attack is in range. A walk under way keeps its target. Counted in `snaps`. */
+    snapTolerance?: number
+    /** draw the frames (default true); false runs only their logic — much faster headless */
+    draw?: boolean
 }
 
 export interface ReplayDivergence {
@@ -88,6 +96,8 @@ export interface ReplayReport {
     rngDifferences: number
     /** player tiles within tileTolerance of the recorded one, but not on it */
     tileDrift: number
+    /** times the player was put back on the recorded tile (snapTolerance) */
+    snaps: number
     /** the first entries whose draws differ: [entry, recorded, replayed] */
     rngTrace: [number, number, number][]
 }
@@ -126,8 +136,32 @@ function stepFrame(dt: number): void {
     virtualNow += dt
     heart._lastTick = before
     heart._frameAccum = heart._targetTickTime ?? FRAME_MS
-    heart._stepOnly(virtualNow)
+    // { draw: false }: the frame's logic only (the game's logic does not read what was drawn);
+    // a headless replay spends most of its time drawing
+    const draw = heart.draw
+    if (!drawFrames) {
+        heart.draw = () => {}
+    }
+    try {
+        heart._stepOnly(virtualNow)
+    } finally {
+        heart.draw = draw
+    }
     replayFrame++
+}
+
+let drawFrames = true
+
+// A macrotask without setTimeout's 4 ms clamp on nested timeouts: promise callbacks and due
+// timers (asset loads, the world map's travel timer) still run between steps.
+const yieldChannel = new MessageChannel()
+const yieldQueue: (() => void)[] = []
+yieldChannel.port1.onmessage = () => yieldQueue.shift()?.()
+function yieldNow(): Promise<void> {
+    return new Promise<void>((resolve) => {
+        yieldQueue.push(resolve)
+        yieldChannel.port2.postMessage(0)
+    })
 }
 
 /** Step frames until pred() holds (false after `timeoutMs` real time). */
@@ -138,7 +172,7 @@ async function stepUntil(pred: () => boolean, timeoutMs: number): Promise<boolea
             return false
         }
         stepFrame(frameTimes[replayFrame - frameOffset] ?? FRAME_MS)
-        await new Promise<void>((r) => setTimeout(r, 0))
+        await yieldNow()
     }
     return true
 }
@@ -245,6 +279,8 @@ async function findSave(name: unknown, timestamp: unknown): Promise<number | nul
 export async function runReplay(rec: Recording, options: ReplayOptions = {}): Promise<ReplayReport> {
     const stepTimeoutMs = options.stepTimeoutMs ?? 60000
     const tileTolerance = options.tileTolerance ?? 1
+    const snapTolerance = options.snapTolerance ?? 2
+    drawFrames = options.draw !== false
     const maxDivergences = options.maxDivergences ?? 200
     const started = realNow()
     const report: ReplayReport = {
@@ -259,6 +295,7 @@ export async function runReplay(rec: Recording, options: ReplayOptions = {}): Pr
         firstDivergence: null,
         rngDifferences: 0,
         tileDrift: 0,
+        snaps: 0,
         rngTrace: [],
     }
     const diverge = (i: number, t: string, what: string, recorded: unknown, replayed: unknown): void => {
@@ -334,6 +371,28 @@ export async function runReplay(rec: Recording, options: ReplayOptions = {}): Pr
     }
     heart.paused = true
     let mapEntriesSeen = 0
+
+    // the replayed player a hex or two off the recorded tile (a walk a frame behind): put it there,
+    // keeping a walk under way (its target, run or walk, and what it does on arrival)
+    const snapPlayer = (recorded: number): void => {
+        const p = world.player
+        if (!p?.position || snapTolerance <= 0 || playerTile() === recorded || recorded < 0) {
+            return
+        }
+        const to = fromTileNum(recorded)
+        if (hexDistance(to, p.position) > snapTolerance) {
+            return
+        }
+        const walking = p.path?.target
+            ? { target: { ...p.path.target }, run: p.anim === 'run', then: p.animCallback }
+            : null
+        p.clearAnim()
+        p.move(to)
+        if (walking && (walking.target.x !== to.x || walking.target.y !== to.y)) {
+            p.walkTo(walking.target, walking.run, walking.then ?? undefined)
+        }
+        report.snaps++
+    }
 
     const checkTile = (i: number, t: string, recorded: number): void => {
         const now = playerTile()
@@ -591,7 +650,9 @@ export async function runReplay(rec: Recording, options: ReplayOptions = {}): Pr
             // the recorded frame, then what the action needs (a window, the party's world-map
             // position, the player's turn); a wait past the recorded frame moves the offset
             const ui = NEEDS_UI[e.t]
-            let ready = await stepUntil(() => replayFrame - frameOffset >= e.f, stepTimeoutMs)
+            // (no timeout: stepping always reaches the frame; a timeout here would fire the action
+            // early on a slow machine — stepTimeoutMs is for the condition waits below)
+            let ready = await stepUntil(() => replayFrame - frameOffset >= e.f, Infinity)
             const needs = (): boolean => {
                 if (globalState.isLoading) {
                     return false
@@ -631,6 +692,7 @@ export async function runReplay(rec: Recording, options: ReplayOptions = {}): Pr
                 break
             }
             // as the recorder: reseed, the recorded clock, the recorded Move Items quantities
+            snapPlayer(e.pl)
             randomSeedExact(entrySeed(rec.seed, i))
             if (!world.inCombat) {
                 world.gameTickTime = rec.startTick + e.k
@@ -656,7 +718,7 @@ export async function runReplay(rec: Recording, options: ReplayOptions = {}): Pr
         // the end state
         if (rec.end && !report.stopped && !(options.stopOnDivergence && report.firstDivergence)) {
             const endFrame = rec.end.f
-            await stepUntil(() => replayFrame - frameOffset >= endFrame, stepTimeoutMs)
+            await stepUntil(() => replayFrame - frameOffset >= endFrame, Infinity)
             const end = rec.end
             if ((world.gMap?.name ?? '') !== end.mp) {
                 diverge(-1, 'end', 'map', end.mp, world.gMap?.name)
@@ -689,7 +751,7 @@ function finish(report: ReplayReport, started: number): ReplayReport {
     report.durationMs = Math.round(realNow() - started)
     lastReplayReport = report
     console.log(
-        `[Replay] ${report.replayed}/${report.entries} entries, ${report.divergences.length} divergences, ${report.tileDrift} tile drift` +
+        `[Replay] ${report.replayed}/${report.entries} entries, ${report.divergences.length} divergences, ${report.tileDrift} tile drift, ${report.snaps} snaps` +
             (report.firstDivergence
                 ? ` (first at #${report.firstDivergence.i} ${report.firstDivergence.t}: ${report.firstDivergence.what})`
                 : '') +

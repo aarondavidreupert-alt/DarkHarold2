@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { gameNow } from './frameClock.js'
 import { returnToMainMenu } from './mainMenuReturn.js'
 import * as Events from './events.js'
 import { DAM_KNOCKED_OUT } from './combat/results.js'
@@ -34,7 +35,7 @@ import { view } from './state/view.js'
 import { services } from './state/services.js'
 import { assets } from './state/assets.js'
 import { dbg } from './logger.js'
-import { Critter, objectUnjamAll } from './object.js'
+import { Critter, objectUnjamAll, resetFidgetSchedule } from './object.js'
 import { changeCursor } from './playerUse.js'
 import { clampCameraPosition, ceMapScroll, getObjectUnderCursor, SCREEN_HEIGHT, SCREEN_WIDTH } from './renderer.js'
 import * as Scripting from './scripting.js'
@@ -83,7 +84,8 @@ export function resetLoopSchedule(): void {
     critterLoopLast = -1
     lastRealTimeMapUpdate = -1
     nextMapUpdateTick = world.gameTickTime + 600
-    globalState.lastGameTick = window.performance.now()
+    globalState.lastGameTick = gameNow()
+    resetFidgetSchedule(gameNow()) // the fidget ticker and the dude's idle timer
 }
 
 // CE ref: scripts.cc:405 gameTimeEventProcess — midnight queue event.
@@ -175,7 +177,7 @@ export function tickGame(): void {
     // sfall temporary arrays (a dialogue runs inside gsay_end in CE, so they live through it)
     deleteAllTempArrays()
     globalScriptsProcessMain() // CE main.cc mainLoop: sfall_gl_scr_process_main
-    const time = window.performance.now()
+    const time = gameNow() // the frame's time (frameClock.ts)
 
     const $fps = services.$fpsOverlay
     if ($fps) $fps.style.display = Config.ui.showFPS ? '' : 'none'

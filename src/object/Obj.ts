@@ -17,6 +17,7 @@ limitations under the License.
 // Obj base class + top-of-file helpers + SerializedObj interface.
 // Split out of object.ts per wiki/ts-split-refactor.md §2.
 
+import { gameNow } from '../frameClock.js'
 import * as GameTime from '../gametime.js'
 import { playOpenSfx, SCENERY_SOUND_EFFECT } from '../sfxNames.js'
 import { ammoFromRounds, ammoGetCapacity, ammoGetQuantity, ammoMergeInto, initWeaponAmmo } from '../weaponAmmo.js'
@@ -431,7 +432,7 @@ export function scheduleFlareBurnOut(obj: Obj, ticks: number): void {
     })
 }
 export function explosionRunning(): boolean {
-    return objState.explosionStarted >= 0 && performance.now() - objState.explosionStarted < 5000
+    return objState.explosionStarted >= 0 && gameNow() - objState.explosionStarted < 5000
 }
 
 // CE queue.cc explosionEventProcess / explosionFailureEventProcess → _queue_do_explosion_:
@@ -1086,7 +1087,7 @@ export class Obj {
         const imageInfo = assets.imageInfo![this.art]
         if (!imageInfo) return // image metadata not yet loaded, skip this tick
 
-        const time = window.performance.now()
+        const time = gameNow()
         let fps = imageInfo.fps
         if (fps === 0) {
             fps = 10
@@ -1170,7 +1171,7 @@ export class Obj {
         // CE animation.cc: the first frame is shown for a full 1000 / fps like every other
         // (0 here advanced it on the next tick — an animate_forever loop, e.g. the New Reno
         // casino lights, flashed frame 0 for one tick and blinked far too fast).
-        this.lastFrameTime = window.performance.now()
+        this.lastFrameTime = gameNow()
         this.anim = reversed ? 'reverse' : 'single'
         this.animCallback =
             callback ||
