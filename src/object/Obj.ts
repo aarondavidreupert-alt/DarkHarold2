@@ -146,9 +146,12 @@ export function explosiveGetDamage(pid: number, plainOnly = false): { min: numbe
 // CE proto_instance.cc _obj_use_explosive — set the timer (10-180 s), then a Traps
 // roll (none with Demolition Expert): success arms it for 10 × seconds ticks, a
 // failure goes off early (half the time), a critical failure at once — both with
-// "Due to your inept handling..." (misc.msg 4000). The armed explosive is put down at
-// the user's feet (CE _obj_use_item rc 2).
-export async function useExplosive(obj: Obj, source: Critter): Promise<void> {
+// "Due to your inept handling..." (misc.msg 4000). Used from the inventory window the armed
+// explosive stays with the user (CE inventory.cc GAME_MOUSE_ACTION_MENU_ITEM_USE: itemRemove one,
+// _protinst_use_item, itemAdd it back unless it returned 1) — to drop by hand, plant on someone
+// or put in a container; used from the hand on the interface bar it is put down at the user's
+// feet (CE _obj_use_item rc 2: _obj_connect at the owner's tile).
+export async function useExplosive(obj: Obj, source: Critter, fromInventory = false): Promise<void> {
     if (!source.isPlayer) return
     const desc = EXPLOSIVES[obj.pid]
     if (!desc) {
@@ -168,14 +171,23 @@ export async function useExplosive(obj: Obj, source: Critter): Promise<void> {
     if (seconds === -1) return
     uiLog(getMessage('proto', 589) ?? 'You set the timer.')
 
-    // CE _obj_use_item rc 2: one explosive leaves its owner (itemRemove / itemReplace)
-    obj = takeOneFromOwner(obj, source)
-    // the inventory window (open while the timer was set) redraws on statsChanged — it drew
-    // itself before the timer dialog closed and would still list the explosive (the weight
-    // it shows changed too)
-    Events.emit('statsChanged')
+    const inHand = source.leftHand === obj || source.rightHand === obj
+    if (fromInventory && inHand) {
+        // CE: an item in a hand slot is not taken off (itemSlot): it is armed where it is
+    } else {
+        // one explosive comes off its owner (CE itemRemove / itemReplace)
+        obj = takeOneFromOwner(obj, source)
+    }
     // explosiveActivate: the armed proto
     switchItemProto(obj, desc.active)
+    // from the inventory window: back into the inventory, as its own (armed) item — CE itemAdd;
+    // pushed, not merged, so its queued explosion keeps its object
+    if (fromInventory && !inHand) {
+        source.inventory.push(obj)
+    }
+    // the inventory window (open while the timer was set) redraws on statsChanged — it drew
+    // itself before the timer dialog closed
+    Events.emit('statsChanged')
 
     let delay = 10 * seconds
     const roll = source.hasPerk('Demolition Expert') ? RollResult.Success : skillRoll(source, 'Traps', 0)
@@ -188,9 +200,10 @@ export async function useExplosive(obj: Obj, source: Critter): Promise<void> {
         failure = true
     }
     dbg('object', `[Object] explosive armed: ${seconds}s, Traps ${RollResult[roll]}, fires in ${delay} ticks`)
-    // … and is placed at the owner's feet (_obj_connect), then _protinstTestDroppedExplosive
+    // from the hand on the interface bar: placed at the owner's feet (_obj_connect), then
+    // _protinstTestDroppedExplosive
     const gMap = world.gMap
-    if (gMap) {
+    if (gMap && !fromInventory) {
         gMap.addObject(obj)
         obj.position = { x: source.position.x, y: source.position.y }
         testDroppedExplosive(source)

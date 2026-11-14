@@ -53,7 +53,8 @@ import {
 
 export const objUseMethods = {
     // Returns whether or not the object was used
-    use(this: Obj, source?: Critter, useScript?: boolean): boolean {
+    // fromInventory: the inventory window's Use (an armed explosive then stays in the inventory)
+    use(this: Obj, source?: Critter, useScript?: boolean, fromInventory = false): boolean {
         // CE proto_instance.cc _obj_use_misc_item: Ramirez's box, the Raiders map, Cat's Paw #5,
         // the Pip-Boy enhancers and the survey map run their use_p_proc (no override) and are
         // then used up (_obj_use_item rc 1: itemRemove + _obj_destroy)
@@ -151,7 +152,7 @@ export const objUseMethods = {
         }
 
         if (this.isExplosive) {
-            useExplosive(this, source!)
+            void useExplosive(this, source!, fromInventory)
             return true
         }
 

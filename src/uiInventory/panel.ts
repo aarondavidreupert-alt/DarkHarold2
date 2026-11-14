@@ -606,7 +606,7 @@ export function showInventory(useOn = false) {
                     break
                 }
                 dbg('inventory', '[UI] using object: ' + obj.art)
-                obj.use(world.player!)
+                obj.use(world.player!, undefined, true) // (an armed explosive stays in the inventory)
                 showInventory() // refresh so consumed items disappear
                 break
             case 'drop':
