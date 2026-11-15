@@ -59,6 +59,7 @@ export function renderBarterPortrait(
     critter: Critter,
     useLastFrame = false,
     overrideDirection?: number,
+    centerVertically = false,
 ): void {
     const art = critter.art
     if (!art) return
@@ -105,7 +106,7 @@ export function renderBarterPortrait(
         const dw = fw * scale,
             dh = fh * scale
         const dx = (40 - dw) / 2,
-            dy = 67 - dh
+            dy = centerVertically ? (67 - dh) / 2 : 67 - dh
         ctx.drawImage(img, sx, sy, fw, fh, dx, dy, dw, dh)
     }
 

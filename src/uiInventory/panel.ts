@@ -41,6 +41,7 @@ import { appendItemSlot, $id, clearEl, showv, hidev, makeEl } from '../uiDom.js'
 import {
     makeDropTarget,
     makeDraggable,
+    setDropOutside,
     uiMoveSlot,
     applyArmorArt,
     tryLoadAmmoIntoWeapon,
@@ -732,17 +733,12 @@ export function showInventory(useOn = false) {
     // [dh2] inventory_drag_drop=1 (DH2 option, not in CE; default on): an item dragged out
     // of the inventory window and let go over the game is dropped, as with the Drop action
     function dropWhenDraggedOut(img: HTMLElement, obj: Obj, slot: string) {
-        img.addEventListener('dragend', (e: DragEvent) => {
-            if (!Config.ui.inventoryDragDrop || e.dataTransfer?.dropEffect !== 'none') {
-                return
-            }
-            // no position: the drag was cancelled
-            if (e.clientX === 0 && e.clientY === 0) {
+        setDropOutside(img, (x, y) => {
+            if (!Config.ui.inventoryDragDrop) {
                 return
             }
             const box = $id('inventoryBox').getBoundingClientRect()
-            const inside =
-                e.clientX >= box.left && e.clientX <= box.right && e.clientY >= box.top && e.clientY <= box.bottom
+            const inside = x >= box.left && x <= box.right && y >= box.top && y <= box.bottom
             if (!inside) {
                 void dropItem(obj, slot)
             }

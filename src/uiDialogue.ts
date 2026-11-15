@@ -241,6 +241,11 @@ let replyPageTimer: number | null = null
 export function uiSetDialogueReply(reply: string) {
     uiSetSupplementaryMessage(reply)
     $id('dialogueBoxTextArea').innerHTML = ''
+    // DH2: the caps follow what the script took or gave on the way (paying for Sulik); CE
+    // gameDialogRenderCaps redraws them only at the start and after barter
+    if (world.player) {
+        updateDialogueCaps()
+    }
 }
 
 // CE game_dialog.cc gameDialogRenderSupplementaryMessage: a message of the engine's (barter's

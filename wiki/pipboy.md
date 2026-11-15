@@ -42,8 +42,8 @@
 - On close: re-enables ISO mode, indicator bar, and color cycling; fires
   `scriptsExecMapUpdateProc()` to run `map_update_p_proc` scripts; plays no closing sound.
 - Idle timeout: after `PIPBOY_IDLE_TIMEOUT` (120 000 ms = 2 minutes) with no mouse/key
-  input, the screensaver fires (`pipboyRenderScreensaver`) — an animated nuclear-bomb
-  sprite bouncing across the content area.
+  input, the screensaver fires (`pipboyRenderScreensaver`) — nuclear bombs (BOMB1) falling
+  over the bare content area; any input ends it.
 - Close keys: `P`, `p`, `Z`, `z`, `Escape`, `Enter`, event code 503.
 - `intent` parameter: `PIPBOY_OPEN_INTENT_REST` (from rest hotspot click) opens directly
   to the alarm clock tab.
@@ -56,7 +56,9 @@
 - Appends a `640×480` div with `pip.png`, the red-dot tab buttons (STATUS, AUTOMAPS, ARCHIVES, CLOSE), the date/time bar; opens on STATUS; resets `_rest_time`.
 - `closePipBoy()` runs `map_update_p_proc` (CE `pipboyWindowFree` → `scriptsExecMapUpdateProc`).
 
-Not ported: the idle screensaver; the `pipon` sound (not in the extracted F2 data).
+- Idle screensaver (`src/uiPipBoy/logo.ts`, ported 2026-10-26): after two minutes without input the content view shows the bare background with bombs falling (CE's spawn rate, speeds and 50 ms steps); any input ends it.
+
+Not ported: the `pipon` sound (not in the extracted F2 data).
 
 ---
 
@@ -431,14 +433,13 @@ Implemented 2026-10-17 (§3.2): `data/data/holodisk.txt` is read as CE `holodisk
 | VIDEO ARCHIVES | `pipboyRenderVideoArchive` | ✅ (ARCHIVES dot) |
 | ALARM CLOCK: rest, location check, healing, party option | `pipboyHandleAlarmClock`, `pipboyRest`, `_critter_can_obj_dude_rest` | ✅ |
 | `map_update_p_proc` on close | `pipboyWindowFree` | ✅ |
-| Idle screensaver | `pipboyRenderScreensaver` | ❌ not ported (cosmetic) |
+| Idle screensaver | `pipboyRenderScreensaver` | ✅ `src/uiPipBoy/logo.ts` (2026-10-26) |
 | `pipon` sound | `pipboyWindowInit` | ❌ not in the extracted data |
 
 ---
 
 ## 10. Known Gaps
 
-- **Idle screensaver** (`pipboyRenderScreensaver`) — not ported; cosmetic.
 - **Automap renderer** — DH2 draws the seen tiles on a canvas instead of CE's AUTOMAP.DB FRM rendering (§4).
 - ~~Rest interruption~~ — fixed: a queued event whose process returns true (CE `queueProcessEvents` bail — poison, radiation, drugs, scripts) emits `queueBail` and ends the rest (`shell.ts`). <!-- audited: 2026-10-18 -->
 
