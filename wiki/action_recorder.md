@@ -60,16 +60,18 @@ recording, the RNG keeps its single seed).
 
 - at **NEW GAME**, once the first map is in (the piece carries a snapshot of the game at that point),
 - at **every save load**, the moment the load is done (the piece names that save as its *parent*),
+- at **every save** (since 2026-11-15): the game goes on as if that save had just been loaded, so
+  the next piece names it as its parent and every save is a point a replay can start from,
 - when you call **`startRecording()`** (the game is snapshotted and reloaded at once; works with
   `record_actions=0` too).
 
-A piece ends at the next load or NEW GAME, at `stopRecording()`, or when a replay starts. Actions
+A piece ends at the next save, load or NEW GAME, at `stopRecording()`, or when a replay starts. Actions
 after your last save are lost on a reload, just like game progress.
 
 **Saves carry the recording.** When you save, the save stores
 
-- `recording` — the current piece up to this moment (the actions since the save you loaded, or since
-  NEW GAME), and
+- `recording` — the current piece up to this moment (the actions since the save you made or loaded
+  last, or since NEW GAME), and
 - `history` — **every piece before it, back to the start of the chain**, compressed.
 
 The chain starts at NEW GAME, at a `startRecording()` snapshot, or at the first save you loaded
@@ -78,11 +80,16 @@ itself becomes the start. So every save knows its whole history, and it does **n
 earlier saves still existing — overwrite or delete them, the history stays complete.
 
 ```
-NEW GAME ──piece 1──▶ save A ──(load A)──piece 2──▶ save B ──(load B)──piece 3──▶ save C
+NEW GAME ──piece 1──▶ save A ──piece 2──▶ save B ──(load B)──piece 3──▶ save C
                                                                         save C stores:
                                                                           recording = piece 3
                                                                           history   = piece 1, piece 2
 ```
+
+The pieces from NEW GAME to now are the **timeline of the game being played**. A load cuts it back
+to the loaded save: what was played after that save is a branch the timeline no longer holds.
+Saves made before 2026-11-15 started no piece of their own; a later save on their timeline still
+replays from the save loaded before them.
 
 **After a page reload** nothing is recording until you load a save (or start a new game); the next
 piece starts there and continues that save's history.
@@ -124,10 +131,20 @@ windows.
 ## 4. Replaying
 
 ```js
+replaySinceStart()                // the game being played, from its start up to now
+replaySinceSave()                 // the game being played since its last save or load
+replayFromSave("name")            // the game being played since one of its saves (the newest of that name)
+replayFromSave(3)                 // ... the save in slot 3 of the save window
 replaySave("name")                // the save's own piece: load its parent, replay, compare with the save
 replayHistory("name")             // the save's whole chain, oldest piece first, from that save alone
 replayRecording()                 // __recording (the last stopped / imported piece)
 ```
+
+The first three work on the **game you are playing** (its timeline, section 2): from its start
+(NEW GAME, a `startRecording()` snapshot, or the oldest save of the chain), since the last save or
+load, or since a save you name — by name or by its slot number in the save window. A save that is
+not on the timeline (another game, or a branch left by a load) is refused with a message. The
+replay replaces the game you are playing; save first if you want to come back to it.
 
 A replay
 
@@ -381,6 +398,9 @@ entries in a GVAR), which the NEW GAME itself never did.
 | `stopRecording()` | end the current piece; it becomes `__recording` |
 | `replaySave(nameOrId?, options?)` | replay a save's own piece against its parent |
 | `replayHistory(nameOrId?, options?)` | replay a save's whole chain (`useSaves: false`: from the history alone) |
+| `replaySinceStart(options?)` | replay the game being played from its start |
+| `replaySinceSave(options?)` | replay the game being played since its last save or load |
+| `replayFromSave(nameOrSlot, options?)` | replay the game being played since one of its saves (a name, or the slot number in the save window) |
 | `replayRecording(rec?, options?)` | replay `__recording` or a given recording |
 | `downloadReplayReport()` | the last replay report as JSON |
 | `exportRecording({ save?, gzip?, recording? })` | download a recording file |

@@ -4,6 +4,7 @@
 // prototype by Obj.ts (wiki/code_quality.md Q16).
 
 import { gameNow } from '../frameClock.js'
+import { addMapReadyListener } from '../actionLog.js'
 import type { Obj } from './Obj.js'
 import {
     ANIM,
@@ -19,7 +20,7 @@ import { Combat } from '../combat/Combat.js'
 import { Config } from '../config.js'
 import type { Critter } from './Critter.js'
 import * as Lightmap from '../lightmap.js'
-import { Point, hexDirectionTo, hexNeighbors } from '../geometry.js'
+import { Point, hexDirectionTo, hexDistance, hexNeighbors } from '../geometry.js'
 import * as Scripting from '../scripting.js'
 import { computeExplosionDamage, explosionRingCritters, scriptsExplodeScenery } from '../combat/explosion.js'
 import { dbg, dbgWarn } from '../logger.js'
@@ -239,6 +240,12 @@ export const objUseMethods = {
             }
             const transition = () => {
                 if (destMap !== 0) {
+                    if (isTop && climbDownWanted()) {
+                        const remove = addMapReadyListener(() => {
+                            remove()
+                            climbDownArrival(world.player!)
+                        })
+                    }
                     world.gMap!.loadMapByID(destMap, destTile, destElev)
                     return
                 }
@@ -246,6 +253,9 @@ export const objUseMethods = {
                 world.gMap!.changeElevationFaded(destElev)
                 // CE ref: map.cc:386 mapSetElevation fires only map_update_p_proc
                 world.gMap!.updateMap()
+                if (isTop && climbDownWanted()) {
+                    climbDownArrival(world.player!)
+                }
             }
 
             const actor = source ?? world.player
@@ -507,4 +517,26 @@ export const objUseMethods = {
         this.move({ x: source.position.x, y: source.position.y }, idx)
         return true
     },
+}
+
+// [dh2] ladder_down=climb (default; not in CE): CE climbs only ladders up (actions.cc
+// _action_climb_ladder, ANIM_CLIMB_LADDER) and goes down a ladder with the plain use animation.
+// DH2 then plays the climb backwards where the player arrives, facing the ladder up there, so
+// they come down it; ladder_down=ce leaves CE's arrival standing.
+function climbDownWanted(): boolean {
+    return Config.ui.ladderDown === 'climb'
+}
+function climbDownArrival(actor: Critter): void {
+    if (!actor.hasAnimation('climb')) {
+        return
+    }
+    const elevation = world.gMap!.currentElevation
+    const ladder = world
+        .gMap!.getObjects(elevation)
+        .find((o) => o.isLadder && o.pro?.extra.subType !== 4 && hexDistance(o.position, actor.position) <= 1)
+    if (!ladder) {
+        return
+    } // no ladder up to come down
+    actor.orientation = hexDirectionTo(actor.position, ladder.position)
+    actor.staticAnimation('climb', () => actor.clearAnim(), true, true)
 }

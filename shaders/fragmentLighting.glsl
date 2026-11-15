@@ -12,6 +12,18 @@ uniform vec2 u_camera;              // world camera position (cameraX, cameraY)
 uniform highp vec2 u_resolution;    // vec2(SCREEN_WIDTH, SCREEN_HEIGHT) — logical pixels (highp to match vertex shader)
 uniform float u_zoom;               // world-space zoom factor (1.0 = no zoom)
 uniform int u_lightInterp;          // tile-intensity interpolation mode (see sampleTileLight)
+uniform int u_lightQuant;           // 1 = CE's 5-bit light shading (shadeLight)
+
+// CE color.cc _setIntensityTableColor: below full light a palette colour's 5-bit channels are
+// scaled by the light step (intensity / 512, 128 steps) and truncated, so dark colours lose more
+// than bright ones (caves and nights look darker than a plain multiply). u_lightQuant 1 = CE,
+// 0 = smooth multiply ([dh2] light_shading=smooth).
+vec3 shadeLight(vec3 c, float light) {
+    if (u_lightQuant == 0 || light >= 1.0) return c * light;
+    float lightStep = floor(light * 128.0);
+    vec3 c5 = floor(c * (255.0 / 8.0) + 0.01);
+    return floor(c5 * lightStep / 128.0) / 31.0;
+}
 
 varying vec2 v_texCoord;
 
@@ -199,12 +211,12 @@ void main() {
                              1.0 - gl_FragCoord.y / u_screenResolution.y);
         float lightVal = texture2D(u_screenLightmap, screenUV).r;
         float light = max(lightVal, u_ambient);
-        gl_FragColor = vec4(tileTexel.rgb * light, tileTexel.a);
+        gl_FragColor = vec4(shadeLight(tileTexel.rgb, light), tileTexel.a);
         return;
     } else if (u_useGPULighting == 1) {
         // tile-intensity path: continuous hex UV via gl_FragCoord, value normalised 0..1
         float light = max(getGPULightIntensity(), u_ambient);
-        gl_FragColor = vec4(tileTexel.rgb * light, tileTexel.a);
+        gl_FragColor = vec4(shadeLight(tileTexel.rgb, light), tileTexel.a);
         return;
     } else {
         // CPU path — per-tile 80x36 lightbuffer uploaded each tile
@@ -213,5 +225,5 @@ void main() {
 
     float light = max(lightIntensity / 65536.0, u_ambient);
 
-    gl_FragColor = vec4(tileTexel.rgb * light, tileTexel.a);
+    gl_FragColor = vec4(shadeLight(tileTexel.rgb, light), tileTexel.a);
 }

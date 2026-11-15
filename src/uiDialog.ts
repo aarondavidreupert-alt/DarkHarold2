@@ -21,6 +21,8 @@
 import { makePanelDraggable } from './uiDrag.js'
 import { uiState } from './state/uiState.js'
 import { font1, font3, FoText } from './uiFont.js'
+import { ScreenTextInput } from './ui/screenTextInput.js'
+import { CE_COLOR } from './ui/fontCore.js'
 import { getUiContainer } from './uiContainer.js'
 import { UIMode } from './uiMode.js'
 import { assetUrl } from './modAssets.js'
@@ -269,28 +271,20 @@ export function showInput(message: string, defaultValue = '', maxLength?: number
         new FoText(font1, message, '#fc9c48').appendTo(textEl)
         box.appendChild(textEl)
 
-        // Input field in the middle of the text area
-        const input = document.createElement('input')
-        Object.assign(input.style, {
-            position: 'absolute',
-            left: TEXT_X + 'px',
-            top: TEXT_Y + 32 + 'px',
-            width: TEXT_W + 'px',
-            background: '#141008',
-            border: '1px solid #a07848',
-            color: '#c8b466',
-            fontFamily: "'Courier New', Courier, monospace",
-            fontSize: '12px',
-            padding: '2px 6px',
-            outline: 'none',
-            boxSizing: 'border-box',
+        // The text written on the box itself, no field around it (CE loadsave.cc _GetComment →
+        // _get_input_str2: font 101, green _colorTable[992], a blinking block cursor)
+        const field = new ScreenTextInput(font1, {
+            value: maxLength !== undefined ? defaultValue.slice(0, maxLength) : defaultValue,
+            maxLength: maxLength ?? 255,
+            color: CE_COLOR.green,
+            width: TEXT_W,
         })
-        if (maxLength !== undefined) input.maxLength = maxLength
-        input.value = maxLength !== undefined ? defaultValue.slice(0, maxLength) : defaultValue
-        input.setAttribute('spellcheck', 'false')
-        box.appendChild(input)
+        Object.assign(field.elem.style, { position: 'absolute', left: TEXT_X + 'px', top: TEXT_Y + 36 + 'px' })
+        box.appendChild(field.elem)
+        const input = field.input
 
         const close = (value: string | null): void => {
+            field.destroy()
             document.removeEventListener('keydown', keyHandler, true)
             overlay.remove()
             uiState.uiMode = prevMode
@@ -322,6 +316,6 @@ export function showInput(message: string, defaultValue = '', maxLength?: number
         document.addEventListener('keydown', keyHandler, true)
 
         getUiContainer().appendChild(overlay)
-        setTimeout(() => input.focus(), 20)
+        setTimeout(() => field.focus(), 20)
     })
 }

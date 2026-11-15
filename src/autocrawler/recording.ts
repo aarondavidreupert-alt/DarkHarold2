@@ -55,8 +55,9 @@ export interface Recording {
     start?: SaveGame
     /** the save this piece starts from (a load; [dh2] record_actions): replaySave() loads it */
     parent?: SaveRef
-    /** how the piece started */
-    origin?: 'load' | 'newGame' | 'manual'
+    /** how the piece started: a load, a save (the game went on from it; its replay loads it),
+     *  NEW GAME, startRecording() */
+    origin?: 'load' | 'save' | 'newGame' | 'manual'
     startTick: number
     /** every logical frame's time since the frame before, in 0.1 ms (encodeFrameTime): animations,
      *  the 10 Hz game tick and idle timers run on real time, so the replay runs the recorded

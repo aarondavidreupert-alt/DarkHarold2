@@ -95,6 +95,9 @@ export const Config = {
         // [dh2] elevation_fade: 1 (default, DH2) — a short fade from black on stairs, ladders,
         // elevators and script elevation changes; 0 — CE mapSetElevation's instant switch
         elevationFade: true,
+        // [dh2] ladder_down: 'climb' (default, DH2) — after going down a ladder the player comes down
+        // the ladder at the bottom (the climb animation backwards); 'ce' — CE's use animation only
+        ladderDown: 'climb' as 'ce' | 'climb',
         // [dh2] fullscreen_exit_button: 1 (default) — the Fullscreen button stays in fullscreen as
         // "Exit Fullscreen"; 0 — hidden in fullscreen (Esc leaves it), shown again outside
         fullscreenExitButton: true,
@@ -293,6 +296,10 @@ export const Config = {
         // false = CE lighting: only map scripts' set_light_level changes the light.
         // Set in fallout2.cfg: [dh2] day_night_cycle=0/1.
         dayNightCycle: true,
+        // CE color.cc _setIntensityTableColor: shading below full light scales a colour's 5-bit
+        // channels in 128 light steps and truncates ('ce', default); 'smooth' = a plain multiply
+        // (DH2 before 2026-11-15, brighter in caves and at night). [dh2] light_shading=ce|smooth.
+        lightShading: 'ce' as 'ce' | 'smooth',
         // sfall pipboy_available_at_game_start (CE pipboy.cc _pip_init_): the Pip-Boy opens
         // before the Vault Suit movie. Set in fallout2.cfg: [dh2] pipboy_available_at_game_start=1.
         pipboyAvailableAtStart: false,

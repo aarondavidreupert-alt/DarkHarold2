@@ -345,7 +345,8 @@ export function debugSave(): void {
 export function save(name: string, slot = -1, callback?: (id: number) => void): void {
     recordAction({ t: 'save', n: name })
     const save = gatherSaveData(name)
-    const recorded = recordingForSave() // the action recorder's piece and history (none when off)
+    // the action recorder's piece and history (none when off); its next piece starts from this save
+    const recorded = recordingForSave({ name: save.name, timestamp: save.timestamp })
     if (recorded) {
         save.recording = recorded.recording
         if (recorded.history) {
