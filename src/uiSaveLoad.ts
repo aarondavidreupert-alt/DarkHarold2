@@ -26,6 +26,7 @@ limitations under the License.
 // DH2 additions: any number of slots (at least 20, always one free slot when saving) with a scroll
 // bar and mouse wheel, and deleting a save (DELETE button / Del key, with confirmation).
 
+import { assetUrl } from './modAssets.js'
 import { makePanelDraggable } from './uiDrag.js'
 import { uiLog } from './messageLog.js'
 import { areaContainingMap, loadAreas, mapIndexOf } from './data.js'
@@ -132,7 +133,9 @@ export function uiQuickLoad(): void {
 
 // onCancel: CE main.cc — the main menu comes back when its LOAD GAME window is cancelled
 // The DONE / CANCEL plates are part of lsgame.frm: the one behind DONE spans (379, 345)–(477, 368).
-// DELETE and NEW get copies of it, cut from the same art, so all four plates match.
+// DELETE and NEW get copies of it, so all four plates match: art/intrface/cutout/lsgplate.png
+// (tools/makeCutouts.py, pipeline stage make_cutouts), over the same piece of lsgame.png cut at
+// runtime — what shows when an older install has no cutout yet.
 const PLATE_SRC_X = 379
 const PLATE_SRC_Y = 345
 const PLATE_W = 99
@@ -141,8 +144,12 @@ const PLATE_X_LEFT = 379 // over DONE
 const PLATE_X_RIGHT = 484 // over CANCEL (lsgame.frm's CANCEL plate starts at x 484)
 const PLATE_Y_TOP = 317 // 4 px above the DONE / CANCEL row
 function lsgPlate(x: number, y: number): Widget {
-    const plate = new Widget('art/intrface/lsgame.png', { x, y, w: PLATE_W, h: PLATE_H })
-    plate.elem.style.backgroundPosition = `-${PLATE_SRC_X}px -${PLATE_SRC_Y}px`
+    const plate = new Widget(null, { x, y, w: PLATE_W, h: PLATE_H })
+    Object.assign(plate.elem.style, {
+        backgroundImage: `url('${assetUrl('art/intrface/cutout/lsgplate.png')}'), url('${assetUrl('art/intrface/lsgame.png')}')`,
+        backgroundPosition: `0 0, -${PLATE_SRC_X}px -${PLATE_SRC_Y}px`,
+        backgroundRepeat: 'no-repeat',
+    })
     return plate
 }
 

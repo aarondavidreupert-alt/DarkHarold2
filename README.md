@@ -169,6 +169,7 @@ pipenv run python tools/pipeline_gui.py
 | [`tools/convertEndgame.py`](tools/convertEndgame.py) | Endgame slide extraction |
 | [`tools/parseCritTable.py`](tools/parseCritTable.py) | EXE table extractor → `lut/` |
 | [`tools/stitchWorldmap.py`](tools/stitchWorldmap.py) | World map tiles → `art/worldmap.png` (`stitch_worldmap` stage) |
+| [`tools/makeCutouts.py`](tools/makeCutouts.py) | Pieces of window backgrounds DH2 needs as images of their own (the save window's plate for DELETE / NEW) → `art/intrface/cutout/` (`make_cutouts` stage) |
 | [`wiki/animation.md`](wiki/animation.md) → "imageMap.json" | Atlas/imageMap.json schema reference |
 
 ---
