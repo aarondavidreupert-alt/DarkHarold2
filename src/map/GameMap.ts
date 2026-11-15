@@ -359,7 +359,10 @@ export class GameMap {
             if (member.type !== 'critter' || GameMap.isHiddenObj(member)) continue
             const rotation = n % 2 !== 0 ? clockwise : counterClockwise
             const tile = hexInDirectionDistance(dude.position, rotation, Math.trunc(distance / 2))
-            member.position = this.attemptPartyPlacement(dude, tile)
+            member.position =
+                Config.ui.partyPlacement === 'near'
+                    ? (this.nearPartyPlacement(dude, tile, rotation) ?? this.attemptPartyPlacement(dude, tile))
+                    : this.attemptPartyPlacement(dude, tile)
             dbg('object', 'placed %o @ %o', member, member.position)
             distance++
             n++
@@ -410,6 +413,34 @@ export class GameMap {
     // wmEvalTileNumForPlacement (not blocked, and reachable from the player): if the
     // wanted tile fails, spiral out from the player (direction v%6, step 1) up to 100
     // steps, giving up (back to the wanted tile) once more than 8 hexes away.
+    // [dh2] party_placement=near (default; not in CE): CE's tile when it is free and close, else
+    // the free tile nearest the dude — his neighbours first, then the ring around them — that he
+    // reaches in a few steps. CE's fallback (attemptPartyPlacement) spirals out up to 8 hexes and
+    // takes any reachable tile, which put companions inside the next building.
+    private nearPartyPlacement(dude: Obj, tile: Point, startRotation: number): Point | null {
+        const free = (p: Point, maxSteps: number): boolean => {
+            if (this.blockingObjectAt(toTileNum(p), dude.elevation, 0, dude) !== null) {
+                return false
+            }
+            const path = this.recalcPath(dude.position, p, false, dude)
+            return path.length > 0 && path.length - 1 <= maxSteps
+        }
+        const ring = hexDistance(dude.position, tile)
+        if (ring <= 2 && free(tile, ring + 1)) {
+            return tile
+        }
+        for (let r = 1; r <= 2; r++) {
+            for (let i = 0; i < 6; i++) {
+                // the six directions, starting with CE's for this member, so they still fan out
+                const p = hexInDirectionDistance(dude.position, (startRotation + i) % 6, r)
+                if (free(p, r + 1)) {
+                    return p
+                }
+            }
+        }
+        return null
+    }
+
     private attemptPartyPlacement(dude: Obj, tile: Point): Point {
         const ok = (p: Point): boolean => {
             if (this.blockingObjectAt(toTileNum(p), dude.elevation, 0, dude) !== null) return false

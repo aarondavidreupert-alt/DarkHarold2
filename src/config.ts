@@ -95,6 +95,10 @@ export const Config = {
         // [dh2] elevation_fade: 1 (default, DH2) — a short fade from black on stairs, ladders,
         // elevators and script elevation changes; 0 — CE mapSetElevation's instant switch
         elevationFade: true,
+        // [dh2] party_placement: 'near' (default, DH2) — companions arrive on the free tiles next
+        // to the player (then the ring around); 'ce' — CE's placement, which may end up to 8 hexes
+        // away, in the next building
+        partyPlacement: 'near' as 'ce' | 'near',
         // [dh2] ladder_down: 'climb' (default, DH2) — after going down a ladder the player comes down
         // the ladder at the bottom (the climb animation backwards); 'ce' — CE's use animation only
         ladderDown: 'climb' as 'ce' | 'climb',

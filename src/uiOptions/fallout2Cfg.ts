@@ -247,6 +247,11 @@ export function applyCfg(cfg: CfgSections): void {
     //   elevation_fade=1|0            a fade on elevation changes (default) or CE's instant switch
     const ef = int(dh2['elevation_fade'])
     if (ef !== null) Config.ui.elevationFade = ef !== 0
+    //   party_placement=near|ce       companions arrive next to the player (default) or CE's placement
+    const pp = (dh2['party_placement'] ?? '').trim().toLowerCase()
+    if (pp === 'near' || pp === 'ce') {
+        Config.ui.partyPlacement = pp
+    }
     //   ladder_down=climb|ce          come down the ladder at the bottom (default) or CE's arrival standing
     const ld = (dh2['ladder_down'] ?? '').trim().toLowerCase()
     if (ld === 'climb' || ld === 'ce') {

@@ -400,7 +400,11 @@ export function installInputHandlers(): void {
                 // CE _gmouse_handle_event (MOVE mode): always walk / run to the hex
                 playerUse(null)
             } else {
-                playerUse(getObjectUnderCursor((obj) => obj.isSelectable))
+                // DH2 (mouse_mode=dh2): the move cursor walks, as in CE; only a door under it is
+                // opened. Talking, attacking, picking up are the arrow cursor's (DarkFO's move click
+                // used whatever was under it, a critter included).
+                const door = getObjectUnderCursor((obj) => obj.isDoor && obj.isSelectable)
+                playerUse(door ?? null)
             }
         } else if (btn === 'r') {
             // Right-click cancels skill targeting mode

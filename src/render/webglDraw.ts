@@ -829,6 +829,9 @@ WebGLRenderer.prototype.renderOutlinePass = function (objs: Obj[]): void {
         if (!renderInfo || !renderInfo.visible) continue
 
         const color = OUTLINE_COLORS[obj.outline] ?? OUTLINE_COLORS.red
+        if (this.uCellTexel) {
+            gl.uniform2f(this.uCellTexel, 1 / renderInfo.uniformFrameWidth, 1 / renderInfo.uniformFrameHeight)
+        }
         const baseX = (renderInfo.x - view.cameraPosition.x) * z
         const baseY = (renderInfo.y - view.cameraPosition.y) * z
         const w = renderInfo.uniformFrameWidth * z
@@ -897,6 +900,10 @@ function renderOutlineFill(
     gl.uniform1i(r.uOutlineMode, 1)
     gl.uniform3f(r.uOutlineColor, color[0], color[1], color[2])
     gl.uniform1f(r.uOutlineAlpha, fillAlpha)
+    if (r.uCellTexel) {
+        const z = getZoom()
+        gl.uniform2f(r.uCellTexel, z / w, z / h) // w, h are the frame cell times the zoom
+    }
     r.renderFrame(obj.art, x, y, w, h, cell, /*lit*/ false)
     gl.uniform1i(r.uOutlineMode, 0)
     gl.uniform1f(r.uOutlineAlpha, 1.0)

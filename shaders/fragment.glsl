@@ -116,6 +116,14 @@ uniform float u_outlineAlpha; // separate fill-alpha vs border-alpha draws share
 // border pixel when the shifted sprite is opaque there and the unshifted sprite is not.
 // u_outlineShift = that one-pixel shift in frame UV (dx / frameWidth, dy / frameHeight).
 uniform vec2 u_outlineShift;
+// One source pixel of the frame cell in frame UV (1 / frameWidth, 1 / frameHeight), outline modes:
+// a fragment at the cell's very edge (u or v = 0 / 1, often at a fractional zoom) sampled the
+// neighbouring frame of the sprite sheet — two stray vertical lines in outline green (CA132).
+uniform vec2 u_cellTexel;
+bool inCell(vec2 uv) {
+    vec2 h = 0.5 * u_cellTexel;
+    return uv.x >= h.x && uv.x <= 1.0 - h.x && uv.y >= h.y && uv.y <= 1.0 - h.y;
+}
 
 varying vec2 v_texCoord;
 
@@ -359,17 +367,17 @@ void main() {
     if (u_outlineMode == 2) {
         vec2 n = v_texCoord + u_outlineShift; // the unshifted sprite at this pixel
         float own = 0.0;
-        if (n.x >= 0.0 && n.x <= 1.0 && n.y >= 0.0 && n.y <= 1.0) {
+        if (inCell(n)) {
             own = texture2D(u_image, vec2((n.x + u_frame) / u_numFrames, (n.y + u_row) / u_numRows)).a;
         }
-        bool edge = texel.a > 0.5 && own <= 0.5;
+        bool edge = inCell(v_texCoord) && texel.a > 0.5 && own <= 0.5;
         gl_FragColor = vec4(u_outlineColor, edge ? u_outlineAlpha : 0.0);
         return;
     }
 
     if (u_outlineMode == 1) {
         // Flat solid-color silhouette stamp — no lighting, no egg/alpha logic.
-        gl_FragColor = vec4(u_outlineColor, texel.a > 0.5 ? u_outlineAlpha : 0.0);
+        gl_FragColor = vec4(u_outlineColor, inCell(v_texCoord) && texel.a > 0.5 ? u_outlineAlpha : 0.0);
         return;
     }
 

@@ -146,6 +146,8 @@ scroll_mode=dh2
 mouse_wheel=zoom
 ; 1 = a short fade from black when the elevation changes (DH2), 0 = CE's instant switch
 elevation_fade=1
+; near = companions arrive on the free tiles next to you (DH2), ce = CE's placement (up to 8 hexes away)
+party_placement=near
 ; climb = after going down a ladder you climb down it at the bottom (DH2, the climb-up animation
 ; backwards), ce = CE: no climb-down animation
 ladder_down=climb

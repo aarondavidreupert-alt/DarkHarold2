@@ -348,6 +348,15 @@ html, body {
 #attackButtonContainer:active #attackButtonWeapon {
   /* CE interfaceBarRefreshMainAction: the pressed button draws the item 1 px right, 2 px up */
   transform: translate(1px, -2px);
+  filter: brightness(0.97); /* _dark_trans_buf_to_buf intensity 63571 */
+}
+/* CE interfaceUpdateItems (_itemButtonDown): the hit-mode label, the bullseye and the AP digits are
+   drawn 1 px right and 2 px up on the pressed button too, darkened (intensity 59641) */
+#attackButtonContainer:active #attackButtonType,
+#attackButtonContainer:active #attackButtonCalled,
+#attackButtonContainer:active #attackButtonAP {
+  transform: translate(1px, -2px);
+  filter: brightness(0.91);
 }
 
 #attackButton {
@@ -368,8 +377,12 @@ html, body {
 #attackButtonContainer.weaponDisabled:active #attackButton {
   background-image: url("art/intrface/saturbup.png");
 }
-#attackButtonContainer.weaponDisabled:active #attackButtonWeapon {
+#attackButtonContainer.weaponDisabled:active #attackButtonWeapon,
+#attackButtonContainer.weaponDisabled:active #attackButtonType,
+#attackButtonContainer.weaponDisabled:active #attackButtonCalled,
+#attackButtonContainer.weaponDisabled:active #attackButtonAP {
   transform: none;
+  filter: none;
 }
 /*
 #skilldexButton {
