@@ -65,6 +65,7 @@ STAGES = [
     ("extract_dats", "Extract DAT archives (master.dat / critter.dat)", True),
     ("export_images", "Export images (FRM -> PNG)", True),
     ("stitch_worldmap", "Stitch the world map (art/worldmap.png)", True),
+    ("make_cutouts", "Cut interface pieces DH2 needs (art/intrface/cutout/)", True),
     ("export_fonts", "Export fonts (AAF/FON -> PNG atlas)", True),
     ("export_pros", "Export prototypes (PRO -> JSON)", True),
     ("export_maps", "Export maps (MAP -> JSON)", True),

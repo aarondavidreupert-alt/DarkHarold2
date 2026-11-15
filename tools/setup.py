@@ -61,6 +61,7 @@ import convertSpeech
 import parse_gam
 import int2lua
 import stitchWorldmap
+import makeCutouts
 import fallout2Cfg
 import progress
 
@@ -557,6 +558,17 @@ def stitch_worldmap(overwrite=True):
 		warn("Error stitching the world map (see traceback above; needs export_images first).")
 	return True
 
+def make_cutouts(overwrite=True):
+	# art/intrface/*.png (export_images) -> art/intrface/cutout/<name>.png: pieces of window
+	# backgrounds DH2 needs as images of their own (tools/makeCutouts.py CUTOUTS)
+	try:
+		n = makeCutouts.make_all("art", overwrite)
+		info("Wrote %d interface cutout(s) to art/intrface/cutout" % n)
+	except Exception:
+		traceback.print_exc()
+		warn("Error making the interface cutouts (see traceback above; needs export_images first).")
+	return True
+
 def export_fonts(overwrite=True):
 	# data/font<N>.aaf / .fon -> art/fonts/font<N>_aaf|_fon.png + .json (src/ui/fontCore.ts).
 	if not overwrite and os.path.exists(os.path.join("art", "fonts", "font1_aaf.json")):
@@ -863,6 +875,7 @@ STAGES = {
 	"extract_dats": extract_dats,
 	"export_images": export_images,
 	"stitch_worldmap": stitch_worldmap,
+	"make_cutouts": make_cutouts,
 	"export_fonts": export_fonts,
 	"export_pros": export_pros,
 	"export_maps": export_maps,

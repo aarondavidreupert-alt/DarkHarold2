@@ -281,7 +281,11 @@ export function showCharacterScreen() {
     sliderContainer.appendChild(plusBtn)
     sliderContainer.appendChild(minusBtn)
 
-    const doneButton = new SmallButton(455, 454)
+    // edtredt.frm paints the three red buttons into its plates (centres x 351 / 463 / 560, y 462);
+    // lilredup's red circle is centred at (6.85, 8.75) in its 15 x 16, so the buttons go to
+    // (344 / 456 / 553, 453) to cover them exactly — CE's (343 / 455 / 552, 454) left a sliver of
+    // the painted one showing on the right
+    const doneButton = new SmallButton(456, 453)
 
     characterWindow = new WindowFrame(
         'art/intrface/edtredt.png',
@@ -293,11 +297,11 @@ export function showCharacterScreen() {
         480,
     )
         // FO2-CE ref: editor.cc — Print / Done / Cancel buttons
-        .add(new SmallButton(345, 454).onClick(() => printCharacterSheet())) // CE characterPrintToFile
+        .add(new SmallButton(344, 453).onClick(() => printCharacterSheet())) // CE characterPrintToFile
         .add(makeFontLabel(345 + 18, 454, 'PRINT', font3).css({ pointerEvents: 'none' }))
         .add(doneButton)
         .add(makeFontLabel(455 + 18, 454, 'DONE', font3).css({ pointerEvents: 'none' }))
-        .add(new SmallButton(552, 454).onClick(cancel))
+        .add(new SmallButton(553, 453).onClick(cancel))
         .add(makeFontLabel(552 + 18, 454, 'CANCEL', font3).css({ pointerEvents: 'none' }))
         // CE characterEditorDrawPcStats: x 32 from y 280, lineHeight + 1 apart, editor.msg 113-115
         .add(
@@ -771,18 +775,31 @@ export function showCharacterScreen() {
         redrawStatsSkills()
     }
 
+    // CE character_editor.cc characterEditorHandleAdjustSkillButtonPressed: one step on the press;
+    // held, the loop runs at 24 passes a second and repeats only after dbl_5018F0 (19.2) passes —
+    // about 0.8 s — then at _repFtime steps a second, which starts at 4 and goes up by one per step
+    // to 24. (DH2 repeated every 100 ms from the press: a normal click often gave two steps.)
+    const SKILL_REPEAT_DELAY_MS = Math.ceil(19.2 + 1) * (1000 / 24)
     const wireSkillButton = (btn: HTMLElement, onSprite: string, offSprite: string, inc: boolean) => {
         let repeatTimer: number | null = null
+        let repFtime = 4
         const stopRepeat = () => {
             if (repeatTimer !== null) {
-                clearInterval(repeatTimer)
+                clearTimeout(repeatTimer)
                 repeatTimer = null
             }
         }
+        const repeat = () => {
+            repFtime = Math.min(24, repFtime + 1)
+            modifySkill(inc)
+            repeatTimer = window.setTimeout(repeat, 1000 / repFtime)
+        }
         btn.onmousedown = () => {
             btn.style.backgroundImage = `url('${assetUrl(onSprite)}')`
+            stopRepeat()
             modifySkill(inc)
-            repeatTimer = window.setInterval(() => modifySkill(inc), 100)
+            repFtime = 4
+            repeatTimer = window.setTimeout(repeat, SKILL_REPEAT_DELAY_MS)
         }
         btn.onmouseup = () => {
             btn.style.backgroundImage = `url('${assetUrl(offSprite)}')`

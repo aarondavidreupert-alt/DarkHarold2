@@ -42,6 +42,7 @@ DarkHarold2/
 │   ├── dat2.py            DAT2 archive extractor
 │   ├── convertAudio.py    ACM → WAV (acmDecoder.py: CE sound_decoder.cc port, no ffmpeg)
 │   ├── stitchWorldmap.py  World map tiles → art/worldmap.png (stitch_worldmap stage)
+│   ├── makeCutouts.py     Pieces of window backgrounds → art/intrface/cutout/ (make_cutouts stage)
 │   ├── convertLST.py      LST → JSON pre-bake (lut/lst/)
 │   ├── convertPRO.py      Standalone PRO converter (debug)
 │   ├── convertEndgame.py  Endgame slide extraction
@@ -269,6 +270,7 @@ A fresh clone needs the pipeline run before the game starts.
 | INT → Lua | `tools/int2lua.py` (`decompile_scripts` stage; own decompiler, [wiki/lua_scripts.md](wiki/lua_scripts.md)) | `data/scripts/*.lua` (git-ignored, next to the `.int`) |
 | Default config | `tools/fallout2Cfg.py` (`write_config` stage; never overwrites) | `fallout2.cfg` (git-ignored) |
 | Worldmap stitch | `tools/stitchWorldmap.py` (`stitch_worldmap` stage, after `export_images`) | `art/worldmap.png` |
+| Interface cutouts | `tools/makeCutouts.py` (`make_cutouts` stage, after `export_images`; table `CUTOUTS`) | `art/intrface/cutout/<name>.png` |
 | Color tables | `tools/pal.py` (via pipeline) | `lut/colorTable.json`, `lut/color_lut.json`, `lut/color_rgb.json` |
 
 Key conventions:
