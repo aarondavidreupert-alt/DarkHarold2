@@ -154,8 +154,8 @@ export const critterOpcodes = {
                 case 34: // OBJECT_SEX — CE ref: critter.cc critterGetSex
                     if ((<Critter>obj).isPlayer) return (<Player>obj).gender === 'female' ? 1 : 0
                     return 0
-                case 666: // OBJECT_VISIBILITY
-                    return obj.visible === false ? 0 : 1 // 1 = visible, 0 = invisible
+                case 666: // OBJECT_VISIBILITY — CE: (flags & OBJECT_HIDDEN) == 0
+                    return obj.visible === false || ((obj.flags ?? 0) & 0x01) !== 0 ? 0 : 1 // 1 = visible, 0 = invisible
                 case 667: // OBJECT_CUR_POISON — CE ref: critter.cc critterGetPoison
                     return (<Critter>obj).poisonLevel ?? 0
                 case 668: // OBJECT_CUR_RADIATION — CE ref: critter.cc critterGetRadiation
