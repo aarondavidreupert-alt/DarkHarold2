@@ -19,6 +19,7 @@ limitations under the License.
 
 import { indexOfPid, recordAction, setReplayControl } from './actionLog.js'
 import { world } from './state/world.js'
+import { services } from './state/services.js'
 import { uiState } from './state/uiState.js'
 import { dbg } from './logger.js'
 import { itemIsHidden, Obj } from './object.js'
@@ -64,6 +65,54 @@ export function initLoot(): void {
     $id('lootBoxDoneButton').onclick = () => {
         recordAction({ t: 'lDone' })
         uiEndLoot()
+    }
+    // the lists' scroll arrows (CE _setup_inventory, LOOT): one slot a click, the red button sounds
+    for (const side of ['Left', 'Right'] as const) {
+        for (const dir of ['Up', 'Down'] as const) {
+            const btn = $id(`lootScroll${side}${dir}`)
+            btn.onclick = () => scrollLootList(side, dir === 'Up' ? -1 : 1)
+            buttonSounds(btn, 'ib1p1xx1', 'ib1lu1x1')
+        }
+        const list = $id(`lootBox${side}`)
+        list.addEventListener('scroll', updateLootScrollButtons)
+        list.onwheel = (e: WheelEvent) => {
+            scrollLootList(side, e.deltaY > 0 ? 1 : -1)
+            e.preventDefault()
+        }
+    }
+}
+
+// a button's press / release sounds (CE button.cc buttonSetCallbacks)
+function buttonSounds($el: HTMLElement, press: string, release: string): void {
+    $el.addEventListener('mousedown', (e) => {
+        if (e.button === 0) {
+            services.audioEngine?.playSfxByName?.(press)
+        }
+    })
+    $el.addEventListener('mouseup', (e) => {
+        if (e.button === 0) {
+            services.audioEngine?.playSfxByName?.(release)
+        }
+    })
+}
+
+// CE KEY_ARROW_UP / DOWN (left list) and KEY_CTRL_ARROW_UP / DOWN (right list): one slot
+function scrollLootList(side: 'Left' | 'Right', delta: number): void {
+    const $el = $id(`lootBox${side}`)
+    const itemHeight = ($el.firstElementChild as HTMLElement | null)?.offsetHeight || 48
+    $el.scrollTop += itemHeight * delta
+    updateLootScrollButtons()
+}
+
+// CE _win_register_button_disable: an arrow is disabled at its end of the list
+function updateLootScrollButtons(): void {
+    for (const side of ['Left', 'Right'] as const) {
+        const $el = $id(`lootBox${side}`)
+        $id(`lootScroll${side}Up`).classList.toggle('disabled', $el.scrollTop <= 0)
+        $id(`lootScroll${side}Down`).classList.toggle(
+            'disabled',
+            $el.scrollTop + $el.clientHeight >= $el.scrollHeight - 1,
+        )
     }
 }
 
@@ -238,41 +287,53 @@ export function uiLoot(object: Obj) {
     drawLoot()
 }
 
+// The two screens painted on loot.frm (their dark inside, measured on the art): the body views
+// and an open bag are centred on them.
+interface ScreenRect {
+    left: number
+    top: number
+    width: number
+    height: number
+}
+const LOOT_LEFT_SCREEN: ScreenRect = { left: 47, top: 35, width: 65, height: 99 }
+const LOOT_RIGHT_SCREEN: ScreenRect = { left: 420, top: 35, width: 69, height: 99 }
+
 // the loot (and steal) window's body views: CE INVENTORY_LOOT_LEFT / RIGHT_BODY_VIEW. CE
 // _display_body(target->fid, LOOT): the dude at (48, 39) facing south-west, frame 0; the
 // target at (426, 39) in its own rotation on the last frame of its art (a corpse lies);
 // an open bag takes the spot instead.
 export function drawLootBagViews(leftBags: Obj[], rightBags: Obj[], redraw: () => void, left?: Obj, right?: Obj): void {
-    const body = (id: string, x: number, who: Obj | undefined, lastFrame: boolean): HTMLElement | undefined => {
+    const body = (
+        id: string,
+        screen: ScreenRect,
+        who: Obj | undefined,
+        lastFrame: boolean,
+    ): HTMLElement | undefined => {
         if (!who) return undefined
         let $b = document.getElementById(id)
         if (!$b) {
             $b = makeEl('div', { attrs: { id }, style: { position: 'absolute', pointerEvents: 'none', zIndex: '1' } })
             $id('lootBox').appendChild($b)
         }
-        Object.assign($b.style, { left: x + 'px', top: '39px', width: '60px', height: '100px' })
+        // DH2: centred on the painted screen both ways (CE draws from the view's corner)
+        Object.assign($b.style, {
+            left: screen.left + 'px',
+            top: screen.top + 'px',
+            width: screen.width + 'px',
+            height: screen.height + 'px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+        })
         clearEl($b)
-        renderBarterPortrait($b, who as any, lastFrame)
+        renderBarterPortrait($b, who as any, lastFrame, undefined, true)
         return $b
     }
-    const leftBody = body('lootBoxLeftBody', 48, left, false)
-    const rightBody = body('lootBoxRightBody', 426, right, true)
-    drawBagView(
-        $id('lootBox'),
-        'lootBoxLeftBag',
-        { left: 44, top: 35, width: 60, height: 100 },
-        leftBags,
-        redraw,
-        leftBody,
-    )
-    drawBagView(
-        $id('lootBox'),
-        'lootBoxRightBag',
-        { left: 422, top: 35, width: 60, height: 100 },
-        rightBags,
-        redraw,
-        rightBody,
-    )
+    const leftBody = body('lootBoxLeftBody', LOOT_LEFT_SCREEN, left, false)
+    const rightBody = body('lootBoxRightBody', LOOT_RIGHT_SCREEN, right, true)
+    drawBagView($id('lootBox'), 'lootBoxLeftBag', LOOT_LEFT_SCREEN, leftBags, redraw, leftBody)
+    drawBagView($id('lootBox'), 'lootBoxRightBag', LOOT_RIGHT_SCREEN, rightBags, redraw, rightBody)
+    updateLootScrollButtons() // the lists were just redrawn
 }
 
 // CE inventoryOpenLooting's keys (the steal window too): Esc closes, A (Shift+A) takes all
@@ -281,6 +342,10 @@ export function lootKey(e: KeyboardEvent): boolean {
     if (quantity && getComputedStyle(quantity).display !== 'none') return false
     if (e.key === 'Escape') {
         $id('lootBoxDoneButton').click()
+        return true
+    }
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        scrollLootList(e.ctrlKey ? 'Right' : 'Left', e.key === 'ArrowUp' ? -1 : 1)
         return true
     }
     if (e.key === 'A') {

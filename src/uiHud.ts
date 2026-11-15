@@ -302,7 +302,11 @@ export function updateIndicatorBar(): void {
             left: '0',
             height: BADGE_H + 'px',
             overflow: 'hidden',
-            pointerEvents: 'none',
+            // CE indicatorBarRender: the boxes are a window of their own (windowCreate), not the
+            // map — the mouse over them gets the arrow. With pointer-events off the mouse went
+            // through to the canvas (cursor: none) and the game's cursor drawn there vanished
+            // under the boxes.
+            pointerEvents: 'auto',
             zIndex: '15',
         })
         bar.appendChild(indicatorBarEl)

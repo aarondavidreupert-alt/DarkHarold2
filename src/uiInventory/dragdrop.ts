@@ -34,38 +34,122 @@ import { drawAC, uiDrawWeapon } from '../uiHud.js'
 import { showInventory } from './panel.js'
 import { HOOK_INVENTORYMOVE, hasHook, runHook } from '../sfallHooks.js'
 
-// True between a slot/inventory image's dragstart and its dragend. Guards
-// against showInventory() (wired to the 'statsChanged' event — see panel.ts)
-// tearing down and rebuilding the inventory DOM while the browser's native
-// drag session is still tracking one of its <img> elements: removing the
-// actively-dragged node mid-drag can leave that native session stuck, which
-// silently swallows all further clicks until the page is reloaded.
+// Item drag and drop for the inventory, loot, steal, barter and companion-trade windows.
+// CE inventory.cc _inven_pickup: the dragged item's picture follows the mouse in place of the
+// cursor until the button is let go over a slot or a list. The browser's native drag and drop
+// showed the system's drag cursors (the copy mark, the "no entry" sign) — pages cannot style
+// those — so the drag runs on mouse events: past a few pixels of movement the item's image
+// follows the mouse, and the release over a drop target calls its handler.
+
+// True while an item is being dragged. Guards against showInventory() (wired to the
+// 'statsChanged' event — see panel.ts) rebuilding the inventory DOM under the drag.
 export let dragInProgress = false
 
+const DRAG_THRESHOLD = 4 // px of movement before a press becomes a drag (a click stays a click)
+const dropTargets = new WeakSet<HTMLElement>()
+const dropOutside = new WeakMap<HTMLElement, (x: number, y: number) => void>()
+
+/** A drop target: `dropCallback` gets the dragged item's data. Its handler is the element's
+ *  `ondrop`, so `off($el, 'drop')` (uiDom.ts) removes it. */
 export function makeDropTarget($el: HTMLElement, dropCallback: (data: string, e?: DragEvent) => void | Promise<void>) {
+    dropTargets.add($el)
     $el.ondrop = (e: DragEvent) => {
-        const data = e.dataTransfer!.getData('text/plain')
-        dropCallback(data, e)
+        const data = e.dataTransfer?.getData('text/plain') ?? ''
+        void dropCallback(data, e)
         return false
     }
     $el.ondragenter = () => false
     $el.ondragover = () => false
 }
 
-export function makeDraggable($el: HTMLElement, data: string, endCallback?: () => void) {
-    $el.setAttribute('draggable', 'true')
-    $el.ondragstart = (e: DragEvent) => {
-        e.dataTransfer!.setData('text/plain', data)
-        dragInProgress = true
-        dbg('inventory', '[UI] start drag')
-    }
-    $el.ondragend = (e: DragEvent) => {
-        dragInProgress = false
-        if (e.dataTransfer!.dropEffect !== 'none') {
-            //$(this).remove()
-            endCallback && endCallback()
+/** What happens when a drag from `$el` is let go over no drop target ([dh2] inventory_drag_drop). */
+export function setDropOutside($el: HTMLElement, callback: (x: number, y: number) => void): void {
+    dropOutside.set($el, callback)
+}
+
+function dropTargetAt(x: number, y: number): HTMLElement | null {
+    for (let n = document.elementFromPoint(x, y) as HTMLElement | null; n; n = n.parentElement) {
+        if (dropTargets.has(n) && typeof n.ondrop === 'function') {
+            return n
         }
     }
+    return null
+}
+
+/** A draggable item image: `data` names the item for the drop target; `endCallback` runs after a
+ *  drop on a target. */
+export function makeDraggable($el: HTMLElement, data: string, endCallback?: () => void) {
+    $el.setAttribute('draggable', 'false')
+    $el.addEventListener('mousedown', (down: MouseEvent) => {
+        if (down.button !== 0 || dragInProgress) {
+            return
+        }
+        down.preventDefault() // no native image drag, no text selection
+        const startX = down.clientX
+        const startY = down.clientY
+        let ghost: HTMLElement | null = null
+        const place = (x: number, y: number): void => {
+            if (ghost) {
+                ghost.style.left = x - ghost.offsetWidth / 2 + 'px'
+                ghost.style.top = y - ghost.offsetHeight / 2 + 'px'
+            }
+        }
+        const move = (e: MouseEvent): void => {
+            if (!ghost) {
+                if (Math.abs(e.clientX - startX) < DRAG_THRESHOLD && Math.abs(e.clientY - startY) < DRAG_THRESHOLD) {
+                    return
+                }
+                dragInProgress = true
+                dbg('inventory', '[UI] start drag')
+                const r = $el.getBoundingClientRect()
+                ghost = $el.cloneNode(true) as HTMLElement
+                Object.assign(ghost.style, {
+                    position: 'fixed',
+                    width: r.width + 'px',
+                    height: r.height + 'px',
+                    margin: '0',
+                    pointerEvents: 'none',
+                    zIndex: '100000',
+                })
+                document.body.appendChild(ghost)
+                document.body.classList.add('dh2ItemDrag')
+            }
+            place(e.clientX, e.clientY)
+        }
+        const up = (e: MouseEvent): void => {
+            window.removeEventListener('mousemove', move, true)
+            window.removeEventListener('mouseup', up, true)
+            if (!ghost) {
+                return // a click
+            }
+            // the release ends the drag only (as the native drag did: no mouseup reached the page)
+            e.stopPropagation()
+            e.preventDefault()
+            ghost.remove()
+            document.body.classList.remove('dh2ItemDrag')
+            // the click that follows the release is not a click on the item
+            window.addEventListener('click', (c) => c.stopPropagation(), { capture: true, once: true })
+            setTimeout(() => {
+                dragInProgress = false
+            }, 0)
+            const target = dropTargetAt(e.clientX, e.clientY)
+            if (target) {
+                const drop = {
+                    dataTransfer: { getData: () => data, dropEffect: 'move' },
+                    clientX: e.clientX,
+                    clientY: e.clientY,
+                    preventDefault() {},
+                    stopPropagation() {},
+                } as unknown as DragEvent
+                ;(target.ondrop as (ev: DragEvent) => unknown)(drop)
+                endCallback?.()
+            } else {
+                dropOutside.get($el)?.(e.clientX, e.clientY)
+            }
+        }
+        window.addEventListener('mousemove', move, true)
+        window.addEventListener('mouseup', up, true)
+    })
 }
 
 // CE inventory.cc _container_enter / _container_exit: the list shows the innermost open bag

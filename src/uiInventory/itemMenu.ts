@@ -131,7 +131,16 @@ export function drawBagView(
 ): void {
     let $view = document.getElementById(id)
     if (!$view) {
-        $view = makeEl('div', { attrs: { id }, style: { position: 'absolute', cursor: 'pointer', zIndex: '2' } })
+        $view = makeEl('div', {
+            attrs: { id },
+            style: {
+                position: 'absolute',
+                cursor: 'pointer',
+                zIndex: '2',
+                alignItems: 'center',
+                justifyContent: 'center',
+            },
+        })
         parent.appendChild($view)
     }
     Object.assign($view.style, {
@@ -142,7 +151,7 @@ export function drawBagView(
     })
     clearEl($view)
     const bag = bags[bags.length - 1]
-    $view.style.display = bag ? 'block' : 'none'
+    $view.style.display = bag ? 'flex' : 'none' // the bag centred in the view
     if (body) body.style.visibility = bag ? 'hidden' : ''
     if (!bag) return
     $view.appendChild(

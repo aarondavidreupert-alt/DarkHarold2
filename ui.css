@@ -262,22 +262,15 @@ html, body {
 }
 
 /* Screen-edge scrolling over the HUD (CE game_mouse.cc:2334 tests the whole screen).
-   input.ts sets #bar[data-scroll] to the scroll direction; the arrows replace every
-   other HUD cursor while it is set, so the cursor doesn't flicker over buttons. */
-#bar[data-scroll="s"], #bar[data-scroll="s"] *, #bar[data-scroll="s"] #logScrollUp, #bar[data-scroll="s"] #logScrollDown {
-  cursor: url('art/intrface/scrsouth.png') 16 25, s-resize !important;
-}
-#bar[data-scroll="sw"], #bar[data-scroll="sw"] *, #bar[data-scroll="sw"] #logScrollUp, #bar[data-scroll="sw"] #logScrollDown {
-  cursor: url('art/intrface/scrswest.png') 0 27, sw-resize !important;
-}
-#bar[data-scroll="se"], #bar[data-scroll="se"] *, #bar[data-scroll="se"] #logScrollUp, #bar[data-scroll="se"] #logScrollDown {
-  cursor: url('art/intrface/scrseast.png') 27 27, se-resize !important;
-}
-#bar[data-scroll="w"], #bar[data-scroll="w"] *, #bar[data-scroll="w"] #logScrollUp, #bar[data-scroll="w"] #logScrollDown {
-  cursor: url('art/intrface/scrwest.png') 0 16, w-resize !important;
-}
+   input.ts sets #bar[data-scroll] to the scroll direction; the arrow is then an image element
+   that follows the mouse (src/hudScrollCursor.ts) and the CSS cursor is hidden: a CSS cursor
+   image at the screen edge fell back to the system's white resize arrow in Chrome. */
+#bar[data-scroll="s"], #bar[data-scroll="s"] *, #bar[data-scroll="s"] #logScrollUp, #bar[data-scroll="s"] #logScrollDown,
+#bar[data-scroll="sw"], #bar[data-scroll="sw"] *, #bar[data-scroll="sw"] #logScrollUp, #bar[data-scroll="sw"] #logScrollDown,
+#bar[data-scroll="se"], #bar[data-scroll="se"] *, #bar[data-scroll="se"] #logScrollUp, #bar[data-scroll="se"] #logScrollDown,
+#bar[data-scroll="w"], #bar[data-scroll="w"] *, #bar[data-scroll="w"] #logScrollUp, #bar[data-scroll="w"] #logScrollDown,
 #bar[data-scroll="e"], #bar[data-scroll="e"] *, #bar[data-scroll="e"] #logScrollUp, #bar[data-scroll="e"] #logScrollDown {
-  cursor: url('art/intrface/screast.png') 24 16, e-resize !important;
+  cursor: none !important;
 }
 
 #attackButtonContainer {
@@ -1503,6 +1496,25 @@ html, body {
   overflow: hidden;
 }
 
+/* CE inventory.cc _setup_inventory (INVENTORY_WINDOW_TYPE_LOOT, the steal window too): each
+   list's large arrows, 22x23 — left list up / down at (128, 39) / (128, 62), right list at
+   (379, 39) / (379, 62); FRM 49/50/53 and 51/52/54 as in the inventory window */
+.lootScroll {
+  position: absolute;
+  width: 22px;
+  height: 23px;
+  background-size: 100% 100%;
+  z-index: 3;
+}
+#lootScrollLeftUp, #lootScrollLeftDown { left: 128px; }
+#lootScrollRightUp, #lootScrollRightDown { left: 379px; }
+.lootScrollUp { top: 39px; background-image: url("art/intrface/invupout.png"); }
+.lootScrollDown { top: 62px; background-image: url("art/intrface/invdnout.png"); }
+.lootScrollUp:active { background-image: url("art/intrface/invupin.png"); }
+.lootScrollDown:active { background-image: url("art/intrface/invdnin.png"); }
+.lootScrollUp.disabled { background-image: url("art/intrface/invupds.png"); }
+.lootScrollDown.disabled { background-image: url("art/intrface/invdnds.png"); }
+
 #lootBoxDoneButton {
   position: absolute;
   left: 475px;
@@ -2215,5 +2227,14 @@ body * {
 /* CE gameMoviePlay: the mouse is hidden while a movie plays */
 #gameMovieScreen,
 #gameMovieScreen * {
+  cursor: none !important;
+}
+/* CE inventory.cc _inven_pickup: while an item is dragged its picture (dragdrop.ts, the image
+   following the mouse) is the cursor */
+body.dh2ItemDrag,
+body.dh2ItemDrag *,
+body.dh2ItemDrag #inventoryBox *,
+body.dh2ItemDrag #lootBox *,
+body.dh2ItemDrag #barterBox * {
   cursor: none !important;
 }

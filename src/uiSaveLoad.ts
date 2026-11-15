@@ -185,7 +185,9 @@ export function uiSaveLoad(isSave: boolean, quick = false, onCancel: (() => void
         .show()
     // DH2's DELETE and NEW buttons (none with [dh2] save_slots=ce, as CE loadsave.cc), each on a
     // copy of the window's own DONE plate, a row above DONE and CANCEL: DELETE over DONE, NEW over
-    // CANCEL. NEW starts a new save on the free slot; the LOAD window shows it inactive.
+    // CANCEL. NEW starts a new save on the free slot; the LOAD window has no use for it and shows
+    // the plate with the Pip-Boy's empty socket instead (pip.frm's button that fell out:
+    // art/intrface/cutout/pipsocket.png, tools/makeCutouts.py), no label.
     if (Config.ui.saveSlots !== 'ce') {
         win.add(lsgPlate(PLATE_X_LEFT, PLATE_Y_TOP))
             .add(lsgPlate(PLATE_X_RIGHT, PLATE_Y_TOP))
@@ -194,23 +196,31 @@ export function uiSaveLoad(isSave: boolean, quick = false, onCancel: (() => void
                     void remove()
                 }),
             )
-            .add(
+        if (isSave) {
+            win.add(
                 new SmallButton(495, PLATE_Y_TOP + 4).onClick(() => {
                     void newSave()
                 }),
             )
+        } else {
+            // the socket's centre (8.7, 9.4) on lilredup's red centre (6.85, 8.75) at (495, PLATE_Y_TOP + 4)
+            win.add(new Widget('art/intrface/cutout/pipsocket.png', { x: 493, y: PLATE_Y_TOP + 3, w: 18, h: 19 }))
+        }
     }
     const el = win.elem
     makePanelDraggable(el, 'saveLoad')
 
     font3.onLoad(() => {
         addText(el, lsg(isSave ? 102 : 100, isSave ? 'SAVE GAME' : 'LOAD GAME'), 48, 27, font3, CE_COLOR.label)
-        addText(el, lsg(104, 'DONE'), 410, 348, font3, CE_COLOR.label)
+        // DH2: the button says what it does (CE lsgame.msg 104 DONE)
+        addText(el, isSave ? 'SAVE' : 'LOAD', 410, 348, font3, CE_COLOR.label)
         addText(el, lsg(105, 'CANCEL'), 515, 348, font3, CE_COLOR.label)
         if (Config.ui.saveSlots !== 'ce') {
-            // DH2 additions; NEW only saves, so it is inactive in the LOAD window
+            // DH2 additions; NEW only saves, so the LOAD window has none
             addText(el, 'DELETE', 410, PLATE_Y_TOP + 3, font3, CE_COLOR.label)
-            addText(el, 'NEW', 515, PLATE_Y_TOP + 3, font3, isSave ? CE_COLOR.label : CE_COLOR.labelPressed)
+            if (isSave) {
+                addText(el, 'NEW', 515, PLATE_Y_TOP + 3, font3, CE_COLOR.label)
+            }
         }
     })
 

@@ -50,6 +50,7 @@ import { playerUse, playerAttackDoor, cancelSkillTargeting, playerKeyAttack } fr
 import { primaryActionIcon, uiPrimaryAction } from './uiContextMenu.js'
 import { recordAction } from './actionLog.js'
 import { toTileNum } from './tile.js'
+import { installHudScrollCursor, updateHudScrollCursor } from './hudScrollCursor.js'
 
 // Tile inspector — build a structured, copy-pasteable dump of everything the
 // debug tooling knows about the hex tile under the cursor: its lighting, the
@@ -308,6 +309,7 @@ function cycleMouseMode(): void {
 }
 
 export function installInputHandlers(): void {
+    installHudScrollCursor()
     // CE game.cc gameHandleKey — the game keys on the map (src/hotkeys.ts); the open
     // window's own close keys (CE runs each window's input loop).
     window.addEventListener(
@@ -466,6 +468,7 @@ export function installInputHandlers(): void {
             (x >= SCREEN_WIDTH - SCROLL_PAD ? 'e' : x <= SCROLL_PAD ? 'w' : '')
         const $bar = document.getElementById('bar')
         if ($bar && ($bar.dataset.scroll ?? '') !== scrollDir) $bar.dataset.scroll = scrollDir
+        updateHudScrollCursor(scrollDir)
 
         if (anyScroll) {
             if (uiState.cursorMode !== 'scroll') {
