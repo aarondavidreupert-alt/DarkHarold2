@@ -955,6 +955,11 @@ export class Obj {
             initWeaponAmmo(obj, mobj.extra?.ammoQuantity, mobj.extra?.ammoTypePid)
         }
         obj.flags = mobj.flags // NOTE: Tested with two objects in Mapper, map object flags seem to inherit PROs already and should thus use them
+        // CE: an object's visibility is its OBJECT_HIDDEN flag (0x01; objectHide / objectShow,
+        // set_obj_visibility keeps `visible` in step). A load left every object visible, so the
+        // ones scripts keep hidden came out — Lara's gang waiting for the attack on the Den church
+        // walked in after a reload (known_bugs CA131).
+        obj.visible = ((obj.flags ?? 0) & 0x01) === 0 && !(deserializing && mobj.visible === false)
 
         // etc? TODO: check this!
 
