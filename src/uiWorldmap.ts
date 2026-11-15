@@ -175,6 +175,10 @@ export function enterAreaEntrance(area: Area, index: number): void {
         return
     }
     recordAction({ t: 'wmEnter', id: area.id, en: index })
+    // CE wmTownMapFunc: an area's entrances are entered from that area, the party's current one
+    // (METARULE_CURRENT_TOWN). Entered from elsewhere (the town list), the game still reported the
+    // area before — Sulik's head showed Klamath's background in the toxic caves (known_bugs CA133).
+    Worldmap.setCurrentAreaId(area.id)
     const mapName = lookupMapNameFromLookup(entrance.mapLookupName)
     dbg('worldmap', `[Worldmap] hotspot → ${mapName} (via ${entrance.mapLookupName})`)
     // CE ref: worldmap.cc:3061-3078 — entering a local map while in car:

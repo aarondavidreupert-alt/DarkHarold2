@@ -38,6 +38,7 @@ import { randomBetween } from './random.js'
 
 import { uiPort } from './uiPort.js'
 import { DAM_KNOCKED_OUT } from './combat/results.js'
+import { objectDistance } from './combat/hitChance.js'
 import { currentUnarmed, unarmedAPCost } from './unarmed.js'
 import { Combat } from './combat.js'
 import { sfxBuildWeaponName } from './sfxNames.js'
@@ -313,7 +314,9 @@ export function playerUse(obj: Obj | null, replay?: PlayerUseReplay) {
             }
         }
 
-        if (Config.engine.doInfiniteUse === true || hexDistance(performer.position, obj.position) <= 1) {
+        // CE actions.cc _is_next_to: objectGetDistanceBetween ≤ 1, one hex less for a multihex
+        // object — a brahmin is used from two hexes away (its neighbours are its own)
+        if (Config.engine.doInfiniteUse === true || objectDistance(performer, performer.position, obj) <= 1) {
             skillCallback()
             return
         }
@@ -325,8 +328,13 @@ export function playerUse(obj: Obj | null, replay?: PlayerUseReplay) {
         }
 
         // Walk to the nearest reachable hex adjacent to the target (not the
-        // target tile itself, which may be blocked by the scenery object).
-        const neighbors = hexNeighbors(obj.position)
+        // target tile itself, which may be blocked by the scenery object) — for a multihex
+        // target (OBJECT_MULTIHEX, Bess the brahmin) the ring two hexes out, its neighbours
+        // being part of it (known_bugs CA134).
+        const multihex = (((obj.flags ?? 0) >>> 0) & 0x800) !== 0
+        const neighbors = multihex
+            ? hexNeighbors(obj.position).flatMap((n, d) => [hexInDirection(n, d), hexInDirection(n, (d + 1) % 6)])
+            : hexNeighbors(obj.position)
         const map = world.gMap!
         const playerPos = performer.position
         let dest: { x: number; y: number } | null = null

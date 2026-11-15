@@ -221,7 +221,17 @@ export const animOpcodes = {
             }
             const obj = entry.obj
             const end = () => {
-                obj.clearAnim()
+                // CE animation.cc _anim_set_end: the critter stands again (_dude_stand) unless it is
+                // prone — _critter_is_prone: knocked down / out, or on a fall or death animation
+                // (20..35, the single frames 48..63). Bess in Modoc lies down this way (map_enter:
+                // ANIM_fall_back_sf) and got up again at once (known_bugs CA134).
+                const prone =
+                    obj.type === 'critter' &&
+                    (((obj as Critter).injuryFlags ?? 0) & 0x03) !== 0 /* DAM_KNOCKED_OUT | DAM_KNOCKED_DOWN */
+                const fallAnim = (entry.anim >= 20 && entry.anim <= 35) || (entry.anim >= 48 && entry.anim <= 63)
+                if (!(obj.type === 'critter' && (prone || (fallAnim && !entry.reversed)))) {
+                    obj.clearAnim()
+                }
                 done()
             }
             // anim=0 is ANIM_STAND — snap to idle rather than playing a cycle
