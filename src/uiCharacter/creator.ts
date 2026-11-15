@@ -24,7 +24,9 @@ import { world } from '../state/world.js'
 import { services } from '../state/services.js'
 import { Widget } from '../uiWidget.js'
 import { renderStatPanels } from './statPanels.js'
-import { font3, makeFontLabel, setBignum } from '../uiFont.js'
+import { font1, font3, makeFontLabel, setBignum } from '../uiFont.js'
+import { ScreenTextInput } from '../ui/screenTextInput.js'
+import { CE_COLOR } from '../ui/fontCore.js'
 import { WindowFrame, SmallButton, Label } from '../uiComponents.js'
 import { makePanelDraggable } from '../uiDrag.js'
 import { StatSet, SkillSet, SkillCalcOptions } from '../char.js'
@@ -516,6 +518,8 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
             const nameBoxBg = document.createElement('div')
             Object.assign(nameBoxBg.style, {
                 position: 'absolute',
+                left: '0',
+                top: '0',
                 width: '111px',
                 height: '20px',
                 backgroundImage: "url('" + assetUrl('art/intrface/namebox.png') + "')",
@@ -524,32 +528,22 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
                 pointerEvents: 'none',
                 zIndex: '1',
             })
-            contentEl.style.position = 'relative'
-            contentEl.appendChild(nameBoxBg)
-
             // CE characterEditorEditName: "None" starts empty; _get_input_str (flags 0) takes
-            // KEY_FIRST_INPUT_CHARACTER..KEY_LAST_INPUT_CHARACTER (space .. 'z'), 11 at most
-            const inp = document.createElement('input')
-            Object.assign(inp, { type: 'text', maxLength: 11, value: playerName === 'None' ? '' : playerName })
-            inp.addEventListener('input', () => {
-                const kept = inp.value.replace(/[^\x20-\x7a]/g, '')
-                if (kept !== inp.value) inp.value = kept
+            // KEY_FIRST_INPUT_CHARACTER..KEY_LAST_INPUT_CHARACTER (space .. 'z'), 11 at most,
+            // written on namebox.frm itself (font 101, green _colorTable[992], from x 23 of the
+            // window with the box at 13: 10 px in) with a blinking block cursor — no field
+            const nameWrap = document.createElement('div')
+            Object.assign(nameWrap.style, { position: 'relative', width: '111px', height: '20px' })
+            nameWrap.appendChild(nameBoxBg)
+            const field = new ScreenTextInput(font1, {
+                value: playerName === 'None' ? '' : playerName,
+                maxLength: 11,
+                color: CE_COLOR.green,
+                width: 96,
             })
-            Object.assign(inp.style, {
-                position: 'relative',
-                zIndex: '2',
-                fontSize: '0.9em',
-                // CE characterEditorEditName → _get_input_str(..., _colorTable[992], ...): green
-                // text and cursor, nothing under it
-                color: '#3cf800',
-                caretColor: '#3cf800',
-                background: 'transparent',
-                border: 'none',
-                fontFamily: 'monospace',
-                outline: 'none',
-                width: '110px',
-                textAlign: 'center',
-            })
+            Object.assign(field.elem.style, { position: 'absolute', left: '10px', top: '5px', zIndex: '2' })
+            nameWrap.appendChild(field.elem)
+            const inp = field.input
             inp.addEventListener('keydown', (e) => {
                 e.stopPropagation()
                 if (e.key === 'Enter') confirmAndClose()
@@ -561,8 +555,8 @@ export function showCharacterCreator(onDone: () => void, onCancel: () => void, i
             applyFn = () => {
                 playerName = inp.value.trim() || playerName
             }
-            contentEl.appendChild(inp)
-            setTimeout(() => inp.focus(), 0)
+            contentEl.appendChild(nameWrap)
+            setTimeout(() => field.focus(), 0)
         } else if (type === 'age') {
             let popupAge = playerAge
             const bignumEl = document.createElement('div')

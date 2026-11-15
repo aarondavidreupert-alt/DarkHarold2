@@ -8,7 +8,7 @@ import { getZoom, SCREEN_HEIGHT, SCREEN_WIDTH, TileMap } from '../renderer.js'
 import { tileToScreen, TILE_HEIGHT, TILE_WIDTH } from '../tile.js'
 import { getFileJSON } from '../util.js'
 import { dbg } from '../logger.js'
-import { WebGLRenderer } from './webglContext.js'
+import { lightQuant, WebGLRenderer } from './webglContext.js'
 import { cycleTime } from '../colorCycle.js'
 
 declare module './webglContext.js' {
@@ -54,6 +54,9 @@ WebGLRenderer.prototype.renderLitFloorCPU = function (tileMap: TileMap, useColor
     if (this.uFloorCycleTime) gl.uniform1f(this.uFloorCycleTime, cycleTime())
     const ambientCPU = GameTime.getAmbientLightNormalized()
     gl.uniform1f(this.uAmbient, ambientCPU)
+    if (this.uFloorLightQuant) {
+        gl.uniform1i(this.uFloorLightQuant, lightQuant())
+    }
     if (ambientCPU !== this.lastLoggedAmbient) {
         dbg(
             'renderer',
@@ -319,6 +322,9 @@ WebGLRenderer.prototype.compositeFloorWithLighting = function (): void {
     gl.uniform1i(this.uUseGPULighting, 1)
     const ambientGPU = GameTime.getAmbientLightNormalized()
     gl.uniform1f(this.uAmbient, ambientGPU)
+    if (this.uFloorLightQuant) {
+        gl.uniform1i(this.uFloorLightQuant, lightQuant())
+    }
     if (ambientGPU !== this.lastLoggedAmbient) {
         dbg(
             'renderer',

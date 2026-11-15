@@ -8,6 +8,11 @@ import { Font } from '../formats/fon.js'
 import { dbg } from '../logger.js'
 import { assetUrl } from '../modAssets.js'
 
+// u_lightQuant for world draws: 1 = CE's 5-bit light shading ([dh2] light_shading=ce, default)
+export function lightQuant(): number {
+    return Config.engine.lightShading === 'ce' ? 1 : 0
+}
+
 export interface ShaderSources {
     fragment: string
     vertex: string
@@ -95,6 +100,9 @@ export class WebGLRenderer extends Renderer {
     // and shaders/fragment*.glsl sampleTileLight. wiki/alignment.md §7.
     uLightInterp: WebGLUniformLocation | null = null // on tileShader (fragment.glsl)
     uFloorLightInterp: WebGLUniformLocation | null = null // on floorLightShader (fragmentLighting.glsl)
+    // u_lightQuant (CE 5-bit light shading, [dh2] light_shading) on the tile and floor shaders
+    uTileLightQuant: WebGLUniformLocation | null = null
+    uFloorLightQuant: WebGLUniformLocation | null = null
     uFloorCycleTime: WebGLUniformLocation | null = null // floorLightShader u_cycleTime (RD10, CPU path)
     uFloorUseCycle: WebGLUniformLocation | null = null // floorLightShader u_useCycleMask
     lightInterpValue = 2 // int passed to shaders (default 'hex-lerp')
@@ -467,6 +475,7 @@ export class WebGLRenderer extends Renderer {
 
         gl.useProgram(this.tileShader)
         this.uTileAmbient = gl.getUniformLocation(this.tileShader, 'u_ambient')
+        this.uTileLightQuant = gl.getUniformLocation(this.tileShader, 'u_lightQuant')
         this.uTileCamera = gl.getUniformLocation(this.tileShader, 'u_camera')
         this.uTileZoom = gl.getUniformLocation(this.tileShader, 'u_zoom')
         const uTileTileIntensity = gl.getUniformLocation(this.tileShader, 'u_tileIntensity')
@@ -618,6 +627,7 @@ export class WebGLRenderer extends Renderer {
             if (this.uFloorLightZoom) gl.uniform1f(this.uFloorLightZoom, 1.0)
             this.uFloorLightInterp = gl.getUniformLocation(this.floorLightShader, 'u_lightInterp')
             if (this.uFloorLightInterp) gl.uniform1i(this.uFloorLightInterp, this.lightInterpValue)
+            this.uFloorLightQuant = gl.getUniformLocation(this.floorLightShader, 'u_lightQuant')
 
             // Create floor FBO for caching unlit floor tiles (GPU lighting mode)
             this.floorFBO = gl.createFramebuffer()
@@ -727,6 +737,9 @@ export class WebGLRenderer extends Renderer {
                 )
             }
             gl.uniform1f(this.uTileAmbient, ambient)
+            if (this.uTileLightQuant) {
+                gl.uniform1i(this.uTileLightQuant, lightQuant())
+            }
             gl.uniform2f(this.uTileCamera, view.cameraPosition.x, view.cameraPosition.y)
             // Zoom lets the fragment shader recover world coords from
             // gl_FragCoord for per-pixel tile-intensity sampling.
@@ -739,6 +752,9 @@ export class WebGLRenderer extends Renderer {
             gl.activeTexture(gl.TEXTURE0) // restore default unit
         } else {
             gl.uniform1f(this.uTileAmbient, 1.0)
+            if (this.uTileLightQuant) {
+                gl.uniform1i(this.uTileLightQuant, 0)
+            }
             // UI draws don't sample world lighting (ambient=1 clamps to 1),
             // but keep u_zoom sane at 1.0 so any stray math stays stable.
             if (this.uTileZoom) gl.uniform1f(this.uTileZoom, 1.0)

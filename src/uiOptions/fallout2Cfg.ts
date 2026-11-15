@@ -134,6 +134,12 @@ export function applyCfg(cfg: CfgSections): void {
     const dh2 = cfg['dh2'] ?? {}
     const dnc = int(dh2['day_night_cycle'])
     if (dnc !== null) Config.engine.dayNightCycle = dnc !== 0
+    //   light_shading=ce      CE's 5-bit shading below full light (default)
+    //   light_shading=smooth  a plain multiply (brighter in the dark)
+    const ls = (dh2['light_shading'] ?? '').trim().toLowerCase()
+    if (ls === 'ce' || ls === 'smooth') {
+        Config.engine.lightShading = ls
+    }
     //   script_backend=lua  run the decompiled data/scripts/*.lua (tools/int2lua.py) (default)
     //   script_backend=vm   run the .int bytecode
     const sb = (dh2['script_backend'] ?? '').trim().toLowerCase()
@@ -241,6 +247,11 @@ export function applyCfg(cfg: CfgSections): void {
     //   elevation_fade=1|0            a fade on elevation changes (default) or CE's instant switch
     const ef = int(dh2['elevation_fade'])
     if (ef !== null) Config.ui.elevationFade = ef !== 0
+    //   ladder_down=climb|ce          come down the ladder at the bottom (default) or CE's arrival standing
+    const ld = (dh2['ladder_down'] ?? '').trim().toLowerCase()
+    if (ld === 'climb' || ld === 'ce') {
+        Config.ui.ladderDown = ld
+    }
     //   outline_through_walls=1|0     DH2 outlines' colour fill seen through walls (default) or border only
     const otw = int(dh2['outline_through_walls'])
     if (otw !== null) {

@@ -30,6 +30,18 @@ uniform int u_stealth;               // 1 = OBJECT_TRANS_* translucent (Stealth 
 uniform vec3 u_stealthTint;          // the blend colour (_colorTable[...] of the trans flag)
 uniform int u_transGray;             // 0 = _glassGrayTable (r+5g+4b), 1 = _commonGrayTable (3r+6g+b)
 uniform int u_transQuant;            // 1 = CE's 8 gray steps (gray/7), 0 = smooth (Stealth Boy option)
+uniform int u_lightQuant;            // 1 = CE's 5-bit light shading (shadeLight); UI draws: 0
+
+// CE color.cc _setIntensityTableColor: below full light a palette colour's 5-bit channels are
+// scaled by the light step (intensity / 512, 128 steps) and truncated, so dark colours lose more
+// than bright ones (caves and nights look darker than a plain multiply). u_lightQuant 1 = CE,
+// 0 = smooth multiply ([dh2] light_shading=smooth).
+vec3 shadeLight(vec3 c, float light) {
+    if (u_lightQuant == 0 || light >= 1.0) return c * light;
+    float lightStep = floor(light * 128.0);
+    vec3 c5 = floor(c * (255.0 / 8.0) + 0.01);
+    return floor(c5 * lightStep / 128.0) / 31.0;
+}
 // CE ref: cycle.cc colorCycleTicker() — palette entries 229-254 cycle at runtime.
 // u_cycleMask: R8 texture unit 7; stored as (paletteIndex-228)/255 per pixel.
 // u_cycleTime: seconds since page load, updated per draw in renderFrame.
@@ -431,5 +443,5 @@ void main() {
     // floor, so it settles to ambient — matching the roof — not to black).
     float tileLight = getWorldTileLight() * wallTopFadeFactor(coord);
     float light = max(tileLight, u_ambient);
-    gl_FragColor = vec4(texel.rgb * light, texel.a * alpha);
+    gl_FragColor = vec4(shadeLight(texel.rgb, light), texel.a * alpha);
 }

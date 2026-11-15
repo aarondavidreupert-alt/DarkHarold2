@@ -108,18 +108,20 @@ export function isReplaying(): boolean {
 }
 
 /** What a save stores of the recording (saveload.ts save()): `recording`, the piece since the last
- *  load / NEW GAME up to this moment, and `history`, every piece before it back to the chain's
- *  start (compressed). Set by the recorder. */
+ *  load / save / NEW GAME up to this moment, and `history`, every piece before it back to the
+ *  chain's start (compressed). Set by the recorder. */
 export interface SaveRecording {
     recording: Record<string, unknown>
     history?: Record<string, unknown>
 }
-let saveRecordingProvider: (() => SaveRecording | null) | null = null
-export function setSaveRecordingProvider(p: (() => SaveRecording | null) | null): void {
+let saveRecordingProvider: ((saving?: SaveRef) => SaveRecording | null) | null = null
+export function setSaveRecordingProvider(p: ((saving?: SaveRef) => SaveRecording | null) | null): void {
     saveRecordingProvider = p
 }
-export function recordingForSave(): SaveRecording | null {
-    return saveRecordingProvider ? saveRecordingProvider() : null
+/** `saving`: the save being made — the recorder then starts a new piece from it, as from a load
+ *  (each save is a point a replay can start from); without it (gameSize) only a look. */
+export function recordingForSave(saving?: SaveRef): SaveRecording | null {
+    return saveRecordingProvider ? saveRecordingProvider(saving) : null
 }
 
 /** How the replay (src/autocrawler/replay.ts) runs an entry of a window it doesn't import:

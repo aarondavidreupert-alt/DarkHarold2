@@ -2,9 +2,10 @@
 // wiki/autocrawler.md → "Replay"). Registered for every page load, like exportSave().
 //
 // With [dh2] record_actions=1 (the default) it runs all the time: a piece of recording starts at
-// every save load (its `parent` is that save) and at NEW GAME (with a snapshot of the first map),
-// and every save stores the piece up to that moment (`save.recording`). So each save knows how the
-// player got there from the save loaded before, and the chain of parents goes back to NEW GAME.
+// every save load and every save (its `parent` is that save) and at NEW GAME (with a snapshot of
+// the first map), and every save stores the piece up to that moment (`save.recording`). So each
+// save knows how the player got there from the save made or loaded before, and the chain of
+// parents goes back to NEW GAME — the timeline of the game being played.
 //
 //   recordingStatus()           what is being recorded now
 //   startRecording()            a piece from a snapshot of the game now (reloaded at once), also
@@ -18,6 +19,11 @@
 //   replaySave('name')          replay a save's piece: load its parent save, replay, compare with it
 //   replayHistory('name')       the save's whole history (it carries every piece back to the
 //                               chain's start), oldest first
+//   replaySinceStart()          the game being played, from its start (NEW GAME or the chain's
+//                               oldest save) up to now
+//   replaySinceSave()           the game being played since its last save or load
+//   replayFromSave('name' | 3)  the game being played since one of its saves: a name (the newest
+//                               save of that name in this game) or the slot number in the save window
 //   downloadReplayReport()      the last replay's report as JSON
 //   __recording                 the current piece, else the last one stopped or imported
 //
@@ -191,7 +197,7 @@ function snapshotNow(name: string): SaveGame {
 
 /** Start a piece here and now (the game must be running: the end of a load, a NEW GAME's map). */
 function beginPiece(
-    origin: 'load' | 'newGame' | 'manual',
+    origin: 'load' | 'save' | 'newGame' | 'manual',
     from: { start?: SaveGame; parent?: SaveRef },
     seed?: number,
     before: SaveHistory = { chunks: [], count: 0, minutes: 0 },
@@ -640,6 +646,17 @@ async function replayHistory(
         console.log(`[Recorder] save '${save.name}' has no recorded history`)
         return []
     }
+    return replayPieces(pieces, options, `history of '${save.name}'`)
+}
+
+/** Replay pieces one after the other, oldest first. Each starts from its own snapshot, else its
+ *  real parent save while it is still stored (`{ useSaves: false }`: never), else the state the
+ *  replay of the piece before ended in — as if that moment had been saved and loaded. */
+async function replayPieces(
+    pieces: Recording[],
+    options: ReplayOptions & { useSaves?: boolean },
+    what: string,
+): Promise<ReplayReport[]> {
     const reports: ReplayReport[] = []
     let replayed: SaveGame | null = null // the state the last piece's replay ended in
     for (let i = 0; i < pieces.length; i++) {
@@ -660,11 +677,11 @@ async function replayHistory(
         }
         if (!rec) {
             console.log(
-                `[Recorder] history ${i + 1}/${pieces.length}: no start (its parent save is gone, nothing replayed before)`,
+                `[Recorder] ${what} ${i + 1}/${pieces.length}: no start (its parent save is gone, nothing replayed before)`,
             )
             break
         }
-        console.log(`[Recorder] history ${i + 1}/${pieces.length}: ${describe(piece)}, from ${from}`)
+        console.log(`[Recorder] ${what} ${i + 1}/${pieces.length}: ${describe(piece)}, from ${from}`)
         const report = await runReplay(rec, options)
         reports.push(report)
         // what the next piece's parent save held: a chain's start with no actions is that save
@@ -677,8 +694,93 @@ async function replayHistory(
         }
     }
     const diverging = reports.filter((r) => r.divergences.length > 0).length
-    console.log(`[Recorder] history: ${reports.length}/${pieces.length} pieces replayed, ${diverging} with divergences`)
+    console.log(`[Recorder] ${what}: ${reports.length}/${pieces.length} pieces replayed, ${diverging} with divergences`)
     return reports
+}
+
+// ─── The game being played ──────────────────────────────────────────────────
+
+/** The timeline of the game being played, oldest piece first: its history and the piece so far. */
+async function timeline(): Promise<Recording[]> {
+    const pieces = await historyPieces(historyForSave())
+    const now = pieceSoFar()
+    if (now) {
+        pieces.push(now)
+    }
+    if (pieces.length === 0) {
+        console.log('[Recorder] nothing recorded in this game (record_actions=0, or a replay ran since)')
+    }
+    return pieces
+}
+
+/** Where a save is in the timeline: the piece that starts from it (-1: not in this game). */
+function pieceFrom(pieces: Recording[], save: SaveGame): number {
+    for (let i = pieces.length - 1; i >= 0; i--) {
+        const ref = pieces[i].parent
+        if (ref && ref.name === save.name && ref.timestamp === save.timestamp) {
+            return i
+        }
+    }
+    return -1
+}
+
+/** The game being played from its start (NEW GAME, or the oldest save of its chain) up to now. */
+async function replaySinceStart(options: ReplayOptions & { useSaves?: boolean } = {}): Promise<ReplayReport[]> {
+    const pieces = await timeline()
+    return pieces.length ? replayPieces(pieces, options, 'since start') : []
+}
+
+/** The game being played since its last save or load. */
+async function replaySinceSave(options: ReplayOptions = {}): Promise<ReplayReport[]> {
+    const pieces = await timeline()
+    const now = pieces[pieces.length - 1]
+    if (!now) {
+        return []
+    }
+    const from = now.parent ? `save '${now.parent.name}'` : 'the start (no save yet)'
+    return replayPieces([now], options, `since ${from}`)
+}
+
+/** The game being played since one of its saves: `'name'` (the newest save of that name in this
+ *  game) or its slot number in the save window (1 = the top). */
+async function replayFromSave(
+    which: string | number,
+    options: ReplayOptions & { useSaves?: boolean } = {},
+): Promise<ReplayReport[]> {
+    const pieces = await timeline()
+    if (!pieces.length) {
+        return []
+    }
+    const saves = await listSaves()
+    let save: SaveGame | undefined
+    let at = -1
+    if (typeof which === 'number') {
+        // the save window lists the saves by id (uiSaveLoad.ts)
+        save = saves.slice().sort((x, y) => (x.id ?? 0) - (y.id ?? 0))[which - 1]
+        at = save ? pieceFrom(pieces, save) : -1
+    } else {
+        for (const s of saves.filter((x) => x.name === which)) {
+            const i = pieceFrom(pieces, s)
+            if (i > at) {
+                save = s
+                at = i
+            }
+        }
+        save ??= saves.find((x) => x.name === which)
+    }
+    if (!save) {
+        console.log(`[Recorder] no save ${JSON.stringify(which)}`)
+        return []
+    }
+    if (at < 0) {
+        console.log(
+            `[Recorder] save '${save.name}' (${new Date(save.timestamp).toLocaleString()}) is not in the timeline ` +
+                'of the game being played (another game, a branch left by a load, or made before saves started ' +
+                'pieces of their own)',
+        )
+        return []
+    }
+    return replayPieces(pieces.slice(at), options, `from save '${save.name}'`)
 }
 
 export function registerRecorderCommands(): void {
@@ -691,12 +793,19 @@ export function registerRecorderCommands(): void {
             endPiece() // the replay replaces this game
         }
     })
-    setSaveRecordingProvider(() => {
+    setSaveRecordingProvider((saving) => {
         const piece = pieceSoFar()
         if (!piece) {
             return null
         }
         const h = historyForSave()
+        if (saving && Config.engine.recordActions && !isReplaying()) {
+            // the game goes on from this save as from a load: a new piece starts here, so every
+            // save is a point a replay can start from (replayFromSave)
+            endPiece()
+            const saved = { recording: piece, ...(h ? { history: h } : {}) }
+            beginPiece('save', { parent: saving }, undefined, historyAfter(saved as unknown as Record<string, unknown>))
+        }
         return {
             recording: piece as unknown as Record<string, unknown>,
             ...(h ? { history: h as unknown as Record<string, unknown> } : {}),
@@ -711,6 +820,9 @@ export function registerRecorderCommands(): void {
     devWindow.replayRecording = replayRecording
     devWindow.replaySave = replaySave
     devWindow.replayHistory = replayHistory
+    devWindow.replaySinceStart = replaySinceStart
+    devWindow.replaySinceSave = replaySinceSave
+    devWindow.replayFromSave = replayFromSave
     devWindow.downloadReplayReport = () => download(getLastReplayReport(), `replay_${Date.now()}.json`)
     Object.defineProperty(window, '__recording', { get: () => pieceSoFar() ?? last, configurable: true })
 }

@@ -105,6 +105,9 @@ output_map_data_info=0
 ; DarkHarold2-only options (CE ignores this section).
 ; 1 = smooth hour-of-day light curve, 0 = CE lighting (only map scripts' set_light_level)
 day_night_cycle=1
+; ce = CE's shading below full light (dark colours lose more: moody caves and nights),
+; smooth = a plain multiply (brighter)
+light_shading=ce
 ; 1 = Fallout pixel font for UI text, 0 = browser font
 pixel_font=1
 ; 1 = a Use action on elevators walks the player in (DH2), 0 = CE: only walking in calls them
@@ -143,6 +146,9 @@ scroll_mode=dh2
 mouse_wheel=zoom
 ; 1 = a short fade from black when the elevation changes (DH2), 0 = CE's instant switch
 elevation_fade=1
+; climb = after going down a ladder you climb down it at the bottom (DH2, the climb-up animation
+; backwards), ce = CE: no climb-down animation
+ladder_down=climb
 ; 1 = the action recorder runs all the time: each save keeps your actions since the load
 ; (or NEW GAME) before it, replayable as a test run (console: replaySave(), saveSize());
 ; the random numbers are reseeded before every action. 0 = CE: no recording, one seed

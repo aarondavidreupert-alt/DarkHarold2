@@ -322,10 +322,10 @@ export async function runReplay(rec: Recording, options: ReplayOptions = {}): Pr
         return finish(report, started)
     }
 
-    // a NEW GAME piece began without a load; loading its snapshot ran the map's load procedures
-    // (map_enter_p_proc on a game load: some scripts count the entries in a GVAR), so the variables
-    // go back to the snapshot's
-    if (rec.origin === 'newGame') {
+    // a NEW GAME piece, or one from a save the game went on from, began without a load; loading its
+    // snapshot ran the map's load procedures (map_enter_p_proc on a game load: some scripts count
+    // the entries in a GVAR), so the variables go back to the snapshot's
+    if (rec.origin === 'newGame' || rec.origin === 'save') {
         const gvars = rec.start.playerState?.gvars
         if (gvars) {
             Scripting.setGlobalVars({ ...gvars })
