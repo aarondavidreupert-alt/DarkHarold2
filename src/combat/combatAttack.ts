@@ -554,16 +554,20 @@ export const combatAttackMethods = {
         }
 
         // CE ref: actions.cc:629 _action_melee / _action_ranged — the weapon's ATTACK
-        // sound is registered with delay 0 (frame 0); only the HIT sound and the damage
-        // display wait for the action frame.
+        // sound is registered right before the attack animation (after ANIM_POINT for a ranged
+        // weapon) and starts with it; only the HIT sound and the damage display wait for the
+        // action frame. Played before the aim, the shot came too early for the muzzle flash
+        // (known_bugs CA142).
         const rawAttackSoundID = weaponObj?.pro?.extra?.soundID
         const attackSoundChar = typeof rawAttackSoundID === 'number' ? String.fromCharCode(rawAttackSoundID) : null
-        if (attackSoundChar && !window.__test?.fastMode) {
-            // CE sfxBuildWeaponName(WEAPON_SOUND_EFFECT_ATTACK): a missing file stays silent
-            services.audioEngine.playSfxByName(
-                sfxBuildWeaponName(1, weaponObj, weaponSecondaryMode(weaponObj), null).toLowerCase(),
-                obj,
-            )
+        const playAttackSound = (): void => {
+            if (attackSoundChar && !window.__test?.fastMode) {
+                // CE sfxBuildWeaponName(WEAPON_SOUND_EFFECT_ATTACK): a missing file stays silent
+                services.audioEngine.playSfxByName(
+                    sfxBuildWeaponName(1, weaponObj, weaponSecondaryMode(weaponObj), null).toLowerCase(),
+                    obj,
+                )
+            }
         }
         // CE combat.cc _combat_attack: a critter other than the player kicks instead of
         // punching 1 time in 4 when it has the kick art (same damage and AP).
@@ -638,7 +642,8 @@ export const combatAttackMethods = {
             })
             if (!deferred) finished = true
         }
-        const fire = (): void =>
+        const fire = (): void => {
+            playAttackSound()
             obj.staticAnimation(
                 attackAnim,
                 () => {
@@ -650,6 +655,7 @@ export const combatAttackMethods = {
                 undefined,
                 resolveAttack,
             )
+        }
         if (aims && obj.hasAnimation(POINT)) obj.staticAnimation(POINT, fire, true)
         else fire()
     },

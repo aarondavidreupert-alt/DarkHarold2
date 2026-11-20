@@ -8,6 +8,8 @@
 //   importSave()          pick a file, store it as a new save and load it
 //   importSave(false)     store it only (it then shows in the Load Game list)
 //   importSave('saves/tttt.json')   read it from a URL instead of a file picker
+//   exportAllSaves()      every save in one file (dh2saves_<date>.jsonl.gz: gzip, one save a line)
+//   importAllSaves()      pick such a file; each save in it becomes a new save (none is loaded)
 
 import { load, putSave, saveList, type SaveGame } from '../saveload.js'
 import { hideMainMenu, isMainMenuVisible } from '../uiMainMenu.js'
@@ -112,7 +114,121 @@ async function importSave(arg1?: boolean | string, arg2?: boolean): Promise<void
     }
 }
 
+// ─── All saves at once ──────────────────────────────────────────────────────
+// One line of JSON per save (a header line first) — a single JSON text of all saves (30-40 MB
+// each in a long game) would be too large a string to build or parse; gzip-compressed.
+
+const ALL_FORMAT = 'dh2-saves'
+
+async function exportAllSaves(): Promise<void> {
+    const saves = (await listSaves()).sort((a, b) => (a.id ?? 0) - (b.id ?? 0))
+    if (saves.length === 0) {
+        console.log('[Save] no saves to export')
+        return
+    }
+    const parts: string[] = [JSON.stringify({ format: ALL_FORMAT, version: 1, count: saves.length }) + '\n']
+    for (const s of saves) {
+        parts.push(JSON.stringify(s) + '\n')
+    }
+    const plain = new Blob(parts, { type: 'application/x-ndjson' })
+    const gz = await new Response(plain.stream().pipeThrough(new CompressionStream('gzip'))).blob()
+    const d = new Date()
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const name = `dh2saves_${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${pad(d.getHours())}-${pad(d.getMinutes())}.jsonl.gz`
+    const url = URL.createObjectURL(gz)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = name
+    a.click()
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+    console.log(
+        `[Save] exported ${saves.length} saves as ${name} (${(plain.size / 1e6).toFixed(0)} MB, ${(gz.size / 1e6).toFixed(0)} MB gzipped)`,
+    )
+}
+
+function pickBlob(): Promise<File> {
+    return new Promise((resolve, reject) => {
+        const input = document.createElement('input')
+        input.type = 'file'
+        input.accept = '.gz,.jsonl,.ndjson,.json'
+        input.onchange = () => {
+            const file = input.files?.[0]
+            if (file) {
+                resolve(file)
+            } else {
+                reject(new Error('no file chosen'))
+            }
+        }
+        input.click()
+    })
+}
+
+async function importAllSaves(url?: string): Promise<number> {
+    let blob: Blob
+    if (url) {
+        const response = await fetch(url, { cache: 'no-cache' })
+        if (!response.ok) {
+            console.log(`[Save] ${url}: HTTP ${response.status}`)
+            return 0
+        }
+        blob = await response.blob()
+    } else {
+        blob = await pickBlob()
+    }
+    // gzip by its magic bytes (1f 8b), else plain lines
+    const head = new Uint8Array(await blob.slice(0, 2).arrayBuffer())
+    let stream: ReadableStream = blob.stream()
+    if (head[0] === 0x1f && head[1] === 0x8b) {
+        stream = stream.pipeThrough(new DecompressionStream('gzip'))
+    }
+    const reader = stream.pipeThrough(new TextDecoderStream()).getReader()
+    let rest = ''
+    let lineNo = 0
+    let imported = 0
+    const take = async (line: string): Promise<void> => {
+        lineNo++
+        if (!line.trim()) {
+            return
+        }
+        const v: unknown = JSON.parse(line)
+        if (lineNo === 1) {
+            if ((v as { format?: string }).format !== ALL_FORMAT) {
+                throw new Error('not a DarkHarold2 saves file')
+            }
+            return
+        }
+        if (!isSave(v)) {
+            return
+        }
+        const id = await new Promise<number>((resolve) => putSave(v, resolve))
+        imported++
+        console.log(`[Save] imported '${v.name}' (${v.currentMap}) as save #${id}`)
+    }
+    for (;;) {
+        const { value, done } = await reader.read()
+        if (value) {
+            rest += value
+        }
+        let nl: number
+        while ((nl = rest.indexOf('\n')) >= 0) {
+            const line = rest.slice(0, nl)
+            rest = rest.slice(nl + 1)
+            await take(line)
+        }
+        if (done) {
+            break
+        }
+    }
+    if (rest) {
+        await take(rest)
+    }
+    console.log(`[Save] ${imported} saves imported`)
+    return imported
+}
+
 export function registerSaveFileCommands(): void {
     devWindow.exportSave = exportSave
     devWindow.importSave = importSave
+    devWindow.exportAllSaves = exportAllSaves
+    devWindow.importAllSaves = importAllSaves
 }

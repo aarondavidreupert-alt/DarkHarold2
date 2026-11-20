@@ -200,6 +200,13 @@ let clockLitMap = false
 export function markClockLitMap(): void {
     clockLitMap = true
 }
+// [dh2] day_night_cycle: while the Pip-Boy rests, the map behind it follows the curve alone. The
+// script's level (the ceiling) is only set again when the Pip-Boy closes (CE pipboyWindowFree →
+// map_update_p_proc), so during the rest the light hardly changed and then jumped (CA139).
+let restLight = false
+export function setRestLight(on: boolean): void {
+    restLight = on
+}
 
 const LIGHT_CURVE: { hour: number; intensity: number }[] = [
     { hour: 0, intensity: LIGHT_CURVE_NIGHT_FLOOR },
@@ -238,6 +245,9 @@ function setAmbientIntensity(intensity: number): void {
 export function getAmbientLight(): number {
     if (!Config.engine.dayNightCycle || !clockLitMap) return ambientIntensity
     const curve = curveAt(getHour() + getMinute() / 60) + nightVisionBonus()
+    if (restLight) {
+        return Math.min(LIGHT_INTENSITY_MAX, curve)
+    }
     return Math.min(Math.min(LIGHT_INTENSITY_MAX, curve), ambientIntensity)
 }
 

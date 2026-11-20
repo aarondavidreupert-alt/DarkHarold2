@@ -23,6 +23,7 @@ limitations under the License.
 import { gameNow } from '../frameClock.js'
 import { SkillSet, StatSet } from '../char.js'
 import { ActionPoints, AI } from '../combat.js'
+import { dudeStandup } from '../combat/results.js'
 import { Config } from '../config.js'
 import { Weapon } from '../critter.js'
 import { directionOfDelta, hexDistance, HEX_GRID_SIZE, Point } from '../geometry.js'
@@ -521,6 +522,24 @@ export class Critter extends Obj {
         return info.directionOffsets[this.orientation!]
     }
 
+    // knocked down (DAM_KNOCKED_DOWN), or left on a fall / knockdown animation (CE _critter_is_prone:
+    // 20..35 and their single frames 48..63); sets knockdownAnim (which way it lies) when unknown
+    lyingDown(): boolean {
+        const m = /^anim:(\d+)$/.exec(this.anim ?? '')
+        const id = m ? Number(m[1]) : -1
+        const fall = (id >= 20 && id <= 35) || (id >= 48 && id <= 63)
+        const knocked =
+            (this.injuryFlags & 0x02) !== 0 || this.anim === 'knockdownFront' || this.anim === 'knockdownBack'
+        if (!fall && !knocked) {
+            return false
+        }
+        if (!this.knockdownAnim && fall) {
+            const base = id >= 48 ? id - 28 : id
+            this.knockdownAnim = base === 21 || base === 35 ? 'knockdownBack' : 'knockdownFront'
+        }
+        return true
+    }
+
     walkTo(target: Point, running?: boolean, callback?: () => void, maxLength?: number, path?: any): boolean {
         // pathfind and set walking to target
         if (this.position.x === target.x && this.position.y === target.y) {
@@ -539,6 +558,18 @@ export class Critter extends Obj {
         if (path.length === 0) {
             // no path
             return false
+        }
+
+        // DH2 (CE's walk just replaces the lying frame): the player lying on the ground out of
+        // combat — a script's fall (the ghost farm's well: ANIM_fall_back_sf + DAM_KNOCKED_DOWN,
+        // its get-up registered on self_obj by mistake) — first gets up (CE _dude_standup's
+        // animation), then walks (known_bugs CA140)
+        if (this.isPlayer && !world.inCombat && this.lyingDown()) {
+            const lyingPath = path
+            dudeStandup(this, () => {
+                this.walkTo(target, running, callback, maxLength, lyingPath)
+            })
+            return true
         }
 
         if (maxLength !== undefined && path.length > maxLength) {

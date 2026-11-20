@@ -2251,3 +2251,38 @@ body.dh2ItemDrag #lootBox *,
 body.dh2ItemDrag #barterBox * {
   cursor: none !important;
 }
+
+/* World map panning (src/worldmap/Worldmap.ts setScrollCursor): the scroll arrow of the direction
+   while the map pans — CE wmInterfaceScroll's cursors */
+body[data-wmscroll="n"],
+body[data-wmscroll="n"] * {
+  cursor: url('art/intrface/scrnorth.png') 15 0, default !important;
+}
+body[data-wmscroll="ne"],
+body[data-wmscroll="ne"] * {
+  cursor: url('art/intrface/scrneast.png') 27 0, default !important;
+}
+body[data-wmscroll="e"],
+body[data-wmscroll="e"] * {
+  cursor: url('art/intrface/screast.png') 24 16, default !important;
+}
+body[data-wmscroll="se"],
+body[data-wmscroll="se"] * {
+  cursor: url('art/intrface/scrseast.png') 27 27, default !important;
+}
+body[data-wmscroll="s"],
+body[data-wmscroll="s"] * {
+  cursor: url('art/intrface/scrsouth.png') 16 25, default !important;
+}
+body[data-wmscroll="sw"],
+body[data-wmscroll="sw"] * {
+  cursor: url('art/intrface/scrswest.png') 0 27, default !important;
+}
+body[data-wmscroll="w"],
+body[data-wmscroll="w"] * {
+  cursor: url('art/intrface/scrwest.png') 0 16, default !important;
+}
+body[data-wmscroll="nw"],
+body[data-wmscroll="nw"] * {
+  cursor: url('art/intrface/scrnwest.png') 0 0, default !important;
+}

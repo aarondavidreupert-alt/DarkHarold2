@@ -822,6 +822,28 @@ function returnsToPlayer(cx: number, cy: number, nx: number, ny: number): boolea
     return Math.hypot(d.x - nx, d.y - ny) < Math.hypot(d.x - cx, d.y - cy)
 }
 
+// [dh2] scroll_return=1: the black area the view shows past the black border (scroll_limit's
+// bounds: a centre on a bound shows black up to the middle of the screen). A step that shows
+// less black — from the black back toward the map — may cross scroll blockers; one that keeps or
+// adds black may not. Near the border the next blocker hex refused even the step back, and the
+// view hung at the black edge (known_bugs CA138).
+function blackShown(cx: number, cy: number, halfW: number, halfH: number): number {
+    const bar = getActiveScrollBarBounds()
+    if (!bar) {
+        return 0
+    }
+    const bx = Math.max(0, bar.minX - (cx - halfW)) + Math.max(0, cx + halfW - bar.maxX)
+    const by = Math.max(0, bar.minY - (cy - halfH)) + Math.max(0, cy + halfH - bar.maxY)
+    return bx * halfH * 2 + by * halfW * 2
+}
+function leavesBlack(cx: number, cy: number, nx: number, ny: number): boolean {
+    if (!Config.ui.scrollReturn) {
+        return false
+    }
+    const c = viewCentreOffset()
+    return blackShown(nx, ny, c.x, c.y) < blackShown(cx, cy, c.x, c.y)
+}
+
 // A sample step is refused when it enters another blocker hex. CE checks only the tile a
 // whole 32×24 step lands on, so a centre on a blocker (the map centred on a player standing
 // on one, e.g. arbridge's camera corridor) can step off it; walking the move in 8 px samples
@@ -976,7 +998,11 @@ function clampCameraCE(ignoreRestrictions: boolean): void {
                 const step = Math.sign(left) * Math.min(Math.abs(left), CE_SCROLL_SAMPLE)
                 let nx = axis === 'x' ? cx + step : cx
                 let ny = axis === 'y' ? cy + step : cy
-                if (blockerEntered(cx, cy, nx, ny) && !returnsToPlayer(cx, cy, nx, ny)) {
+                if (
+                    blockerEntered(cx, cy, nx, ny) &&
+                    !returnsToPlayer(cx, cy, nx, ny) &&
+                    !leavesBlack(cx, cy, nx, ny)
+                ) {
                     const slid = slideOffBlocker(cx, cy, nx, ny, axis)
                     if (!slid) {
                         logScroll('refused: scroll blocker', { centre: hexTag(cx, cy), into: hexTag(nx, ny), axis })

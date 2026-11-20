@@ -439,6 +439,7 @@ async function runRest(option: number): Promise<void> {
     isRestAnimating = true
     restCancelled = false
     restBail = false
+    GameTime.setRestLight(true) // until the Pip-Boy closes and map_update_p_proc sets the level
     services.audioEngine?.playSfxByName?.('ib1p1xx1')
     const stopCursor = pipBoyContainer ? waitWatchCursor(pipBoyContainer) : () => {}
     try {
@@ -694,6 +695,7 @@ export function closePipBoy(): void {
     // CE ref: pipboy.cc:712 pipboyWindowFree — scriptsExecMapUpdateProc() on close,
     // so map scripts react to time spent resting (e.g. their time-of-day lighting).
     world.gMap?.updateMap()
+    GameTime.setRestLight(false)
 }
 
 // CE pipboyOpen(PIPBOY_OPEN_INTENT_REST) — the Z key: the Pip-Boy straight on the
