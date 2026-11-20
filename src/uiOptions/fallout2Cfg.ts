@@ -140,6 +140,11 @@ export function applyCfg(cfg: CfgSections): void {
     if (ls === 'ce' || ls === 'smooth') {
         Config.engine.lightShading = ls
     }
+    //   autosave_minutes=N   a save named AUTOSAVE every N minutes (default 5; 0 = off)
+    const autoMin = int(dh2['autosave_minutes'])
+    if (autoMin !== null && autoMin >= 0) {
+        Config.engine.autosaveMinutes = autoMin
+    }
     //   script_backend=lua  run the decompiled data/scripts/*.lua (tools/int2lua.py) (default)
     //   script_backend=vm   run the .int bytecode
     const sb = (dh2['script_backend'] ?? '').trim().toLowerCase()
