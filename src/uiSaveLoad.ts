@@ -36,7 +36,7 @@ import { world } from './state/world.js'
 import { uiState } from './state/uiState.js'
 import { services } from './state/services.js'
 import { dbg } from './logger.js'
-import { deleteSave, getSaveSnapshot, load, save, SaveGame, saveList, takeSaveSnapshot } from './saveload.js'
+import { deleteSave, getSaveSnapshot, load, save, SaveGame, saveMetaList, takeSaveSnapshot } from './saveload.js'
 import { Widget } from './uiWidget.js'
 import { WindowFrame, SmallButton } from './uiComponents.js'
 import { CE_COLOR, font1, font3, FoText } from './uiFont.js'
@@ -382,8 +382,9 @@ export function uiSaveLoad(isSave: boolean, quick = false, onCancel: (() => void
 
     let firstList = true
     function refresh(): void {
-        saveList((all: SaveGame[]) => {
-            saves = all.slice().sort((a, b) => (a.id ?? 0) - (b.id ?? 0))
+        // the save index (saveload.ts saveMetaList): the saves themselves are read only to load one
+        saveMetaList((all) => {
+            saves = (all as SaveGame[]).slice().sort((a, b) => (a.id ?? 0) - (b.id ?? 0))
             rebuildSlots()
             // Saving starts on the first free slot, which previews the current
             // snapshot (CE: an empty slot shows _snapshotBuf).

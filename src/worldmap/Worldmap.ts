@@ -990,19 +990,39 @@ function _onWMKeyDown(e: KeyboardEvent): void {
 function _onWMKeyUp(e: KeyboardEvent): void {
     _heldKeys.delete(e.key)
 }
+// The map pans while the mouse is in the view's edge band, and (DH2) anywhere outside the world
+// map window on that side — CE's window is the whole screen, so its screen-edge scroll covered
+// that. The scroll arrow of the direction is the cursor meanwhile (CE wmInterfaceScroll's
+// cursors, scrnorth .. scrnwest; ui.css body[data-wmscroll]).
 function _onWMMouseMove(e: MouseEvent): void {
-    const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    const view = document.getElementById('worldMapWorld')
+    if (!view) {
+        return
+    }
+    const r = view.getBoundingClientRect()
+    const box = document.getElementById('worldMapBox')?.getBoundingClientRect() ?? r
     const mx = e.clientX - r.left
     const my = e.clientY - r.top
+    const inX = mx >= 0 && mx <= r.width
+    const inY = my >= 0 && my <= r.height
     _mouseEdge = {
-        left: mx < EDGE_THRESHOLD,
-        right: mx > VIEW_W - EDGE_THRESHOLD,
-        top: my < EDGE_THRESHOLD,
-        bottom: my > VIEW_H - EDGE_THRESHOLD,
+        left: e.clientX < box.left || (inY && mx >= 0 && mx < EDGE_THRESHOLD),
+        right: e.clientX > box.right || (inY && mx <= r.width && mx > r.width - EDGE_THRESHOLD),
+        top: e.clientY < box.top || (inX && my >= 0 && my < EDGE_THRESHOLD),
+        bottom: e.clientY > box.bottom || (inX && my <= r.height && my > r.height - EDGE_THRESHOLD),
     }
+    setScrollCursor()
 }
 function _onWMMouseLeave(): void {
     _mouseEdge = { left: false, right: false, top: false, bottom: false }
+    setScrollCursor()
+}
+function setScrollCursor(): void {
+    const dir =
+        (_mouseEdge.top ? 'n' : _mouseEdge.bottom ? 's' : '') + (_mouseEdge.right ? 'e' : _mouseEdge.left ? 'w' : '')
+    if ((document.body.dataset.wmscroll ?? '') !== dir) {
+        document.body.dataset.wmscroll = dir
+    }
 }
 
 // Keyboard and mouse-edge scrolling, on every open: stop() takes them off when the world map
@@ -1012,13 +1032,10 @@ function addPanListeners(): void {
     document.removeEventListener('keyup', _onWMKeyUp)
     document.addEventListener('keydown', _onWMKeyDown)
     document.addEventListener('keyup', _onWMKeyUp)
-    const $worldMapWorld = document.getElementById('worldMapWorld')
-    if ($worldMapWorld) {
-        $worldMapWorld.removeEventListener('mousemove', _onWMMouseMove)
-        $worldMapWorld.removeEventListener('mouseleave', _onWMMouseLeave)
-        $worldMapWorld.addEventListener('mousemove', _onWMMouseMove)
-        $worldMapWorld.addEventListener('mouseleave', _onWMMouseLeave)
-    }
+    document.removeEventListener('mousemove', _onWMMouseMove)
+    document.removeEventListener('mouseleave', _onWMMouseLeave)
+    document.addEventListener('mousemove', _onWMMouseMove)
+    document.addEventListener('mouseleave', _onWMMouseLeave)
 }
 
 export function start() {
@@ -1046,11 +1063,9 @@ export function stop() {
     _mouseEdge = { left: false, right: false, top: false, bottom: false }
     document.removeEventListener('keydown', _onWMKeyDown)
     document.removeEventListener('keyup', _onWMKeyUp)
-    const $worldMapWorld = document.getElementById('worldMapWorld')
-    if ($worldMapWorld) {
-        $worldMapWorld.removeEventListener('mousemove', _onWMMouseMove)
-        $worldMapWorld.removeEventListener('mouseleave', _onWMMouseLeave)
-    }
+    document.removeEventListener('mousemove', _onWMMouseMove)
+    document.removeEventListener('mouseleave', _onWMMouseLeave)
+    delete document.body.dataset.wmscroll
 }
 
 // check if we're inside an area

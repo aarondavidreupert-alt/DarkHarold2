@@ -462,8 +462,17 @@ GameMap.prototype.loadNewMap = function (
             obj._script!._mapScript = this.mapScript
         })
 
+        const placedAt = { ...world.player!.position }
         this.doEnterNewMap(true)
         elevation = this.currentElevation
+        // [dh2] party_placement=near: a map_enter_p_proc that moved the dude (override_map_start —
+        // most town maps entered from the world map) left the party at the map's start, far away
+        // (CE does the same: _map_place_dude_and_mouse places them before scriptsExecMapEnterProc);
+        // they join the dude where he now stands
+        const p = world.player!.position
+        if (Config.ui.partyPlacement === 'near' && (p.x !== placedAt.x || p.y !== placedAt.y)) {
+            this.placeParty()
+        }
 
         // no script update here: doEnterNewMap ran CE mapLoad's one scriptsExecMapUpdateProc
         this.changeElevation(this.currentElevation, false, true)
@@ -530,9 +539,11 @@ GameMap.prototype.loadMapByID = function (
     if (mapName !== null) {
         // CE mapHandleTransition (an exit grid's transition): after the map loaded — and its
         // scripts ran, so a script's override_map_start doesn't win — the dude goes to the
-        // transition's tile and elevation and takes its rotation
+        // transition's tile and elevation and takes its rotation. Ladders and stairs give no
+        // rotation: they still put the dude on their tile (the ghost farm's map script moved him
+        // from the ladder to the farm's entrance, known_bugs CA141)
         const place =
-            startingOrientation === undefined || startingPosition === undefined
+            startingPosition === undefined
                 ? undefined
                 : () => {
                       const player = world.player
@@ -548,7 +559,9 @@ GameMap.prototype.loadMapByID = function (
                           player.position = { ...startingPosition }
                           zsortObject(player) // draw order at the new tile (CA65)
                       }
-                      player.orientation = startingOrientation
+                      if (startingOrientation !== undefined) {
+                          player.orientation = startingOrientation
+                      }
                       // CE mapHandleTransition → mapSetElevation → _partyMemberSyncPosition: the party
                       // goes next to the dude at his new tile — it stayed by the map's default start,
                       // so Smoke turned up away from the player in Arroyo (known_bugs CA74)

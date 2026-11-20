@@ -296,8 +296,30 @@ export function formatSaveDate(save: SaveGame): string {
     }/${date.getDate()}/${date.getFullYear()} ${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}`
 }
 
+// DH2: 'saveMeta' holds what the save window lists (name, date, map, game time, player name,
+// screenshot) per save id. A save of a long game is 30-40 MB, and the window read every one of
+// them whole to list them, which took seconds (known_bugs CA143).
+const META_STORE = 'saveMeta'
+export type SaveMeta = Pick<SaveGame, 'id' | 'name' | 'timestamp' | 'currentMap' | 'gameTickTime' | 'screenshot'> & {
+    playerState?: { name?: string }
+}
+function metaOf(save: SaveGame, id?: number): SaveMeta {
+    return {
+        id: id ?? save.id,
+        name: save.name,
+        timestamp: save.timestamp,
+        currentMap: save.currentMap,
+        gameTickTime: save.gameTickTime,
+        screenshot: save.screenshot,
+        playerState: { name: save.playerState?.name },
+    }
+}
+function hasMetaStore(): boolean {
+    return db.objectStoreNames.contains(META_STORE)
+}
+
 function withTransaction(f: (trans: IDBTransaction) => void, finished?: () => void) {
-    const trans = db.transaction('saves', 'readwrite')
+    const trans = db.transaction(hasMetaStore() ? ['saves', META_STORE] : 'saves', 'readwrite')
     if (finished) {
         trans.oncomplete = finished
     }
@@ -324,6 +346,37 @@ function getAll<T>(store: IDBObjectStore, callback?: (result: T[]) => void) {
 export function saveList(callback: (saves: SaveGame[]) => void): void {
     withTransaction((trans) => {
         getAll(trans.objectStore('saves'), callback)
+    })
+}
+
+/** What the save window lists, without reading the saves themselves. The index is filled from
+ *  the saves once (a database from before it, or one it misses entries of). */
+export function saveMetaList(callback: (metas: SaveMeta[]) => void): void {
+    if (!hasMetaStore()) {
+        saveList((saves) => callback(saves.map((s) => metaOf(s))))
+        return
+    }
+    withTransaction((trans) => {
+        const metaStore = trans.objectStore(META_STORE)
+        const saves = trans.objectStore('saves')
+        getAll<SaveMeta>(metaStore, (metas) => {
+            saves.count().onsuccess = (e) => {
+                const count = Number((e.target as IDBRequest).result)
+                if (count === metas.length) {
+                    callback(metas)
+                    return
+                }
+                dbg('saveload', `[SaveLoad] building the save index (${count} saves)`)
+                getAll<SaveGame>(saves, (all) => {
+                    metaStore.clear()
+                    const built = all.map((sv) => metaOf(sv))
+                    for (const m of built) {
+                        metaStore.put(m)
+                    }
+                    callback(built)
+                })
+            }
+        })
     })
 }
 
@@ -372,6 +425,9 @@ export function save(name: string, slot = -1, callback?: (id: number) => void): 
             const req = trans.objectStore('saves').put(save)
             req.onsuccess = () => {
                 savedId = Number(req.result)
+                if (hasMetaStore()) {
+                    trans.objectStore(META_STORE).put(metaOf(save, savedId))
+                }
             }
 
             dbg('saveload', "[SaveLoad] Saving game data as '%s'", name)
@@ -391,6 +447,9 @@ export function putSave(save: SaveGame, callback?: (id: number) => void): void {
             const req = trans.objectStore('saves').put(entry)
             req.onsuccess = () => {
                 savedId = Number(req.result)
+                if (hasMetaStore()) {
+                    trans.objectStore(META_STORE).put(metaOf(entry, savedId))
+                }
             }
         },
         () => callback?.(savedId),
@@ -401,6 +460,9 @@ export function putSave(save: SaveGame, callback?: (id: number) => void): void {
 export function deleteSave(id: number, callback?: () => void): void {
     withTransaction((trans) => {
         trans.objectStore('saves').delete(id)
+        if (hasMetaStore()) {
+            trans.objectStore(META_STORE).delete(id)
+        }
     }, callback)
 }
 
@@ -715,11 +777,17 @@ export function load(id: number): void {
 }
 
 export function saveLoadInit(): void {
-    const request = indexedDB.open('darkfo', 1)
+    // version 2 (2026-11-21): the save index store (saveMetaList)
+    const request = indexedDB.open('darkfo', 2)
 
     request.onupgradeneeded = function () {
         const db = request.result
-        db.createObjectStore('saves', { keyPath: 'id', autoIncrement: true })
+        if (!db.objectStoreNames.contains('saves')) {
+            db.createObjectStore('saves', { keyPath: 'id', autoIncrement: true })
+        }
+        if (!db.objectStoreNames.contains(META_STORE)) {
+            db.createObjectStore(META_STORE, { keyPath: 'id' })
+        }
     }
 
     request.onsuccess = function () {

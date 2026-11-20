@@ -475,6 +475,8 @@ exportSave("tttt")            // the newest save with that name (a number picks 
 importSave()                  // pick a .json file, store it as a new save and load it
 importSave(false)             // store it only; it shows in the Load Game list
 importSave("saves/tttt.json") // read it from a URL instead of a file picker
+exportAllSaves()              // every save in one file: dh2saves_<date>.jsonl.gz (gzip, one save a line)
+importAllSaves()              // pick such a file; each save in it becomes a new save
 ```
 
 ### Tiers

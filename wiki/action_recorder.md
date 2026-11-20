@@ -242,6 +242,8 @@ exportSave(7)                     // save id 7 (the ids: saveSize())
 importSave()                      // pick a file, store it as a new save and load it
 importSave(false)                 // store it only (it shows in the Load Game list)
 importSave("saves/x.json")        // from a URL instead of a file picker
+exportAllSaves()                  // every save in one gzip file (one save a line: no size limit)
+importAllSaves()                  // pick such a file; each save becomes a new save (none is loaded)
 ```
 
 The file is named `<name>_<date>_<time>.dh2save.json` with the save's own date and time (e.g.
