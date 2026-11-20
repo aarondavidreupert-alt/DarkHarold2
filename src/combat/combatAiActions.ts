@@ -24,7 +24,7 @@ import { randomBetween } from '../random.js'
 import { toTileNum } from '../tile.js'
 import { uiLog } from '../messageLog.js'
 import { useDrug } from '../drugs.js'
-import { weaponAttackType } from './hitChance.js'
+import { objectDistance, weaponAttackType } from './hitChance.js'
 import {
     AiTurnState,
     HEALING_PIDS,
@@ -556,7 +556,11 @@ export const combatAiActionMethods = {
             const d = hexDistance(obj.position, player.position)
             if (d > 5 && hexDistance(target.position, player.position) > 5 && d + steps > 5) return false
         }
-        if (hexDistance(obj.position, target.position) <= 1) return false
+        // CE: objectGetDistanceBetween — one hex less for a multihex target (a brahmin is in
+        // reach from two hexes out)
+        if (objectDistance(obj, obj.position, target) <= 1) {
+            return false
+        }
         const AP = obj.AP!
         steps = Math.min(steps, AP.getAvailableMoveAP())
         const run = steps >= Math.trunc(obj.AP!.getMaxAP() / 2) && obj.canRun() && critterArtShouldRun(obj.art)
@@ -564,10 +568,26 @@ export const combatAiActionMethods = {
         if (taunt) this.maybeTaunt(obj, 'move')
         const gMap = world.gMap!
         const elevation = obj.elevation ?? gMap.currentElevation
+        // CE animationRegisterMoveToObject: a multihex target (OBJECT_MULTIHEX) fills its
+        // neighbours, so no path reaches its tile; the walk goes to the nearest neighbour
+        // instead and stops a step short of it, two hexes out (the wild dogs of Modoc's
+        // pasture never got to the brahmin — known_bugs CA136)
+        let multihexTile: Point | null = null
+        if ((((target.flags ?? 0) >>> 0) & 0x800) !== 0) {
+            let best = Infinity
+            for (let d = 0; d < 6; d++) {
+                const n = hexInDirection(target.position, d)
+                const len = gMap.recalcPath(obj.position, n, false, obj).length
+                if (len > 0 && len < best) {
+                    best = len
+                    multihexTile = n
+                }
+            }
+        }
         // No path to the target's tile: the first critter in the way (_obj_ai_blocking_at's
         // _moveBlockObj) becomes the one to move to
         let goal: Critter = target
-        if (gMap.recalcPath(obj.position, target.position, false, obj).length === 0) {
+        if (!multihexTile && gMap.recalcPath(obj.position, target.position, false, obj).length === 0) {
             const around = pathfinderFindPathPoints(obj, obj.position, target.position, false, 'ai')
             for (const [x, y] of around.slice(1)) {
                 const c = gMap
@@ -588,7 +608,10 @@ export const combatAiActionMethods = {
             }
         }
         // _cai_retargetTileFromFriendlyFire on the original target's tile
-        const tile = goal === target ? this.retargetTileFromFriendlyFire(obj, target, target.position) : goal.position
+        const tile =
+            goal !== target
+                ? goal.position
+                : (multihexTile ?? this.retargetTileFromFriendlyFire(obj, target, target.position))
         // animationRegisterMoveToTile: onto the tile, a step short when it is occupied
         const path = gMap.recalcPath(obj.position, tile, false, obj)
         if (path.length === 0) return false
