@@ -304,6 +304,9 @@ export const Config = {
         // channels in 128 light steps and truncates ('ce', default); 'smooth' = a plain multiply
         // (DH2 before 2026-11-15, brighter in caves and at night). [dh2] light_shading=ce|smooth.
         lightShading: 'ce' as 'ce' | 'smooth',
+        // DH2 addition (CE has none): a save named AUTOSAVE every N minutes of play, at a quiet
+        // moment (src/autosave.ts). [dh2] autosave_minutes=N, 0 = off.
+        autosaveMinutes: 5,
         // sfall pipboy_available_at_game_start (CE pipboy.cc _pip_init_): the Pip-Boy opens
         // before the Vault Suit movie. Set in fallout2.cfg: [dh2] pipboy_available_at_game_start=1.
         pipboyAvailableAtStart: false,

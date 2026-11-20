@@ -108,6 +108,8 @@ day_night_cycle=1
 ; ce = CE's shading below full light (dark colours lose more: moody caves and nights),
 ; smooth = a plain multiply (brighter)
 light_shading=ce
+; a save named AUTOSAVE every N minutes of play (DH2; CE has none), 0 = off
+autosave_minutes=5
 ; 1 = Fallout pixel font for UI text, 0 = browser font
 pixel_font=1
 ; 1 = a Use action on elevators walks the player in (DH2), 0 = CE: only walking in calls them
