@@ -67,11 +67,14 @@ export const coreOpcodes = {
         return this.lvars[lvar] ?? 0
     },
     map_var(this: Script, mvar: number) {
-        if (this._mapScript === undefined) {
+        // CE mapGetGlobalVar: the current map's MVARs, whichever script asks (a party member's
+        // script carried the map script of the map it was loaded on)
+        const mapScript = world.gMap?.mapScript ?? this._mapScript
+        if (!mapScript) {
             warn('map_var: no map script')
             return
         }
-        const scriptName = this._mapScript.scriptName
+        const scriptName = mapScript.scriptName
         if (scriptName === undefined) {
             warn('map_var: map script has no name')
             return
@@ -80,8 +83,12 @@ export const coreOpcodes = {
         return mapVars[scriptName]?.[mvar] ?? 0
     },
     set_map_var(this: Script, mvar: number, value: any) {
-        if (!this._mapScript) throw Error('set_map_var: no map script')
-        const scriptName = this._mapScript.scriptName
+        // CE mapSetGlobalVar: the current map's MVARs (see map_var)
+        const mapScript = world.gMap?.mapScript ?? this._mapScript
+        if (!mapScript) {
+            throw Error('set_map_var: no map script')
+        }
+        const scriptName = mapScript.scriptName
         if (scriptName === undefined) {
             warn('map_var: map script has no name')
             return

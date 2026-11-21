@@ -893,6 +893,14 @@ export class GameMap {
         this.numLevels = obj.numLevels
         this.mapObj = obj.mapObj
         this.mapScript = obj.mapScript ? Scripting.deserializeScript(obj.mapScript) : null
+        // The restored map script is the current one before the objects' scripts load: they (and
+        // the map script itself) took the map script current at that moment — the map just left —
+        // so map_var / set_map_var used that map's MVARs. Back in the Vault City courtyard from
+        // Downtown, Andy read Downtown's MVAR 4 (Skeeve dead) as "Auto-Doc fixed" (CA146).
+        if (this.mapScript) {
+            this.mapScript._mapScript = this.mapScript
+        }
+        Scripting.setMapScript(this.mapScript)
         this.objects = obj.objects.map((level, levelIdx) =>
             level.map((o) => {
                 const deserialized = deserializeObj(o)
