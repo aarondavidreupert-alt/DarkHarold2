@@ -555,6 +555,36 @@ SCRIPT_FIXES = {
     },
 }
 
+# Added procedures: a script fix that adds a procedure the script lacks (only when the
+# .int has none of that name). The body runs only while [dh2] script_fixes is on.
+# script -> (procedure, note, Lua body lines; NAME marked as NAMED_MARK (_named) becomes the
+# script's local for that number when it declares one, else the number).
+#
+# L19 vcsteve / vcmelind (Vault City's Greeting Office): the clerks show themselves
+# from 7:00 to 18:00, but only map_enter_p_proc looks at the hour, so after waiting
+# for the morning in the Pip-Boy on that map the office stays empty until the
+# player leaves and comes back. map_update_p_proc (after a rest, every 30 s, on a
+# load) repeats the same check; no walking in -- the scripts have none.
+def _named(name, v):
+    return chr(1) + name + chr(2) + str(v) + chr(3)  # NAMED_MARK
+
+
+_HOURS_VISIBILITY = [
+    "if game_time_hour > 700 and game_time_hour < 1800 then",
+    "    if has_trait(%s, self_obj, %s) == 0 then" % (_named("TRAIT_OBJECT", 1), _named("OBJECT_VISIBILITY", 666)),
+    "        set_obj_visibility(self_obj, 0)",
+    "    end",
+    "elseif has_trait(%s, self_obj, %s) ~= 0 then" % (_named("TRAIT_OBJECT", 1), _named("OBJECT_VISIBILITY", 666)),
+    "    set_obj_visibility(self_obj, 1)",
+    "end",
+]
+ADDED_PROCS = {
+    s: ("map_update_p_proc",
+        "DH2 fix (L19): map_enter_p_proc's office-hours check, repeated on map update",
+        _HOURS_VISIBILITY)
+    for s in ("vcsteve", "vcmelind")
+}
+
 
 # Other #defines that name a variable number, used only for a number nothing else
 # names: define.h's caught_pickpocket counts thefts in local_var(NPC_REACTION_VAR)
@@ -1703,6 +1733,7 @@ class ScriptDecompiler:
         # the per-script repairs of the vanilla .int; decompile_file clears them for a
         # script taken from a mod (recompiled from fixed sources, wiki/upu_support.md)
         self.script_fixes = SCRIPT_FIXES
+        self.added_procs = ADDED_PROCS
         self.missing_operands = MISSING_OPERANDS
         self.fixed_operands = set()  # pcs MISSING_OPERANDS supplied a value for
         self.operand_notes = {}      # name -> why (MISSING_OPERANDS), marked inferred
@@ -1980,6 +2011,18 @@ class ScriptDecompiler:
             self.block(body, 1, w)
             if p.name in callers and not (body and isinstance(body[-1], Return)):
                 w("    return 0")
+            w("end")
+            w("")
+        added = self.added_procs.get(self.name)
+        if added and added[0] not in (p.name.lower() for p, _pd, _b in procs):
+            proc, note, body = added
+            self.script_fixes_applied += 1
+            w("function %s()" % proc)
+            w("    -- %s" % note)
+            w("    if dh2_script_fixes() ~= 0 then")
+            for line in body:
+                w("        " + line)
+            w("    end")
             w("end")
             w("")
         while lines and lines[-1] == "":
