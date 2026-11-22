@@ -190,5 +190,14 @@ Cases are case-insensitive (CE handles both `KEY_UPPERCASE_X` and `KEY_LOWERCASE
 - **Mouse wheel** zooms (DH2 feature) instead of scrolling the map as CE `gameHandleKey(-1)`; the arrows scroll.
 - **Pause window** text is drawn in the browser font, not font 103/104.
 - **Space** doubles as the DH2 item-highlight key outside combat (CE has none there).
+- **Key bindings in `fallout2.cfg [keys]`** (DH2 addition, 2026-11-22; CE has no bindings file). The section
+  lists every game key of Â§4 under an action name (`inventory=i`, `automap=tab`, `end_turn=space`, â€¦),
+  the camera arrows (`camera_up=up`), `highlight_items` and the developer keys (`dev_*`); its defaults are
+  CE's layout. `src/keyBindings.ts` turns a pressed key bound to an action into that action's CE key in
+  front of `gameHandleKey` (and a window's own close keys: a moved inventory key closes the inventory); a
+  CE key whose action moved does nothing. Ctrl+S/L/P/Q/X/V and the skill keys 1-8 stay fixed. Values: one
+  character, a key name (space, enter, tab, escape, home, end, insert, delete, backspace, pageup, pagedown,
+  up, down, left, right) or f1-f12. The pipeline's `fallout2.cfg` template has the section; an existing file
+  gets it appended (`tools/fallout2Cfg.py add_missing_options`). Unit test: `test/keyBindings.test.mjs`.
 
 <!-- audited: 2026-10-17 -->

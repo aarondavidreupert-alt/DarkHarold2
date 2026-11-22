@@ -245,6 +245,93 @@ scroll_player_limit=1
 scroll_return=1
 ; 1 = no one (player or NPC) walks past the black border around the map, 0 = no such limit
 walk_limit=1
+
+[keys]
+; Key bindings - a DarkHarold2 addition: Fallout 2 and CE have no bindings file, and these
+; defaults are their fixed keys. A value is one character or a key name: space, enter, tab,
+; escape, home, end, insert, delete, backspace, pageup, pagedown, up, down, left, right,
+; f1-f12. A CE key whose action is moved does nothing. Ctrl+S/L/P/Q/X/V and the skill keys
+; 1-8 stay fixed.
+; inventory
+inventory=i
+; character screen
+character=c
+; skilldex
+skilldex=s
+; Pip-Boy
+pipboy=p
+; Pip-Boy alarm clock (rest)
+rest=z
+; automap
+automap=tab
+; options menu
+options=o
+; options menu (Esc)
+menu=escape
+; start combat
+combat=a
+; cycle the active item's action
+item_action=n
+; cycle the mouse mode
+mouse_mode=m
+; swap hands
+swap_hands=b
+; centre the view on the player
+center=home
+; help screen
+help=f1
+; master volume down
+volume_down=f2
+; master volume up
+volume_up=f3
+; save game
+save=f4
+; load game
+load=f5
+; quick save
+quick_save=f6
+; quick load
+quick_load=f7
+; quit
+quit=f10
+; brightness down
+brightness_down=-
+; brightness up
+brightness_up==
+; turn the player left
+rotate_left=,
+; turn the player right
+rotate_right=.
+; show the date and time
+date=/
+; end the turn (combat)
+end_turn=space
+; end combat (combat)
+end_combat=enter
+; scroll the map (a letter, digit, space or up/down/left/right)
+camera_up=up
+camera_down=down
+camera_left=left
+camera_right=right
+; outline every item on screen while held
+highlight_items=space
+; DarkHarold2 developer keys, active only after the console's setDevKeys(true)
+dev_elevation_down=q
+dev_elevation_up=e
+dev_show_roof=r
+dev_show_floor=f
+dev_show_objects=o
+dev_show_walls=w
+dev_talk_to=t
+dev_inspect=i
+dev_move_to=m
+dev_run_to=j
+dev_attack=g
+dev_player_to_target_raycast=y
+dev_show_target_inventory=v
+dev_use=u
+dev_kill=k
+dev_worldmap=l
 """
 
 
