@@ -165,7 +165,8 @@ The decompiler leaves the scripts' behaviour alone — with one kind of exceptio
 intent the sources make clear may be repaired in the generated Lua. Each repair is a **deliberate deviation
 from the shipped `.int` and from CE**, so every one is:
 
-- listed in `SCRIPT_FIXES` in `tools/int2lua.py` (script, procedure, the intrinsic, the variable the
+- listed in `SCRIPT_FIXES` in `tools/int2lua.py` (or, for a procedure the script lacks, `ADDED_PROCS`)
+  (script, procedure, the intrinsic, the variable the
   bytecode passes by mistake, the expression the source meant, and why), and in the table below;
 - marked where it happens in the generated Lua, as an inline comment
   (`--[[ DH2 fix (L7): … ]]`);
@@ -179,6 +180,7 @@ and only there.
 | ID | Script / procedure | The shipped script | The fix | Source of the intent |
 |----|--------------------|--------------------|---------|----------------------|
 | L7 | `bhrnddst` `DMRV_Caravan`, the guard loop (also reached from `Redding_DMRV_Encounter`, `Redding_Band_Encounter`) | `give_money(Critter, item)`: `item` (`LVar3`) holds the hunting rifle `Create_Enemy` just made, so every caravan guard is given the rifle object as caps — `item_caps_adjust(Critter, LVar3)`, `2 * LVar3` with Fortune Finder. CE adds a garbage amount (pointer bits), the VM NaN, the Lua stopped the procedure (with the perk: the slaves were never created) | `random(10, 20)` caps, doubled with Fortune Finder as the rest of the script does | the Unofficial Patch's `scripts_src/maps/bhrnddst.ssl` (killap) gives `random(10, 20)`, the guards' amount in `DMRV_Highwaymen` |
+| L19 | `vcsteve`, `vcmelind` (Vault City's Greeting Office clerks): an added `map_update_p_proc` | only `map_enter_p_proc` checks the hour (visible from 7:00 to 18:00), so after resting on that map until the morning the office stays empty until the player leaves and comes back | `map_update_p_proc` repeats `map_enter_p_proc`'s check; listed in `ADDED_PROCS` (added only when the `.int` has no procedure of that name), the body behind `dh2_script_fixes()` | the scripts' own office hours |
 
 Not a script fix, and not switchable: `item_caps_adjust` with an amount that is not a number changes nothing
 (with a warning) instead of making the caps stack NaN — a guard in `src/scripting.ts` for both backends.

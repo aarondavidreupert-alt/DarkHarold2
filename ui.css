@@ -2087,8 +2087,11 @@ html, body {
   font-size: small;
 }
 
+/* CE combat.cc _draw_loc_on_ / _draw_loc_off: the location under the mouse in _colorTable[31744] (red),
+   back to green (992) when the mouse leaves */
 .calledShotLabel:hover {
   cursor: pointer;
+  color: #fc0000 !important;
 }
 
 .calledShotChance {

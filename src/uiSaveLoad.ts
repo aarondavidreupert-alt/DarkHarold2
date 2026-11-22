@@ -254,15 +254,22 @@ export function uiSaveLoad(isSave: boolean, quick = false, onCancel: (() => void
     })
     el.appendChild(list)
 
-    // Scroll bar (DH2): a thin track just right of the list, thumb in the list green.
+    // Scroll bar (DH2): a thin track just right of the list, thumb in the list green. The 4 px bar
+    // sits in a 12 px grab zone that the window drag leaves alone (data-drag="no"): a press near
+    // the bar moved the window instead (known_bugs CA147).
     const track = document.createElement('div')
+    track.dataset.drag = 'no'
     Object.assign(track.style, {
         position: 'absolute',
-        left: LIST_X + LIST_W + 1 + 'px',
+        left: LIST_X + LIST_W + 1 - 4 + 'px',
         top: LIST_Y + 'px',
         width: '4px',
         height: LIST_H + 'px',
         background: CE_COLOR.dimGreen,
+        backgroundClip: 'content-box',
+        border: '0 solid transparent',
+        borderLeftWidth: '4px',
+        borderRightWidth: '4px',
     })
     const thumb = document.createElement('div')
     Object.assign(thumb.style, { position: 'absolute', left: '0', width: '4px', background: CE_COLOR.green })
@@ -375,9 +382,25 @@ export function uiSaveLoad(isSave: boolean, quick = false, onCancel: (() => void
     }
     list.addEventListener('wheel', onWheel, { passive: false })
     track.addEventListener('wheel', onWheel, { passive: false })
+    // a press picks the slot under it; holding the button and moving drags along the list
+    const trackSelect = (clientY: number): void => {
+        const r = track.getBoundingClientRect()
+        const y = Math.max(0, Math.min(r.height - 1, clientY - r.top))
+        select(Math.floor((slots.length * y) / r.height))
+    }
     track.addEventListener('mousedown', (e) => {
-        const y = e.clientY - track.getBoundingClientRect().top
-        select(Math.floor((slots.length * y) / LIST_H))
+        if (e.button !== 0) {
+            return
+        }
+        e.preventDefault()
+        const onMove = (m: MouseEvent): void => trackSelect(m.clientY)
+        const onUp = (): void => {
+            window.removeEventListener('mousemove', onMove)
+            window.removeEventListener('mouseup', onUp)
+        }
+        window.addEventListener('mousemove', onMove)
+        window.addEventListener('mouseup', onUp)
+        trackSelect(e.clientY)
     })
 
     let firstList = true
