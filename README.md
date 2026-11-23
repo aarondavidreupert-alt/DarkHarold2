@@ -91,7 +91,7 @@ Pre-audited summaries of CE behaviour with DH2 gaps already identified. Trust th
 | 25 | [`wiki/quest_system.md`](wiki/quest_system.md) | Quest GVAR tracking, Pip-Boy ARCHIVES |
 | 26 | [`wiki/pipboy.md`](wiki/pipboy.md) | Pip-Boy panels, AUTOMAP, clock/alarm |
 | 27 | [`wiki/interface_windows.md`](wiki/interface_windows.md) | HUD, character/inventory windows, indicator bar |
-| 28 | [`wiki/hotkeys.md`](wiki/hotkeys.md) | Default keybindings |
+| 28 | [`wiki/hotkeys.md`](wiki/hotkeys.md) | Default keybindings; `fallout2.cfg [keys]` to change them |
 | 29 | [`wiki/save_load.md`](wiki/save_load.md) | Save/load format, IndexedDB slots, thumbnails |
 | 30 | [`wiki/time_clock.md`](wiki/time_clock.md) | In-game time, day/night cycle, midnight queue |
 | 31 | [`wiki/spatial_triggers.md`](wiki/spatial_triggers.md) | Spatial trigger system |

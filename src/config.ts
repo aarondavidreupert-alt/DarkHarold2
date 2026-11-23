@@ -443,8 +443,9 @@ export const Config = {
         violenceLevel: 3 as 0 | 1 | 2 | 3, // CE settings.h: VIOLENCE_LEVEL_MAXIMUM_BLOOD
     },
 
-    // DH2 developer keys (Config.engine.devKeys) and the camera arrows. The game keys are
-    // CE's fixed gameHandleKey layout (src/hotkeys.ts).
+    // DH2 developer keys (Config.engine.devKeys) and the camera arrows; fallout2.cfg [keys]
+    // sets them (src/keyBindings.ts, dev_* names for the developer keys). The game keys are
+    // CE's gameHandleKey layout (src/hotkeys.ts), movable with [keys] too.
     controls: {
         cameraDown: 'down',
         cameraUp: 'up',

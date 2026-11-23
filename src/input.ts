@@ -41,6 +41,7 @@ import { UIMode } from './uiMode.js'
 import { Config } from './config.js'
 import { closePipBoy } from './uiPipBoy.js'
 import { gameHandleKey } from './hotkeys.js'
+import { asCeKey } from './keyBindings.js'
 import { closeInventory } from './uiInventory.js'
 import { automapKey, closeAutomap } from './uiAutomap.js'
 import { lootKey } from './uiLoot.js'
@@ -151,7 +152,8 @@ function devKeyBound(key: string): boolean {
 
 // The close keys of the window that is open (CE: each window's own input loop).
 function closeWindowKey(e: KeyboardEvent): boolean {
-    const k = e.key.length === 1 ? e.key.toLowerCase() : e.key
+    // fallout2.cfg [keys]: a moved action's key closes its window as CE's key does
+    const k = asCeKey(e.key.length === 1 ? e.key.toLowerCase() : e.key)
     switch (uiState.uiMode) {
         case UIMode.pipBoy: // pipboy.cc pipboyOpen: Esc, Return, P, Z
             if (k === 'Escape' || k === 'Enter' || k === 'p' || k === 'z') {

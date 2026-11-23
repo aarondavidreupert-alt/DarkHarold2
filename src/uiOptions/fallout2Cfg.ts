@@ -25,6 +25,7 @@ import { Config, DRAG_WINDOWS } from '../config.js'
 import { services } from '../state/services.js'
 import { dbg } from '../logger.js'
 import { getFileText } from '../util.js'
+import { applyKeysSection } from '../keyBindings.js'
 
 export type CfgSections = { [section: string]: { [key: string]: string } }
 
@@ -131,6 +132,11 @@ export function applyCfg(cfg: CfgSections): void {
     // [dh2] — DarkHarold2-only options (not in CE; CE ignores unknown sections).
     //   day_night_cycle=1  smooth hour-of-day light curve (default)
     //   day_night_cycle=0  CE lighting: only map scripts' set_light_level
+    // [keys] (DH2): key bindings, CE's fixed layout by default (src/keyBindings.ts)
+    const badKeys = applyKeysSection(cfg['keys'])
+    if (badKeys.length > 0) {
+        dbg('load', `[fallout2.cfg] [keys] ignored: ${badKeys.join(', ')}`)
+    }
     const dh2 = cfg['dh2'] ?? {}
     const dnc = int(dh2['day_night_cycle'])
     if (dnc !== null) Config.engine.dayNightCycle = dnc !== 0

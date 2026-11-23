@@ -18,6 +18,7 @@ limitations under the License.
 // ends the turn, Return tries to end combat). Runs on the map only (no window open),
 // as CE's windows run their own input loops.
 
+import { translateGameKey } from './keyBindings.js'
 import { world } from './state/world.js'
 import { uiState } from './state/uiState.js'
 import { services } from './state/services.js'
@@ -198,9 +199,14 @@ export type MouseModeCycler = () => void
 
 // Returns true when the key was a game key.
 export function gameHandleKey(e: KeyboardEvent, cycleMouseMode: MouseModeCycler): boolean {
-    const key = e.key
-    const lower = key.length === 1 ? key.toLowerCase() : key
+    const lower = e.key.length === 1 ? e.key.toLowerCase() : e.key
     const ctrl = e.ctrlKey || e.metaKey
+    // fallout2.cfg [keys] (src/keyBindings.ts): the pressed key as CE's key for its action;
+    // null = a CE key whose action was moved to another key. Ctrl keys and 1-8 stay CE's.
+    const key = ctrl ? lower : translateGameKey(lower)
+    if (key === null) {
+        return false
+    }
     const inCombat = world.inCombat
     const bar = barEnabled()
 
@@ -327,7 +333,7 @@ export function gameHandleKey(e: KeyboardEvent, cycleMouseMode: MouseModeCycler)
             return true
     }
 
-    switch (lower) {
+    switch (key) {
         case 'a':
             if (bar && !inCombat && Config.engine.doCombat) Combat.start()
             return true
