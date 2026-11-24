@@ -548,10 +548,20 @@ MISSING_OPERANDS = {
 # and without Fortune Finder (CE multiplies the pointer's bits: a garbage amount).
 # The Unofficial Patch (scripts_src/maps/bhrnddst.ssl) gives random(10, 20), the
 # guards' amount in DMRV_Highwaymen.
+#
+# L20 gchank talk_p_proc (Hank, Gecko's reactor): "Nice part you got there" (Node005)
+# when the player carries pid 20 -- the crowbar; the part is the Hydroelectric
+# Magnetosphere Regulator (258, PID_HY_MAG_PART, which gcfestus checks). With a crowbar
+# in the pack Hank thanks you for a part you never found. The Unofficial Patch
+# (gchank.ssl) checks PID_HY_MAG_PART. An int as the first item names a constant.
 SCRIPT_FIXES = {
     ("bhrnddst", "dmrv_caravan"): {
         "item_caps_adjust": ("LVar3", "random(10, 20)",
                              "DH2 fix (L7): the .int passes the guard's rifle object; Unofficial Patch: random(10, 20)"),
+    },
+    ("gchank", "talk_p_proc"): {
+        "obj_is_carrying_obj_pid": (20, "\x01PID_HY_MAG_PART\x02258\x03",
+                                    "DH2 fix (L20): the .int checks the crowbar (20); Unofficial Patch: PID_HY_MAG_PART"),
     },
 }
 
@@ -1656,6 +1666,12 @@ class ProcDecompiler:
         """SCRIPT_FIXES: the local variable `fix[0]` in an intrinsic's argument
         becomes the source's intended expression while [dh2] script_fixes is on."""
         local, intended, note = fix
+        if isinstance(local, int):
+            # a wrong number: the constant `local` (`intended` may carry a NAMED_MARK)
+            if isinstance(e, Const) and not e.is_float and e.value == local:
+                self.s.script_fixes_applied += 1
+                return Raw("(dh2_script_fixes() ~= 0 and %s --[[ %s ]] or %d)" % (intended, note, local), pure=True)
+            return e
         if isinstance(e, Name) and e.name == local:
             self.s.script_fixes_applied += 1
             return Raw("(dh2_script_fixes() ~= 0 and %s --[[ %s ]] or %s)" % (intended, note, local), pure=False)
