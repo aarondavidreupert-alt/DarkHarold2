@@ -263,7 +263,14 @@ export class GameMap {
             world.combat!.forceEnd()
         }
 
-        world.player!.clearAnim()
+        // CE map change / mapSetElevation: animationStop ends every running animation. The party's
+        // too: a companion still walking its old path would walk it on the new map after
+        // placeParty — to the old map's tiles, across the map from the player (CA154)
+        for (const obj of world.gParty.getPartyMembersAndPlayer()) {
+            if (obj.type === 'critter') {
+                ;(obj as Critter).clearAnim()
+            }
+        }
 
         // Remove player & party (unless we're loading a new map, in which case they're not present)
         // and place them on the new map
