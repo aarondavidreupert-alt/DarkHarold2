@@ -38,6 +38,7 @@ export {
     objectGetDamageType,
     objectUnjamAll,
     explosiveGetDamage,
+    explosionRunning,
     zsort,
     zsortMap,
     zsortObject,

@@ -56,6 +56,7 @@ import {
     type SavedPreferences,
 } from './uiOptions/preferences.js'
 import { scheduleKnockoutEvent } from './combat/results.js'
+import { uiPort } from './uiPort.js'
 import { Combat, type SavedCombat } from './combat/Combat.js'
 
 // Saving and loading support
@@ -571,6 +572,12 @@ export function load(id: number): void {
                 for (const [type, n] of save.kills ?? []) killCounts.set(type, n)
                 deserializeSkillUsage(save.skillUsage)
                 world.player?.updateNativeLook() // CE loadsave.cc:1772
+                // the worn armor's look: gameReset left the dude in the native look and the
+                // armor came back without it (CE saves the dude's fid with the armor's art)
+                if (world.player?.armor) {
+                    uiPort.applyArmorArt(world.player.armor)
+                    world.player.setIdleArt()
+                }
 
                 // Restore the structured event log. Older saves may have the field
                 // under the old name (combatLog) — accept either; fall back to empty.

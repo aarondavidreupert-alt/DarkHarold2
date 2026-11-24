@@ -26,6 +26,7 @@ import {
     hexLine,
     hexNeighbors,
     hexToScreen,
+    hexesInRadius,
     HEX_GRID_SIZE,
     Point,
 } from '../geometry.js'
@@ -436,6 +437,17 @@ export class GameMap {
                 if (free(p, r + 1)) {
                     return p
                 }
+            }
+        }
+        // a cramped arrival (a corridor, an exit grid by the map edge): any tile of the rings
+        // out to 4 that the dude walks to in a few steps, before CE's spiral (which takes any
+        // reachable tile up to 8 hexes away, behind a wall or across a street)
+        const rings = hexesInRadius(dude.position, 4)
+            .map((p) => ({ p, r: hexDistance(dude.position, p) }))
+            .sort((a, b) => a.r - b.r)
+        for (const { p, r } of rings) {
+            if (free(p, r + 2)) {
+                return p
             }
         }
         return null

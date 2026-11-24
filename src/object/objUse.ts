@@ -243,7 +243,9 @@ export const objUseMethods = {
                     if (isTop && climbDownWanted()) {
                         const remove = addMapReadyListener(() => {
                             remove()
-                            climbDownArrival(world.player!)
+                            // the map-ready listeners run before the load's callback, which puts
+                            // the dude on the ladder's tile (loadMapByID's place): climb after it
+                            queueMicrotask(() => climbDownArrival(world.player!))
                         })
                     }
                     world.gMap!.loadMapByID(destMap, destTile, destElev)
@@ -530,10 +532,21 @@ function climbDownArrival(actor: Critter): void {
     if (!actor.hasAnimation('climb')) {
         return
     }
+    // the nearest ladder up: a ladder's destination is often 2-6 hexes from its foot's
+    // object (the Gecko junkyard → tunnels ladder lands 3 hexes away)
     const elevation = world.gMap!.currentElevation
-    const ladder = world
-        .gMap!.getObjects(elevation)
-        .find((o) => o.isLadder && o.pro?.extra.subType !== 4 && hexDistance(o.position, actor.position) <= 1)
+    let ladder: Obj | null = null
+    let best = 7
+    for (const o of world.gMap!.getObjects(elevation)) {
+        if (!o.isLadder || o.pro?.extra.subType === 4) {
+            continue
+        }
+        const d = hexDistance(o.position, actor.position)
+        if (d < best) {
+            best = d
+            ladder = o
+        }
+    }
     if (!ladder) {
         return
     } // no ladder up to come down

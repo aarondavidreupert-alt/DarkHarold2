@@ -36,7 +36,7 @@ import { view } from './state/view.js'
 import { services } from './state/services.js'
 import { assets } from './state/assets.js'
 import { dbg } from './logger.js'
-import { Critter, objectUnjamAll, resetFidgetSchedule } from './object.js'
+import { Critter, explosionRunning, objectUnjamAll, resetFidgetSchedule } from './object.js'
 import { changeCursor } from './playerUse.js'
 import { clampCameraPosition, ceMapScroll, getObjectUnderCursor, SCREEN_HEIGHT, SCREEN_WIDTH } from './renderer.js'
 import * as Scripting from './scripting.js'
@@ -147,6 +147,38 @@ export function finishLoadingIfReady(): boolean {
     return true
 }
 
+// CE combat.cc _combat_input: the player's turn ends by itself once the AP and the free
+// move points are spent (`ap <= 0 && _combat_free_move <= 0`). CE checks between inputs,
+// after the action's animations have run (they block there); DH2 waits until no
+// combatant animates, no explosion runs and no window is open (tickGame returns early
+// for a window), for a short settle time (an attack's callbacks run just after its
+// animation ends).
+let noApSince = -1
+function endTurnWithoutAP(time: number): void {
+    const combat = world.combat
+    const ap = world.player?.AP
+    const out =
+        world.inCombat &&
+        !!combat?.inPlayerTurn &&
+        uiState.uiMode === UIMode.none &&
+        !!ap &&
+        ap.combat <= 0 &&
+        ap.move <= 0 &&
+        !explosionRunning() &&
+        !combat.combatants.some((c) => c.inAnim())
+    if (!out) {
+        noApSince = -1
+        return
+    }
+    if (noApSince < 0) {
+        noApSince = time
+    } else if (time - noApSince >= 250) {
+        noApSince = -1
+        dbg('combat', 'out of AP: the turn ends (combat.cc _combat_input)')
+        combat.nextTurn()
+    }
+}
+
 export function tickGame(): void {
     if (globalState.isInitializing) {
         return
@@ -182,6 +214,7 @@ export function tickGame(): void {
     deleteAllTempArrays()
     globalScriptsProcessMain() // CE main.cc mainLoop: sfall_gl_scr_process_main
     const time = gameNow() // the frame's time (frameClock.ts)
+    endTurnWithoutAP(time)
 
     const $fps = services.$fpsOverlay
     if ($fps) $fps.style.display = Config.ui.showFPS ? '' : 'none'

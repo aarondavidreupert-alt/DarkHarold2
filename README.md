@@ -223,7 +223,7 @@ the wiki tracker is the source of truth.
 - **Day / night** — DH2 adds a smooth day/night light curve by default on maps whose script lights them by the clock (outdoors; caves and interiors keep their fixed light as in CE); `[dh2] day_night_cycle=0` gives CE's script-only lighting (GTC10).
 - **Skill use** — no black palette fade around First Aid / Doctor / Repair (cosmetic).
 - **Browser limits** — preferences can't be written back to `fallout2.cfg` (CI5, localStorage instead); mouse sensitivity is stored but the browser owns pointer speed.
-- **Script fixes** — the decompiled Lua repairs a Black Isle script bug where the sources make the intent clear (so far two: Redding's caravan guards are given their rifle as caps, L7; Vault City's Greeting Office clerks appear after a rest on that map, L19); a deliberate deviation from the shipped scripts and CE, marked in the generated Lua, listed in [`wiki/lua_scripts.md`](wiki/lua_scripts.md) → "Script fixes", off with `[dh2] script_fixes=0`.
+- **Script fixes** — the decompiled Lua repairs a Black Isle script bug where the sources make the intent clear (so far three: Redding's caravan guards are given their rifle as caps, L7; Vault City's Greeting Office clerks appear after a rest on that map, L19; Gecko's Hank no longer takes a crowbar for the reactor part, L20); a deliberate deviation from the shipped scripts and CE, marked in the generated Lua, listed in [`wiki/lua_scripts.md`](wiki/lua_scripts.md) → "Script fixes", off with `[dh2] script_fixes=0`.
 - **Not playthrough-verified** — systems were checked individually in the browser; a full main-quest run hasn't been done.
 
 ---
