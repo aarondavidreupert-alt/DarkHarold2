@@ -243,7 +243,9 @@ export const objUseMethods = {
                     if (isTop && climbDownWanted()) {
                         const remove = addMapReadyListener(() => {
                             remove()
-                            climbDownArrival(world.player!)
+                            // the map-ready listeners run before the load's callback, which puts
+                            // the dude on the ladder's tile (loadMapByID's place): climb after it
+                            queueMicrotask(() => climbDownArrival(world.player!))
                         })
                     }
                     world.gMap!.loadMapByID(destMap, destTile, destElev)
