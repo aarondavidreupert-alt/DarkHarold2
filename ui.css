@@ -759,18 +759,25 @@ html, body {
 }
 
 /* one item in the inventory, loot, steal, barter and companion-trade lists
-   (uiDom.ts appendItemSlot): icon and stack count centred, the count 2px below */
+   (uiDom.ts appendItemSlot): the icon centred; the stack count over the slot's top-left
+   corner, as CE inventory.cc _display_inventory_info draws it (font 101, white, at the
+   slot's origin) -- below the icon it read as the next item's. The bottom padding keeps
+   the slots as tall as before. */
 .invItemSlot {
+  position: relative;
   text-align: center;
+  padding-bottom: calc(0.75em + 4px);
 }
 
 .invItemAmount {
-  display: block;
-  text-align: center;
-  color: #FCFC7C;
+  position: absolute;
+  left: 1px;
+  top: 0;
+  text-align: left;
+  color: #FFFFFF;
   font-size: 0.75em;
-  margin-top: 2px;
-  margin-bottom: 2px;
+  line-height: 1em;
+  pointer-events: none;
 }
 
 .invStatRow {

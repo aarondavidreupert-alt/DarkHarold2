@@ -4,7 +4,7 @@
 
 import type { Script } from '../../scripting.js'
 import { Config } from '../../config.js'
-import { FLOAT_MSG_COLOR, addFloatMessage } from '../../floatText.js'
+import { FLOAT_MSG_COLOR, addFloatMessage, removeFloatMessagesOf } from '../../floatText.js'
 import * as GameTime from '../../gametime.js'
 import { Obj } from '../../object.js'
 import { dbg } from '../../logger.js'
@@ -157,6 +157,16 @@ export const coreOpcodes = {
         //info("FLOAT MSG: " + msg, "floatMessage")
         if (!isGameObject(obj)) {
             warn('float_msg: not game object: ' + obj)
+            return
+        }
+        // CE opFloatMessage: an empty string removes the object's floating texts
+        // (textObjectsRemoveByOwner); an object on another elevation gets none — the Vault
+        // City vault's rattling vent and residents spoke from the other floors
+        if (!msg) {
+            removeFloatMessagesOf(obj)
+            return
+        }
+        if ((obj.elevation ?? world.gMap?.currentElevation) !== world.gMap?.currentElevation) {
             return
         }
         // CE opFloatMessage: COLOR_SEQUENCE (-1) cycles BLACK..LIGHT_GREY; WARNING
