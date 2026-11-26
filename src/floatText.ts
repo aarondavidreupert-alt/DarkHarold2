@@ -42,6 +42,16 @@ export function addFloatMessage(fm: any): boolean {
     return true
 }
 
+// CE text_object.cc textObjectsRemoveByOwner: the object's floating texts go
+export function removeFloatMessagesOf(obj: unknown): void {
+    const list = uiState.floatMessages as { obj?: unknown }[]
+    for (let i = list.length - 1; i >= 0; i--) {
+        if (list[i].obj === obj) {
+            list.splice(i, 1)
+        }
+    }
+}
+
 // CE text_object.cc textObjectsReset: every floating text goes (a dialogue starts)
 export function resetFloatMessages(): void {
     ;(uiState.floatMessages as any[]).length = 0
